@@ -2241,6 +2241,7 @@
         }
         .rsp-title { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #F59E0B; }
         .rsp-bars { color: var(--text-secondary); font-weight: 500; font-size: 10px; margin-left: 2px; }
+        .rsp-header { cursor: grab; user-select: none; }
         .rsp-close { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 2px; line-height: 1; display: flex; border-radius: 4px; }
         .rsp-close:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
         .rsp-dates { padding: 4px 12px 5px; font-size: 9.5px; color: var(--text-tertiary); border-bottom: 1px solid rgba(255,255,255,0.04); }
@@ -10273,14 +10274,23 @@
             return v.toFixed(2);
         }
 
-        function computeRangeStats(idx1, idx2) {
-            var i1 = Math.max(0, Math.min(idx1, idx2));
-            var i2 = Math.min(klinesData.length - 1, Math.max(idx1, idx2));
-            var candles = klinesData.slice(i1, i2 + 1);
+        function computeRangeStats(t1, t2) {
+            if (t1 == null || t2 == null) return null;
+            var tMin = Math.min(t1, t2);
+            var tMax = Math.max(t1, t2);
+            // Filter candles strictly by open-time within [tMin, tMax]
+            var candles = klinesData.filter(function(k) { return k.time >= tMin && k.time <= tMax; });
+            if (candles.length === 0) {
+                // If user selected within a single candle, grab the containing candle
+                candles = klinesData.filter(function(k) { return k.time <= tMax; });
+                if (candles.length) candles = [candles[candles.length - 1]];
+            }
             if (candles.length === 0) return null;
 
             var tStart = candles[0].time;
             var tEnd   = candles[candles.length - 1].time;
+            // interval seconds — needed to include trades within the last candle
+            var ivSec = klinesData.length > 1 ? klinesData[1].time - klinesData[0].time : 900;
             var open   = candles[0].open;
             var close  = candles[candles.length - 1].close;
             var high   = candles.reduce(function(m,c){ return Math.max(m, c.high); }, -Infinity);
@@ -10304,7 +10314,8 @@
             var maxVol   = hasVol ? candles.reduce(function(m,c){ return Math.max(m, c.volume||0); }, 0) : 0;
 
             // Trade stats from lastRawMarkers
-            var mkrs = (lastRawMarkers || []).filter(function(m){ return m.time >= tStart && m.time <= tEnd; });
+            // tEnd + ivSec to include trades that happened within the last candle period
+            var mkrs = (lastRawMarkers || []).filter(function(m){ return m.time >= tStart && m.time < tEnd + ivSec; });
             var entries = mkrs.filter(function(m){ return m.isEntry; });
             var exits   = mkrs.filter(function(m){ return !m.isEntry; });
             var pnlArr  = exits.map(function(m){ return parseFloat(m.pnl || m.realizedPnl || 0); });
@@ -10439,13 +10450,56 @@
 
             chartEl.appendChild(rangeStatsPopup);
 
-            // Position: try to fit horizontally, always at top
+            // Initial position — centered at top
             var rect = chartEl.getBoundingClientRect();
             var pw = rangeStatsPopup.offsetWidth || 272;
             var lx = (rect.width - pw) / 2;
             lx = Math.max(4, Math.min(lx, rect.width - pw - 4));
             rangeStatsPopup.style.left = lx + 'px';
+            rangeStatsPopup.style.top  = '12px';
             rangeStatsPopup.style.transform = 'none';
+
+            // Make draggable via header
+            (function makeDraggable(popup) {
+                var header = popup.querySelector('.rsp-header');
+                if (!header) return;
+                header.style.cursor = 'grab';
+                var dragStartX, dragStartY, popStartX, popStartY, dragging = false;
+
+                header.addEventListener('mousedown', function(e) {
+                    if (e.target.closest('.rsp-close')) return;
+                    dragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    popStartX = parseInt(popup.style.left) || 0;
+                    popStartY = parseInt(popup.style.top)  || 0;
+                    header.style.cursor = 'grabbing';
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+                document.addEventListener('mousemove', function(e) {
+                    if (!dragging) return;
+                    var dx = e.clientX - dragStartX;
+                    var dy = e.clientY - dragStartY;
+                    var r = chartEl.getBoundingClientRect();
+                    var newX = Math.max(0, Math.min(r.width  - popup.offsetWidth,  popStartX + dx));
+                    var newY = Math.max(0, Math.min(r.height - popup.offsetHeight, popStartY + dy));
+                    popup.style.left = newX + 'px';
+                    popup.style.top  = newY + 'px';
+                });
+                document.addEventListener('mouseup', function() {
+                    if (dragging) { dragging = false; header.style.cursor = 'grab'; }
+                });
+            })(rangeStatsPopup);
+        }
+
+        function _rangeTimeFromCursor() {
+            // Get candle time by dataIndex, fallback to closest in klinesData
+            var idx = _rulerLastCursor.dataIndex;
+            if (idx != null && klinesData[idx]) return klinesData[idx].time;
+            // fallback: use price crosshair to binary-search closest candle time
+            if (klinesData.length === 0) return null;
+            return klinesData[Math.max(0, Math.min(klinesData.length - 1, idx || 0))].time;
         }
 
         function onRangeMouseDown(e) {
@@ -10456,11 +10510,11 @@
 
             if (rangeStep === 0 || rangeStep === 2) {
                 cleanupRange();
-                rangeStartData = { x: cx, dataIndex: _rulerLastCursor.dataIndex };
+                rangeStartData = { x: cx, time: _rangeTimeFromCursor() };
                 rangeStep = 1;
             } else if (rangeStep === 1) {
                 drawRangeSelection(rangeStartData.x, cx, true);
-                var stats = computeRangeStats(rangeStartData.dataIndex, _rulerLastCursor.dataIndex);
+                var stats = computeRangeStats(rangeStartData.time, _rangeTimeFromCursor());
                 showRangeStatsPopup(stats);
                 rangeStep = 2;
             }
