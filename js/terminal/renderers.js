@@ -527,9 +527,6 @@ function _getOrInitKlineChart() {
         },
     });
 
-    // Add volume indicator
-    try { _klineChart.createIndicator('VOL', false, { id: 'candle_pane' }); } catch (e) { /* ok */ }
-
     return _klineChart;
 }
 
