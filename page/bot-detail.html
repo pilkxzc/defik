@@ -2774,6 +2774,10 @@
         .ind-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
         .ind-btn.active { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); color: #10B981; }
         .ind-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.08); margin: 0 4px; flex-shrink:0; }
+        /* Per-indicator active colors */
+        .ind-btn-vol.active  { background: rgba(100,116,139,0.14); border-color: rgba(100,116,139,0.35); color: #94A3B8; }
+        .ind-btn-rsi.active  { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: #F59E0B; }
+        .ind-btn-macd.active { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.35); color: #A78BFA; }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
@@ -2872,9 +2876,6 @@
                     </div>
                     <div style="width:1px; height:14px; background:rgba(255,255,255,0.1); margin:0 2px; flex-shrink:0;"></div>
                     <button class="interval-btn prec-btn" id="precisionBtn" title="Точність ціни (auto → .2 → .4 → .5 → .6 → .8)">auto</button>
-                    <button class="interval-btn ruler-btn" id="rulerBtn" title="Лінійка (вимірювання)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><line x1="14" y1="13" x2="11" y2="10"/><line x1="10.5" y1="16.5" x2="7.5" y2="13.5"/><line x1="17.5" y1="9.5" x2="14.5" y2="6.5"/></svg>
-                    </button>
                     <!-- Drawing tools -->
                     <div style="position:relative;">
                         <button class="interval-btn ruler-btn" id="drawingToolsBtn" onclick="toggleDrawingMenu()" title="Інструменти малювання">
@@ -2954,22 +2955,48 @@
         <div class="chart-container" id="chartContainer" style="position: relative; display:flex; flex-direction:column;">
             <!-- Indicators Toolbar -->
             <div id="indicatorsToolbar" class="chart-indicators-bar">
-                <button class="ind-btn" id="indEma" onclick="toggleIndicator('ema')" title="EMA лінія">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/></svg>
+                <!-- Main pane overlays -->
+                <button class="ind-btn" id="indEma" onclick="toggleIndicator('ema')" title="EMA 20 — ковзна середня">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 14 Q7 4 12 12 Q17 20 21 10" stroke-dasharray="4 2"/></svg>
                     EMA
+                </button>
+                <button class="ind-btn" id="indBoll" onclick="toggleIndicator('boll')" title="Bollinger Bands (20,2)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/><path d="M3 7 Q8 2 12 7 Q16 12 21 7" stroke-dasharray="2 2"/><path d="M3 17 Q8 12 12 17 Q16 22 21 17" stroke-dasharray="2 2"/></svg>
+                    BOLL
                 </button>
                 <button class="ind-btn" id="indFill" onclick="toggleIndicator('fill')" title="Заливка між ціною та EMA">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 Q16 12 21 8 L21 16 Q16 20 12 16 Q8 12 3 16Z" fill="rgba(16,185,129,0.4)" stroke="none"/></svg>
                     Заливка
                 </button>
+                <div class="ind-sep"></div>
+                <!-- Sub-pane indicators -->
+                <button class="ind-btn ind-btn-vol active" id="indVol" onclick="toggleIndicator('vol')" title="Обʼєм">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="3" height="9" rx="1"/><rect x="8.5" y="7" width="3" height="14" rx="1"/><rect x="14" y="4" width="3" height="17" rx="1"/><rect x="19.5" y="9" width="3" height="12" rx="1"/></svg>
+                    VOL
+                </button>
+                <button class="ind-btn ind-btn-rsi" id="indRsi" onclick="toggleIndicator('rsi')" title="RSI (14) — індекс відносної сили">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L7 10 L10 14 L14 6 L17 12 L21 8"/><line x1="3" y1="7" x2="21" y2="7" stroke-dasharray="3 2" stroke-width="1" stroke-opacity="0.5"/><line x1="3" y1="17" x2="21" y2="17" stroke-dasharray="3 2" stroke-width="1" stroke-opacity="0.5"/></svg>
+                    RSI
+                </button>
+                <button class="ind-btn ind-btn-macd" id="indMacd" onclick="toggleIndicator('macd')" title="MACD (12,26,9)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="10" width="2" height="5" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="7" y="8" width="2" height="8" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="11" y="11" width="2" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="15" y="9" width="2" height="7" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="19" y="12" width="2" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><path d="M3 12 Q9 6 12 10 Q16 14 21 8" stroke-width="1.5"/></svg>
+                    MACD
+                </button>
+                <div class="ind-sep"></div>
+                <!-- Bot signals / trades -->
                 <button class="ind-btn" id="indSignals" onclick="toggleIndicator('signals')" title="Авто сигнали Buy/Sell">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16 14 18 21 12 17 6 21 8 14 2 9 9 9"/></svg>
                     Сигнали
                 </button>
-                <div class="ind-sep"></div>
                 <button class="ind-btn active" id="indTrades" onclick="toggleIndicator('trades')" title="Угоди бота">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
                     Угоди
+                </button>
+                <div class="ind-sep"></div>
+                <!-- Ruler — moved from header -->
+                <button class="ind-btn ruler-btn" id="rulerBtn" onclick="toggleRuler()" title="Лінійка (вимірювання)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><line x1="14" y1="13" x2="11" y2="10"/><line x1="10.5" y1="16.5" x2="7.5" y2="13.5"/><line x1="17.5" y1="9.5" x2="14.5" y2="6.5"/></svg>
+                    Лінійка
                 </button>
             </div>
             <div class="color-edit-marker" data-target="chartBg" title="Змінити фон графіка" style="top:8px;right:8px;z-index:60;"><input type="color" value="#141414" onchange="setElementColor('chartBg',this.value)"></div>
@@ -6617,6 +6644,10 @@
                 klChart = null;
                 // All overlays and indicators are gone with the old instance
                 emaIndicatorId = null;
+                bollIndicatorId = null;
+                volPaneId = null;
+                rsiPaneId = null;
+                macdPaneId = null;
                 positionOverlayId = null;
                 orderLineOverlays.clear();
                 highlightOverlayIds = [];
@@ -6642,7 +6673,7 @@
                 timezone: 'Europe/Kiev',
             });
 
-            klChart.createIndicator('VOL', false);
+            // Sub-pane indicators are (re)created by applyIndicators() after data loads
 
             // Load older candles when user scrolls to the left edge
             klChart.loadMore(function(timestamp) {
@@ -7820,8 +7851,12 @@
         }
 
         // ===== CHART INDICATORS =====
-        const indState = { ema: false, fill: false, signals: false, trades: true };
+        const indState = { ema: false, boll: false, fill: false, vol: true, rsi: false, macd: false, signals: false, trades: true };
         let emaIndicatorId = null;
+        let bollIndicatorId = null;
+        let volPaneId = null;
+        let rsiPaneId = null;
+        let macdPaneId = null;
         const EMA_PERIOD = 20;
         let fillOverlayGroup = 'ind-fill-0';
         let signalOverlayGroup = 'ind-sig-0';
@@ -7849,7 +7884,7 @@
         function applyIndicators() {
             if (!klChart) return;
 
-            // EMA line
+            // EMA line (main pane)
             if (indState.ema) {
                 if (!emaIndicatorId) {
                     try {
@@ -7860,6 +7895,56 @@
                 if (emaIndicatorId) {
                     try { klChart.removeIndicator({ paneId: 'candle_pane', name: 'EMA' }); } catch(e) {}
                     emaIndicatorId = null;
+                }
+            }
+
+            // Bollinger Bands (main pane)
+            if (indState.boll) {
+                if (!bollIndicatorId) {
+                    try {
+                        bollIndicatorId = klChart.createIndicator('BOLL', false, { id: 'candle_pane' });
+                    } catch(e) { bollIndicatorId = true; }
+                }
+            } else {
+                if (bollIndicatorId) {
+                    try { klChart.removeIndicator({ paneId: 'candle_pane', name: 'BOLL' }); } catch(e) {}
+                    bollIndicatorId = null;
+                }
+            }
+
+            // VOL (sub pane)
+            if (indState.vol) {
+                if (!volPaneId) {
+                    try { volPaneId = klChart.createIndicator('VOL', false, { height: 80 }); } catch(e) { volPaneId = 'vol-err'; }
+                }
+            } else {
+                if (volPaneId && volPaneId !== 'vol-err') {
+                    try { klChart.removePane(volPaneId); } catch(e) {}
+                    volPaneId = null;
+                }
+            }
+
+            // RSI (sub pane)
+            if (indState.rsi) {
+                if (!rsiPaneId) {
+                    try { rsiPaneId = klChart.createIndicator('RSI', false, { height: 80 }); } catch(e) { rsiPaneId = 'rsi-err'; }
+                }
+            } else {
+                if (rsiPaneId && rsiPaneId !== 'rsi-err') {
+                    try { klChart.removePane(rsiPaneId); } catch(e) {}
+                    rsiPaneId = null;
+                }
+            }
+
+            // MACD (sub pane)
+            if (indState.macd) {
+                if (!macdPaneId) {
+                    try { macdPaneId = klChart.createIndicator('MACD', false, { height: 90 }); } catch(e) { macdPaneId = 'macd-err'; }
+                }
+            } else {
+                if (macdPaneId && macdPaneId !== 'macd-err') {
+                    try { klChart.removePane(macdPaneId); } catch(e) {}
+                    macdPaneId = null;
                 }
             }
 
