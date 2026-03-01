@@ -1,7 +1,6 @@
 /**
  * Yamato Chart — KLineChart Pro entry point.
  *
- * Replaces the previous React + lightweight-charts implementation.
  * Builds to IIFE (js/chart/chart.js) and is loaded by page/datedos.html.
  *
  * Exposes window.yamatoChart API:
@@ -126,59 +125,81 @@ const rootEl = document.getElementById('chart-root');
 if (!rootEl) {
   console.warn('[YamatoChart] #chart-root not found — chart not started.');
 } else {
-  // Hide the skeleton loading overlay — KLineChart Pro shows its own loader
+  // Hide the skeleton loading overlay
   window.chartLoadingShow?.(false);
 
   // Determine initial symbol (strip "BINANCE:" prefix if present)
   const initRaw    = window._yamatoInitSymbol ?? 'BTCUSDT';
   const initTicker = initRaw.replace(/^[^:]+:/, '').toUpperCase();
 
-  const symbol: SymbolInfo = {
-    shortName:      initTicker.replace(/USDT$/, '/USDT'),
-    ticker:         initTicker,
-    pricePrecision: 2,
-  };
-
   const datafeed = createBinanceDatafeed({ onPriceUpdate, onStatusUpdate });
 
-  const proChart = new KLineChartPro({
-    container:         rootEl,
-    watermark:         'Yamato',
-    symbol,
-    period:            { multiplier: 15, timespan: 'minute', text: '15m' } as Period,
-    periods:           PERIODS,
-    theme:             'dark',
-    locale:            'en-US',
-    drawingBarVisible: true,
-    subIndicators:     ['VOL'],
-    mainIndicators:    [],
-    datafeed,
-  });
-
-  // ─── window.yamatoChart API ─────────────────────────────────────────────────
+  // Mutable state — updated on each symbol / period change
+  // eslint-disable-next-line prefer-const
+  let currentTicker = initTicker;
+  let currentPeriodTF = '15m';
   let markerGroup = 'trm-0';
   let markerIdx   = 0;
 
+  // eslint-disable-next-line prefer-const
+  let proChart: KLineChartPro;
+
+  function buildChart(ticker: string): void {
+    currentTicker = ticker;
+    lastPriceRaw  = '';
+
+    // Disconnect all stale WS connections before rebuilding
+    datafeed.disconnectAll();
+
+    // Wipe the container so Solid.js can re-mount cleanly
+    rootEl.innerHTML = '';
+
+    const symbol: SymbolInfo = {
+      shortName:      ticker.replace(/USDT$/, '/USDT'),
+      ticker,
+      pricePrecision: 2,
+    };
+
+    const period = TF_MAP[currentPeriodTF] ?? TF_MAP['15m'];
+
+    proChart = new KLineChartPro({
+      container:         rootEl,
+      watermark:         'Yamato',
+      symbol,
+      period:            period as Period,
+      periods:           PERIODS,
+      theme:             'dark',
+      locale:            'en-US',
+      drawingBarVisible: true,
+      subIndicators:     ['VOL'],
+      mainIndicators:    [],
+      datafeed,
+    });
+  }
+
+  // Initial chart build
+  buildChart(initTicker);
+
+  // ─── window.yamatoChart API ─────────────────────────────────────────────────
+
   window.yamatoChart = {
     setSymbol: (s: string) => {
-      lastPriceRaw = '';
       const ticker = s.replace(/^[^:]+:/, '').toUpperCase();
-      proChart.setSymbol({
-        shortName:      ticker.replace(/USDT$/, '/USDT'),
-        ticker,
-        pricePrecision: 2,
-      } as SymbolInfo);
+      if (ticker === currentTicker) return; // no-op — same symbol
+      // Reset marker group so stale overlays from previous chart are gone
+      markerGroup = `trm-${++markerIdx}`;
+      buildChart(ticker);
     },
 
     setTimeframe: (tf: string) => {
       if (!tf) return;
-      const period = TF_MAP[tf.toLowerCase()] ?? TF_MAP['15m'];
-      proChart.setPeriod(period);
+      currentPeriodTF = tf.toLowerCase();
+      const period = TF_MAP[currentPeriodTF] ?? TF_MAP['15m'];
+      proChart?.setPeriod(period);
     },
 
     addTradeMarker: (side: 'buy' | 'sell', price: number, _label?: string) => {
       try {
-        // _chartApi is the inner klinecharts Chart instance (private field)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const inner = (proChart as any)['_chartApi'];
         if (!inner) return;

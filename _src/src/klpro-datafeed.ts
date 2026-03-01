@@ -62,6 +62,8 @@ export interface BinanceDatafeed {
   subscribe(symbol: SymbolInfo, period: Period, callback: DatafeedSubscribeCallback): void;
   unsubscribe(symbol: SymbolInfo, period: Period): void;
   searchSymbols(search?: string): Promise<SymbolInfo[]>;
+  /** Close all open WebSocket connections (call before rebuilding chart). */
+  disconnectAll(): void;
 }
 
 export function createBinanceDatafeed(callbacks: DatafeedCallbacks = {}): BinanceDatafeed {
@@ -197,6 +199,14 @@ export function createBinanceDatafeed(callbacks: DatafeedCallbacks = {}): Binanc
     // Returns empty list — symbol search is handled by the market panel in datedos.html.
     async searchSymbols(_search?: string): Promise<SymbolInfo[]> {
       return [];
+    },
+
+    disconnectAll(): void {
+      wsMap.forEach((ws) => {
+        try { ws.onclose = null; ws.close(); } catch { /* ok */ }
+      });
+      wsMap.clear();
+      onStatusUpdate?.('disconnected');
     },
   };
 }
