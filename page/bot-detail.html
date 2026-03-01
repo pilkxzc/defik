@@ -1473,13 +1473,14 @@
         }
 
         .resize-handle {
-            position: relative;
+            position: sticky;
+            bottom: 0;
             flex-shrink: 0;
             height: 22px;
             cursor: ns-resize;
             background: var(--surface);
             border-top: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 10;
+            z-index: 100;
             display: flex;
             align-items: center;
             justify-content: center;
