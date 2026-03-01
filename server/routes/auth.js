@@ -233,6 +233,7 @@ router.post('/api/account/switch', requireAuth, (req, res) => {
 
 router.get('/api/account/info', requireAuth, (req, res) => {
     const user = dbGet('SELECT demo_balance, real_balance, active_account, avatar, full_name FROM users WHERE id = ?', [req.session.userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({
         activeAccount: user.active_account || 'demo',
         demoBalance: user.demo_balance || 0,

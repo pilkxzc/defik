@@ -8,7 +8,11 @@ const requireAuth = (req, res, next) => {
     }
 
     const user = dbGet('SELECT is_banned, ban_reason FROM users WHERE id = ?', [req.session.userId]);
-    if (user && user.is_banned) {
+    if (!user) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (user.is_banned) {
         req.session.destroy((err) => {});
         return res.status(403).json({
             error: 'Account banned',
