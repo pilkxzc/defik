@@ -1473,17 +1473,17 @@
         }
 
         .resize-handle {
-            position: sticky;
-            bottom: 0;
+            position: relative;
             flex-shrink: 0;
-            height: 22px;
+            height: 18px;
             cursor: ns-resize;
             background: var(--surface);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
             z-index: 100;
             display: flex;
             align-items: center;
             justify-content: center;
+            margin-top: auto;
         }
 
         .resize-handle::after {
@@ -3037,16 +3037,16 @@
             <div class="chart-markers-legend" id="markersLegend">
                 <span class="cml-label">Маркери</span>
                 <div class="cml-chip" id="cml_entryLong" onclick="toggleMarkerType('entryLong')" title="Long вхід — натисніть щоб приховати">
-                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="#10B981"/></svg>Long вхід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.5" fill="#10B981"/></svg>Long вхід
                 </div>
                 <div class="cml-chip" id="cml_exitLong" onclick="toggleMarkerType('exitLong')" title="Long вихід — натисніть щоб приховати">
-                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="rgba(16,185,129,0.15)" stroke="#10B981" stroke-width="1.2"/></svg>Long вихід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(16,185,129,0.12)" stroke="#10B981" stroke-width="1.2"/></svg>Long вихід
                 </div>
                 <div class="cml-chip" id="cml_entryShort" onclick="toggleMarkerType('entryShort')" title="Short вхід — натисніть щоб приховати">
-                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="#EF4444"/></svg>Short вхід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.5" fill="#EF4444"/></svg>Short вхід
                 </div>
                 <div class="cml-chip" id="cml_exitShort" onclick="toggleMarkerType('exitShort')" title="Short вихід — натисніть щоб приховати">
-                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="rgba(239,68,68,0.15)" stroke="#EF4444" stroke-width="1.2"/></svg>Short вихід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(239,68,68,0.12)" stroke="#EF4444" stroke-width="1.2"/></svg>Short вихід
                 </div>
                 <div class="cml-chip" id="cml_grouped" onclick="toggleMarkerType('grouped')" title="Кілька угод на одній свічці — натисніть щоб приховати">
                     <svg width="9" height="9" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#8B5CF6"/></svg>Кілька
@@ -6465,31 +6465,26 @@
                             ];
                         }
 
-                        // Single marker → triangle
-                        // Entry: solid filled; Exit: hollow (stroke) + semi-transparent fill
-                        const pointsUp = isEntry ? isLong : !isLong;
-                        const sz = 7, off = 12;
-                        const pts = pointsUp
-                            ? [{ x: c.x, y: c.y + off }, { x: c.x - sz, y: c.y + off + sz }, { x: c.x + sz, y: c.y + off + sz }]
-                            : [{ x: c.x, y: c.y - off }, { x: c.x - sz, y: c.y - off - sz }, { x: c.x + sz, y: c.y - off - sz }];
+                        // Single marker → circle
+                        // Long: below candle (y + offset), Short: above (y - offset)
+                        const below = isLong;
+                        const off = 12;
+                        const cy = c.y + (below ? off : -off);
+                        const r = 5;
 
                         if (isEntry) {
-                            // Entry: glow + solid fill
-                            const glowSz = sz + 2, glowOff = off - 1;
-                            const glowPts = pointsUp
-                                ? [{ x: c.x, y: c.y + glowOff }, { x: c.x - glowSz, y: c.y + glowOff + glowSz }, { x: c.x + glowSz, y: c.y + glowOff + glowSz }]
-                                : [{ x: c.x, y: c.y - glowOff }, { x: c.x - glowSz, y: c.y - glowOff - glowSz }, { x: c.x + glowSz, y: c.y - glowOff - glowSz }];
-                            const glowColor = isLong ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)';
+                            // Entry: glow ring + solid filled circle
+                            const glowColor = isLong ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)';
                             return [
-                                { type: 'polygon', attrs: { coordinates: glowPts }, styles: { style: 'fill', color: glowColor } },
-                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } },
+                                { type: 'circle', attrs: { x: c.x, y: cy, r: r + 3 }, styles: { style: 'fill', color: glowColor } },
+                                { type: 'circle', attrs: { x: c.x, y: cy, r }, styles: { style: 'fill', color } },
                             ];
                         } else {
-                            // Exit: hollow — transparent fill + colored border
-                            const alphaFill = isLong ? 'rgba(16,185,129,0.14)' : 'rgba(239,68,68,0.14)';
+                            // Exit: hollow circle — transparent fill + colored stroke
+                            const alphaFill = isLong ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
                             return [
-                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color: alphaFill } },
-                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'stroke', color, size: 1.5 } },
+                                { type: 'circle', attrs: { x: c.x, y: cy, r }, styles: { style: 'fill', color: alphaFill } },
+                                { type: 'circle', attrs: { x: c.x, y: cy, r }, styles: { style: 'stroke', color, size: 1.5 } },
                             ];
                         }
                     },
