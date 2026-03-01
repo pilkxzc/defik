@@ -6,41 +6,10 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=robot" />
+<style>.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:24px;line-height:1;color:inherit;display:inline-flex;align-items:center;justify-content:center;}</style>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <style>
-        :root {
-
-            --bg-app: #080808;
-            --surface: #141414;
-            --surface-secondary: #1C1C1C;
-
-
-            --accent-primary: #10B981;
-            --accent-blue: #8CA8FF;
-            --accent-white: #FFFFFF;
-
-            --text-primary: #FFFFFF;
-            --text-secondary: #A1A1A1;
-            --text-tertiary: #636363;
-
-            --radius-xl: 32px;
-            --radius-lg: 24px;
-            --radius-md: 16px;
-            --radius-full: 9999px;
-
-            --gap-md: 20px;
-            --gap-sm: 12px;
-
-            --shadow-soft: 0 12px 32px rgba(0,0,0,0.4);
-            --shadow-card: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            -webkit-font-smoothing: antialiased;
-        }
 
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -621,6 +590,7 @@
         }
 
     </style>
+    <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
     <link rel="stylesheet" href="/css/nav-fix.css">
     <link rel="stylesheet" href="/css/responsive.css">
@@ -639,7 +609,7 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
             </a>
             <a href="/bots" class="nav-item">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+                <span class="material-symbols-outlined">robot</span>
             </a>
             <a href="/news" class="nav-item" title="News">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
@@ -1784,6 +1754,7 @@
         }
     </style>
 
+    <script src="/charting_library/charting_library.js"></script>
     <script src="/js/chart/chart.js"></script>
     <script src="/js/dashboard.js"></script>
 
@@ -1878,7 +1849,7 @@
 <!-- Mobile Bottom Nav -->
 <nav class="m-bottom-nav" id="mobileNav" style="display:none;">
     <a href="/dashboard" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>
-    <a href="/bots" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg><span>Боти</span></a>
+    <a href="/bots" class="m-nav-tab"><span class="material-symbols-outlined">robot</span><span>Боти</span></a>
     <a href="/portfolio" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфель</span></a>
     <a href="/subscriptions" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Підписки</span></a>
     <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>

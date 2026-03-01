@@ -8,33 +8,17 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=robot" />
+<style>.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:24px;line-height:1;color:inherit;display:inline-flex;align-items:center;justify-content:center;}</style>
     <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-app: #080808;
-            --surface: #141414;
-            --surface-secondary: #1C1C1C;
-            --accent-primary: #10B981;
-            --accent-white: #FFFFFF;
-            --accent-blue: #8CA8FF;
-            --text-primary: #FFFFFF;
-            --text-secondary: #A1A1A1;
-            --text-tertiary: #636363;
-            --radius-xl: 32px;
-            --radius-lg: 24px;
-            --radius-md: 16px;
-            --radius-full: 9999px;
-            --gap-md: 20px;
-            --gap-sm: 12px;
-            --shadow-soft: 0 4px 24px rgba(0,0,0,0.4);
-            --shadow-card: 0 2px 12px rgba(0,0,0,0.3);
             --color-long: #10B981;
             --color-short: #EF4444;
             --color-limit: #8B5CF6;
             --color-stop: #F59E0B;
             --color-tp: #06B6D4;
             --color-canceled: #6B7280;
-
             /* Theme-driven candle colors */
             --candle-up-body: #2BD9C0;
             --candle-down-body: #FF4D4F;
@@ -42,7 +26,6 @@
             --candle-down-border: #CC3D3F;
             --candle-up-wick: #1FA88F;
             --candle-down-wick: #CC3D3F;
-
             /* Theme-driven chart colors */
             --chart-background: #141414;
             --chart-grid-color: rgba(255, 255, 255, 0.03);
@@ -819,8 +802,6 @@
         .trades-table th.sortable.sorted { color: #C4B5FD; }
         .trades-table th .sort-arrow { font-size: 9px; margin-left: 3px; opacity: 0.5; }
         .trades-table th.sorted .sort-arrow { opacity: 1; }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
 
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -2699,6 +2680,7 @@
             .interval-btns { flex-wrap: wrap; }
         }
     </style>
+    <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
     <link rel="stylesheet" href="/css/nav-fix.css">
     <link rel="stylesheet" href="/css/responsive.css">
@@ -2716,7 +2698,7 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
             </a>
             <a href="/bots" class="nav-item">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+                <span class="material-symbols-outlined">robot</span>
             </a>
             <a href="/news" class="nav-item" title="Новини">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
@@ -2854,7 +2836,7 @@
             </div>
         </header>
 
-        <!-- Chart — vanilla LightweightCharts -->
+        <!-- Chart — TradingView Charting Library -->
         <div class="chart-container" id="chartContainer" style="position: relative;">
             <div class="color-edit-marker" data-target="chartBg" title="Змінити фон графіка" style="top:8px;right:8px;z-index:60;"><input type="color" value="#141414" onchange="setElementColor('chartBg',this.value)"></div>
             <div id="chart" style="width:100%;height:100%;"></div>
@@ -3938,23 +3920,36 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="/charting_library/charting_library.js"></script>
     <script>
         const botId = window.location.pathname.split('/').pop();
         // Set dashboard link
         const dashLink = document.getElementById('botDashboardLink');
         if (dashLink) dashLink.href = `/bot-stats/${botId}`;
-        let chart = null;
-        let candlestickSeries = null;
+        let tvWidget = null;            // TradingView widget instance
+        let botDatafeed = null;         // BotDatafeed instance
         let currentSymbol = 'BTCUSDT';
         let currentInterval = '1m';
-        let trendSeries = [];           // Supertrend overlay series (destroyed/recreated per load)
-        let currentChartMarkers = [];   // Last markers applied to candlestickSeries (restored after series recreation)
-        const savedPositionPerInterval = {}; // Saves chart visible range per timeframe for position preservation
-        let lastMarkersKey = '';        // Hash of last rawMarkers — skip drawTrendOverlay if unchanged
-        let lastKnownPosition = null;   // Cached open position for real-time marker on chart
+        let trendShapeIds = [];         // EntityId[] from createMultipointShape (Supertrend overlay)
+        let tradeShapeIds = [];         // EntityId[] from createShape (closed trades)
+        let positionShapeId = null;     // EntityId for open position entry marker
+        let orderLinesMap = new Map();  // key → IOrderLine (price lines)
+        let highlightShapeIds = [];     // EntityId[] for trade highlight
+        let highlightOrderLines = [];   // IOrderLine[] for trade highlight
+        const savedPositionPerInterval = {};
+        let lastMarkersKey = '';
+        let lastKnownPosition = null;
         let isAdmin = false;
         let demoMode = false;
+        // klinesData maintained by BotDatafeed, shared for overlay calculations
+        let klinesData = [];
+        let klinesVersion = 0;
+        let oldestTimestamp = null;
+        let lastPrice = 0;
+        let markerTimeMap = {};
+        let markersLoaded = false;
+        let markersLoading = false;
+        let _chartLoadGen = 0;
 
         // Parse date string as UTC regardless of format (with/without Z suffix)
         function parseUTC(s) {
@@ -4013,32 +4008,28 @@
             r.setProperty('--chart-background', userTheme.chart.background);
             r.setProperty('--chart-grid-color', userTheme.chart.gridColor);
             r.setProperty('--chart-text-color', userTheme.chart.textColor);
-            if (chart) {
-                chart.applyOptions({
-                    layout: { background: { type: 'solid', color: userTheme.chart.background }, textColor: userTheme.chart.textColor },
-                    grid: { vertLines: { color: userTheme.chart.gridColor }, horzLines: { color: userTheme.chart.gridColor } },
-                    watermark: { visible: false } // tiled canvas watermark handles this
-                });
+            if (tvWidget) {
+                try { tvWidget.applyOverrides(buildChartOverrides()); } catch(e) {}
             }
-            updateCandleColors();
             if (lastChartData) drawPriceLines(lastChartData);
         }
 
         function updateCandleColors() {
-            if (!candlestickSeries) return;
+            if (!tvWidget) return;
             try {
-                candlestickSeries.applyOptions({
-                    upColor: userTheme.candles.upBody, downColor: userTheme.candles.downBody,
-                    borderUpColor: userTheme.candles.upBorder, borderDownColor: userTheme.candles.downBorder,
-                    wickUpColor: userTheme.candles.upWick, wickDownColor: userTheme.candles.downWick
+                tvWidget.applyOverrides({
+                    'mainSeriesProperties.candleStyle.upColor':         userTheme.candles.upBody,
+                    'mainSeriesProperties.candleStyle.downColor':       userTheme.candles.downBody,
+                    'mainSeriesProperties.candleStyle.borderUpColor':   userTheme.candles.upBorder,
+                    'mainSeriesProperties.candleStyle.borderDownColor': userTheme.candles.downBorder,
+                    'mainSeriesProperties.candleStyle.wickUpColor':     userTheme.candles.upWick,
+                    'mainSeriesProperties.candleStyle.wickDownColor':   userTheme.candles.downWick,
                 });
             } catch(e) {}
         }
 
         function updateWatermark() {
-            if (!chart) return;
-            // Use canvas so we can apply Archivo Black font (LightweightCharts built-in watermark is disabled)
-            chart.applyOptions({ watermark: { visible: false } });
+            // Use canvas watermark (TV watermark handled via overrides at init)
 
             const canvas = document.getElementById('yamatoWatermarkCanvas');
             if (!canvas) return;
@@ -4124,12 +4115,11 @@
         }
 
         // ==================== DIFF-BASED PRICE LINES (Phase 6) ====================
-        let priceLinesMap = new Map(); // key: "type-side-price" -> lineSeries
 
-        // Properly remove all tracked price-line series from the chart then clear the map
+        // Properly remove all TV order lines from the chart
         function clearAllPriceLines() {
-            priceLinesMap.forEach(s => { try { chart.removeSeries(s); } catch(e) {} });
-            priceLinesMap.clear();
+            orderLinesMap.forEach(line => { try { line.remove(); } catch(e) {} });
+            orderLinesMap.clear();
         }
 
         // ==================== STATS MODAL (Phase 7) ====================
@@ -4875,7 +4865,7 @@
                 rightPanel.style.overflowX = 'auto';
                 rightPanel.classList.add('horizontal-layout');
             }
-            if (chart) setTimeout(() => chart.timeScale().fitContent(), 100);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
         }
 
         function saveDashboardLayout() {
@@ -4925,7 +4915,7 @@
                 if (currentLayout === 'default') {
                     container.style.gridTemplateColumns = `auto 1fr ${newW}px`;
                 }
-                if (chart) chart.applyOptions({});
+                window.dispatchEvent(new Event('resize'));
             });
 
             document.addEventListener('mouseup', () => {
@@ -4935,7 +4925,7 @@
                     document.body.style.cursor = '';
                     document.body.style.userSelect = '';
                     saveDashboardLayout();
-                    if (chart) setTimeout(() => chart.applyOptions({}), 50);
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
                 }
             });
 
@@ -5089,7 +5079,7 @@
                     chartContainer.style.height = newH + 'px';
                     chartContainer.style.minHeight = newH + 'px';
                 }
-                if (chart) chart.applyOptions({});
+                window.dispatchEvent(new Event('resize'));
             }
 
             document.addEventListener('mousemove', onMove);
@@ -5109,7 +5099,7 @@
                         minHeight: chartContainer.style.minHeight || ''
                     };
                     localStorage.setItem(`yamato_bot_${botId}_chartSize`, JSON.stringify(chartSizes));
-                    if (chart) setTimeout(() => chart.applyOptions({}), 50);
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
                 }
             }
 
@@ -5134,81 +5124,6 @@
         // ==================== ORDERS GROUPING STATE ====================
         let ordersGrouped = false;
 
-        // WebSocket state
-        let ws = null;
-        let wsGeneration = 0;      // incremented on each new connect — stale callbacks are ignored
-        let wsReconnectAttempts = 0;
-        let wsReconnectTimeout = null;
-        let wsPingInterval = null;
-        let wsStaleInterval = null; // stale-detector for sub-minute streams
-        let lastWsMsgAt = 0;        // timestamp of last WS data message (for stale detection)
-        let allSymbols = [];
-        let symbolPrices = {};
-        let lastPrice = 0;
-        let manualPrecision  = 0;   // 0 = auto-detect
-        let lastSetPrecision = -1;  // tracks what was last applied to the series
-        let klinesData = [];
-        const klinesCache = new Map(); // key: `${symbol}:${interval}` → {data, oldestTimestamp, hasMoreHistory, cachedAt}
-        const KLINES_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min TTL for standard intervals
-        let symbolLocked = false;
-
-        // Sub-minute live charting state
-        const SUB_MIN_MS = { '1s': 1000, '2s': 2000, '5s': 5000, '15s': 15000, '30s': 30000 };
-        let aggCandle = null;  // forming candle for sub-minute
-        let aggPeriodMs = 0;
-        let aggUpdatePending = false; // RAF throttle flag
-
-        function isSubMin(iv) { return iv in SUB_MIN_MS; }
-
-        // Sync klinesData array with a live candle from WebSocket so drawTrendOverlay
-        // never loses live bars when it calls setData(klinesData).
-        function syncKlinesData(c) {
-            if (!klinesData.length) return;
-            const last = klinesData[klinesData.length - 1];
-            if (last.time === c.time) {
-                last.high  = Math.max(last.high,  c.high);
-                last.low   = Math.min(last.low,   c.low);
-                last.close = c.close;
-            } else if (c.time > last.time) {
-                klinesData.push({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close });
-                // Cap at 5000 candles to avoid unbounded memory growth
-                if (klinesData.length > 5000) klinesData.splice(0, klinesData.length - 5000);
-            }
-        }
-
-        // ── Live candle update with scroll-position lock ───────────────────────
-        // When the user has scrolled away from the right edge (viewing history),
-        // LightweightCharts normally drags them back on every series.update() call.
-        // This wrapper saves and restores their logical range so the chart stays put.
-        let _restoreScrollRAF = null;
-        let _drawingOverlay = false; // true while drawTrendOverlay is modifying series — suppresses loadMore
-        function updateCandleWithPositionLock(barData) {
-            if (!candlestickSeries) return;
-            let savedLR = null;
-            if (chart && klinesData.length > 0) {
-                try {
-                    const lr = chart.timeScale().getVisibleLogicalRange();
-                    // lr.to >= klinesData.length - 5 means user is at the live right edge
-                    // rightOffset:20 → live edge lr.to ≈ N+19; save position whenever
-                    // the user is more than 3 bars away from the live edge (lr.to < N+16).
-                    if (lr && lr.to < klinesData.length + 16) {
-                        savedLR = { from: lr.from, to: lr.to };
-                    }
-                } catch(e) {}
-            }
-            try { candlestickSeries.update(barData); } catch(e) {}
-            if (savedLR) {
-                // Debounce: cancel any pending restore and schedule a fresh one.
-                // This coalesces rapid burst updates (gap-fill etc.) into a single restore.
-                if (_restoreScrollRAF) cancelAnimationFrame(_restoreScrollRAF);
-                const _lr = savedLR;
-                _restoreScrollRAF = requestAnimationFrame(() => {
-                    _restoreScrollRAF = null;
-                    try { chart.timeScale().setVisibleLogicalRange(_lr); } catch(e) {}
-                });
-            }
-        }
-
         // ── Price precision helpers ────────────────────────────────────────────
         function calcPrecision(price) {
             if (price >= 10000) return 2;
@@ -5221,10 +5136,16 @@
             return 8;
         }
         function applyPriceFormat(precision) {
-            if (!candlestickSeries) return;
-            const minMove = parseFloat(Math.pow(10, -precision).toFixed(precision));
-            try { candlestickSeries.applyOptions({ priceFormat: { type: 'price', precision, minMove } }); } catch(e) {}
+            // TV auto-detects precision; this is a no-op for now
         }
+
+        let allSymbols = [];
+        let symbolPrices = {};
+        let symbolLocked = false;
+        const klinesCache = new Map();
+        const KLINES_CACHE_TTL_MS = 5 * 60 * 1000;
+        let manualPrecision = 0;
+        let lastSetPrecision = -1;
 
         function showSubMinNotice(iv) {
             let el = document.getElementById('subMinNotice');
@@ -5365,63 +5286,6 @@
             return buildCandles(allTrades);
         }
 
-        function handleAggTrade(data) {
-            const price = parseFloat(data.p);
-            const tradeTime = data.T; // ms
-            const periodStart = Math.floor(tradeTime / aggPeriodMs) * aggPeriodMs;
-
-            if (!aggCandle || aggCandle.periodStart !== periodStart) {
-                if (aggCandle && candlestickSeries) {
-                    // Finalize the completed candle
-                    const finalC = { time: Math.floor(aggCandle.periodStart / 1000),
-                        open: aggCandle.open, high: aggCandle.high, low: aggCandle.low, close: aggCandle.close };
-                    updateCandleWithPositionLock(finalC);
-                    syncKlinesData(finalC);
-                    // Fill gaps between last completed candle and new period
-                    const lastClose = aggCandle.close;
-                    const gapCount = Math.round((periodStart - aggCandle.periodStart) / aggPeriodMs) - 1;
-                    for (let g = 1; g <= Math.min(gapCount, 50); g++) {
-                        const gapTime = Math.floor((aggCandle.periodStart + g * aggPeriodMs) / 1000);
-                        const gapC = { time: gapTime, open: lastClose, high: lastClose, low: lastClose, close: lastClose };
-                        updateCandleWithPositionLock(gapC);
-                        syncKlinesData(gapC);
-                    }
-                } else if (!aggCandle && candlestickSeries && klinesData.length > 0) {
-                    // First WebSocket candle — fill gap from last REST candle
-                    const lastKline = klinesData[klinesData.length - 1];
-                    const lastRestMs = lastKline.time * 1000;
-                    const lastRestClose = lastKline.close;
-                    const gapCount = Math.round((periodStart - lastRestMs) / aggPeriodMs) - 1;
-                    for (let g = 1; g <= Math.min(gapCount, 50); g++) {
-                        const gapTime = Math.floor((lastRestMs + g * aggPeriodMs) / 1000);
-                        updateCandleWithPositionLock({ time: gapTime, open: lastRestClose, high: lastRestClose, low: lastRestClose, close: lastRestClose });
-                    }
-                }
-                // Start new candle
-                aggCandle = { periodStart, open: price, high: price, low: price, close: price };
-            } else {
-                aggCandle.high = Math.max(aggCandle.high, price);
-                aggCandle.low  = Math.min(aggCandle.low,  price);
-                aggCandle.close = price;
-            }
-
-            updateLivePrice(price);
-
-            // RAF throttle: render forming candle at ~60fps max, not on every tick
-            if (!aggUpdatePending) {
-                aggUpdatePending = true;
-                requestAnimationFrame(() => {
-                    aggUpdatePending = false;
-                    if (candlestickSeries && aggCandle) {
-                        const formC = { time: Math.floor(aggCandle.periodStart / 1000),
-                            open: aggCandle.open, high: aggCandle.high, low: aggCandle.low, close: aggCandle.close };
-                        updateCandleWithPositionLock(formC);
-                        syncKlinesData(formC);
-                    }
-                });
-            }
-        }
-
         // Update WebSocket status UI
         function updateWsStatus(status, text) {
             const dot = document.getElementById('wsStatusDot');
@@ -5430,143 +5294,229 @@
             textEl.textContent = text;
         }
 
-        // Connect to Binance WebSocket for real-time klines
-        function connectWebSocket() {
-            // Bump generation — any in-flight or old ws will see its gen is stale and ignore events
-            const myGen = ++wsGeneration;
+        // ── Resolution mappings (Binance interval strings ↔ TradingView resolutions) ──────
+        const IV_TO_TV_RES = {
+            '1s': '1S', '2s': '2S', '5s': '5S', '15s': '15S', '30s': '30S',
+            '1m': '1', '5m': '5', '15m': '15', '30m': '30',
+            '1h': '60', '4h': '240', '1d': '1D'
+        };
+        const TV_RES_TO_IV = {
+            '1S': '1s', '2S': '2s', '5S': '5s', '15S': '15s', '30S': '30s',
+            '1': '1m', '5': '5m', '15': '15m', '30': '30m',
+            '60': '1h', '240': '4h', '1D': '1d'
+        };
+        const SUB_TV_RES = new Set(['1S','2S','5S','15S','30S']);
 
-            // Clear pending reconnect timer
-            if (wsReconnectTimeout) {
-                clearTimeout(wsReconnectTimeout);
-                wsReconnectTimeout = null;
-            }
-            // Clear keepalive ping
-            if (wsPingInterval) {
-                clearInterval(wsPingInterval);
-                wsPingInterval = null;
-            }
-            // Clear stale detector from previous connection
-            if (wsStaleInterval) {
-                clearInterval(wsStaleInterval);
-                wsStaleInterval = null;
-            }
-            // Close existing ws silently (its callbacks check myGen vs wsGeneration and bail out)
-            if (ws) {
-                try { ws.close(); } catch(e) {}
-                ws = null;
+        // ═══ BotDatafeed ═════════════════════════════════════════════════════════
+        class BotDatafeed {
+            constructor(_botId) {
+                this._botId = _botId;
+                this._ws = null;
+                this._wsGen = 0;
+                this._subscriber = null;
+                this._currentBar = null;
+                this._resolution = null;
             }
 
-            wsReconnectAttempts = 0;
-            updateWsStatus('connecting', 'Підключення...');
+            onReady(callback) {
+                setTimeout(() => callback({
+                    supported_resolutions: ['1S','2S','5S','15S','30S','1','5','15','30','60','240','1D'],
+                    exchanges: [],
+                    supports_marks: false,
+                    supports_timescale_marks: false,
+                    supports_time: true,
+                }));
+            }
 
-            // Sub-minute uses aggTrade stream (except 1s which has native kline_1s stream)
-            const periodMs = SUB_MIN_MS[currentInterval] || 0;
-            if (periodMs) { aggPeriodMs = periodMs; aggCandle = null; aggUpdatePending = false; }
+            searchSymbols(userInput, exchange, symbolType, onResultReadyCallback) {
+                onResultReadyCallback([]);
+            }
 
-            // 1s uses Binance SPOT WebSocket — Futures fstream does NOT support kline_1s
-            // (fstream accepts the connection but never sends data, causing a silent stale stream).
-            // All other intervals use Binance Futures fstream.
-            const use1sNativeStream = currentInterval === '1s';
-            const streamName = use1sNativeStream
-                ? `${currentSymbol.toLowerCase()}@kline_1s`
-                : periodMs
-                    ? `${currentSymbol.toLowerCase()}@aggTrade`
-                    : `${currentSymbol.toLowerCase()}@kline_${currentInterval}`;
-            const wsUrl = use1sNativeStream
-                ? `wss://stream.binance.com/ws/${streamName}`   // Spot — supports kline_1s
-                : `wss://fstream.binance.com/ws/${streamName}`; // Futures — all other streams
+            resolveSymbol(symbolName, onSymbolResolvedCallback, onResolveErrorCallback) {
+                const sym = symbolName.toUpperCase();
+                setTimeout(() => onSymbolResolvedCallback({
+                    name: sym,
+                    full_name: sym,
+                    description: sym,
+                    type: 'crypto',
+                    session: '24x7',
+                    timezone: 'Etc/UTC',
+                    exchange: 'Binance',
+                    listed_exchange: 'Binance',
+                    format: 'price',
+                    pricescale: 100,
+                    minmov: 1,
+                    has_intraday: true,
+                    intraday_multipliers: ['1','5','15','30','60','240'],
+                    has_seconds: true,
+                    seconds_multipliers: ['1','2','5','15','30'],
+                    has_daily: true,
+                    supported_resolutions: ['1S','2S','5S','15S','30S','1','5','15','30','60','240','1D'],
+                    volume_precision: 3,
+                    data_status: 'streaming',
+                }));
+            }
 
-            const newWs = new WebSocket(wsUrl);
-            ws = newWs;
+            getBars(symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) {
+                const { from, to, firstDataRequest } = periodParams;
+                const sym = symbolInfo.name.toUpperCase();
+                const iv = TV_RES_TO_IV[resolution] || '1m';
+                const endTimeMs = to * 1000;
+                const url = `/api/bots/${this._botId}/klines?symbol=${sym}&interval=${iv}&limit=1000&endTime=${endTimeMs}`;
 
-            newWs.onopen = () => {
-                if (wsGeneration !== myGen) { newWs.close(); return; } // stale
-                console.log('[WS] Connected:', streamName);
-                updateWsStatus('connected', periodMs ? `Наживо ${currentInterval}` : 'Наживо');
-                wsReconnectAttempts = 0;
-                lastWsMsgAt = Date.now(); // reset so stale detector doesn't fire instantly
+                fetch(url, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(data => {
+                        const raw = data.klines || [];
+                        const bars = raw
+                            .filter(k => k.time != null && !isNaN(+k.open) && !isNaN(+k.high) && !isNaN(+k.low) && !isNaN(+k.close))
+                            .map(k => ({
+                                time:   k.time * 1000,
+                                open:   +k.open, high: +k.high, low: +k.low, close: +k.close,
+                                volume: +(k.volume || 0),
+                            }));
 
-                // Keepalive ping every 3 minutes
-                wsPingInterval = setInterval(() => {
-                    if (wsGeneration === myGen && newWs.readyState === WebSocket.OPEN) {
-                        newWs.send(JSON.stringify({ method: 'ping' }));
-                    }
-                }, 180000);
-
-                // Stale-detector: only active on sub-minute timeframes where data should
-                // arrive at least once per second. Logs a warning after 8 s silence,
-                // force-reconnects after 20 s silence.
-                if (wsStaleInterval) { clearInterval(wsStaleInterval); wsStaleInterval = null; }
-                if (isSubMin(currentInterval)) {
-                    wsStaleInterval = setInterval(() => {
-                        if (wsGeneration !== myGen) { clearInterval(wsStaleInterval); wsStaleInterval = null; return; }
-                        const silenceMs = Date.now() - lastWsMsgAt;
-                        if (silenceMs >= 20000) {
-                            console.error(`[WS] STALE — no data for ${(silenceMs/1000).toFixed(1)}s on ${streamName}. Force-reconnecting…`);
-                            updateWsStatus('error', `Немає даних ${(silenceMs/1000).toFixed(0)}с`);
-                            clearInterval(wsStaleInterval); wsStaleInterval = null;
-                            connectWebSocket();
-                        } else if (silenceMs >= 8000) {
-                            console.warn(`[WS] Slow — no data for ${(silenceMs/1000).toFixed(1)}s on ${streamName} (reconnect at 20s)`);
-                            updateWsStatus('error', `Затримка ${(silenceMs/1000).toFixed(0)}с…`);
+                        if (bars.length === 0) {
+                            onHistoryCallback([], { noData: true });
+                            return;
                         }
-                    }, 3000);
+
+                        if (firstDataRequest) {
+                            // Populate shared klinesData for overlay functions
+                            klinesData = bars.map(b => ({
+                                time: Math.floor(b.time / 1000),
+                                open: b.open, high: b.high, low: b.low, close: b.close
+                            }));
+                            klinesVersion++;
+                            oldestTimestamp = klinesData.length > 0 ? klinesData[0].time : null;
+                            if (klinesData.length > 0) {
+                                lastPrice = klinesData[klinesData.length - 1].close;
+                                updateLivePrice(lastPrice);
+                            }
+                            // Schedule overlay redraw after chart renders the bars
+                            setTimeout(() => {
+                                if (lastChartData) drawPriceLines(lastChartData);
+                                loadTradeMarkers();
+                            }, 400);
+                        }
+
+                        const filtered = bars.filter(b => b.time >= from * 1000 && b.time <= to * 1000);
+                        onHistoryCallback(filtered.length > 0 ? filtered : bars, { noData: false });
+                    })
+                    .catch(e => {
+                        console.error('[BotDatafeed] getBars error:', e);
+                        onErrorCallback(e.message);
+                    });
+            }
+
+            subscribeBars(symbolInfo, resolution, onRealtimeCallback, subscriberUID, onResetCacheNeededCallback) {
+                this._resolution = resolution;
+                this._subscriber = { uid: subscriberUID, callback: onRealtimeCallback, resetCallback: onResetCacheNeededCallback };
+                this._currentBar = null;
+                this._connectWs(symbolInfo.name.toUpperCase(), resolution);
+            }
+
+            unsubscribeBars(subscriberUID) {
+                if (this._subscriber && this._subscriber.uid === subscriberUID) {
+                    this._subscriber = null;
                 }
-            };
+                this._disconnectWs();
+            }
 
-            newWs.onmessage = (event) => {
-                if (wsGeneration !== myGen) return; // stale
-                lastWsMsgAt = Date.now(); // keep stale detector fed
-                try {
-                    const data = JSON.parse(event.data);
-                    if (aggPeriodMs && !use1sNativeStream && data.e === 'aggTrade') {
-                        // Sub-minute (2s/5s/15s/30s): aggregate trades into custom candles
-                        handleAggTrade(data);
-                    } else if (data.e === 'kline') {
-                        // Standard intervals OR native 1s kline stream
-                        const kline = data.k;
-                        const candleData = {
-                            time: Math.floor(kline.t / 1000),
-                            open: parseFloat(kline.o),
-                            high: parseFloat(kline.h),
-                            low: parseFloat(kline.l),
-                            close: parseFloat(kline.c)
-                        };
-                        updateLivePrice(parseFloat(kline.c));
-                        // Sync klinesData so drawTrendOverlay/setData never loses live candles
-                        syncKlinesData(candleData);
-                        if (candlestickSeries) {
-                            updateCandleWithPositionLock(candleData);
+            _connectWs(symbol, resolution) {
+                this._disconnectWs();
+                const myGen = ++this._wsGen;
+                const iv = TV_RES_TO_IV[resolution] || '1m';
+                const isSubMin = SUB_TV_RES.has(resolution);
+                const streamName = isSubMin
+                    ? `${symbol.toLowerCase()}@aggTrade`
+                    : `${symbol.toLowerCase()}@kline_${iv}`;
+                const wsUrl = isSubMin
+                    ? `wss://stream.binance.com/ws/${streamName}`
+                    : `wss://fstream.binance.com/ws/${streamName}`;
+
+                const ws = new WebSocket(wsUrl);
+                this._ws = ws;
+
+                ws.onopen = () => {
+                    if (this._wsGen !== myGen) return;
+                    updateWsStatus('connected', 'Live');
+                };
+
+                ws.onmessage = (event) => {
+                    if (this._wsGen !== myGen || !this._subscriber) return;
+                    try {
+                        const msg = JSON.parse(event.data);
+                        let bar = null;
+                        let price = 0;
+
+                        if (isSubMin && msg.e === 'aggTrade') {
+                            const tfMs = { '1S':1000,'2S':2000,'5S':5000,'15S':15000,'30S':30000 }[resolution] || 1000;
+                            const bucketMs = Math.floor(msg.T / tfMs) * tfMs;
+                            price = parseFloat(msg.p);
+                            const qty = parseFloat(msg.q);
+                            if (!this._currentBar || this._currentBar.time !== bucketMs) {
+                                if (this._currentBar) this._subscriber.callback({ ...this._currentBar });
+                                this._currentBar = { time: bucketMs, open: price, high: price, low: price, close: price, volume: qty };
+                            } else {
+                                const b = this._currentBar;
+                                if (price > b.high) b.high = price;
+                                if (price < b.low) b.low = price;
+                                b.close = price;
+                                b.volume += qty;
+                            }
+                            bar = { ...this._currentBar };
+                        } else if (!isSubMin && msg.k) {
+                            const k = msg.k;
+                            price = parseFloat(k.c);
+                            bar = { time: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: price, volume: parseFloat(k.v) };
                         }
+
+                        if (bar && this._subscriber) {
+                            this._subscriber.callback(bar);
+                            lastPrice = price;
+                            updateLivePrice(price);
+                            // Sync klinesData for overlay calculations
+                            const timeSec = Math.floor(bar.time / 1000);
+                            if (klinesData.length > 0) {
+                                const last = klinesData[klinesData.length - 1];
+                                if (last.time === timeSec) {
+                                    last.high  = Math.max(last.high, bar.high);
+                                    last.low   = Math.min(last.low,  bar.low);
+                                    last.close = bar.close;
+                                } else if (timeSec > last.time) {
+                                    klinesData.push({ time: timeSec, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
+                                    if (klinesData.length > 5000) klinesData.splice(0, klinesData.length - 5000);
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                };
+
+                ws.onerror = () => {
+                    if (this._wsGen !== myGen) return;
+                    updateWsStatus('error', 'WS error');
+                };
+
+                ws.onclose = (ev) => {
+                    if (this._wsGen !== myGen) return;
+                    if (ev.code !== 1000 && this._subscriber) {
+                        updateWsStatus('connecting', 'Reconnecting...');
+                        setTimeout(() => {
+                            if (this._wsGen === myGen && this._subscriber) {
+                                this._connectWs(symbol, resolution);
+                            }
+                        }, 2000);
                     }
-                } catch (e) { /* pong / unknown – ignore */ }
-            };
+                };
+            }
 
-            newWs.onerror = (e) => {
-                if (wsGeneration !== myGen) return; // stale
-                console.error('[WS] Error on', streamName, e);
-                updateWsStatus('error', 'Помилка');
-            };
-
-            newWs.onclose = (e) => {
-                if (wsPingInterval && wsGeneration === myGen) { clearInterval(wsPingInterval); wsPingInterval = null; }
-                if (wsStaleInterval && wsGeneration === myGen) { clearInterval(wsStaleInterval); wsStaleInterval = null; }
-                if (wsGeneration !== myGen) return; // stale — a newer ws already took over
-
-                const reason = e.code ? ` (code ${e.code})` : '';
-                console.warn(`[WS] Closed unexpectedly${reason} — reconnecting…`);
-                updateWsStatus('', 'Відключено');
-
-                // Unlimited auto-reconnect with exponential backoff (max 30s)
-                const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 30000);
-                wsReconnectAttempts++;
-                wsReconnectTimeout = setTimeout(() => {
-                    if (wsGeneration !== myGen) return; // superseded while waiting
-                    console.log(`[WS] Reconnect attempt #${wsReconnectAttempts}…`);
-                    updateWsStatus('connecting', `Перепідключення #${wsReconnectAttempts}...`);
-                    connectWebSocket();
-                }, delay);
-            };
+            _disconnectWs() {
+                if (this._ws) {
+                    try { this._ws.close(1000); } catch(e) {}
+                    this._ws = null;
+                }
+            }
         }
 
         // Update live price display
@@ -5653,7 +5603,7 @@
             let price = 0;
             let candles = [];
             try {
-                candles = candlestickSeries.data() || [];
+                candles = klinesData.slice() || [];
                 if (candles.length > 0) price = candles[candles.length - 1].close;
             } catch(e) {}
             if (!price) price = 50000;
@@ -5784,15 +5734,31 @@
                 updatePositionPanel(demo.position, demo);
                 updateOrdersList(demo);
                 drawPriceLines(demo);
-                // Draw demo arrows on chart
-                if (candlestickSeries && demo.demoMarkers && demo.demoMarkers.length > 0) {
-                    try { candlestickSeries.setMarkers(demo.demoMarkers); } catch(e) {}
+                // Draw demo arrows on chart using TV shapes
+                if (tvWidget && demo.demoMarkers && demo.demoMarkers.length > 0) {
+                    tvWidget.onChartReady(() => {
+                        const chart = tvWidget.chart();
+                        demo.demoMarkers.forEach(m => {
+                            try {
+                                const shapeType = (m.shape === 'arrowUp' || m.position === 'belowBar') ? 'arrow_up' : 'arrow_down';
+                                const id = chart.createShape(
+                                    { time: m.time },
+                                    { shape: shapeType, overrides: { color: m.color || '#10B981' } }
+                                );
+                                if (id) tradeShapeIds.push(id);
+                            } catch(e) {}
+                        });
+                    });
                 }
             } else {
                 if (banner) banner.style.display = 'none';
                 // Clear demo markers and restore real data + real markers
-                if (candlestickSeries) {
-                    try { candlestickSeries.setMarkers([]); } catch(e) {}
+                if (tvWidget && tradeShapeIds.length > 0) {
+                    tvWidget.onChartReady(() => {
+                        const chart = tvWidget.chart();
+                        tradeShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
+                        tradeShapeIds = [];
+                    });
                 }
                 loadChartData(false);
                 loadTradeMarkers();
@@ -5939,7 +5905,7 @@
             }
 
             currentSymbol = symbol;
-            klinesCache.clear(); // invalidate cached klines — different symbol, different data
+            klinesData = []; // reset for new symbol
             markersLoaded = false; // reset so fitContent fires on new symbol
             lastMarkersKey = '';
             document.getElementById('symbolSearchInput').value = symbol;
@@ -5956,8 +5922,9 @@
                 });
             }
 
-            await loadKlines();
-            connectWebSocket();
+            if (tvWidget) {
+                tvWidget.onChartReady(() => tvWidget.chart().setSymbol(symbol));
+            }
             await refreshData();
         }
 
@@ -6024,440 +5991,168 @@
             }
         }
 
-        // Lazy loading state
-        let isLoadingMore = false;
-        let oldestTimestamp = null;
-        let hasMoreHistory = true;
-
-        // Tracks when klinesData was last replaced wholesale (so refreshCandlestick can
-        // skip redundant setData calls when the data hasn't actually changed).
-        let klinesVersion = 0;
-        let candlestickDataVersion = -1;
-
-        // Initialize chart
+        // Initialize TV chart
         function initChart() {
             const container = document.getElementById('chart');
-            if (!container) return;
-            chart = LightweightCharts.createChart(container, {
-                layout: {
-                    background: { type: 'solid', color: userTheme.chart.background },
-                    textColor: userTheme.chart.textColor
-                },
-                grid: {
-                    vertLines: { color: userTheme.chart.gridColor },
-                    horzLines: { color: userTheme.chart.gridColor }
-                },
-                watermark: { visible: false }, // tiled canvas watermark handles this instead
-                crosshair: {
-                    mode: LightweightCharts.CrosshairMode.Normal
-                },
-                rightPriceScale: {
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                },
-                timeScale: {
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    timeVisible: true,
-                    secondsVisible: false,
-                    rightOffset: 20
-                },
-                handleScroll: {
-                    vertTouchDrag: false
-                }
-            });
+            if (!container || tvWidget) return;
 
-            candlestickSeries = chart.addCandlestickSeries({
-                upColor: userTheme.candles.upBody,
-                downColor: userTheme.candles.downBody,
-                borderUpColor: userTheme.candles.upBorder,
-                borderDownColor: userTheme.candles.downBorder,
-                wickUpColor: userTheme.candles.upWick,
-                wickDownColor: userTheme.candles.downWick
-            });
-
-            // Handle resize
-            const resizeObserver = new ResizeObserver(entries => {
-                if (entries.length === 0 || entries[0].target !== container) return;
-                const { width, height } = entries[0].contentRect;
-                chart.applyOptions({ width, height });
-                updateWatermark(); // redraw tiled watermark to match new size
-            });
-            resizeObserver.observe(container);
-
-            // Draw initial tiled watermark once fonts are ready
-            document.fonts.ready.then(() => updateWatermark());
-
-            // Click handler for trade marker popups
-            initMarkerClickHandler();
-
-            // Subscribe to visible range changes for lazy loading
-            chart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
-                // _drawingOverlay: series add/remove fires this callback with transient wrong
-                // ranges; ignore those so we don't trigger phantom loadMoreKlines calls.
-                if (!logicalRange || isLoadingMore || !hasMoreHistory || _drawingOverlay) return;
-
-                // Load more when scrolled near the left edge (first 10 candles visible)
-                if (logicalRange.from < 10) {
-                    loadMoreKlines();
-                }
-            });
-        }
-
-        // Load more historical klines (handles both standard and sub-minute intervals)
-        async function loadMoreKlines() {
-            if (isLoadingMore || !hasMoreHistory || !oldestTimestamp) return;
-
-            // Cancel any pending position-restore RAF — we're about to call setData +
-            // setVisibleLogicalRange ourselves; a stale RAF restoring the old range would
-            // undo our adjustment and cause candles to blink/jump.
-            if (_restoreScrollRAF) { cancelAnimationFrame(_restoreScrollRAF); _restoreScrollRAF = null; }
-
-            isLoadingMore = true;
-            const _indEl  = document.getElementById('loadingMoreIndicator');
-            const _indTxt = document.getElementById('loadingMoreText');
-            if (_indEl) _indEl.style.display = 'flex';
-
-            // Helper: apply new klines data without causing visual blink.
-            // _drawingOverlay suppresses loadMore re-entry during the callbacks
-            // that setData fires; RAF cancellation ensures no stale range-restore
-            // fires after our setVisibleLogicalRange call.
-            function applyKlinesData(addedCount) {
-                if (_restoreScrollRAF) { cancelAnimationFrame(_restoreScrollRAF); _restoreScrollRAF = null; }
-                const savedLR = (() => { try { return chart.timeScale().getVisibleLogicalRange(); } catch(e) { return null; } })();
-                _drawingOverlay = true;
-                try {
-                    if (candlestickSeries) {
-                        candlestickSeries.setData(klinesData);
-                        candlestickDataVersion = klinesVersion; // mark as rendered
-                    }
-                    if (savedLR) {
-                        chart.timeScale().setVisibleLogicalRange({
-                            from: savedLR.from + addedCount,
-                            to:   savedLR.to   + addedCount
-                        });
-                    }
-                } catch(e) { console.warn('[loadMore] setData error:', e); }
-                finally { _drawingOverlay = false; }
-            }
-
-            try {
-                if (isSubMin(currentInterval)) {
-                    // ── Sub-minute: fetch older 1s klines before current oldest candle ──
-                    const endTimeMs = klinesData[0].time * 1000 - 1;
-                    const newCandles = await loadSubMinHistory(currentSymbol, aggPeriodMs, undefined, endTimeMs);
-
-                    if (!newCandles || newCandles.length === 0) { hasMoreHistory = false; return; }
-
-                    // Only keep candles strictly before current oldest
-                    const filtered = newCandles.filter(c => c.time < klinesData[0].time);
-                    if (filtered.length === 0) { hasMoreHistory = false; return; }
-
-                    klinesData = [...filtered, ...klinesData];
-                    klinesVersion++;
-                    oldestTimestamp = klinesData[0].time;
-
-                    // Apply without blink
-                    applyKlinesData(filtered.length);
-
-                    // Keep loading as long as we got a reasonable batch AND we haven't gone
-                    // more than 2 hours back.  After that, older markers won't show on
-                    // sub-minute charts — switch to 1m+ TF to see full history.
-                    const subMinCutoff = Date.now() / 1000 - 2 * 60 * 60; // 2 hours ago
-                    hasMoreHistory = filtered.length > 3 && klinesData.length > 0 && klinesData[0].time > subMinCutoff;
-
-                    // Update loading indicator with current depth
-                    const depthMin = Math.round((Date.now() / 1000 - klinesData[0].time) / 60);
-                    if (_indTxt) _indTxt.textContent = `Завантаження -${depthMin}хв`;
-
-                    // Re-apply trade markers + price lines on extended data
-                    if (currentChartMarkers.length > 0) {
-                        try { candlestickSeries.setMarkers(currentChartMarkers); } catch(e) {}
-                    }
-                    if (lastChartData) drawPriceLines(lastChartData);
-
-                } else {
-                    // ── Standard intervals: REST klines ──────────────────────────────
-                    if (_indTxt) _indTxt.textContent = 'Завантаження...';
-                    const endTime = oldestTimestamp * 1000 - 1;
-
-                    const response = await fetch(
-                        `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`
-                    );
-                    const data = await response.json();
-
-                    if (!response.ok) throw new Error(data.error);
-
-                    if (data.klines && data.klines.length > 0) {
-                        const newKlines = (data.klines || []).filter(k =>
-                            k.time != null && k.open != null && k.high != null && k.low != null && k.close != null &&
-                            !isNaN(k.open) && !isNaN(k.high) && !isNaN(k.low) && !isNaN(k.close)
-                        );
-                        if (newKlines.length === 0) { hasMoreHistory = false; return; }
-                        klinesData = [...newKlines, ...klinesData];
-                        klinesVersion++;
-                        oldestTimestamp = newKlines[0].time;
-
-                        // Apply without blink
-                        applyKlinesData(newKlines.length);
-
-                        hasMoreHistory = data.hasMore !== false && newKlines.length >= 1000;
-
-                        // Keep cache in sync with newly prepended history
-                        const _ck = `${currentSymbol}:${currentInterval}`;
-                        if (klinesCache.has(_ck)) {
-                            const _ce = klinesCache.get(_ck);
-                            _ce.data = klinesData;
-                            _ce.oldestTimestamp = oldestTimestamp;
-                            _ce.hasMoreHistory = hasMoreHistory;
-                        }
-                    } else {
-                        hasMoreHistory = false;
-                    }
-                }
-            } catch (error) {
-                console.error('Load more klines error:', error);
-            } finally {
-                isLoadingMore = false;
-                // For sub-minute: keep indicator visible while more batches are coming.
-                // For standard: hide after each batch (user-triggered, short bursts).
-                if (!hasMoreHistory || !isSubMin(currentInterval)) {
-                    if (_indEl) _indEl.style.display = 'none';
-                }
-            }
-        }
-
-        // ── Supertrend calculation (ATR period=10, multiplier=3) ──────────────
-        function calcSupertrend(data, period, multiplier) {
-            period = period || 10;
-            multiplier = multiplier || 3;
-            if (data.length < period + 2) return [];
-
-            // Wilder's RMA ATR — seed with simple average of first `period` TRs
-            let atrVal = 0;
-            for (let i = 1; i <= period; i++) {
-                const d = data[i], p = data[i - 1];
-                atrVal += Math.max(d.high - d.low, Math.abs(d.high - p.close), Math.abs(d.low - p.close)) / period;
-            }
-
-            const result = [];
-            let finalUpper = 0, finalLower = 0;
-            let prevClose = data[period].close;
-            let direction = 1; // 1=BUY, -1=SELL
-
-            for (let i = period; i < data.length; i++) {
-                const d = data[i], prev = data[i - 1];
-                const tr = Math.max(d.high - d.low, Math.abs(d.high - prev.close), Math.abs(d.low - prev.close));
-                if (i > period) atrVal = (atrVal * (period - 1) + tr) / period;
-
-                const hl2 = (d.high + d.low) / 2;
-                const basicUpper = hl2 + multiplier * atrVal;
-                const basicLower = hl2 - multiplier * atrVal;
-
-                if (i === period) {
-                    finalUpper = basicUpper;
-                    finalLower = basicLower;
-                } else {
-                    finalUpper = (basicUpper < finalUpper || prevClose > finalUpper) ? basicUpper : finalUpper;
-                    finalLower = (basicLower > finalLower || prevClose < finalLower) ? basicLower : finalLower;
-                }
-
-                // Determine trend direction: flip when price closes beyond the opposite band
-                if (i === period) {
-                    direction = 1; // start BUY
-                } else if (direction === 1 && d.close < finalLower) {
-                    direction = -1; // BUY → SELL crossover
-                } else if (direction === -1 && d.close > finalUpper) {
-                    direction = 1;  // SELL → BUY crossover
-                }
-
-                const stValue = direction === 1 ? finalLower : finalUpper;
-                result.push({ time: d.time, value: stValue, trend: direction, lowerBand: finalLower, upperBand: finalUpper });
-                prevClose = d.close;
-            }
-            return result;
-        }
-
-        // ── Draw Supertrend overlay (area fill + dotted line) ─────────────────
-        // rawMarkers: when provided, zones are coloured by actual trade direction.
-        // preservePosition: when true, saves and restores the visible chart range
-        //   so series recreation doesn't scroll the chart (used during periodic updates).
-        function drawTrendOverlay(rawMarkers, preservePosition) {
-            // When preservePosition=true (periodic 5s updates), ALWAYS save the current
-            // logical range and restore it after all series operations.  LightweightCharts
-            // fires subscribeVisibleLogicalRangeChange synchronously on every removeSeries /
-            // addLineSeries call, which can trigger phantom loadMoreKlines calls and cause
-            // the chart to jump.  Setting _drawingOverlay=true suppresses those callbacks,
-            // and restoring the range in the finally block undoes any transient range changes.
-            let restoreLogical = null;
-            if (preservePosition && chart && klinesData && klinesData.length > 0) {
-                try {
-                    const lr = chart.timeScale().getVisibleLogicalRange();
-                    if (lr) restoreLogical = { from: lr.from, to: lr.to }; // always save
-                } catch(e) {}
-            }
-
-            // Block loadMore and scroll-position callbacks while we mutate series.
-            _drawingOverlay = true;
-            try {
-
-            // Remove existing overlay series only (do NOT recreate candlestickSeries —
-            // in-place setData preserves the chart's live-scroll state so new candles
-            // keep appearing automatically via WebSocket update() calls).
-            trendSeries.forEach(s => { try { chart.removeSeries(s); } catch(e) {} });
-            trendSeries = [];
-
-            const savedData    = klinesData ? [...klinesData] : [];
-            const savedMarkers = [...currentChartMarkers];
-
-            // Update candlestick data in place (no series removal/recreation).
-            // Skips the expensive setData() call when klinesData hasn't changed since the
-            // last render — prevents the double-render "tear" that occurs when loadKlines
-            // immediately calls drawTrendOverlay() and then loadTradeMarkers calls it again.
-            function refreshCandlestick() {
-                if (!candlestickSeries) {
-                    // Series doesn't exist yet — create once
-                    try {
-                        candlestickSeries = chart.addCandlestickSeries({
-                            upColor: userTheme.candles.upBody, downColor: userTheme.candles.downBody,
-                            borderUpColor: userTheme.candles.upBorder, borderDownColor: userTheme.candles.downBorder,
-                            wickUpColor: userTheme.candles.upWick, wickDownColor: userTheme.candles.downWick,
-                        });
-                        candlestickDataVersion = -1; // force setData on first creation
-                    } catch(e) { console.error('[TrendOverlay] addCandlestickSeries error:', e); return; }
-                }
-                // Only call setData when klinesData was actually replaced (klinesVersion changed).
-                if (klinesVersion !== candlestickDataVersion) {
-                    try {
-                        candlestickSeries.setData(savedData);
-                        candlestickDataVersion = klinesVersion;
-                        if (savedMarkers.length > 0) {
-                            try { candlestickSeries.setMarkers(savedMarkers); } catch(e) {}
-                        }
-                    } catch(e) { console.error('[TrendOverlay] setData error:', e); }
-                }
-            }
-
-            if (!chart || !klinesData || klinesData.length < 20) {
-                refreshCandlestick();
+            if (!window.TradingView?.widget) {
+                console.error('[bot-detail] TradingView library not loaded. Add charting_library.js before page scripts.');
                 return;
             }
 
-            // Build active position windows: line only draws while bot holds an open position.
-            // Each window = { from: entryTime, to: exitTime, trend: 1(BUY) | -1(SELL) }
-            const allSortedMarkers = (rawMarkers || []).sort((a, b) => a.time - b.time);
-            if (allSortedMarkers.length === 0) { refreshCandlestick(); return; }
+            botDatafeed = new BotDatafeed(botId);
+            const initialResolution = IV_TO_TV_RES[currentInterval] ?? '1';
 
-            const posWindows = [];
-            let openEntry = null;
-            for (const m of allSortedMarkers) {
-                if (m.isEntry === true) {
-                    if (openEntry) {
-                        const prevTrend = (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1;
-                        const newTrend  = (m.side === 'LONG' || m.side === 'BUY') ? 1 : -1;
-                        if (prevTrend !== newTrend) {
-                            // Direction flip (LONG→SHORT or SHORT→LONG) — treat as implicit
-                            // close of the previous position at the new entry's time.
-                            posWindows.push({ from: openEntry.time, to: m.time, trend: prevTrend });
+            tvWidget = new TradingView.widget({
+                container:    container,
+                datafeed:     botDatafeed,
+                locale:       'uk',
+                library_path: '/charting_library/',
+                symbol:       currentSymbol,
+                interval:     initialResolution,
+                fullscreen:   false,
+                autosize:     true,
+                theme:        'Dark',
+                toolbar_bg:   userTheme.chart.background,
+                disabled_features: [
+                    'header_symbol_search',
+                    'header_compare',
+                    'header_undo_redo',
+                    'header_saveload',
+                    'use_localstorage_for_settings',
+                    'volume_force_overlay',
+                ],
+                enabled_features: [
+                    'hide_left_toolbar_by_default',
+                    'seconds_resolution',
+                ],
+                overrides: buildChartOverrides(),
+                loading_screen: {
+                    backgroundColor: userTheme.chart.background,
+                    foregroundColor: '#10B981',
+                },
+            });
+
+            tvWidget.onChartReady(() => {
+                document.getElementById('chartLoading').style.display = 'none';
+                updateWatermark();
+                document.fonts.ready.then(() => updateWatermark());
+            });
+
+            // Keep watermark in sync with container resize
+            const resizeObserver = new ResizeObserver(() => updateWatermark());
+            resizeObserver.observe(container);
+        }
+
+        function buildChartOverrides() {
+            return {
+                'mainSeriesProperties.candleStyle.upColor':         userTheme.candles.upBody,
+                'mainSeriesProperties.candleStyle.downColor':       userTheme.candles.downBody,
+                'mainSeriesProperties.candleStyle.borderUpColor':   userTheme.candles.upBorder,
+                'mainSeriesProperties.candleStyle.borderDownColor': userTheme.candles.downBorder,
+                'mainSeriesProperties.candleStyle.wickUpColor':     userTheme.candles.upWick,
+                'mainSeriesProperties.candleStyle.wickDownColor':   userTheme.candles.downWick,
+                'paneProperties.background':                        userTheme.chart.background,
+                'paneProperties.backgroundType':                    'solid',
+                'paneProperties.vertGridProperties.color':          userTheme.chart.gridColor,
+                'paneProperties.horzGridProperties.color':          userTheme.chart.gridColor,
+                'scalesProperties.textColor':                       userTheme.chart.textColor,
+            };
+        }
+
+        // ── Draw Supertrend overlay using TV multipoint shapes ────────────────
+        function drawTrendOverlay(rawMarkers, preservePosition) {
+            if (!tvWidget || !klinesData || klinesData.length < 4) return;
+
+            tvWidget.onChartReady(() => {
+                const chart = tvWidget.chart();
+                // Clear existing trend shapes
+                trendShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
+                trendShapeIds = [];
+
+                if (!rawMarkers || rawMarkers.length === 0) return;
+
+                const allSortedMarkers = [...rawMarkers].sort((a, b) => a.time - b.time);
+
+                // Build position windows from entry/exit markers
+                const posWindows = [];
+                let openEntry = null;
+                for (const m of allSortedMarkers) {
+                    if (m.isEntry === true) {
+                        if (openEntry) {
+                            const prevTrend = (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1;
+                            const newTrend  = (m.side === 'LONG' || m.side === 'BUY') ? 1 : -1;
+                            if (prevTrend !== newTrend) {
+                                posWindows.push({ from: openEntry.time, to: m.time, trend: prevTrend });
+                            }
                         }
-                        // Same-direction consecutive entries (add-to-position / duplicate signals)
-                        // — do NOT create a phantom window; just update openEntry.
-                    }
-                    openEntry = m;
-                } else if (m.isEntry === false) {
-                    if (openEntry) {
-                        posWindows.push({ from: openEntry.time, to: m.time,
-                            trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
-                        openEntry = null;
+                        openEntry = m;
+                    } else if (m.isEntry === false) {
+                        if (openEntry) {
+                            posWindows.push({ from: openEntry.time, to: m.time,
+                                trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
+                            openEntry = null;
+                        }
                     }
                 }
-            }
-            // Still-open position (no exit yet) — extend to last known candle
-            if (openEntry && klinesData.length > 0) {
-                posWindows.push({ from: openEntry.time, to: klinesData[klinesData.length - 1].time,
-                    trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
-            }
-            if (posWindows.length === 0) { refreshCandlestick(); return; }
-
-            // Only draw windows where the entry is within the loaded klines history.
-            // If a trade entry is before the visible range, the line would extend from the
-            // left edge of the chart to now with no visible entry marker — looks "endless".
-            // Requiring w.from >= klinesStart ensures every line starts at a visible marker.
-            const klinesStart = klinesData[0].time;
-            const klinesEnd   = klinesData[klinesData.length - 1].time;
-            const posWindowsRecent = posWindows
-                .filter(w => w.from >= klinesStart && w.to >= klinesStart)
-                .map(w => ({ ...w, to: Math.min(w.to, klinesEnd) }));
-            if (posWindowsRecent.length === 0) { refreshCandlestick(); return; }
-
-            // Build a fast time→kline lookup for candle lows
-            const klinesMap = {};
-            klinesData.forEach(k => { klinesMap[k.time] = k; });
-
-            // Compute offset: 0.3% of the average price — pushes the line ~20px below candles
-            const avgPrice = klinesData.reduce((s, k) => s + k.close, 0) / klinesData.length;
-            const lineOffset = avgPrice * 0.003;
-
-            // Build segments directly from position windows — one segment per window.
-            // Each segment follows the candle lows minus offset, strictly within [from, to].
-            // No bridging between windows = clean breaks where there are no trades.
-            const buySegs = [];
-            const sellSegs = [];
-
-            posWindowsRecent.forEach(w => {
-                const seg = [];
-                for (const k of klinesData) {
-                    if (k.time < w.from) continue;
-                    if (k.time > w.to) break;
-                    seg.push({ time: k.time, value: k.low - lineOffset });
+                if (openEntry && klinesData.length > 0) {
+                    posWindows.push({ from: openEntry.time, to: klinesData[klinesData.length - 1].time,
+                        trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
                 }
-                if (seg.length >= 2) {
-                    if (w.trend === 1) buySegs.push(seg);
-                    else sellSegs.push(seg);
-                }
+
+                if (posWindows.length === 0) return;
+
+                const klinesStart = klinesData[0].time;
+                const klinesEnd   = klinesData[klinesData.length - 1].time;
+                const avgPrice    = klinesData.reduce((s, k) => s + k.close, 0) / klinesData.length;
+                const lineOffset  = avgPrice * 0.003;
+
+                const posWindowsRecent = posWindows
+                    .filter(w => w.from >= klinesStart && w.to >= klinesStart)
+                    .map(w => ({ ...w, to: Math.min(w.to, klinesEnd) }));
+
+                // Build multi-point segments following candle lows
+                posWindowsRecent.forEach(w => {
+                    const pts = [];
+                    for (const k of klinesData) {
+                        if (k.time < w.from) continue;
+                        if (k.time > w.to) break;
+                        pts.push({ time: k.time, price: k.low - lineOffset });
+                    }
+                    if (pts.length < 2) return;
+
+                    const color = w.trend === 1 ? '#10B981' : '#EF4444';
+
+                    // Draw as series of 2-point trend_line shapes (one per adjacent pair)
+                    // to approximate a polyline following candle lows
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        try {
+                            const id = chart.createMultipointShape(
+                                [
+                                    { time: pts[i].time,     price: pts[i].price },
+                                    { time: pts[i+1].time,   price: pts[i+1].price },
+                                ],
+                                {
+                                    shape: 'trend_line',
+                                    overrides: {
+                                        linecolor:    color,
+                                        linewidth:    2,
+                                        linestyle:    2,
+                                        extendLeft:   false,
+                                        extendRight:  false,
+                                        showLabel:    false,
+                                    },
+                                    lock:             true,
+                                    disableSelection: true,
+                                    zOrder:           'bottom',
+                                }
+                            );
+                            if (id) trendShapeIds.push(id);
+                        } catch(e) {}
+                    }
+                });
             });
-
-            // Refresh candlestick data in place (preserves live-scroll state)
-            refreshCandlestick();
-
-            // LONG dotted line — green, below candles
-            buySegs.forEach(seg => {
-                if (seg.length < 2) return;
-                try {
-                    const s = chart.addLineSeries({
-                        color: '#10B981', lineWidth: 2,
-                        lineStyle: LightweightCharts.LineStyle.Dotted,
-                        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-                        autoscaleInfoProvider: () => null,
-                    });
-                    s.setData(seg);
-                    trendSeries.push(s);
-                } catch(e) {}
-            });
-
-            // SHORT dotted line — red, below candles
-            sellSegs.forEach(seg => {
-                if (seg.length < 2) return;
-                try {
-                    const s = chart.addLineSeries({
-                        color: '#EF4444', lineWidth: 2,
-                        lineStyle: LightweightCharts.LineStyle.Dotted,
-                        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-                        autoscaleInfoProvider: () => null,
-                    });
-                    s.setData(seg);
-                    trendSeries.push(s);
-                } catch(e) {}
-            });
-
-            // (end of try block — finally below handles restore + flag reset)
-
-            } finally {
-                _drawingOverlay = false;
-                // Restore the user's scroll position after all series operations.
-                // Runs even on early return, ensuring LightweightCharts never drifts the view.
-                if (restoreLogical) {
-                    try { chart.timeScale().setVisibleLogicalRange(restoreLogical); } catch(e) {}
-                }
-            }
         }
 
         // Load bot info
@@ -6491,124 +6186,21 @@
             }
         }
 
-        // Load klines
-        async function loadKlines() {
-            try {
-                document.getElementById('chartLoading').style.display = 'flex';
-                document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
-
-                // Invalidate any in-flight loadTradeMarkers from the previous interval
-                markersLoading = false;
-                const _myGen = ++_chartLoadGen;
-
-                // Reset lazy loading state; block loadMoreKlines until we finish
-                hasMoreHistory = true;
-                isLoadingMore = true;  // will be cleared after initial setData
-                aggCandle = null;
-
-                // Reset auto-precision so it re-detects from the new symbol's price
-                if (manualPrecision === 0) lastSetPrecision = -1;
-
-                // ── Sub-minute: load history via aggTrades REST, then go live ────
-                if (isSubMin(currentInterval)) {
-                    // Show seconds on time axis for sub-minute charts
-                    try { chart.applyOptions({ timeScale: { secondsVisible: true } }); } catch(e) {}
-                    // Ensure auto-scale is on for sub-minute (RAF throttle handles jumping)
-                    try { chart.priceScale('right').applyOptions({ autoScale: true }); } catch(e) {}
-                    showSubMinNotice(currentInterval);
-                    const historicalCandles = await loadSubMinHistory(currentSymbol, aggPeriodMs);
-                    klinesData = historicalCandles;
-                    klinesVersion++;
-                    markerTimeMap = {};
-                    currentChartMarkers = [];
-                    drawTrendOverlay(); // sets candlestick data internally
-                    isLoadingMore = false; // unlock scroll-load now that initial data is on chart
-                    if (historicalCandles.length > 0) {
-                        const _saved = savedPositionPerInterval[currentInterval];
-                        if (_saved) { try { chart.timeScale().setVisibleRange(_saved); } catch(e) { try { chart.timeScale().fitContent(); } catch(e2) {} } }
-                        else { try { chart.timeScale().fitContent(); } catch(e) {} }
-                        updateLivePrice(historicalCandles[historicalCandles.length - 1].close);
-                    }
+        // Reload chart for current symbol/interval via TV datafeed
+        function loadKlines() {
+            if (!tvWidget) return;
+            document.getElementById('chartLoading').style.display = 'flex';
+            document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
+            // Reset overlay state
+            klinesData = [];
+            lastMarkersKey = '';
+            tvWidget.onChartReady(() => {
+                const res = IV_TO_TV_RES[currentInterval] ?? '1';
+                // Changing resolution triggers a fresh getBars(firstDataRequest=true) call in datafeed
+                tvWidget.chart().setResolution(res, () => {
                     document.getElementById('chartLoading').style.display = 'none';
-                    // Load trade markers onto the sub-minute chart
-                    loadTradeMarkers();
-                    return;
-                }
-
-                // ── Standard intervals: REST klines ──────────────────────────────
-                hideSubMinNotice();
-                try { chart.applyOptions({ timeScale: { secondsVisible: false } }); } catch(e) {}
-                // Re-enable auto-scale for standard intervals
-                try { chart.priceScale('right').applyOptions({ autoScale: true }); } catch(e) {}
-
-                // ── Cache check — skip network if we have recent data ─────────────
-                const _cacheKey = `${currentSymbol}:${currentInterval}`;
-                const _cached = klinesCache.get(_cacheKey);
-                if (_cached && (Date.now() - _cached.cachedAt) < KLINES_CACHE_TTL_MS) {
-                    console.log(`[klines cache] HIT ${_cacheKey} (${_cached.data.length} bars, age ${Math.round((Date.now()-_cached.cachedAt)/1000)}s)`);
-                    klinesData = _cached.data;
-                    klinesVersion++;
-                    oldestTimestamp = _cached.oldestTimestamp;
-                    hasMoreHistory = _cached.hasMoreHistory;
-                    currentChartMarkers = [];
-                    drawTrendOverlay();
-                    isLoadingMore = false;
-                    const _savedPosC = savedPositionPerInterval[currentInterval];
-                    if (_savedPosC) { try { chart.timeScale().setVisibleRange(_savedPosC); } catch(e) { try { chart.timeScale().fitContent(); } catch(e2) {} } }
-                    else { try { chart.timeScale().fitContent(); } catch(e) {} }
-                    if (klinesData.length > 0) updateLivePrice(klinesData[klinesData.length - 1].close);
-                    document.getElementById('chartLoading').style.display = 'none';
-                    if (lastChartData) drawPriceLines(lastChartData);
-                    loadTradeMarkers();
-                    return;
-                }
-
-                const response = await fetch(`/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000`);
-                const data = await response.json();
-
-                if (!response.ok) throw new Error(data.error);
-
-                klinesData = (data.klines || []).filter(k =>
-                    k.time != null && k.open != null && k.high != null && k.low != null && k.close != null &&
-                    !isNaN(k.open) && !isNaN(k.high) && !isNaN(k.low) && !isNaN(k.close)
-                );
-                klinesVersion++;
-
-                // Set oldest timestamp for lazy loading
-                if (klinesData.length > 0) {
-                    oldestTimestamp = klinesData[0].time;
-                }
-                // Save to cache so switching back to this interval is instant
-                klinesCache.set(`${currentSymbol}:${currentInterval}`, {
-                    data: klinesData,
-                    oldestTimestamp: oldestTimestamp,
-                    hasMoreHistory: true,
-                    cachedAt: Date.now()
                 });
-                currentChartMarkers = [];
-                drawTrendOverlay(); // builds overlay + sets candlestick data internally
-                isLoadingMore = false; // unlock scroll-load now that initial data is on chart
-                const _savedPos = savedPositionPerInterval[currentInterval];
-                if (_savedPos) { try { chart.timeScale().setVisibleRange(_savedPos); } catch(e) { try { chart.timeScale().fitContent(); } catch(e2) {} } }
-                else { try { chart.timeScale().fitContent(); } catch(e) {} }
-
-                // Update live price from last kline
-                if (klinesData.length > 0) {
-                    updateLivePrice(klinesData[klinesData.length - 1].close);
-                }
-
-                document.getElementById('chartLoading').style.display = 'none';
-
-                // Redraw price lines now that klines are available
-                if (lastChartData) drawPriceLines(lastChartData);
-
-                // Load trade markers after klines
-                loadTradeMarkers();
-            } catch (error) {
-                console.error('Load klines error:', error);
-                isLoadingMore = false; // always unlock on error
-                document.getElementById('chartLoading').innerHTML = `<div class="error-message">Chart loading error: ${error.message}</div>`;
-            }
+            });
         }
 
         // Load closed trade markers and draw on chart
@@ -6646,300 +6238,118 @@
             return klinesData[lo].time;
         }
 
-        // Maps snapped bar time (string) → raw marker object, for click-to-detail popup
-        let markerTimeMap = {};
-        let markersLoaded = false; // fitContent only on first load
-
-        // Add/update the open-position entry marker on the chart in real-time.
-        // Called after every loadChartData and loadTradeMarkers so the marker
-        // always reflects the currently open position (or is removed when flat).
-        let markersLoading = false; // mutex: true while loadTradeMarkers is running
-        let _chartLoadGen = 0;     // incremented each loadKlines(); loadTradeMarkers aborts if stale
-
         function applyPositionMarker(position, _internal) {
-            if (!candlestickSeries || klinesData.length === 0) return;
-            if (markersLoading && !_internal) return; // Don't overwrite while loadTradeMarkers is running
+            if (markersLoading && !_internal) return;
+            if (!tvWidget) return;
 
-            // Merge closed-trade markers + optional open-position marker
-            let merged = [...currentChartMarkers];
-
-            if (position && position.entryPrice > 0) {
-                lastKnownPosition = position;
-
-                // Determine bar time from updateTime or by scanning price history
-                let barTime = null;
-                if (position.updateTime) {
-                    barTime = snapToBar(Math.floor(position.updateTime / 1000));
-                    if (barTime === null) barTime = klinesData[klinesData.length - 1].time; // fallback to latest
-                } else {
-                    // Scan backwards for the first bar whose range includes entryPrice
-                    for (let i = klinesData.length - 1; i >= 0; i--) {
-                        const k = klinesData[i];
-                        if (k.low <= position.entryPrice && position.entryPrice <= k.high) {
-                            barTime = k.time;
-                            break;
-                        }
-                    }
-                    if (!barTime) barTime = klinesData[klinesData.length - 1].time;
-                }
-
-                // Don't duplicate a closed-trade marker at the same bar
-                if (!merged.find(m => m.time === barTime)) {
-                    const isLong = position.side === 'LONG';
-                    merged = [...merged, {
-                        time: barTime,
-                        position: isLong ? 'belowBar' : 'aboveBar',
-                        color: isLong ? '#10B981' : '#EF4444',
-                        shape: isLong ? 'arrowUp' : 'arrowDown',
-                        size: 1.5,
-                        text: isLong ? '▲ Long' : '▼ Short',
-                    }].sort((a, b) => a.time - b.time);
-                }
-            } else {
-                lastKnownPosition = null;
+            // Remove old position shape
+            if (positionShapeId !== null) {
+                tvWidget.onChartReady(() => {
+                    try { tvWidget.chart().removeEntity(positionShapeId); } catch(e) {}
+                    positionShapeId = null;
+                });
             }
 
-            try { candlestickSeries.setMarkers(merged); } catch(e) {}
+            if (!position || !position.entryPrice || position.entryPrice <= 0) {
+                lastKnownPosition = null;
+                return;
+            }
+
+            lastKnownPosition = position;
+            const isLong = position.side === 'LONG';
+
+            tvWidget.onChartReady(() => {
+                try {
+                    const timeSec = klinesData.length > 0 ? klinesData[klinesData.length - 1].time : Math.floor(Date.now() / 1000);
+                    positionShapeId = tvWidget.chart().createShape(
+                        { time: timeSec, price: parseFloat(position.entryPrice) },
+                        {
+                            shape:            isLong ? 'arrow_up' : 'arrow_down',
+                            text:             isLong ? '▲ Long' : '▼ Short',
+                            color:            isLong ? '#10B981' : '#EF4444',
+                            lock:             true,
+                            disableSelection: true,
+                            zOrder:           'top',
+                        }
+                    );
+                } catch(e) { console.warn('[applyPositionMarker] error:', e); }
+            });
         }
 
         async function loadTradeMarkers() {
-            if (!candlestickSeries || demoMode || markersLoading) return;
+            if (!tvWidget || demoMode || markersLoading) return;
             markersLoading = true;
-            const _myGen = _chartLoadGen; // snapshot — if loadKlines fires again, this becomes stale
-            console.log(`[TradeMarkers] Loading for symbol=${currentSymbol} interval=${currentInterval}`);
+            const _myGen = _chartLoadGen;
             try {
                 const resp = await fetch(`/api/bots/${botId}/trade-markers?symbol=${currentSymbol}`, { credentials: 'include' });
-                console.log(`[TradeMarkers] API response status: ${resp.status}`);
-                if (!resp.ok) { console.warn('[TradeMarkers] API error, skipping'); return; }
+                if (!resp.ok) return;
                 const data = await resp.json();
-                if (_chartLoadGen !== _myGen) return; // interval changed while fetching — discard
+                if (_chartLoadGen !== _myGen) return;
                 const rawMarkers = data.markers || [];
-                console.log(`[TradeMarkers] Got ${rawMarkers.length} raw markers from API`, rawMarkers);
 
-                markerTimeMap = {}; // reset
-
-                if (rawMarkers.length === 0) {
-                    // No orders → remove any leftover Supertrend overlay lines from a previous load.
-                    // Without this, switching to a symbol/interval with no trades would leave
-                    // the old dotted lines from the previous state on the chart.
-                    if (trendSeries.length > 0) {
-                        _drawingOverlay = true;
-                        trendSeries.forEach(s => { try { chart.removeSeries(s); } catch(e) {} });
-                        trendSeries = [];
-                        _drawingOverlay = false;
-                    }
-                    lastMarkersKey = '';
-                    currentChartMarkers = [];
-                    try { candlestickSeries.setMarkers([]); } catch(e) {}
-                    applyPositionMarker(lastKnownPosition, true); // still show open position if any
-                    console.log('[TradeMarkers] No closed-trade markers; position marker applied if position open');
-                    return;
-                }
-
-                // Find oldest trade time — extend klines back to cover it
-                const validTimes = rawMarkers.map(m => m.time).filter(t => t > 0);
-                const oldestNeeded = validTimes.length > 0 ? Math.min(...validTimes) : 0;
-                console.log(`[TradeMarkers] klines range: ${new Date((klinesData[0]?.time||0)*1000).toLocaleDateString()} – ${new Date((klinesData[klinesData.length-1]?.time||0)*1000).toLocaleDateString()}, oldestNeeded: ${new Date(oldestNeeded*1000).toLocaleDateString()}`);
-
-                if (oldestNeeded > 0 && klinesData.length > 0 && klinesData[0].time > oldestNeeded) {
-                    if (isSubMin(currentInterval)) {
-                        // Sub-minute: don't extend klines history for markers — Binance 1s data
-                        // is only available for the last ~3 days and extension would likely fail
-                        // or produce gaps. Markers outside current range are filtered below.
-                        // No-op: rawMarkers outside [minTime,maxTime] will be skipped automatically.
-                    } else {
-                        // Standard intervals: extend via REST klines
-                        // Save visible range ONCE before fetching, then do a single setData at the end
-                        const svdBefore = (() => { try { return chart.timeScale().getVisibleLogicalRange(); } catch(e) { return null; } })();
-                        let totalAdded = 0;
-                        let batchOldest = klinesData[0].time;
-                        _drawingOverlay = true;
-                        try {
-                            for (let i = 0; i < 12 && batchOldest > oldestNeeded; i++) {
-                                const endTime = batchOldest * 1000 - 1;
-                                try {
-                                    const r = await fetch(`/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`, { credentials: 'include' });
-                                    if (!r.ok) break;
-                                    const kd = await r.json();
-                                    if (!kd.klines || kd.klines.length === 0) break;
-                                    const cleanBatch = kd.klines.filter(k =>
-                                        k.time != null && k.open != null && k.high != null && k.low != null && k.close != null &&
-                                        !isNaN(k.open) && !isNaN(k.high) && !isNaN(k.low) && !isNaN(k.close)
-                                    );
-                                    if (cleanBatch.length === 0) break;
-                                    totalAdded += cleanBatch.length;
-                                    klinesData = [...cleanBatch, ...klinesData];
-                                    batchOldest = cleanBatch[0].time;
-                                    oldestTimestamp = batchOldest;
-                                    if (kd.klines.length < 10) break;
-                                } catch (e) { break; }
-                            }
-                        } finally {
-                            _drawingOverlay = false;
-                        }
-                        // Single render after all batches are collected
-                        if (_chartLoadGen !== _myGen) return; // interval changed during batch fetch
-                        if (totalAdded > 0) {
-                            try { candlestickSeries.setData(klinesData); } catch(e) {}
-                            if (svdBefore) { try { chart.timeScale().setVisibleLogicalRange({ from: svdBefore.from + totalAdded, to: svdBefore.to + totalAdded }); } catch(e) {} }
-                        }
-                    }
-                }
-
-                const fmtPnl = (pnl) => {
-                    const abs = Math.abs(pnl);
-                    const str = abs >= 100 ? abs.toFixed(0) : abs >= 10 ? abs.toFixed(1) : abs.toFixed(2);
-                    return (pnl >= 0 ? '+' : '-') + str;
-                };
-
-                const minTime = klinesData.length > 0 ? klinesData[0].time : 0;
-                const maxTime = klinesData.length > 0 ? klinesData[klinesData.length - 1].time : Infinity;
-                // Allow markers inside the current forming bar (its time > maxTime but ≤ maxTime + 1 bar)
-                const ivSec = { '1s':1,'2s':2,'5s':5,'15s':15,'30s':30,'1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'4h':14400,'1d':86400 }[currentInterval]||60;
-                const markerMaxTime = maxTime + ivSec;
-
-                // First pass: build temp list with barTime + props per raw marker
-                const tempMarkers = [];
-                rawMarkers.forEach(m => {
-                    if (m.time < minTime || m.time > markerMaxTime) {
-                        // On sub-minute charts the visible window is tiny (~16 min for 1s),
-                        // so historical markers are always outside range — don't flood the log.
-                        if (!isSubMin(currentInterval)) {
-                            console.warn(`[TradeMarkers] Marker at ${new Date(m.time*1000).toLocaleString()} outside klines range, skipping`);
-                        }
-                        return;
-                    }
-                    const isLong = m.side === 'LONG' || m.side === 'BUY';
-                    const isEntry = m.isEntry !== false && (m.isEntry === true || Math.abs(m.pnl || 0) < 0.0001);
-                    const pnl = m.pnl || 0;
-                    const barTime = snapToBar(m.time);
-                    // null = no nearby candle (sub-minute gap too large) — skip this marker
-                    if (barTime === null) {
-                        console.warn(`[TradeMarkers] No nearby bar for marker at ${new Date(m.time*1000).toLocaleString()}, skipping`);
-                        return;
-                    }
-                    tempMarkers.push({
-                        barTime,
-                        raw: m,
-                        props: isEntry ? {
-                            time: barTime,
-                            position: isLong ? 'belowBar' : 'aboveBar',
-                            color: isLong ? '#10B981' : '#EF4444',
-                            shape: isLong ? 'arrowUp' : 'arrowDown',
-                            size: 1.5,
-                            text: isLong ? '▲ Long' : '▼ Short',
-                        } : {
-                            time: barTime,
-                            position: isLong ? 'aboveBar' : 'belowBar',
-                            color: pnl >= 0 ? '#10B981' : '#EF4444',
-                            shape: 'diamond',
-                            size: 1.5,
-                            text: fmtPnl(pnl),
-                        }
-                    });
-                });
-
-                // Second pass: group by barTime, collapse duplicates
-                markerTimeMap = {};
-                const byBar = {};
-                tempMarkers.forEach(m => {
-                    const key = String(m.barTime);
-                    if (!byBar[key]) byBar[key] = [];
-                    byBar[key].push(m);
-                });
-
-                const chartMarkers = [];
-                Object.entries(byBar).forEach(([bt, group]) => {
-                    if (group.length === 1) {
-                        chartMarkers.push(group[0].props);
-                        markerTimeMap[bt] = group[0].raw;
-                    } else {
-                        // Multiple trades on same bar → collapsed purple diamond marker
-                        chartMarkers.push({
-                            time: parseInt(bt),
-                            position: 'aboveBar',
-                            color: '#A78BFA',
-                            shape: 'diamond',
-                            size: 2,
-                            text: `×${group.length}`,
-                        });
-                        // Store all in map, popup will show them all
-                        const last = group[group.length - 1];
-                        markerTimeMap[bt] = { ...last.raw, _count: group.length, _all: group.map(g => g.raw) };
-                    }
-                });
-
-                chartMarkers.sort((a, b) => a.time - b.time);
-                console.log(`[TradeMarkers] Setting ${chartMarkers.length} markers on chart (${Object.keys(markerTimeMap).length} in map)`, chartMarkers);
-                currentChartMarkers = chartMarkers;
-
-                // Compute a hash of rawMarkers to skip expensive overlay rebuild when nothing changed
                 const markersKey = rawMarkers.map(m => m.time + ':' + m.side + ':' + (m.pnl || 0)).join('|');
-                if (_chartLoadGen !== _myGen) return; // interval changed while processing markers
                 if (markersKey !== lastMarkersKey) {
                     lastMarkersKey = markersKey;
-                    // New orders detected — invalidate klines cache for all intervals of this symbol
-                    // so the next TF switch loads fresh candle data (not stale cached bars).
-                    for (const k of klinesCache.keys()) {
-                        if (k.startsWith(currentSymbol + ':')) klinesCache.delete(k);
-                    }
-                    // Redraw overlay based on actual trade direction, covering full klines range
-                    // preservePosition=true: saves/restores scroll so series recreation doesn't reset view
                     drawTrendOverlay(rawMarkers, true);
-                    // setMarkers on the (possibly recreated) candlestickSeries
-                    try { candlestickSeries.setMarkers(chartMarkers); } catch(e) { console.warn('[TradeMarkers] setMarkers error:', e); }
-                } else {
-                    console.log('[TradeMarkers] Markers unchanged — skipping overlay rebuild');
-                    // Safety net: ensure markers are still on series (e.g. after chart re-init)
-                    try { candlestickSeries.setMarkers(chartMarkers); } catch(e) {}
                 }
 
-                if (chartMarkers.length > 0 && !markersLoaded) {
-                    const _savedPos = savedPositionPerInterval[currentInterval];
-                    if (!_savedPos) { try { chart.timeScale().fitContent(); } catch(e) {} }
-                    console.log('[TradeMarkers] First load complete');
-                    markersLoaded = true;
-                }
+                tvWidget.onChartReady(() => {
+                    const chart = tvWidget.chart();
+                    // Clear old trade shapes
+                    tradeShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
+                    tradeShapeIds = [];
+                    markerTimeMap = {};
 
-                // Always re-apply the open position marker on top of closed-trade markers.
-                // This ensures the entry marker stays visible even after setMarkers() above.
-                applyPositionMarker(lastKnownPosition, true);
-            } catch (err) {
-                console.error('[TradeMarkers] error:', err);
+                    if (rawMarkers.length === 0) {
+                        applyPositionMarker(lastKnownPosition, true);
+                        return;
+                    }
+
+                    const minTime = klinesData.length > 0 ? klinesData[0].time : 0;
+                    const maxTime = klinesData.length > 0 ? klinesData[klinesData.length - 1].time : Infinity;
+                    const fmtPnl = (pnl) => {
+                        const abs = Math.abs(pnl);
+                        const str = abs >= 100 ? abs.toFixed(0) : abs >= 10 ? abs.toFixed(1) : abs.toFixed(2);
+                        return (pnl >= 0 ? '+' : '-') + str;
+                    };
+
+                    rawMarkers.forEach(m => {
+                        if (!m.time || m.time < minTime || m.time > maxTime + 86400) return;
+                        const isLong  = m.side === 'LONG' || m.side === 'BUY';
+                        const isEntry = m.isEntry !== false && (m.isEntry === true || Math.abs(m.pnl || 0) < 0.0001);
+                        const pnl = m.pnl || 0;
+                        const barTime = snapToBar(m.time);
+                        if (barTime === null) return;
+
+                        markerTimeMap[String(barTime)] = m;
+
+                        const price = parseFloat(m.price || 0) || (klinesData.find(k => k.time === barTime)?.close ?? 0);
+                        if (!price) return;
+
+                        try {
+                            const id = chart.createShape(
+                                { time: barTime, price },
+                                {
+                                    shape:            isEntry ? (isLong ? 'arrow_up' : 'arrow_down') : 'circle',
+                                    text:             isEntry ? (isLong ? '▲' : '▼') : fmtPnl(pnl),
+                                    color:            isEntry ? (isLong ? '#10B981' : '#EF4444') : (pnl >= 0 ? '#10B981' : '#EF4444'),
+                                    lock:             true,
+                                    disableSelection: true,
+                                    zOrder:           'top',
+                                }
+                            );
+                            if (id) tradeShapeIds.push(id);
+                        } catch(e) {}
+                    });
+
+                    if (!markersLoaded && tradeShapeIds.length > 0) markersLoaded = true;
+                    applyPositionMarker(lastKnownPosition, true);
+                });
+            } catch(err) {
+                console.error('[loadTradeMarkers] error:', err);
             } finally {
                 markersLoading = false;
             }
-        }
-
-        // ── Click on chart marker → show trade details popup ──────────────────
-        function initMarkerClickHandler() {
-            if (!chart) return;
-            chart.subscribeClick((param) => {
-                if (!param.time) { hideMarkerPopup(); return; }
-
-                const clickedBarTime = param.time;
-                const mapSize = Object.keys(markerTimeMap).length;
-                console.log(`[MarkerClick] clicked bar time: ${new Date(clickedBarTime*1000).toLocaleString()}, markers available: ${mapSize}`);
-
-                if (mapSize === 0) { hideMarkerPopup(); return; }
-
-                // Search by BAR TIME (already snapped) — exact or nearest within 2 bars
-                const ivSec = { '1s': 1, '2s': 2, '5s': 5, '15s': 15, '30s': 30, '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 }[currentInterval] || 15;
-                let closest = null, minDiff = Infinity;
-                Object.entries(markerTimeMap).forEach(([bt, m]) => {
-                    const diff = Math.abs(parseInt(bt) - clickedBarTime);
-                    if (diff < minDiff) { minDiff = diff; closest = m; }
-                });
-
-                if (!closest || minDiff > ivSec * 2) {
-                    console.log(`[MarkerClick] No marker within 2 bars (closest diff: ${minDiff}s)`);
-                    hideMarkerPopup();
-                    return;
-                }
-                console.log(`[MarkerClick] Found marker:`, closest);
-                showMarkerPopup(closest, param);
-                highlightTradeFromMarker(closest);
-            });
         }
 
         function showMarkerPopup(m, param) {
@@ -7033,7 +6443,7 @@
 
         // Highlight trade on chart from marker click (same lines as history click)
         function highlightTradeFromMarker(m) {
-            if (!m || !candlestickSeries) return;
+            if (!m || !tvWidget) return;
             // For grouped markers use the last one
             const trade = m._all ? m._all[m._all.length - 1] : m;
             const isEntry = trade.isEntry !== false && (trade.isEntry === true || Math.abs(trade.pnl || 0) < 0.0001);
@@ -7377,123 +6787,81 @@
 
         function drawPriceLines(data) {
             lastChartData = data;
-
-            if (!candlestickSeries || klinesData.length < 2) return;
-            // Don't draw position/order lines if bot is disabled (skip check in demo mode)
+            if (!tvWidget || klinesData.length < 2) return;
             if (!demoMode && botStatusLoaded && !botIsRunning) {
                 clearAllPriceLines();
                 return;
             }
 
-            const firstTime = klinesData[0].time;
-            const lastTime = klinesData[klinesData.length - 1].time;
-
-            // Build desired lines map: key -> { price, color, lineWidth, lineStyle, label, noAutoScale, startTime }
             const desiredLines = new Map();
-
-            function addDesired(key, price, color, lineWidth, lineStyle, label, noAutoScale, startTime) {
+            function addDesired(key, price, color, text) {
                 if (!price || price <= 0) return;
-                desiredLines.set(key, { price, color, lineWidth, lineStyle, label, noAutoScale, startTime: startTime || firstTime });
+                desiredLines.set(key, { price, color, text });
             }
 
-            // Position entry
             if (data.position && displaySettings.positions) {
                 const isLong = data.position.side === 'LONG';
                 addDesired(`pos-${data.position.side}-${data.position.entryPrice}`,
                     data.position.entryPrice,
                     isLong ? userTheme.colors.long : userTheme.colors.short,
-                    2, LightweightCharts.LineStyle.Solid,
                     `${data.position.side} Entry`
                 );
-                const recentCandles = klinesData.slice(-50);
-                if (recentCandles.length > 0) {
-                    if (isLong) {
-                        const low = Math.min(...recentCandles.map(c => c.low));
-                        addDesired('risk-long', low * 0.98, userTheme.colors.long + '80', 1, LightweightCharts.LineStyle.LargeDashed, 'Risk -2%', true);
-                    } else {
-                        const high = Math.max(...recentCandles.map(c => c.high));
-                        addDesired('risk-short', high * 1.02, userTheme.colors.short + '80', 1, LightweightCharts.LineStyle.LargeDashed, 'Risk +2%', true);
-                    }
-                }
             }
-
-            // Limit orders
             if (displaySettings.limits) {
                 (data.limitOrders || []).forEach((o, i) =>
-                    addDesired(`limit-${o.side}-${o.price}-${i}`, o.price, userTheme.colors.limit, 1, LightweightCharts.LineStyle.Dashed, `LIMIT ${o.side}`)
+                    addDesired(`limit-${o.side}-${o.price}-${i}`, o.price, userTheme.colors.limit, `LIMIT ${o.side}`)
                 );
             }
-
-            // Stop orders
             if (displaySettings.stops) {
                 (data.stopOrders || []).forEach((o, i) =>
-                    addDesired(`stop-${o.side}-${o.stopPrice}-${i}`, o.stopPrice, userTheme.colors.stop, 1, LightweightCharts.LineStyle.Dotted, `STOP ${o.side}`)
+                    addDesired(`stop-${o.side}-${o.stopPrice}-${i}`, o.stopPrice, userTheme.colors.stop, `STOP ${o.side}`)
                 );
             }
-
-            // Take profit orders
             if (displaySettings.tps) {
                 (data.takeProfitOrders || []).forEach((o, i) =>
-                    addDesired(`tp-${o.side}-${o.stopPrice}-${i}`, o.stopPrice, userTheme.colors.tp, 1, LightweightCharts.LineStyle.Dotted, `TP ${o.side}`)
+                    addDesired(`tp-${o.side}-${o.stopPrice}-${i}`, o.stopPrice, userTheme.colors.tp, `TP ${o.side}`)
                 );
             }
 
-            // Diff: remove lines that no longer exist (single pass — no double-removal)
-            for (const [key, series] of priceLinesMap) {
+            // Diff: remove lines no longer needed
+            for (const [key, line] of orderLinesMap) {
                 if (!desiredLines.has(key)) {
-                    try { chart.removeSeries(series); } catch(e) {}
-                    priceLinesMap.delete(key);
+                    try { line.remove(); } catch(e) {}
+                    orderLinesMap.delete(key);
                 }
             }
 
-            // Add or update lines
-            for (const [key, cfg] of desiredLines) {
-                if (priceLinesMap.has(key)) {
-                    // Line exists — update data in case time range changed
+            // Add new lines
+            tvWidget.onChartReady(() => {
+                for (const [key, cfg] of desiredLines) {
+                    if (orderLinesMap.has(key)) continue; // already on chart
                     try {
-                        priceLinesMap.get(key).setData([
-                            { time: cfg.startTime, value: cfg.price },
-                            { time: lastTime, value: cfg.price }
-                        ]);
-                    } catch(e) {}
-                } else {
-                    // Create new line
-                    const s = chart.addLineSeries({
-                        color: cfg.color,
-                        lineWidth: cfg.lineWidth,
-                        lineStyle: cfg.lineStyle,
-                        lastValueVisible: !cfg.noAutoScale,
-                        priceLineVisible: false,
-                        crosshairMarkerVisible: false,
-                        title: cfg.label,
-                        autoscaleInfoProvider: cfg.noAutoScale ? () => null : undefined,
-                    });
-                    s.setData([
-                        { time: cfg.startTime, value: cfg.price },
-                        { time: lastTime, value: cfg.price }
-                    ]);
-                    priceLinesMap.set(key, s);
+                        const line = tvWidget.chart().createOrderLine()
+                            .setPrice(cfg.price)
+                            .setText(cfg.text)
+                            .setLineColor(cfg.color)
+                            .setBodyBackgroundColor('#141414')
+                            .setBodyTextColor(cfg.color)
+                            .setQuantity('');
+                        orderLinesMap.set(key, line);
+                    } catch(e) { console.warn('[drawPriceLines] createOrderLine error:', e); }
                 }
-            }
+            });
         }
 
         // ===== TRADE HIGHLIGHT (click on history row) =====
-        let tradeHighlightSeries = [];
         let highlightedTradeRow = null;
-        let savedMarkersBeforeHighlight = null;
 
         function highlightTrade(trade, rowEl, noNavigate) {
-            // Clear previous highlight
             clearTradeHighlight(false);
 
-            // Mark row
             highlightedTradeRow = rowEl;
             if (rowEl) rowEl.classList.add('highlighted');
 
-            if (!candlestickSeries || klinesData.length < 2) return;
+            if (!tvWidget || klinesData.length < 2) return;
 
-            const openTime  = trade.openedAt  ? Math.floor(new Date(trade.openedAt).getTime()  / 1000) : null;
-            const closeTime = trade.closedAt   ? Math.floor(new Date(trade.closedAt).getTime()  / 1000) : null;
+            const openTime  = trade.openedAt ? Math.floor(new Date(trade.openedAt).getTime() / 1000) : null;
+            const closeTime = trade.closedAt  ? Math.floor(new Date(trade.closedAt).getTime()  / 1000) : null;
             const price     = parseFloat(trade.price || 0);
             const pnl       = parseFloat(trade.pnl   || 0);
             const qty       = parseFloat(trade.quantity || 0);
@@ -7501,96 +6869,81 @@
 
             if (!openTime || !price) return;
 
-            const firstTime = klinesData[0].time;
-            const lastTime  = klinesData[klinesData.length - 1].time;
-            const endTime   = closeTime ? Math.min(closeTime, lastTime) : lastTime;
-
-            // For actively open positions, openTime might be slightly ahead of lastTime
-            // (position opened in the last 1-2 seconds before chart updated).
-            // Clamp to lastTime so we still show the info overlay and chart lines.
-            const effectiveOpenTime = (!closeTime && openTime > lastTime) ? lastTime : openTime;
-            if (effectiveOpenTime > lastTime) return; // truly future closed trade — skip
-
-            // Max segment width: 25 candles (so lines are never full-width)
-            const ivSec = { '1s': 1, '2s': 2, '5s': 5, '15s': 15, '30s': 30, '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 }[currentInterval] || 60;
-            const maxSeg = ivSec * 25;
-
-            // If the trade opened before the loaded candles, cap start to 25 candles before endTime
-            const rawStart  = effectiveOpenTime >= firstTime ? effectiveOpenTime : endTime - maxSeg;
-            const entryStart = Math.max(firstTime, rawStart);
-
-            // Calculate close price from PNL for closed trades
             let closePrice = null;
             if (trade.status === 'closed' && pnl !== 0 && qty > 0) {
                 closePrice = isBuy ? price + pnl / qty : price - pnl / qty;
             }
 
-            // Draw entry price segment (solid line, max 25 candles wide)
-            const entryColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
-            const es = chart.addLineSeries({ color: entryColor, lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Solid,
-                lastValueVisible: true, priceLineVisible: false,
-                crosshairMarkerVisible: false, title: `Entry $${price.toFixed(2)}`,
-                autoscaleInfoProvider: () => null });
-            es.setData([{ time: entryStart, value: price }, { time: endTime, value: price }]);
-            tradeHighlightSeries.push(es);
+            tvWidget.onChartReady(() => {
+                const chart = tvWidget.chart();
+                const entryColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
 
-            // Draw close price segment (dashed, profit/loss color)
-            if (closePrice && closeTime && closeTime >= firstTime && closeTime <= lastTime) {
-                const closeColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
-                const cs = chart.addLineSeries({ color: closeColor, lineWidth: 2,
-                    lineStyle: LightweightCharts.LineStyle.Dashed,
-                    lastValueVisible: true, priceLineVisible: false,
-                    crosshairMarkerVisible: false, title: `Close $${closePrice.toFixed(2)}`,
-                    autoscaleInfoProvider: () => null });
-                // Close segment: from 25 candles before close → close time
-                const closeSegStart = Math.max(firstTime, closeTime - maxSeg);
-                cs.setData([{ time: closeSegStart, value: closePrice }, { time: closeTime, value: closePrice }]);
-                tradeHighlightSeries.push(cs);
-            }
+                // Entry price order line
+                try {
+                    const entryLine = chart.createOrderLine()
+                        .setPrice(price)
+                        .setText(`Entry $${price.toFixed(2)}`)
+                        .setLineColor(entryColor)
+                        .setBodyBackgroundColor('#141414')
+                        .setBodyTextColor(entryColor)
+                        .setQuantity('');
+                    highlightOrderLines.push(entryLine);
+                } catch(e) {}
 
-            // Add highlighted arrow marker at the entry candle
-            try {
-                const currentMarkers = candlestickSeries.markers() || [];
-                savedMarkersBeforeHighlight = currentMarkers;
-                const highlightMarker = {
-                    time: effectiveOpenTime,
-                    position: isBuy ? 'belowBar' : 'aboveBar',
-                    color: isBuy ? '#10B981' : '#EF4444',
-                    shape: isBuy ? 'arrowUp' : 'arrowDown',
-                    size: 2,
-                    text: isBuy ? '▲ Long' : '▼ Short'
-                };
-                // Add close marker too if it's within visible range
-                const extraMarkers = [highlightMarker];
-                if (closeTime && closeTime >= firstTime && closeTime <= lastTime) {
-                    extraMarkers.push({
-                        time: closeTime,
-                        position: isBuy ? 'aboveBar' : 'belowBar',
-                        color: pnl >= 0 ? '#10B981' : '#EF4444',
-                        shape: 'diamond',
-                        size: 2,
-                        text: `◆ ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`
-                    });
+                // Close price order line
+                if (closePrice) {
+                    try {
+                        const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
+                        const closeLine = chart.createOrderLine()
+                            .setPrice(closePrice)
+                            .setText(`Close $${closePrice.toFixed(2)}`)
+                            .setLineColor(pnlColor)
+                            .setBodyBackgroundColor('#141414')
+                            .setBodyTextColor(pnlColor)
+                            .setQuantity('');
+                        highlightOrderLines.push(closeLine);
+                    } catch(e) {}
                 }
-                // Merge with existing markers, sorted by time
-                const allMarkers = [...currentMarkers, ...extraMarkers]
-                    .sort((a, b) => a.time - b.time);
-                candlestickSeries.setMarkers(allMarkers);
-            } catch(e) {}
 
-            // Navigate chart — center the view on the trade (skip when called from marker click)
-            // Only navigate if the trade's open time is within the loaded klines range
-            if (!noNavigate && effectiveOpenTime >= firstTime && effectiveOpenTime <= lastTime) {
-                const tradeCenter = Math.floor((effectiveOpenTime + (Math.min(closeTime || effectiveOpenTime, lastTime))) / 2);
-                const padding = ivSec * 15; // 15 candles on each side → trade in center
-                const navFrom = Math.max(firstTime, tradeCenter - padding);
-                const navTo   = Math.min(lastTime + ivSec * 5, tradeCenter + padding);
-                try { chart.timeScale().setVisibleRange({ from: navFrom, to: navTo }); } catch(e) {}
-            }
+                // Arrow marker at entry bar
+                if (openTime) {
+                    const barTime = snapToBar(openTime);
+                    if (barTime !== null) {
+                        try {
+                            const id = chart.createShape(
+                                { time: barTime, price },
+                                {
+                                    shape:            isBuy ? 'arrow_up' : 'arrow_down',
+                                    text:             isBuy ? '▲ Long' : '▼ Short',
+                                    color:            isBuy ? '#10B981' : '#EF4444',
+                                    lock:             true,
+                                    disableSelection: true,
+                                    zOrder:           'top',
+                                }
+                            );
+                            if (id) highlightShapeIds.push(id);
+                        } catch(e) {}
+                    }
+                }
 
-            // Show info overlay
-            const dt = trade.openedAt ? new Date(trade.openedAt) : null;
+                // Navigate to the trade if requested
+                if (!noNavigate && openTime && klinesData.length > 0) {
+                    const firstTime = klinesData[0].time;
+                    const lastTime  = klinesData[klinesData.length - 1].time;
+                    const effectiveOpen = Math.min(Math.max(openTime, firstTime), lastTime);
+                    const ivSec = { '1s':1,'2s':2,'5s':5,'15s':15,'30s':30,'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400 }[currentInterval] || 60;
+                    const padding = ivSec * 15;
+                    try {
+                        tvWidget.chart().setVisibleRange({
+                            from: Math.max(firstTime, effectiveOpen - padding),
+                            to:   Math.min(lastTime + ivSec * 5, effectiveOpen + padding)
+                        });
+                    } catch(e) {}
+                }
+            });
+
+            // Show info overlay (unchanged)
+            const dt       = trade.openedAt ? new Date(trade.openedAt) : null;
             const pnlColor = pnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
             const pnlSign  = pnl >= 0 ? '+' : '';
             const closeDt  = trade.closedAt ? new Date(trade.closedAt) : null;
@@ -7608,16 +6961,18 @@
         }
 
         function clearTradeHighlight(hideOverlay = true) {
-            tradeHighlightSeries.forEach(s => { try { chart.removeSeries(s); } catch(e) {} });
-            tradeHighlightSeries = [];
+            if (tvWidget) {
+                tvWidget.onChartReady(() => {
+                    const chart = tvWidget.chart();
+                    highlightShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
+                    highlightOrderLines.forEach(line => { try { line.remove(); } catch(e) {} });
+                });
+            }
+            highlightShapeIds = [];
+            highlightOrderLines = [];
             if (highlightedTradeRow) {
                 highlightedTradeRow.classList.remove('highlighted');
                 highlightedTradeRow = null;
-            }
-            // Restore original markers
-            if (savedMarkersBeforeHighlight !== null && candlestickSeries) {
-                try { candlestickSeries.setMarkers(savedMarkersBeforeHighlight); } catch(e) {}
-                savedMarkersBeforeHighlight = null;
             }
             if (hideOverlay) document.getElementById('tradeInfoOverlay').style.display = 'none';
         }
@@ -7729,18 +7084,20 @@
             }
         }
 
-        // Event listeners for intervals — React chart handles WS + data loading
+        // Event listeners for intervals
         document.querySelectorAll('.interval-btn:not(.prec-btn)').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (!btn.dataset.interval) return; // toggle-only buttons (e.g. #subTfToggle) have no data-interval
+                if (!btn.dataset.interval) return;
                 document.querySelectorAll('.interval-btn:not(.prec-btn)').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentInterval = btn.dataset.interval;
                 markersLoaded = false;
                 lastMarkersKey = '';
-                aggCandle = null;
-                loadKlines();
-                connectWebSocket();
+                klinesData = [];
+                if (tvWidget) {
+                    const res = IV_TO_TV_RES[currentInterval] ?? '1';
+                    tvWidget.onChartReady(() => tvWidget.chart().setResolution(res));
+                }
             });
         });
 
@@ -9264,9 +8621,7 @@
             await loadBotDetails();
             loadEquityData(); // async, non-blocking
             await loadSymbols();
-            await loadKlines();
             await refreshData();
-            connectWebSocket();
 
             // Initialize appearance tab
             initAppearanceTab();
@@ -9292,7 +8647,7 @@
 
             // Real-time trade markers: refresh every 5 seconds to pick up new trades
             setInterval(() => {
-                if (!demoMode && candlestickSeries && klinesData.length > 0 && savedMarkersBeforeHighlight === null) {
+                if (!demoMode && tvWidget && klinesData.length > 0) {
                     loadTradeMarkers();
                 }
             }, 5000);
@@ -9300,12 +8655,9 @@
             // Auto-refresh bot details every 30 seconds
             setInterval(loadBotDetails, 30000);
 
-            // Cleanup on page unload — bump generation so all callbacks die
+            // Cleanup on page unload
             window.addEventListener('beforeunload', () => {
-                wsGeneration++;
-                if (wsPingInterval) clearInterval(wsPingInterval);
-                if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
-                try { if (ws) ws.close(); } catch(e) {}
+                if (botDatafeed) botDatafeed._disconnectWs();
             });
         }
 
@@ -9477,89 +8829,52 @@
             rulerLabel.style.top = ly + 'px';
         }
 
-        // Convert time+price → pixel coordinates using chart coordinate APIs
-        function toPixel(time, price) {
-            if (!chart) return null;
-            var x = chart.timeScale().timeToCoordinate(time);
-            var y = candlestickSeries.priceToCoordinate(price);
-            if (x === null || y === null) return null;
-            return { x: x, y: y };
-        }
+        // Ruler crosshair tracking — price/time come directly from TV crosshair events
+        var _rulerLastCursor = { price: null, time: null, x: 0, y: 0 };
 
-        // Convert pixel Y → price, pixel X → time (works anywhere on chart, not just on candles)
-        function priceFromY(y) {
-            if (!candlestickSeries) return null;
-            try { return candlestickSeries.coordinateToPrice(y); } catch(e) { return null; }
-        }
-        function timeFromX(x) {
-            if (!chart) return null;
-            // coordinateToTime may not exist in v4.1 — fall back to logical
-            var ts = chart.timeScale();
-            if (ts.coordinateToTime) {
-                try { return ts.coordinateToTime(x); } catch(e) {}
-            }
-            // Fallback: logical index → approximate time from kline data
-            var logical = ts.coordinateToLogical(x);
-            if (logical === null || logical === undefined) return null;
-            // Use visible range to estimate time from logical
-            return logical; // store logical as fallback; countBars still works via pixel diff
-        }
+        // Listen for chart clicks via chartEl mousedown (TV doesn't expose subscribeClick externally)
+        function onRulerMouseDown(e) {
+            if (!rulerActive) return;
+            var clickPrice = _rulerLastCursor.price;
+            var clickTime  = _rulerLastCursor.time;
+            if (clickPrice === null || clickTime === null) return;
 
-        // Listen for chart clicks — works anywhere on chart area
-        function onRulerClick(param) {
-            if (!rulerActive || !param.point) return;
-
-            var clickPrice = priceFromY(param.point.y);
-            if (clickPrice === null) return;
-            var clickTime = param.time || timeFromX(param.point.x);
+            var rect = chartEl.getBoundingClientRect();
+            var cx = e.clientX - rect.left;
+            var cy = e.clientY - rect.top;
 
             if (rulerStep === 0 || rulerStep === 2) {
                 cleanupRuler();
-                rulerStartData = { time: clickTime, price: clickPrice, x: param.point.x, y: param.point.y };
+                rulerStartData = { time: clickTime, price: clickPrice, x: cx, y: cy };
                 rulerStep = 1;
             } else if (rulerStep === 1) {
                 // Finalize
                 rulerEndData = { time: clickTime, price: clickPrice };
                 rulerStep = 2;
+                // Draw final ruler
+                drawLine(rulerStartData.x, rulerStartData.y, cx, cy);
+                updateRulerLabel(rulerStartData.price, clickPrice, rulerStartData.time, clickTime, cx, cy);
             }
         }
 
-        // Live preview while moving after first click
+        // Live preview while moving after first click — driven by mousemove on chartEl
         var rafPending = false;
-        function onRulerCrosshairMove(param) {
+        function onRulerMouseMove(e) {
             if (!rulerActive || rulerStep !== 1 || !rulerStartData) return;
-            if (!param.point) return;
-
-            var hoverPrice = priceFromY(param.point.y);
+            var rect = chartEl.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+            var hoverPrice = _rulerLastCursor.price;
+            var hoverTime  = _rulerLastCursor.time;
             if (hoverPrice === null) return;
-            var hoverTime = param.time || timeFromX(param.point.x);
-
-            // Recalculate start pixel (may shift due to scroll/zoom)
-            var startPx = toPixel(rulerStartData.time, rulerStartData.price);
-            var sx = startPx ? startPx.x : rulerStartData.x;
-            var sy = startPx ? startPx.y : rulerStartData.y;
-
-            var endX = param.point.x;
-            var endY = param.point.y;
-
             if (!rafPending) {
                 rafPending = true;
                 requestAnimationFrame(function() {
                     rafPending = false;
-                    drawLine(sx, sy, endX, endY);
-                    updateRulerLabel(rulerStartData.price, hoverPrice, rulerStartData.time, hoverTime, endX, endY);
+                    drawLine(rulerStartData.x, rulerStartData.y, mx, my);
+                    updateRulerLabel(rulerStartData.price, hoverPrice, rulerStartData.time, hoverTime, mx, my);
                 });
             }
-        }
-
-        // Redraw finalized ruler on scroll/zoom
-        function onVisibleRangeChange() {
-            if (!rulerActive || rulerStep !== 2 || !rulerStartData || !rulerEndData) return;
-            var p1 = toPixel(rulerStartData.time, rulerStartData.price);
-            var p2 = toPixel(rulerEndData.time, rulerEndData.price);
-            if (!p1 || !p2) { clearCanvas(); return; }
-            drawLine(p1.x, p1.y, p2.x, p2.y);
-            updateRulerLabel(rulerStartData.price, rulerEndData.price, rulerStartData.time, rulerEndData.time, p2.x, p2.y);
         }
 
         // Escape key cancels ruler
@@ -9569,13 +8884,23 @@
             }
         });
 
-        // Wait for chart to be initialized, then subscribe
+        // Wait for tvWidget to be ready, then subscribe to crosshair events
         var waitChart = setInterval(function() {
-            if (chart && candlestickSeries) {
+            if (tvWidget) {
                 clearInterval(waitChart);
-                chart.subscribeClick(onRulerClick);
-                chart.subscribeCrosshairMove(onRulerCrosshairMove);
-                chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRangeChange);
+                tvWidget.onChartReady(function() {
+                    var tvChart = tvWidget.chart();
+                    // Track crosshair position for ruler price/time
+                    tvChart.crossHairMoved(function(param) {
+                        if (param && param.price !== undefined && param.time !== undefined) {
+                            _rulerLastCursor.price = param.price;
+                            _rulerLastCursor.time  = param.time;
+                        }
+                    });
+                });
+                // Subscribe mouse events on chart DOM element
+                chartEl.addEventListener('mousedown', onRulerMouseDown);
+                chartEl.addEventListener('mousemove', onRulerMouseMove);
             }
         }, 200);
 
@@ -9604,18 +8929,8 @@
                 }
                 parent = parent.parentElement;
             }
-            // Trigger resize so LightweightCharts recalculates dimensions
+            // Trigger resize so TradingView recalculates dimensions
             setTimeout(function() {
-                if (chart) {
-                    if (isFs) {
-                        chart.applyOptions({ width: window.innerWidth, height: window.innerHeight - 28 });
-                    } else {
-                        // Restore: let the chart fit its container
-                        var chartDiv = document.getElementById('chart');
-                        var rect = chartDiv.getBoundingClientRect();
-                        chart.applyOptions({ width: rect.width, height: rect.height });
-                    }
-                }
                 window.dispatchEvent(new Event('resize'));
             }, 60);
         }
@@ -9647,7 +8962,7 @@
 <!-- Mobile Bottom Nav -->
 <nav class="m-bottom-nav" id="mobileNav" style="display:none;">
     <a href="/dashboard" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>
-    <a href="/bots" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg><span>Боти</span></a>
+    <a href="/bots" class="m-nav-tab"><span class="material-symbols-outlined">robot</span><span>Боти</span></a>
     <a href="/portfolio" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфель</span></a>
     <a href="/subscriptions" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Підписки</span></a>
     <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>

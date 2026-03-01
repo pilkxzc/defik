@@ -191,7 +191,20 @@ const BETA_PAGE = `<!DOCTYPE html>
 </html>`;
 
 // Paths that are always allowed (no beta check)
-const SKIP_PREFIXES = ['/beta', '/logo.svg', '/css/', '/fonts/'];
+const SKIP_PREFIXES = [
+    '/beta',
+    '/logo.svg',
+    '/css/',
+    '/fonts/',
+    '/login',
+    '/register',
+    '/verify-email',
+    '/reset-password',
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/logout',
+    '/api/auth/me',
+];
 const SKIP_EXT_RE   = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|map)$/i;
 
 function betaMiddleware(req, res, next) {

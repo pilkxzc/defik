@@ -15,7 +15,7 @@ import {
   useRef,
 } from 'react';
 
-import type { IChartingLibraryWidget } from '../types/tradingview.d';
+import type { IChartingLibraryWidget, EntityId } from '../types/tradingview.d';
 import { createDatafeed }               from '../datafeed';
 import type { Timeframe, WsConnectionStatus } from '../types/binance';
 import { TF_TO_TV_RESOLUTION }          from '../types/binance';
@@ -23,8 +23,12 @@ import { TF_TO_TV_RESOLUTION }          from '../types/binance';
 // ─── Public handle (same interface as the old ChartWidgetHandle) ──────────────
 
 export interface ChartWidgetHandle {
-  setSymbol:    (s:  string)    => void;
-  setTimeframe: (tf: Timeframe) => void;
+  setSymbol:         (s:  string)                                     => void;
+  setTimeframe:      (tf: Timeframe)                                  => void;
+  addTradeMarker:    (side: 'buy' | 'sell', price: number, label?: string) => void;
+  clearTradeMarkers: ()                                               => void;
+  /** Set price decimal precision. 0 = auto-detect. Currently a no-op (TV auto-detects). */
+  setPriceDecimals:  (n: number)                                      => void;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -55,8 +59,9 @@ const TVChartWidgetInner = forwardRef<ChartWidgetHandle, Props>(
     },
     ref,
   ) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const widgetRef    = useRef<IChartingLibraryWidget | null>(null);
+    const containerRef  = useRef<HTMLDivElement>(null);
+    const widgetRef     = useRef<IChartingLibraryWidget | null>(null);
+    const shapeIdsRef   = useRef<EntityId[]>([]);
 
     // Stable ref so the datafeed callback always has the latest function
     const onPriceUpdateRef   = useRef(onPriceUpdate);
@@ -78,6 +83,37 @@ const TVChartWidgetInner = forwardRef<ChartWidgetHandle, Props>(
         widgetRef.current?.onChartReady(() => {
           widgetRef.current?.chart().setResolution(res);
         });
+      },
+      addTradeMarker: (side: 'buy' | 'sell', price: number, label?: string) => {
+        widgetRef.current?.onChartReady(() => {
+          const chart = widgetRef.current?.chart();
+          if (!chart) return;
+          const id = chart.createShape(
+            { time: Math.floor(Date.now() / 1000), price },
+            {
+              shape:            side === 'buy' ? 'arrow_up' : 'arrow_down',
+              text:             label ?? '',
+              color:            side === 'buy' ? '#10B981' : '#EF4444',
+              lock:             true,
+              disableSelection: true,
+              zOrder:           'top',
+            },
+          );
+          if (id) shapeIdsRef.current.push(id);
+        });
+      },
+      clearTradeMarkers: () => {
+        widgetRef.current?.onChartReady(() => {
+          const chart = widgetRef.current?.chart();
+          if (!chart) return;
+          shapeIdsRef.current.forEach(id => {
+            try { chart.removeEntity(id); } catch { /* already gone */ }
+          });
+          shapeIdsRef.current = [];
+        });
+      },
+      setPriceDecimals: (_n: number) => {
+        // TV auto-detects precision from the price scale; no-op for now.
       },
     }), []);
 
@@ -125,9 +161,11 @@ const TVChartWidgetInner = forwardRef<ChartWidgetHandle, Props>(
           'header_undo_redo',
           'header_saveload',
           'use_localstorage_for_settings',
+          'volume_force_overlay',
         ],
         enabled_features: [
           'hide_left_toolbar_by_default',
+          'seconds_resolution',
         ],
         overrides: {
           'mainSeriesProperties.candleStyle.upColor':          '#10B981',

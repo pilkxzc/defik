@@ -1,0 +1,46 @@
+/* ═══════════════════════════════════════════════════════
+   YAMATO — DESIGN TOKENS (shared CSS variables)
+   Завантажується ПЕРШИМ в усіх сторінках.
+   НЕ редагуй :root блоки у HTML файлах — все тут.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+    /* ── Backgrounds ── */
+    --bg-app:              #080808;
+    --surface:             #141414;
+    --surface-secondary:   #1C1C1C;
+
+    /* ── Accent colors ── */
+    --accent-primary:      #10B981;   /* зелений — основний */
+    --accent-blue:         #8CA8FF;
+    --accent-white:        #FFFFFF;
+    --color-up:            #10B981;   /* ціна вгору */
+    --color-down:          #EF4444;   /* ціна вниз */
+
+    /* ── Text ── */
+    --text-primary:        #FFFFFF;
+    --text-secondary:      #A1A1A1;
+    --text-tertiary:       #636363;
+
+    /* ── Border radius ── */
+    --radius-xl:           32px;
+    --radius-lg:           24px;
+    --radius-md:           16px;
+    --radius-full:         9999px;
+
+    /* ── Spacing (app pages) ── */
+    --gap-md:              20px;
+    --gap-sm:              12px;
+
+    /* ── Shadows ── */
+    --shadow-soft:         0 12px 32px rgba(0, 0, 0, 0.4);
+    --shadow-card:         0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Base reset (shared by all pages) ── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}

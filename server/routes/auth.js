@@ -69,6 +69,7 @@ router.post('/api/auth/register', async (req, res) => {
         }
 
         req.session.userId = userId;
+        req.session.betaAccess = true;
         console.log(`[register] Session ${req.session.id?.substring(0,8)}... userId set to ${req.session.userId}, saving...`);
 
         req.session.save((err) => {
@@ -146,6 +147,7 @@ router.post('/api/auth/login', async (req, res) => {
         createNotification(user.id, 'login', 'New account login', `Login from IP: ${clientIP}`);
 
         req.session.userId = user.id;
+        req.session.betaAccess = true;
 
         req.session.save((err) => {
             if (err) {

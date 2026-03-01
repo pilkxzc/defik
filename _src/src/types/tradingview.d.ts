@@ -145,11 +145,48 @@ export interface IChartingLibraryWidget {
   remove(): void;
 }
 
+/** Opaque identifier returned by createShape / createOrderLine etc. */
+export type EntityId = string & { readonly __brand: 'EntityId' };
+
+export interface CreateShapeOptions {
+  shape:              string;
+  text?:              string;
+  color?:             string;
+  lock?:              boolean;
+  disableSelection?:  boolean;
+  zOrder?:            'top' | 'bottom';
+  overrides?:         Record<string, unknown>;
+}
+
+export interface OrderLine {
+  setPrice(price: number): this;
+  setText(text: string): this;
+  setLineColor(color: string): this;
+  setBodyBackgroundColor(color: string): this;
+  setBodyTextColor(color: string): this;
+  setQuantity(qty: string): this;
+  remove(): void;
+}
+
 export interface IChartApi {
   setSymbol(symbol: string, callback?: () => void): void;
   setResolution(resolution: ResolutionString, callback?: () => void): void;
   symbol():     string;
   resolution(): ResolutionString;
+  /** Add a single-point shape (arrow_up, arrow_down, circle …) */
+  createShape(
+    point:   { time: number; price: number },
+    options: CreateShapeOptions,
+  ): EntityId | null;
+  /** Add a multi-point shape (trend_line, extended_line …) */
+  createMultipointShape(
+    points:  Array<{ time: number; price: number }>,
+    options: CreateShapeOptions,
+  ): EntityId | null;
+  /** Remove a shape / entity by its id */
+  removeEntity(id: EntityId): void;
+  /** Add a draggable order-line overlay */
+  createOrderLine(): OrderLine;
 }
 
 // ─── Global declaration ───────────────────────────────────────────────────────

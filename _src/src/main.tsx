@@ -1,6 +1,6 @@
 import { createRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ChartWidget, type ChartWidgetHandle } from './components/ChartWidget';
+import { ChartWidget, type ChartWidgetHandle } from './components/TVChartWidget';
 import type { Timeframe, WsConnectionStatus } from './types/binance';
 
 // ─── Global API type declaration ─────────────────────────────────────────────
