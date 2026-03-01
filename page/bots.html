@@ -444,12 +444,34 @@
             overflow: hidden;
         }
 
-        /* Category header row */
+        /* Category header row — clickable */
         .cat-header {
             display: flex; align-items: center; gap: 10px;
             padding: 14px 18px;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            cursor: pointer;
+            user-select: none;
             background: rgba(255,255,255,0.02);
+            transition: background .12s;
+        }
+        .cat-header:hover { background: rgba(255,255,255,0.04); }
+        .cat-block.open .cat-header {
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        /* Chevron */
+        .cat-chevron {
+            width: 16px; height: 16px; flex-shrink: 0;
+            color: var(--text-tertiary);
+            transition: transform .2s ease;
+        }
+        .cat-block.open .cat-chevron { transform: rotate(180deg); }
+
+        /* Collapsible body */
+        .cat-body {
+            display: none;
+        }
+        .cat-block.open .cat-body {
+            display: block;
         }
         .cat-accent-bar {
             width: 3px; height: 18px; border-radius: 2px;
@@ -481,7 +503,7 @@
         }
         .bot-row {
             display: grid;
-            grid-template-columns: 10px 1fr auto auto 110px;
+            grid-template-columns: 10px 1fr auto auto auto;
             align-items: center;
             gap: 16px;
             padding: 13px 18px;
@@ -517,7 +539,7 @@
             color: var(--text-tertiary); font-family: monospace; letter-spacing: 0.3px;
         }
 
-        /* Col 3 — PnL */
+        /* Col 3–4 — stats, Col 5 — actions */
         .br-pnl { text-align: right; }
         .br-pnl-val { font-size: 14px; font-weight: 800; }
         .br-pnl-val.up   { color: #10B981; }
@@ -530,10 +552,11 @@
         .br-win-val { font-size: 14px; font-weight: 800; color: var(--text-secondary); }
         .br-win-lbl { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
 
-        /* Col 5 — Button */
+        /* Col 5 — Buttons */
+        .br-actions { display: flex; gap: 6px; }
         .br-btn {
             display: flex; align-items: center; justify-content: center; gap: 5px;
-            padding: 7px 0; border-radius: 8px; font-size: 11px; font-weight: 700;
+            padding: 7px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;
             text-decoration: none; white-space: nowrap;
             background: rgba(255,255,255,.05);
             border: 1px solid rgba(255,255,255,.08);
@@ -547,15 +570,22 @@
             color: var(--cc);
         }
         .br-btn.admin:hover { background: color-mix(in srgb, var(--cc) 18%, transparent); color: #fff; }
+        .br-btn.dash {
+            background: rgba(140,168,255,.08);
+            border-color: rgba(140,168,255,.2);
+            color: #8CA8FF;
+        }
+        .br-btn.dash:hover { background: rgba(140,168,255,.16); color: #fff; }
 
         @media (max-width: 768px) {
-            .bot-row { grid-template-columns: 10px 1fr auto 90px; }
+            .bot-row { grid-template-columns: 10px 1fr auto auto; }
             .br-win  { display: none; }
         }
-        @media (max-width: 480px) {
-            .bot-row { grid-template-columns: 10px 1fr 80px; gap: 10px; padding: 11px 14px; }
+        @media (max-width: 540px) {
+            .bot-row { grid-template-columns: 10px 1fr auto; gap: 10px; padding: 11px 14px; }
             .br-pnl  { display: none; }
-            .br-btn  { font-size: 10px; padding: 7px 0; }
+            .br-btn  { font-size: 10px; padding: 7px 8px; }
+            .br-btn.dash { display: none; }
         }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
@@ -1172,6 +1202,13 @@
             }
         });
 
+        // ── Category collapse toggle ──────────────────────────────────────
+        function toggleCat(el) {
+            // don't toggle when clicking links/buttons inside
+            if (event.target.closest('a, button')) return;
+            el.classList.toggle('open');
+        }
+
         // ── Category icon SVG lookup ─────────────────────────────────────
         const CAT_ICONS = {
             cpu:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>',
@@ -1199,19 +1236,25 @@
                 const user = authRes.ok ? await authRes.json() : null;
                 _isAdmin = user?.role === 'admin' || user?.role === 'moderator';
 
-                const html = tree.map(cat => {
-                    const bots = cat.bots || [];
+                const html = tree.map((cat, idx) => {
+                    const bots    = cat.bots || [];
+                    const openCls = idx === 0 ? ' open' : '';   // first category open by default
                     return `
-                        <div class="cat-section cat-block" style="--cc:${cat.color}">
+                        <div class="cat-section cat-block${openCls}" style="--cc:${cat.color}" onclick="toggleCat(this)">
                             <div class="cat-header">
                                 <div class="cat-accent-bar"></div>
                                 <div class="cat-icon-wrap">${getCatIcon(cat.icon)}</div>
                                 <span class="cat-name">${cat.name}</span>
                                 <span class="cat-badge">${bots.length}</span>
+                                <svg class="cat-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
                             </div>
-                            ${bots.length === 0
-                                ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
-                                : bots.map(b => renderBotRow(b)).join('')}
+                            <div class="cat-body">
+                                ${bots.length === 0
+                                    ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
+                                    : bots.map(b => renderBotRow(b)).join('')}
+                            </div>
                         </div>`;
                 }).join('');
                 document.getElementById('botsTree').innerHTML = html ||
@@ -1222,12 +1265,12 @@
             }
         }
 
-        function renderBotCard(b, catColor) {
-            const pnl      = b.profit || 0;
-            const pnlClass = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
-            const pnlStr   = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
-            const win      = b.winRate !== null ? b.winRate + '%' : '—';
-            const isLive   = b.mode === 'bot';
+        function renderBotRow(b) {
+            const pnl       = b.profit || 0;
+            const pnlClass  = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
+            const pnlStr    = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
+            const win       = b.winRate !== null ? b.winRate + '%' : '—';
+            const isLive    = b.mode === 'bot';
             const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
 
             const tickers = b.symbol
@@ -1235,39 +1278,36 @@
                     `<span class="ticker-chip">${s.replace(/USDT|BUSD/gi,'')}</span>`).join('')
                 : `<span class="ticker-chip" style="opacity:.3">—</span>`;
 
-            const btnHref  = _isAdmin ? `/bot/${b.id}` : `/bot-stats/${b.id}`;
-            const btnClass = _isAdmin ? 'bcv-btn admin' : 'bcv-btn';
-            const btnSvg   = _isAdmin
-                ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>`
-                : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
-            const btnText  = _isAdmin ? 'Деталі' : 'Статистика';
+            const mainHref  = _isAdmin ? `/bot/${b.id}` : `/bot-stats/${b.id}`;
+            const mainClass = _isAdmin ? 'br-btn admin' : 'br-btn';
+            const mainSvg   = _isAdmin
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+            const mainText  = _isAdmin ? 'Деталі' : 'Статистика';
 
             return `
-                <div class="bot-card-v">
-                    <div class="bcv-stripe"></div>
-                    <div class="bcv-body">
-                        <div class="bcv-head">
-                            <div class="bcv-name">${b.name}</div>
-                            <div class="bcv-status ${b.is_active ? 'on' : 'off'}">
-                                <div class="bcv-dot ${b.is_active ? 'on' : 'off'}"></div>
-                                ${b.is_active ? 'Active' : 'Stopped'}
-                            </div>
+                <div class="bot-row">
+                    <div class="br-indicator ${b.is_active ? 'on' : ''}"></div>
+                    <div class="br-info">
+                        <div class="br-top">
+                            <span class="br-name">${b.name}</span>
+                            <span class="br-mode ${isLive ? 'live' : ''}">${modeLabel}</span>
                         </div>
-                        <span class="bcv-mode ${isLive ? 'live' : ''}">${modeLabel}</span>
-                        <div class="bcv-tickers">${tickers}</div>
-                        <div class="bcv-stats">
-                            <div class="bcv-stat">
-                                <div class="bcv-lbl">PnL</div>
-                                <div class="bcv-val ${pnlClass}">${pnlStr}</div>
-                            </div>
-                            <div class="bcv-stat">
-                                <div class="bcv-lbl">Win Rate</div>
-                                <div class="bcv-val">${win}</div>
-                            </div>
-                        </div>
+                        <div class="br-tickers">${tickers}</div>
                     </div>
-                    <div class="bcv-footer">
-                        <a class="${btnClass}" href="${btnHref}">${btnSvg} ${btnText}</a>
+                    <div class="br-pnl">
+                        <div class="br-pnl-lbl">PnL</div>
+                        <div class="br-pnl-val ${pnlClass}">${pnlStr}</div>
+                    </div>
+                    <div class="br-win">
+                        <div class="br-win-lbl">Win</div>
+                        <div class="br-win-val">${win}</div>
+                    </div>
+                    <div class="br-actions">
+                        <a class="br-btn dash" href="/bot-dashboard/${b.id}">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        </a>
+                        <a class="${mainClass}" href="${mainHref}">${mainSvg} ${mainText}</a>
                     </div>
                 </div>`;
         }

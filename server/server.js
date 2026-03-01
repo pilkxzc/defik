@@ -66,7 +66,11 @@ async function startServer() {
     app.get('/register',     (req, res) => res.sendFile(path.join(pages, 'reglogin.html')));
     app.get('/dashboard',    (req, res) => res.sendFile(path.join(pages, 'datedos.html')));
     app.get('/portfolio',    (req, res) => res.sendFile(path.join(pages, 'portfolio.html')));
-    app.get('/bots',         (req, res) => res.sendFile(path.join(pages, 'bots.html')));
+    app.get('/bots',           (req, res) => res.sendFile(path.join(pages, 'bots.html')));
+    app.get('/bot-dashboard/:id', (req, res) => {
+        if (!req.session || !req.session.userId) return res.redirect('/login');
+        res.sendFile(path.join(pages, 'dashboards-bot.html'));
+    });
     app.get('/profile',      (req, res) => res.sendFile(path.join(pages, 'profile.html')));
     app.get('/admin',        (req, res) => res.sendFile(path.join(pages, 'admin.html')));
     app.get('/bot/:id', (req, res) => {
