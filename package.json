@@ -6,6 +6,7 @@
     "build": "cd _src && npm run build",
     "start": "npm run build && node server/server.js",
     "dev": "cd _src && npm run build && cd .. && (cd _src && npx vite build --watch & ./server/node_modules/.bin/nodemon --watch server --ext js --ignore server/database.sqlite --ignore server/sessions.json server/server.js)",
-    "local": "node local.js"
+    "local": "node local.js",
+    "push": "node push.js"
   }
 }
