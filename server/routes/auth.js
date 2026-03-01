@@ -176,6 +176,7 @@ router.post('/api/auth/login', async (req, res) => {
 router.post('/api/auth/logout', (req, res) => {
     req.session.destroy((err) => {
         if (err) console.error('Logout session destroy error:', err);
+        res.clearCookie('connect.sid');
         res.json({ success: true });
     });
 });

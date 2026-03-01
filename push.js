@@ -5,7 +5,7 @@
  * push.js — один запуск робить все:
  *  1. Бекап бази з VPS → локально в .backups/
  *  2. git add + commit + push → GitHub
- *  3. GitHub Actions автоматично: git pull на VPS + npm install + pm2 reload
+ *  3. SSH на VPS: git pull + npm install (server + _src) + npm build + pm2 reload
  *
  *  Запуск: npm run push
  *          або: node push.js
@@ -115,11 +115,53 @@ function gitPush(message) {
 
     info('git push → GitHub...');
     run('git push origin main');
-    ok('Запушено! GitHub Actions зараз деплоїть на VPS...');
+    ok('Запушено на GitHub');
+}
 
-    console.log('');
-    console.log(`${c.bold}  Статус деплою: https://github.com/pilkxzc/defik/actions${c.reset}`);
-    console.log('');
+// ── 3. Deploy на VPS через SSH ───────────────────────────────────────────────
+function deployVPS() {
+    if (!fs.existsSync(VPS_KEY)) {
+        warn('SSH ключ не знайдено — деплой на VPS пропущено');
+        return;
+    }
+
+    const sshArgs = [
+        '-i', VPS_KEY,
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'BatchMode=yes',
+        `${VPS_USER}@${VPS_HOST}`,
+    ];
+
+    const script = `
+set -e
+cd /var/www/defisit
+
+echo ">>> git pull..."
+git pull origin main
+
+echo ">>> npm install (server)..."
+cd server && npm install --omit=dev --silent && cd ..
+
+echo ">>> npm install (_src)..."
+cd _src && npm install --silent && cd ..
+
+echo ">>> build front-end..."
+cd _src && npm run build && cd ..
+
+echo ">>> pm2 reload..."
+pm2 reload ecosystem.config.js --update-env
+
+echo "DONE"
+`;
+
+    info('Підключаємось до VPS...');
+    const result = spawnSync('ssh', [...sshArgs, script], { stdio: 'inherit' });
+
+    if (result.status === 0) {
+        ok('VPS оновлено, сервер перезапущено');
+    } else {
+        warn('Деплой на VPS завершився з помилкою — перевір вивід вище');
+    }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -129,6 +171,18 @@ console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
 
 const commitMsg = process.argv[2] || '';
 
+info('[1/3] Бекап бази даних...');
 backupDB();
 console.log('');
+
+info('[2/3] Git commit + push...');
 gitPush(commitMsg);
+console.log('');
+
+info('[3/3] Деплой на VPS...');
+deployVPS();
+
+console.log('');
+console.log(`${c.bold}${'─'.repeat(50)}${c.reset}`);
+console.log(`${c.bold}  ✅ Готово!${c.reset}`);
+console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);

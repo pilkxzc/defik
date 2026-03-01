@@ -25,12 +25,7 @@ class FileSessionStore extends session.Store {
 
     save() {
         try {
-            let existing = {};
-            if (fs.existsSync(SESSIONS_PATH)) {
-                try { existing = JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8')); } catch(e) {}
-            }
-            const merged = { ...existing, ...this.sessions };
-            fs.writeFileSync(SESSIONS_PATH, JSON.stringify(merged, null, 2));
+            fs.writeFileSync(SESSIONS_PATH, JSON.stringify(this.sessions, null, 2));
         } catch (err) {
             console.error('Error saving sessions:', err);
         }
