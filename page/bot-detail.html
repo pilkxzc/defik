@@ -6005,17 +6005,22 @@
                         const c = coordinates?.[0];
                         if (!c) return [];
                         const ed = overlay.extendData || {};
-                        const count = ed._count || 1;
-                        const isBuy = ed.isBuy !== false;
-                        const color = ed._mixed ? '#8B5CF6' : (isBuy ? '#10B981' : '#EF4444');
+                        const count   = ed._count || 1;
+                        // isLong = position side (LONG/SHORT), isBuy = direction for triangle placement
+                        const isLong  = ed._isLong !== undefined ? ed._isLong : ed.isBuy !== false;
+                        const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
+                        // Color follows position side (long=green, short=red), not order direction
+                        const color = ed._mixed ? '#8B5CF6' : (isLong ? '#10B981' : '#EF4444');
+                        // Triangle direction: entry=from below (up), exit=from above (down)
+                        const pointsUp = isEntry ? isLong : !isLong;
                         const sz = count > 1 ? 8 : 7;
                         const off = count > 1 ? 14 : 12;
-                        const pts = isBuy
+                        const pts = pointsUp
                             ? [{ x: c.x, y: c.y + off }, { x: c.x - sz, y: c.y + off + sz }, { x: c.x + sz, y: c.y + off + sz }]
                             : [{ x: c.x, y: c.y - off }, { x: c.x - sz, y: c.y - off - sz }, { x: c.x + sz, y: c.y - off - sz }];
                         const figs = [{ type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } }];
                         if (count > 1) {
-                            const badgeY = isBuy ? c.y + off + sz + 11 : c.y - off - sz - 5;
+                            const badgeY = pointsUp ? c.y + off + sz + 11 : c.y - off - sz - 5;
                             figs.push({ type: 'text', attrs: { x: c.x, y: badgeY, text: `×${count}`, align: 'center', baseline: 'middle' }, styles: { color, size: 10, weight: '600' } });
                         }
                         return figs;
@@ -6544,11 +6549,16 @@
                     const price = parseFloat(group[0].price || 0) || (klinesData.find(k => k.time === barTime)?.close ?? 0);
                     if (!price) return;
 
-                    const allBuy  = group.every(m => m._isBuy);
-                    const allSell = group.every(m => !m._isBuy);
-                    const isBuy   = allSell ? false : true;
-                    const mixed   = !allBuy && !allSell;
-                    const count   = group.length;
+                    const allLong  = group.every(m => m._isLong);
+                    const allShort = group.every(m => !m._isLong);
+                    const allEntry = group.every(m => m._isEntry);
+                    const allExit  = group.every(m => !m._isEntry);
+                    const mixed    = !allLong && !allShort;
+                    const count    = group.length;
+                    // Representative values for single-marker overlays
+                    const _isLong  = !allShort;
+                    const _isEntry = allEntry ? true : (allExit ? false : true);
+                    const isBuy    = _isEntry ? _isLong : !_isLong; // order direction (for backward compat)
 
                     // Group marker object for popup
                     const groupMarker = count === 1
@@ -6562,7 +6572,7 @@
                             groupId: tradeOverlayGroup,
                             lock: true,
                             points: [{ timestamp: barTime * 1000, value: price }],
-                            extendData: { ...groupMarker, isBuy, _mixed: mixed, _count: count, _all: group },
+                            extendData: { ...groupMarker, isBuy, _isLong, _isEntry, _mixed: mixed, _count: count, _all: group },
                         });
                     } catch(e) {}
                 });
