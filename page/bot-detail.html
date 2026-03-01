@@ -1435,6 +1435,7 @@
             display: flex;
             flex-direction: column;
             overflow: visible;
+            flex-shrink: 0;
         }
         .resizable-panel > .panel-body {
             overflow-y: auto;
@@ -9707,7 +9708,8 @@
                     resizing = true;
                     currentResizePanel = document.getElementById(handle.dataset.panel);
                     startY = e.clientY;
-                    startHeight = currentResizePanel.offsetHeight;
+                    // Use parsed style.height (not offsetHeight) so flex compression doesn't offset our drag
+                    startHeight = parseFloat(currentResizePanel.style.height) || currentResizePanel.offsetHeight;
                     handle.classList.add('active');
                     document.body.style.cursor = 'ns-resize';
                     document.body.style.userSelect = 'none';
@@ -9718,19 +9720,37 @@
                     resizing = true;
                     currentResizePanel = document.getElementById(handle.dataset.panel);
                     startY = e.touches[0].clientY;
-                    startHeight = currentResizePanel.offsetHeight;
+                    startHeight = parseFloat(currentResizePanel.style.height) || currentResizePanel.offsetHeight;
                     handle.classList.add('active');
                 });
             });
 
+            function calcMaxHeight(panel) {
+                // Limit panel growth so that the last flex:1 panel keeps its min-height
+                const container = panel.parentElement;
+                const ordersPanel = document.getElementById('panelOrders');
+                if (!ordersPanel || ordersPanel === panel || ordersPanel.classList.contains('panel-hidden')) return 99999;
+                const containerH = container.offsetHeight;
+                const gap = parseFloat(getComputedStyle(container).gap) || 8;
+                let othersH = 0;
+                let visibleCount = 0;
+                Array.from(container.querySelectorAll('.resizable-panel')).forEach(p => {
+                    if (p === panel || p.classList.contains('panel-hidden')) return;
+                    visibleCount++;
+                    if (p.id === 'panelOrders') othersH += 200; // min-height for panelOrders
+                    else othersH += p.offsetHeight;
+                });
+                visibleCount++; // count the panel being resized
+                const gapsH = gap * Math.max(0, visibleCount - 1);
+                return Math.max(120, containerH - othersH - gapsH);
+            }
+
             document.addEventListener('mousemove', (e) => {
                 if (!resizing || !currentResizePanel) return;
-
                 const deltaY = e.clientY - startY;
-                const newHeight = Math.max(120, startHeight + deltaY);
+                const maxH = calcMaxHeight(currentResizePanel);
+                const newHeight = Math.max(120, Math.min(maxH, startHeight + deltaY));
                 currentResizePanel.style.height = newHeight + 'px';
-
-                // Remove collapsed state if resizing
                 if (currentResizePanel.classList.contains('collapsed')) {
                     currentResizePanel.classList.remove('collapsed');
                 }
@@ -9738,11 +9758,10 @@
 
             document.addEventListener('touchmove', (e) => {
                 if (!resizing || !currentResizePanel) return;
-
                 const deltaY = e.touches[0].clientY - startY;
-                const newHeight = Math.max(120, startHeight + deltaY);
+                const maxH = calcMaxHeight(currentResizePanel);
+                const newHeight = Math.max(120, Math.min(maxH, startHeight + deltaY));
                 currentResizePanel.style.height = newHeight + 'px';
-
                 if (currentResizePanel.classList.contains('collapsed')) {
                     currentResizePanel.classList.remove('collapsed');
                 }
