@@ -6414,23 +6414,35 @@
                     needDefaultPointFigure: false,
                     needDefaultXAxisFigure: false,
                     needDefaultYAxisFigure: false,
-                    createPointFigures({ overlay, coordinates, bounding }) {
+                    createPointFigures({ overlay, coordinates }) {
                         if (!coordinates || coordinates.length < 2) return [];
                         const [c1, c2] = coordinates;
                         const ed = overlay.extendData || {};
-                        const color  = ed.color || '#888';
-                        const isLong = ed.isLong !== false;
-                        const h = bounding?.height || 400;
-                        // Fill: LONG → above the line (bullish zone), SHORT → below (bearish zone)
-                        const fillColor = isLong ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)';
-                        const fillPts   = isLong
-                            ? [c1, c2, { x: c2.x, y: 0 }, { x: c1.x, y: 0 }]
-                            : [c1, c2, { x: c2.x, y: h }, { x: c1.x, y: h }];
-                        const figs = [
-                            { type: 'polygon', attrs: { coordinates: fillPts }, styles: { style: 'fill', color: fillColor } },
-                            { type: 'line', attrs: { coordinates: [c1, c2] }, styles: { style: 'dashed', color, size: 1.5, dashedValue: [4, 3] } },
-                        ];
-                        // Endpoint dots (only on first/last segments of each position window)
+                        const color = ed.color || '#888';
+                        const figs = [];
+
+                        // Dashed line
+                        figs.push({ type: 'line', attrs: { coordinates: [c1, c2] }, styles: { style: 'dashed', color, size: 1.5, dashedValue: [4, 3] } });
+
+                        // Shadow: always downward, ~40px, fades via 4 layered strips
+                        const stripH = 10; // px per strip
+                        const strips = 4;
+                        for (let i = 0; i < strips; i++) {
+                            const y1 = i * stripH;
+                            const y2 = (i + 1) * stripH;
+                            const alpha = (0.10 * (1 - i / strips)).toFixed(3);
+                            const rgb = color === '#10B981' ? '16,185,129' : '239,68,68';
+                            figs.push({
+                                type: 'polygon',
+                                attrs: { coordinates: [
+                                    { x: c1.x, y: c1.y + y1 }, { x: c2.x, y: c2.y + y1 },
+                                    { x: c2.x, y: c2.y + y2 }, { x: c1.x, y: c1.y + y2 },
+                                ]},
+                                styles: { style: 'fill', color: `rgba(${rgb},${alpha})` },
+                            });
+                        }
+
+                        // Endpoint dots
                         if (ed.isFirst) {
                             figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' } });
                             figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 3 }, styles: { style: 'fill', color } });
