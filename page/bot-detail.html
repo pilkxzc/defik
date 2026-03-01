@@ -6500,8 +6500,7 @@
                                 { x: c.x - dsz, y: c.y - 8 },
                             ];
                             return [
-                                { type: 'polygon', attrs: { coordinates: dpts }, styles: { style: 'fill', color: 'rgba(139,92,246,0.18)' } },
-                                { type: 'polygon', attrs: { coordinates: dpts }, styles: { style: 'stroke', color: '#8B5CF6', size: 1.5 } },
+                                { type: 'polygon', attrs: { coordinates: dpts }, styles: { style: 'stroke_fill', color: 'rgba(139,92,246,0.18)', borderColor: '#8B5CF6', borderSize: 1.5 } },
                                 { type: 'text', attrs: { x: c.x, y: c.y - 8, text: String(count), align: 'center', baseline: 'middle' }, styles: { color: '#C4B5FD', size: 9, weight: '700' } },
                             ];
                         }
@@ -6511,24 +6510,21 @@
                         const off = 12;
                         const cy = c.y + (below ? off : -off);
                         const sz = 6;
+                        const alphaFill = isLong ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
 
                         if (isEntry) {
-                            // Entry → hollow triangle (stroke only)
+                            // Entry → hollow triangle (stroke_fill)
                             const pts = below
                                 ? [{ x: c.x, y: cy - sz }, { x: c.x - sz, y: cy + sz }, { x: c.x + sz, y: cy + sz }]  // pointing up (below candle)
                                 : [{ x: c.x, y: cy + sz }, { x: c.x - sz, y: cy - sz }, { x: c.x + sz, y: cy - sz }]; // pointing down (above candle)
-                            const alphaFill = isLong ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
                             return [
-                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color: alphaFill } },
-                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'stroke', color, size: 1.5 } },
+                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'stroke_fill', color: alphaFill, borderColor: color, borderSize: 1.5 } },
                             ];
                         } else {
-                            // Exit → hollow circle (stroke only)
+                            // Exit → hollow circle (stroke_fill)
                             const r = 5;
-                            const alphaFill = isLong ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
                             return [
-                                { type: 'circle', attrs: { x: c.x, y: cy, r }, styles: { style: 'fill', color: alphaFill } },
-                                { type: 'circle', attrs: { x: c.x, y: cy, r }, styles: { style: 'stroke', color, size: 1.5 } },
+                                { type: 'circle', attrs: { x: c.x, y: cy, r }, styles: { style: 'stroke_fill', color: alphaFill, borderColor: color, borderSize: 1.5 } },
                             ];
                         }
                     },
