@@ -2836,7 +2836,7 @@
             </div>
         </header>
 
-        <!-- Chart — TradingView Charting Library -->
+        <!-- Chart — klinecharts -->
         <div class="chart-container" id="chartContainer" style="position: relative;">
             <div class="color-edit-marker" data-target="chartBg" title="Змінити фон графіка" style="top:8px;right:8px;z-index:60;"><input type="color" value="#141414" onchange="setElementColor('chartBg',this.value)"></div>
             <div id="chart" style="width:100%;height:100%;"></div>
@@ -3920,28 +3920,30 @@
         </div>
     </div>
 
-    <script src="/charting_library/charting_library.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.umd.min.js"></script>
     <script>
         const botId = window.location.pathname.split('/').pop();
         // Set dashboard link
         const dashLink = document.getElementById('botDashboardLink');
         if (dashLink) dashLink.href = `/bot-stats/${botId}`;
-        let tvWidget = null;            // TradingView widget instance
-        let botDatafeed = null;         // BotDatafeed instance
+        let klChart = null;             // klinecharts chart instance
+        let klWs = null;                // WebSocket for real-time data
+        let klWsGen = 0;                // generation counter for WS reconnects
         let currentSymbol = 'BTCUSDT';
         let currentInterval = '1m';
-        let trendShapeIds = [];         // EntityId[] from createMultipointShape (Supertrend overlay)
-        let tradeShapeIds = [];         // EntityId[] from createShape (closed trades)
-        let positionShapeId = null;     // EntityId for open position entry marker
-        let orderLinesMap = new Map();  // key → IOrderLine (price lines)
-        let highlightShapeIds = [];     // EntityId[] for trade highlight
-        let highlightOrderLines = [];   // IOrderLine[] for trade highlight
+        let trendOverlayGroup = 'trend-0';   // overlay group for trend lines
+        let trendOverlayIdx = 0;
+        let tradeOverlayGroup = 'trades-0';  // overlay group for trade markers
+        let tradeOverlayIdx = 0;
+        let positionOverlayId = null;        // overlay id for position marker
+        let orderLineOverlays = new Map();   // key → overlay id (price level lines)
+        let highlightOverlayIds = [];        // overlay ids for trade highlight (klinecharts)
         const savedPositionPerInterval = {};
         let lastMarkersKey = '';
         let lastKnownPosition = null;
         let isAdmin = false;
         let demoMode = false;
-        // klinesData maintained by BotDatafeed, shared for overlay calculations
+        // klinesData shared for overlay/snap calculations
         let klinesData = [];
         let klinesVersion = 0;
         let oldestTimestamp = null;
@@ -4008,23 +4010,33 @@
             r.setProperty('--chart-background', userTheme.chart.background);
             r.setProperty('--chart-grid-color', userTheme.chart.gridColor);
             r.setProperty('--chart-text-color', userTheme.chart.textColor);
-            if (tvWidget) {
-                try { tvWidget.applyOverrides(buildChartOverrides()); } catch(e) {}
+            if (klChart) {
+                try { klChart.setStyles({ candle: { bar: {
+                    upColor:         userTheme.candles.upBody,
+                    downColor:       userTheme.candles.downBody,
+                    upBorderColor:   userTheme.candles.upBorder,
+                    downBorderColor: userTheme.candles.downBorder,
+                    upWickColor:     userTheme.candles.upWick,
+                    downWickColor:   userTheme.candles.downWick,
+                }}, grid: {
+                    horizontal: { color: userTheme.chart.gridColor },
+                    vertical:   { color: userTheme.chart.gridColor },
+                }}); } catch(e) {}
             }
             if (lastChartData) drawPriceLines(lastChartData);
         }
 
         function updateCandleColors() {
-            if (!tvWidget) return;
+            if (!klChart) return;
             try {
-                tvWidget.applyOverrides({
-                    'mainSeriesProperties.candleStyle.upColor':         userTheme.candles.upBody,
-                    'mainSeriesProperties.candleStyle.downColor':       userTheme.candles.downBody,
-                    'mainSeriesProperties.candleStyle.borderUpColor':   userTheme.candles.upBorder,
-                    'mainSeriesProperties.candleStyle.borderDownColor': userTheme.candles.downBorder,
-                    'mainSeriesProperties.candleStyle.wickUpColor':     userTheme.candles.upWick,
-                    'mainSeriesProperties.candleStyle.wickDownColor':   userTheme.candles.downWick,
-                });
+                klChart.setStyles({ candle: { bar: {
+                    upColor:         userTheme.candles.upBody,
+                    downColor:       userTheme.candles.downBody,
+                    upBorderColor:   userTheme.candles.upBorder,
+                    downBorderColor: userTheme.candles.downBorder,
+                    upWickColor:     userTheme.candles.upWick,
+                    downWickColor:   userTheme.candles.downWick,
+                }}});
             } catch(e) {}
         }
 
@@ -4116,10 +4128,12 @@
 
         // ==================== DIFF-BASED PRICE LINES (Phase 6) ====================
 
-        // Properly remove all TV order lines from the chart
+        // Remove all price level overlays from the chart
         function clearAllPriceLines() {
-            orderLinesMap.forEach(line => { try { line.remove(); } catch(e) {} });
-            orderLinesMap.clear();
+            orderLineOverlays.forEach((id) => {
+                try { if (klChart) klChart.removeOverlay({ id }); } catch(e) {}
+            });
+            orderLineOverlays.clear();
         }
 
         // ==================== STATS MODAL (Phase 7) ====================
@@ -5294,228 +5308,104 @@
             textEl.textContent = text;
         }
 
-        // ── Resolution mappings (Binance interval strings ↔ TradingView resolutions) ──────
-        const IV_TO_TV_RES = {
-            '1s': '1S', '2s': '2S', '5s': '5S', '15s': '15S', '30s': '30S',
-            '1m': '1', '5m': '5', '15m': '15', '30m': '30',
-            '1h': '60', '4h': '240', '1d': '1D'
-        };
-        const TV_RES_TO_IV = {
-            '1S': '1s', '2S': '2s', '5S': '5s', '15S': '15s', '30S': '30s',
-            '1': '1m', '5': '5m', '15': '15m', '30': '30m',
-            '60': '1h', '240': '4h', '1D': '1d'
-        };
-        const SUB_TV_RES = new Set(['1S','2S','5S','15S','30S']);
+        // ── Sub-minute intervals set ─────────────────────────────────────────────
+        const SUB_MIN_IVS = new Set(['1s','2s','5s','15s','30s']);
 
-        // ═══ BotDatafeed ═════════════════════════════════════════════════════════
-        class BotDatafeed {
-            constructor(_botId) {
-                this._botId = _botId;
-                this._ws = null;
-                this._wsGen = 0;
-                this._subscriber = null;
-                this._currentBar = null;
-                this._resolution = null;
-            }
+        // ═══ klinecharts WebSocket manager ═══════════════════════════════════════
+        function _connectKlineWs() {
+            _disconnectKlineWs();
+            const myGen = klWsGen;
+            const isSubMin = SUB_MIN_IVS.has(currentInterval);
+            const streamName = isSubMin
+                ? `${currentSymbol.toLowerCase()}@aggTrade`
+                : `${currentSymbol.toLowerCase()}@kline_${currentInterval}`;
+            const wsUrl = isSubMin
+                ? `wss://stream.binance.com/ws/${streamName}`
+                : `wss://fstream.binance.com/ws/${streamName}`;
 
-            onReady(callback) {
-                setTimeout(() => callback({
-                    supported_resolutions: ['1S','2S','5S','15S','30S','1','5','15','30','60','240','1D'],
-                    exchanges: [],
-                    supports_marks: false,
-                    supports_timescale_marks: false,
-                    supports_time: true,
-                }));
-            }
+            const ws = new WebSocket(wsUrl);
+            klWs = ws;
+            let _currentAggBar = null;
 
-            searchSymbols(userInput, exchange, symbolType, onResultReadyCallback) {
-                onResultReadyCallback([]);
-            }
+            ws.onopen = () => {
+                if (klWsGen !== myGen) return;
+                updateWsStatus('connected', 'Live');
+            };
 
-            resolveSymbol(symbolName, onSymbolResolvedCallback, onResolveErrorCallback) {
-                const sym = symbolName.toUpperCase();
-                setTimeout(() => onSymbolResolvedCallback({
-                    name: sym,
-                    full_name: sym,
-                    description: sym,
-                    type: 'crypto',
-                    session: '24x7',
-                    timezone: 'Etc/UTC',
-                    exchange: 'Binance',
-                    listed_exchange: 'Binance',
-                    format: 'price',
-                    pricescale: 100,
-                    minmov: 1,
-                    has_intraday: true,
-                    intraday_multipliers: ['1','5','15','30','60','240'],
-                    has_seconds: true,
-                    seconds_multipliers: ['1','2','5','15','30'],
-                    has_daily: true,
-                    supported_resolutions: ['1S','2S','5S','15S','30S','1','5','15','30','60','240','1D'],
-                    volume_precision: 3,
-                    data_status: 'streaming',
-                }));
-            }
+            ws.onmessage = (event) => {
+                if (klWsGen !== myGen) return;
+                try {
+                    const msg = JSON.parse(event.data);
+                    let bar = null;
+                    let price = 0;
 
-            getBars(symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) {
-                const { from, to, firstDataRequest } = periodParams;
-                const sym = symbolInfo.name.toUpperCase();
-                const iv = TV_RES_TO_IV[resolution] || '1m';
-                const endTimeMs = to * 1000;
-                const url = `/api/bots/${this._botId}/klines?symbol=${sym}&interval=${iv}&limit=1000&endTime=${endTimeMs}`;
-
-                fetch(url, { credentials: 'include' })
-                    .then(r => r.json())
-                    .then(data => {
-                        const raw = data.klines || [];
-                        const bars = raw
-                            .filter(k => k.time != null && !isNaN(+k.open) && !isNaN(+k.high) && !isNaN(+k.low) && !isNaN(+k.close))
-                            .map(k => ({
-                                time:   k.time * 1000,
-                                open:   +k.open, high: +k.high, low: +k.low, close: +k.close,
-                                volume: +(k.volume || 0),
-                            }));
-
-                        if (bars.length === 0) {
-                            onHistoryCallback([], { noData: true });
-                            return;
+                    if (isSubMin && msg.e === 'aggTrade') {
+                        const tfMs = { '1s':1000,'2s':2000,'5s':5000,'15s':15000,'30s':30000 }[currentInterval] || 1000;
+                        const bucketMs = Math.floor(msg.T / tfMs) * tfMs;
+                        price = parseFloat(msg.p);
+                        const qty = parseFloat(msg.q);
+                        if (!_currentAggBar || _currentAggBar.timestamp !== bucketMs) {
+                            if (_currentAggBar && klChart) klChart.updateData({ ..._currentAggBar });
+                            _currentAggBar = { timestamp: bucketMs, open: price, high: price, low: price, close: price, volume: qty };
+                        } else {
+                            const b = _currentAggBar;
+                            if (price > b.high) b.high = price;
+                            if (price < b.low) b.low = price;
+                            b.close = price;
+                            b.volume += qty;
                         }
-
-                        if (firstDataRequest) {
-                            // Populate shared klinesData for overlay functions
-                            klinesData = bars.map(b => ({
-                                time: Math.floor(b.time / 1000),
-                                open: b.open, high: b.high, low: b.low, close: b.close
-                            }));
-                            klinesVersion++;
-                            oldestTimestamp = klinesData.length > 0 ? klinesData[0].time : null;
-                            if (klinesData.length > 0) {
-                                lastPrice = klinesData[klinesData.length - 1].close;
-                                updateLivePrice(lastPrice);
-                            }
-                            // Schedule overlay redraw after chart renders the bars
-                            setTimeout(() => {
-                                if (lastChartData) drawPriceLines(lastChartData);
-                                loadTradeMarkers();
-                            }, 400);
-                        }
-
-                        const filtered = bars.filter(b => b.time >= from * 1000 && b.time <= to * 1000);
-                        onHistoryCallback(filtered.length > 0 ? filtered : bars, { noData: false });
-                    })
-                    .catch(e => {
-                        console.error('[BotDatafeed] getBars error:', e);
-                        onErrorCallback(e.message);
-                    });
-            }
-
-            subscribeBars(symbolInfo, resolution, onRealtimeCallback, subscriberUID, onResetCacheNeededCallback) {
-                this._resolution = resolution;
-                this._subscriber = { uid: subscriberUID, callback: onRealtimeCallback, resetCallback: onResetCacheNeededCallback };
-                this._currentBar = null;
-                this._connectWs(symbolInfo.name.toUpperCase(), resolution);
-            }
-
-            unsubscribeBars(subscriberUID) {
-                if (this._subscriber && this._subscriber.uid === subscriberUID) {
-                    this._subscriber = null;
-                }
-                this._disconnectWs();
-            }
-
-            _connectWs(symbol, resolution) {
-                this._disconnectWs();
-                const myGen = ++this._wsGen;
-                const iv = TV_RES_TO_IV[resolution] || '1m';
-                const isSubMin = SUB_TV_RES.has(resolution);
-                const streamName = isSubMin
-                    ? `${symbol.toLowerCase()}@aggTrade`
-                    : `${symbol.toLowerCase()}@kline_${iv}`;
-                const wsUrl = isSubMin
-                    ? `wss://stream.binance.com/ws/${streamName}`
-                    : `wss://fstream.binance.com/ws/${streamName}`;
-
-                const ws = new WebSocket(wsUrl);
-                this._ws = ws;
-
-                ws.onopen = () => {
-                    if (this._wsGen !== myGen) return;
-                    updateWsStatus('connected', 'Live');
-                };
-
-                ws.onmessage = (event) => {
-                    if (this._wsGen !== myGen || !this._subscriber) return;
-                    try {
-                        const msg = JSON.parse(event.data);
-                        let bar = null;
-                        let price = 0;
-
-                        if (isSubMin && msg.e === 'aggTrade') {
-                            const tfMs = { '1S':1000,'2S':2000,'5S':5000,'15S':15000,'30S':30000 }[resolution] || 1000;
-                            const bucketMs = Math.floor(msg.T / tfMs) * tfMs;
-                            price = parseFloat(msg.p);
-                            const qty = parseFloat(msg.q);
-                            if (!this._currentBar || this._currentBar.time !== bucketMs) {
-                                if (this._currentBar) this._subscriber.callback({ ...this._currentBar });
-                                this._currentBar = { time: bucketMs, open: price, high: price, low: price, close: price, volume: qty };
-                            } else {
-                                const b = this._currentBar;
-                                if (price > b.high) b.high = price;
-                                if (price < b.low) b.low = price;
-                                b.close = price;
-                                b.volume += qty;
-                            }
-                            bar = { ...this._currentBar };
-                        } else if (!isSubMin && msg.k) {
-                            const k = msg.k;
-                            price = parseFloat(k.c);
-                            bar = { time: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: price, volume: parseFloat(k.v) };
-                        }
-
-                        if (bar && this._subscriber) {
-                            this._subscriber.callback(bar);
-                            lastPrice = price;
-                            updateLivePrice(price);
-                            // Sync klinesData for overlay calculations
-                            const timeSec = Math.floor(bar.time / 1000);
-                            if (klinesData.length > 0) {
-                                const last = klinesData[klinesData.length - 1];
-                                if (last.time === timeSec) {
-                                    last.high  = Math.max(last.high, bar.high);
-                                    last.low   = Math.min(last.low,  bar.low);
-                                    last.close = bar.close;
-                                } else if (timeSec > last.time) {
-                                    klinesData.push({ time: timeSec, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
-                                    if (klinesData.length > 5000) klinesData.splice(0, klinesData.length - 5000);
-                                }
-                            }
-                        }
-                    } catch(e) {}
-                };
-
-                ws.onerror = () => {
-                    if (this._wsGen !== myGen) return;
-                    updateWsStatus('error', 'WS error');
-                };
-
-                ws.onclose = (ev) => {
-                    if (this._wsGen !== myGen) return;
-                    if (ev.code !== 1000 && this._subscriber) {
-                        updateWsStatus('connecting', 'Reconnecting...');
-                        setTimeout(() => {
-                            if (this._wsGen === myGen && this._subscriber) {
-                                this._connectWs(symbol, resolution);
-                            }
-                        }, 2000);
+                        bar = { ..._currentAggBar };
+                    } else if (!isSubMin && msg.k) {
+                        const k = msg.k;
+                        price = parseFloat(k.c);
+                        bar = { timestamp: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: price, volume: parseFloat(k.v) };
                     }
-                };
+
+                    if (bar && klChart) {
+                        klChart.updateData(bar);
+                        lastPrice = price;
+                        updateLivePrice(price);
+                        // Sync klinesData for overlay/snap calculations
+                        const timeSec = Math.floor(bar.timestamp / 1000);
+                        if (klinesData.length > 0) {
+                            const last = klinesData[klinesData.length - 1];
+                            if (last.time === timeSec) {
+                                last.high  = Math.max(last.high, bar.high);
+                                last.low   = Math.min(last.low,  bar.low);
+                                last.close = bar.close;
+                            } else if (timeSec > last.time) {
+                                klinesData.push({ time: timeSec, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
+                                if (klinesData.length > 5000) klinesData.splice(0, klinesData.length - 5000);
+                            }
+                        }
+                    }
+                } catch(e) {}
+            };
+
+            ws.onerror = () => {
+                if (klWsGen !== myGen) return;
+                updateWsStatus('error', 'WS error');
+            };
+
+            ws.onclose = (ev) => {
+                if (klWsGen !== myGen) return;
+                if (ev.code !== 1000) {
+                    updateWsStatus('connecting', 'Reconnecting...');
+                    setTimeout(() => {
+                        if (klWsGen === myGen) _connectKlineWs();
+                    }, 2000);
+                }
+            };
             }
 
-            _disconnectWs() {
-                if (this._ws) {
-                    try { this._ws.close(1000); } catch(e) {}
-                    this._ws = null;
-                }
+        }
+
+        function _disconnectKlineWs() {
+            klWsGen++;
+            if (klWs) {
+                klWs.onclose = null;
+                try { klWs.close(1000); } catch(e) {}
+                klWs = null;
             }
         }
 
@@ -5734,31 +5624,27 @@
                 updatePositionPanel(demo.position, demo);
                 updateOrdersList(demo);
                 drawPriceLines(demo);
-                // Draw demo arrows on chart using TV shapes
-                if (tvWidget && demo.demoMarkers && demo.demoMarkers.length > 0) {
-                    tvWidget.onChartReady(() => {
-                        const chart = tvWidget.chart();
-                        demo.demoMarkers.forEach(m => {
-                            try {
-                                const shapeType = (m.shape === 'arrowUp' || m.position === 'belowBar') ? 'arrow_up' : 'arrow_down';
-                                const id = chart.createShape(
-                                    { time: m.time },
-                                    { shape: shapeType, overrides: { color: m.color || '#10B981' } }
-                                );
-                                if (id) tradeShapeIds.push(id);
-                            } catch(e) {}
-                        });
+                // Draw demo arrows on chart using klinecharts overlays
+                if (klChart && demo.demoMarkers && demo.demoMarkers.length > 0) {
+                    demo.demoMarkers.forEach(m => {
+                        try {
+                            const isBuy = m.shape === 'arrowUp' || m.position === 'belowBar';
+                            klChart.createOverlay({
+                                name: 'tradeMarker',
+                                groupId: tradeOverlayGroup,
+                                lock: true,
+                                points: [{ timestamp: m.time * 1000, value: m.price || 0 }],
+                                extendData: { isBuy },
+                            });
+                        } catch(e) {}
                     });
                 }
             } else {
                 if (banner) banner.style.display = 'none';
                 // Clear demo markers and restore real data + real markers
-                if (tvWidget && tradeShapeIds.length > 0) {
-                    tvWidget.onChartReady(() => {
-                        const chart = tvWidget.chart();
-                        tradeShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
-                        tradeShapeIds = [];
-                    });
+                if (klChart) {
+                    try { klChart.removeOverlay({ groupId: tradeOverlayGroup }); } catch(e) {}
+                    tradeOverlayGroup = `trades-${++tradeOverlayIdx}`;
                 }
                 loadChartData(false);
                 loadTradeMarkers();
@@ -5922,9 +5808,7 @@
                 });
             }
 
-            if (tvWidget) {
-                tvWidget.onChartReady(() => tvWidget.chart().setSymbol(symbol));
-            }
+            loadKlines();
             await refreshData();
         }
 
@@ -5991,58 +5875,91 @@
             }
         }
 
-        // Initialize TV chart
+        // Register tradeMarker overlay (triangle at price point)
+        function _registerTradeMarkerOverlay() {
+            if (!window.klinecharts || window._bdTradeMarkerRegistered) return;
+            window._bdTradeMarkerRegistered = true;
+            try {
+                window.klinecharts.registerOverlay({
+                    name: 'tradeMarker',
+                    totalStep: 1,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates }) {
+                        const c = coordinates?.[0];
+                        if (!c) return [];
+                        const isBuy = overlay.extendData?.isBuy !== false;
+                        const color = isBuy ? '#10B981' : '#EF4444';
+                        const sz = 7, off = 12;
+                        const pts = isBuy
+                            ? [{ x: c.x, y: c.y + off }, { x: c.x - sz, y: c.y + off + sz }, { x: c.x + sz, y: c.y + off + sz }]
+                            : [{ x: c.x, y: c.y - off }, { x: c.x - sz, y: c.y - off - sz }, { x: c.x + sz, y: c.y - off - sz }];
+                        return [{ type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } }];
+                    }
+                });
+                // Horizontal price level with label
+                window.klinecharts.registerOverlay({
+                    name: 'priceLevel',
+                    totalStep: 1,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates, bounding }) {
+                        const c = coordinates?.[0];
+                        if (!c) return [];
+                        const color = overlay.extendData?.color || '#888';
+                        const text  = overlay.extendData?.text  || '';
+                        const y = c.y;
+                        const w = bounding?.width ?? 600;
+                        return [
+                            { type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] }, styles: { style: 'dashed', color, size: 1 } },
+                            { type: 'text', attrs: { x: w - 4, y: y - 3, text, align: 'right', baseline: 'bottom' }, styles: { color, size: 11 } },
+                        ];
+                    }
+                });
+            } catch(e) {}
+        }
+
+        // Initialize klinecharts chart
         function initChart() {
             const container = document.getElementById('chart');
-            if (!container || tvWidget) return;
+            if (!container || klChart) return;
 
-            if (!window.TradingView?.widget) {
-                console.error('[bot-detail] TradingView library not loaded. Add charting_library.js before page scripts.');
+            if (!window.klinecharts) {
+                console.error('[bot-detail] klinecharts not loaded');
                 return;
             }
 
-            botDatafeed = new BotDatafeed(botId);
-            const initialResolution = IV_TO_TV_RES[currentInterval] ?? '1';
+            _registerTradeMarkerOverlay();
 
-            tvWidget = new TradingView.widget({
-                container:    container,
-                datafeed:     botDatafeed,
-                locale:       'uk',
-                library_path: '/charting_library/',
-                symbol:       currentSymbol,
-                interval:     initialResolution,
-                fullscreen:   false,
-                autosize:     true,
-                theme:        'Dark',
-                toolbar_bg:   userTheme.chart.background,
-                disabled_features: [
-                    'header_symbol_search',
-                    'header_compare',
-                    'header_undo_redo',
-                    'header_saveload',
-                    'use_localstorage_for_settings',
-                    'volume_force_overlay',
-                ],
-                enabled_features: [
-                    'hide_left_toolbar_by_default',
-                    'seconds_resolution',
-                ],
-                overrides: buildChartOverrides(),
-                loading_screen: {
-                    backgroundColor: userTheme.chart.background,
-                    foregroundColor: '#10B981',
+            klChart = window.klinecharts.init(container, {
+                styles: {
+                    candle: { bar: {
+                        upColor:         userTheme.candles.upBody,
+                        downColor:       userTheme.candles.downBody,
+                        upBorderColor:   userTheme.candles.upBorder,
+                        downBorderColor: userTheme.candles.downBorder,
+                        upWickColor:     userTheme.candles.upWick,
+                        downWickColor:   userTheme.candles.downWick,
+                    }},
+                    grid: {
+                        horizontal: { color: userTheme.chart.gridColor },
+                        vertical:   { color: userTheme.chart.gridColor },
+                    },
+                    xAxis: { tickText: { color: userTheme.chart.textColor } },
+                    yAxis: { tickText: { color: userTheme.chart.textColor } },
                 },
+                timezone: 'UTC',
             });
 
-            tvWidget.onChartReady(() => {
-                document.getElementById('chartLoading').style.display = 'none';
-                updateWatermark();
-                document.fonts.ready.then(() => updateWatermark());
-            });
+            klChart.createIndicator('VOL', false);
 
-            // Keep watermark in sync with container resize
+            // Keep watermark in sync with resize
             const resizeObserver = new ResizeObserver(() => updateWatermark());
             resizeObserver.observe(container);
+
+            loadKlines();
         }
 
         function buildChartOverrides() {
@@ -6061,97 +5978,79 @@
             };
         }
 
-        // ── Draw Supertrend overlay using TV multipoint shapes ────────────────
+        // ── Draw Supertrend overlay using klinecharts segment overlays ───────────
         function drawTrendOverlay(rawMarkers, preservePosition) {
-            if (!tvWidget || !klinesData || klinesData.length < 4) return;
+            if (!klChart || !klinesData || klinesData.length < 4) return;
 
-            tvWidget.onChartReady(() => {
-                const chart = tvWidget.chart();
-                // Clear existing trend shapes
-                trendShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
-                trendShapeIds = [];
+            // Clear existing trend overlays
+            try { klChart.removeOverlay({ groupId: trendOverlayGroup }); } catch(e) {}
+            trendOverlayGroup = `trend-${++trendOverlayIdx}`;
 
-                if (!rawMarkers || rawMarkers.length === 0) return;
+            if (!rawMarkers || rawMarkers.length === 0) return;
 
-                const allSortedMarkers = [...rawMarkers].sort((a, b) => a.time - b.time);
+            const allSortedMarkers = [...rawMarkers].sort((a, b) => a.time - b.time);
 
-                // Build position windows from entry/exit markers
-                const posWindows = [];
-                let openEntry = null;
-                for (const m of allSortedMarkers) {
-                    if (m.isEntry === true) {
-                        if (openEntry) {
-                            const prevTrend = (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1;
-                            const newTrend  = (m.side === 'LONG' || m.side === 'BUY') ? 1 : -1;
-                            if (prevTrend !== newTrend) {
-                                posWindows.push({ from: openEntry.time, to: m.time, trend: prevTrend });
-                            }
-                        }
-                        openEntry = m;
-                    } else if (m.isEntry === false) {
-                        if (openEntry) {
-                            posWindows.push({ from: openEntry.time, to: m.time,
-                                trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
-                            openEntry = null;
+            // Build position windows from entry/exit markers
+            const posWindows = [];
+            let openEntry = null;
+            for (const m of allSortedMarkers) {
+                if (m.isEntry === true) {
+                    if (openEntry) {
+                        const prevTrend = (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1;
+                        const newTrend  = (m.side === 'LONG' || m.side === 'BUY') ? 1 : -1;
+                        if (prevTrend !== newTrend) {
+                            posWindows.push({ from: openEntry.time, to: m.time, trend: prevTrend });
                         }
                     }
-                }
-                if (openEntry && klinesData.length > 0) {
-                    posWindows.push({ from: openEntry.time, to: klinesData[klinesData.length - 1].time,
-                        trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
-                }
-
-                if (posWindows.length === 0) return;
-
-                const klinesStart = klinesData[0].time;
-                const klinesEnd   = klinesData[klinesData.length - 1].time;
-                const avgPrice    = klinesData.reduce((s, k) => s + k.close, 0) / klinesData.length;
-                const lineOffset  = avgPrice * 0.003;
-
-                const posWindowsRecent = posWindows
-                    .filter(w => w.from >= klinesStart && w.to >= klinesStart)
-                    .map(w => ({ ...w, to: Math.min(w.to, klinesEnd) }));
-
-                // Build multi-point segments following candle lows
-                posWindowsRecent.forEach(w => {
-                    const pts = [];
-                    for (const k of klinesData) {
-                        if (k.time < w.from) continue;
-                        if (k.time > w.to) break;
-                        pts.push({ time: k.time, price: k.low - lineOffset });
+                    openEntry = m;
+                } else if (m.isEntry === false) {
+                    if (openEntry) {
+                        posWindows.push({ from: openEntry.time, to: m.time,
+                            trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
+                        openEntry = null;
                     }
-                    if (pts.length < 2) return;
+                }
+            }
+            if (openEntry && klinesData.length > 0) {
+                posWindows.push({ from: openEntry.time, to: klinesData[klinesData.length - 1].time,
+                    trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
+            }
 
-                    const color = w.trend === 1 ? '#10B981' : '#EF4444';
+            if (posWindows.length === 0) return;
 
-                    // Draw as series of 2-point trend_line shapes (one per adjacent pair)
-                    // to approximate a polyline following candle lows
-                    for (let i = 0; i < pts.length - 1; i++) {
-                        try {
-                            const id = chart.createMultipointShape(
-                                [
-                                    { time: pts[i].time,     price: pts[i].price },
-                                    { time: pts[i+1].time,   price: pts[i+1].price },
-                                ],
-                                {
-                                    shape: 'trend_line',
-                                    overrides: {
-                                        linecolor:    color,
-                                        linewidth:    2,
-                                        linestyle:    2,
-                                        extendLeft:   false,
-                                        extendRight:  false,
-                                        showLabel:    false,
-                                    },
-                                    lock:             true,
-                                    disableSelection: true,
-                                    zOrder:           'bottom',
-                                }
-                            );
-                            if (id) trendShapeIds.push(id);
-                        } catch(e) {}
-                    }
-                });
+            const klinesStart = klinesData[0].time;
+            const klinesEnd   = klinesData[klinesData.length - 1].time;
+            const avgPrice    = klinesData.reduce((s, k) => s + k.close, 0) / klinesData.length;
+            const lineOffset  = avgPrice * 0.003;
+
+            const posWindowsRecent = posWindows
+                .filter(w => w.from >= klinesStart && w.to >= klinesStart)
+                .map(w => ({ ...w, to: Math.min(w.to, klinesEnd) }));
+
+            // Draw segments following candle lows
+            posWindowsRecent.forEach(w => {
+                const pts = [];
+                for (const k of klinesData) {
+                    if (k.time < w.from) continue;
+                    if (k.time > w.to) break;
+                    pts.push({ timestamp: k.time * 1000, value: k.low - lineOffset });
+                }
+                if (pts.length < 2) return;
+
+                const color = w.trend === 1 ? '#10B981' : '#EF4444';
+
+                // Draw each pair as a segment overlay
+                for (let i = 0; i < pts.length - 1; i++) {
+                    try {
+                        klChart.createOverlay({
+                            name: 'segment',
+                            groupId: trendOverlayGroup,
+                            lock: true,
+                            points: [pts[i], pts[i + 1]],
+                            styles: { line: { color, size: 2, style: 'dashed' } },
+                        });
+                    } catch(e) {}
+                }
             });
         }
 
@@ -6186,27 +6085,61 @@
             }
         }
 
-        // Reload chart for current symbol/interval via TV datafeed
+        // Reload chart for current symbol/interval
         function loadKlines() {
-            if (!tvWidget) return;
+            if (!klChart) return;
             document.getElementById('chartLoading').style.display = 'flex';
             document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
-            // Reset overlay state
             klinesData = [];
             lastMarkersKey = '';
-            tvWidget.onChartReady(() => {
-                const res = IV_TO_TV_RES[currentInterval] ?? '1';
-                // Changing resolution triggers a fresh getBars(firstDataRequest=true) call in datafeed
-                tvWidget.chart().setResolution(res, () => {
-                    document.getElementById('chartLoading').style.display = 'none';
-                });
+            _disconnectKlineWs();
+            _fetchKlines().then(() => {
+                document.getElementById('chartLoading').style.display = 'none';
+                _connectKlineWs();
+                if (lastChartData) drawPriceLines(lastChartData);
+                loadTradeMarkers();
             });
+        }
+
+        async function _fetchKlines() {
+            const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${Date.now()}`;
+            try {
+                const r = await fetch(url, { credentials: 'include' });
+                const data = await r.json();
+                const raw = data.klines || [];
+                const bars = raw
+                    .filter(k => k.time != null && !isNaN(+k.open))
+                    .map(k => ({
+                        timestamp: k.time * 1000,
+                        open: +k.open, high: +k.high, low: +k.low, close: +k.close,
+                        volume: +(k.volume || 0),
+                    }));
+                if (bars.length > 0 && klChart) {
+                    klChart.applyNewData(bars);
+                    klinesData = bars.map(b => ({
+                        time: Math.floor(b.timestamp / 1000),
+                        open: b.open, high: b.high, low: b.low, close: b.close,
+                    }));
+                    klinesVersion++;
+                    oldestTimestamp = klinesData.length > 0 ? klinesData[0].time : null;
+                    lastPrice = klinesData[klinesData.length - 1].close;
+                    updateLivePrice(lastPrice);
+                }
+            } catch(e) {
+                console.error('[bot-detail] _fetchKlines error:', e);
+            }
+        }
+
+        // Returns period in ms for sub-minute intervals (0 for standard intervals)
+        function _getAggPeriodMs() {
+            return { '1s':1000,'2s':2000,'5s':5000,'15s':15000,'30s':30000 }[currentInterval] || 0;
         }
 
         // Load closed trade markers and draw on chart
         // Snap a unix-second timestamp to the nearest kline bar time
         function snapToBar(t) {
             if (klinesData.length === 0) return t;
+            const aggPeriodMs = _getAggPeriodMs();
 
             // For sub-minute charts: try EXACT match first, then nearest within 1 period
             if (aggPeriodMs > 0) {
@@ -6240,14 +6173,12 @@
 
         function applyPositionMarker(position, _internal) {
             if (markersLoading && !_internal) return;
-            if (!tvWidget) return;
+            if (!klChart) return;
 
-            // Remove old position shape
-            if (positionShapeId !== null) {
-                tvWidget.onChartReady(() => {
-                    try { tvWidget.chart().removeEntity(positionShapeId); } catch(e) {}
-                    positionShapeId = null;
-                });
+            // Remove old position overlay
+            if (positionOverlayId !== null) {
+                try { klChart.removeOverlay({ id: positionOverlayId }); } catch(e) {}
+                positionOverlayId = null;
             }
 
             if (!position || !position.entryPrice || position.entryPrice <= 0) {
@@ -6257,27 +6188,22 @@
 
             lastKnownPosition = position;
             const isLong = position.side === 'LONG';
+            const tsMs = klinesData.length > 0 ? klinesData[klinesData.length - 1].time * 1000 : Date.now();
 
-            tvWidget.onChartReady(() => {
-                try {
-                    const timeSec = klinesData.length > 0 ? klinesData[klinesData.length - 1].time : Math.floor(Date.now() / 1000);
-                    positionShapeId = tvWidget.chart().createShape(
-                        { time: timeSec, price: parseFloat(position.entryPrice) },
-                        {
-                            shape:            isLong ? 'arrow_up' : 'arrow_down',
-                            text:             isLong ? '▲ Long' : '▼ Short',
-                            color:            isLong ? '#10B981' : '#EF4444',
-                            lock:             true,
-                            disableSelection: true,
-                            zOrder:           'top',
-                        }
-                    );
-                } catch(e) { console.warn('[applyPositionMarker] error:', e); }
-            });
+            try {
+                const ids = klChart.createOverlay({
+                    name: 'tradeMarker',
+                    groupId: 'position',
+                    lock: true,
+                    points: [{ timestamp: tsMs, value: parseFloat(position.entryPrice) }],
+                    extendData: { isBuy: isLong },
+                });
+                positionOverlayId = Array.isArray(ids) ? ids[0] : ids;
+            } catch(e) { console.warn('[applyPositionMarker] error:', e); }
         }
 
         async function loadTradeMarkers() {
-            if (!tvWidget || demoMode || markersLoading) return;
+            if (!klChart || demoMode || markersLoading) return;
             markersLoading = true;
             const _myGen = _chartLoadGen;
             try {
@@ -6293,58 +6219,44 @@
                     drawTrendOverlay(rawMarkers, true);
                 }
 
-                tvWidget.onChartReady(() => {
-                    const chart = tvWidget.chart();
-                    // Clear old trade shapes
-                    tradeShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
-                    tradeShapeIds = [];
-                    markerTimeMap = {};
+                // Clear old trade overlays
+                try { klChart.removeOverlay({ groupId: tradeOverlayGroup }); } catch(e) {}
+                tradeOverlayGroup = `trades-${++tradeOverlayIdx}`;
+                markerTimeMap = {};
 
-                    if (rawMarkers.length === 0) {
-                        applyPositionMarker(lastKnownPosition, true);
-                        return;
-                    }
-
-                    const minTime = klinesData.length > 0 ? klinesData[0].time : 0;
-                    const maxTime = klinesData.length > 0 ? klinesData[klinesData.length - 1].time : Infinity;
-                    const fmtPnl = (pnl) => {
-                        const abs = Math.abs(pnl);
-                        const str = abs >= 100 ? abs.toFixed(0) : abs >= 10 ? abs.toFixed(1) : abs.toFixed(2);
-                        return (pnl >= 0 ? '+' : '-') + str;
-                    };
-
-                    rawMarkers.forEach(m => {
-                        if (!m.time || m.time < minTime || m.time > maxTime + 86400) return;
-                        const isLong  = m.side === 'LONG' || m.side === 'BUY';
-                        const isEntry = m.isEntry !== false && (m.isEntry === true || Math.abs(m.pnl || 0) < 0.0001);
-                        const pnl = m.pnl || 0;
-                        const barTime = snapToBar(m.time);
-                        if (barTime === null) return;
-
-                        markerTimeMap[String(barTime)] = m;
-
-                        const price = parseFloat(m.price || 0) || (klinesData.find(k => k.time === barTime)?.close ?? 0);
-                        if (!price) return;
-
-                        try {
-                            const id = chart.createShape(
-                                { time: barTime, price },
-                                {
-                                    shape:            isEntry ? (isLong ? 'arrow_up' : 'arrow_down') : 'circle',
-                                    text:             isEntry ? (isLong ? '▲' : '▼') : fmtPnl(pnl),
-                                    color:            isEntry ? (isLong ? '#10B981' : '#EF4444') : (pnl >= 0 ? '#10B981' : '#EF4444'),
-                                    lock:             true,
-                                    disableSelection: true,
-                                    zOrder:           'top',
-                                }
-                            );
-                            if (id) tradeShapeIds.push(id);
-                        } catch(e) {}
-                    });
-
-                    if (!markersLoaded && tradeShapeIds.length > 0) markersLoaded = true;
+                if (rawMarkers.length === 0) {
                     applyPositionMarker(lastKnownPosition, true);
+                    return;
+                }
+
+                const minTime = klinesData.length > 0 ? klinesData[0].time : 0;
+                const maxTime = klinesData.length > 0 ? klinesData[klinesData.length - 1].time : Infinity;
+
+                rawMarkers.forEach(m => {
+                    if (!m.time || m.time < minTime || m.time > maxTime + 86400) return;
+                    const isLong  = m.side === 'LONG' || m.side === 'BUY';
+                    const isEntry = m.isEntry !== false && (m.isEntry === true || Math.abs(m.pnl || 0) < 0.0001);
+                    const barTime = snapToBar(m.time);
+                    if (barTime === null) return;
+
+                    markerTimeMap[String(barTime)] = m;
+
+                    const price = parseFloat(m.price || 0) || (klinesData.find(k => k.time === barTime)?.close ?? 0);
+                    if (!price) return;
+
+                    try {
+                        klChart.createOverlay({
+                            name: 'tradeMarker',
+                            groupId: tradeOverlayGroup,
+                            lock: true,
+                            points: [{ timestamp: barTime * 1000, value: price }],
+                            extendData: { isBuy: isEntry ? isLong : null, isExit: !isEntry, pnl: m.pnl || 0 },
+                        });
+                    } catch(e) {}
                 });
+
+                markersLoaded = rawMarkers.length > 0;
+                applyPositionMarker(lastKnownPosition, true);
             } catch(err) {
                 console.error('[loadTradeMarkers] error:', err);
             } finally {
@@ -6443,7 +6355,7 @@
 
         // Highlight trade on chart from marker click (same lines as history click)
         function highlightTradeFromMarker(m) {
-            if (!m || !tvWidget) return;
+            if (!m) return;
             // For grouped markers use the last one
             const trade = m._all ? m._all[m._all.length - 1] : m;
             const isEntry = trade.isEntry !== false && (trade.isEntry === true || Math.abs(trade.pnl || 0) < 0.0001);
@@ -6787,7 +6699,7 @@
 
         function drawPriceLines(data) {
             lastChartData = data;
-            if (!tvWidget || klinesData.length < 2) return;
+            if (!klChart || klinesData.length < 2) return;
             if (!demoMode && botStatusLoaded && !botIsRunning) {
                 clearAllPriceLines();
                 return;
@@ -6824,29 +6736,28 @@
             }
 
             // Diff: remove lines no longer needed
-            for (const [key, line] of orderLinesMap) {
+            for (const [key, id] of orderLineOverlays) {
                 if (!desiredLines.has(key)) {
-                    try { line.remove(); } catch(e) {}
-                    orderLinesMap.delete(key);
+                    try { klChart.removeOverlay({ id }); } catch(e) {}
+                    orderLineOverlays.delete(key);
                 }
             }
 
-            // Add new lines
-            tvWidget.onChartReady(() => {
-                for (const [key, cfg] of desiredLines) {
-                    if (orderLinesMap.has(key)) continue; // already on chart
-                    try {
-                        const line = tvWidget.chart().createOrderLine()
-                            .setPrice(cfg.price)
-                            .setText(cfg.text)
-                            .setLineColor(cfg.color)
-                            .setBodyBackgroundColor('#141414')
-                            .setBodyTextColor(cfg.color)
-                            .setQuantity('');
-                        orderLinesMap.set(key, line);
-                    } catch(e) { console.warn('[drawPriceLines] createOrderLine error:', e); }
-                }
-            });
+            // Add new price level overlays
+            for (const [key, cfg] of desiredLines) {
+                if (orderLineOverlays.has(key)) continue;
+                try {
+                    const id = klChart.createOverlay({
+                        name: 'priceLevel',
+                        groupId: 'pricelines',
+                        lock: true,
+                        points: [{ value: cfg.price }],
+                        extendData: { color: cfg.color, text: cfg.text },
+                    });
+                    const oid = Array.isArray(id) ? id[0] : id;
+                    if (oid) orderLineOverlays.set(key, oid);
+                } catch(e) { console.warn('[drawPriceLines] createOverlay error:', e); }
+            }
         }
 
         // ===== TRADE HIGHLIGHT (click on history row) =====
@@ -6858,10 +6769,9 @@
             highlightedTradeRow = rowEl;
             if (rowEl) rowEl.classList.add('highlighted');
 
-            if (!tvWidget || klinesData.length < 2) return;
+            if (!klChart || klinesData.length < 2) return;
 
             const openTime  = trade.openedAt ? Math.floor(new Date(trade.openedAt).getTime() / 1000) : null;
-            const closeTime = trade.closedAt  ? Math.floor(new Date(trade.closedAt).getTime()  / 1000) : null;
             const price     = parseFloat(trade.price || 0);
             const pnl       = parseFloat(trade.pnl   || 0);
             const qty       = parseFloat(trade.quantity || 0);
@@ -6874,73 +6784,48 @@
                 closePrice = isBuy ? price + pnl / qty : price - pnl / qty;
             }
 
-            tvWidget.onChartReady(() => {
-                const chart = tvWidget.chart();
-                const entryColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
+            const entryColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
 
-                // Entry price order line
+            // Entry price level overlay
+            try {
+                const id = klChart.createOverlay({
+                    name: 'priceLevel', groupId: 'highlight', lock: true,
+                    points: [{ value: price }],
+                    extendData: { color: entryColor, text: `Entry $${price.toFixed(2)}` },
+                });
+                const oid = Array.isArray(id) ? id[0] : id;
+                if (oid) highlightOverlayIds.push(oid);
+            } catch(e) {}
+
+            // Close price level overlay
+            if (closePrice) {
                 try {
-                    const entryLine = chart.createOrderLine()
-                        .setPrice(price)
-                        .setText(`Entry $${price.toFixed(2)}`)
-                        .setLineColor(entryColor)
-                        .setBodyBackgroundColor('#141414')
-                        .setBodyTextColor(entryColor)
-                        .setQuantity('');
-                    highlightOrderLines.push(entryLine);
+                    const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
+                    const id = klChart.createOverlay({
+                        name: 'priceLevel', groupId: 'highlight', lock: true,
+                        points: [{ value: closePrice }],
+                        extendData: { color: pnlColor, text: `Close $${closePrice.toFixed(2)}` },
+                    });
+                    const oid = Array.isArray(id) ? id[0] : id;
+                    if (oid) highlightOverlayIds.push(oid);
                 } catch(e) {}
+            }
 
-                // Close price order line
-                if (closePrice) {
+            // Marker at entry bar
+            if (openTime) {
+                const barTime = snapToBar(openTime);
+                if (barTime !== null) {
                     try {
-                        const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
-                        const closeLine = chart.createOrderLine()
-                            .setPrice(closePrice)
-                            .setText(`Close $${closePrice.toFixed(2)}`)
-                            .setLineColor(pnlColor)
-                            .setBodyBackgroundColor('#141414')
-                            .setBodyTextColor(pnlColor)
-                            .setQuantity('');
-                        highlightOrderLines.push(closeLine);
-                    } catch(e) {}
-                }
-
-                // Arrow marker at entry bar
-                if (openTime) {
-                    const barTime = snapToBar(openTime);
-                    if (barTime !== null) {
-                        try {
-                            const id = chart.createShape(
-                                { time: barTime, price },
-                                {
-                                    shape:            isBuy ? 'arrow_up' : 'arrow_down',
-                                    text:             isBuy ? '▲ Long' : '▼ Short',
-                                    color:            isBuy ? '#10B981' : '#EF4444',
-                                    lock:             true,
-                                    disableSelection: true,
-                                    zOrder:           'top',
-                                }
-                            );
-                            if (id) highlightShapeIds.push(id);
-                        } catch(e) {}
-                    }
-                }
-
-                // Navigate to the trade if requested
-                if (!noNavigate && openTime && klinesData.length > 0) {
-                    const firstTime = klinesData[0].time;
-                    const lastTime  = klinesData[klinesData.length - 1].time;
-                    const effectiveOpen = Math.min(Math.max(openTime, firstTime), lastTime);
-                    const ivSec = { '1s':1,'2s':2,'5s':5,'15s':15,'30s':30,'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400 }[currentInterval] || 60;
-                    const padding = ivSec * 15;
-                    try {
-                        tvWidget.chart().setVisibleRange({
-                            from: Math.max(firstTime, effectiveOpen - padding),
-                            to:   Math.min(lastTime + ivSec * 5, effectiveOpen + padding)
+                        const id = klChart.createOverlay({
+                            name: 'tradeMarker', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: barTime * 1000, value: price }],
+                            extendData: { isBuy },
                         });
+                        const oid = Array.isArray(id) ? id[0] : id;
+                        if (oid) highlightOverlayIds.push(oid);
                     } catch(e) {}
                 }
-            });
+            }
 
             // Show info overlay (unchanged)
             const dt       = trade.openedAt ? new Date(trade.openedAt) : null;
@@ -6961,15 +6846,10 @@
         }
 
         function clearTradeHighlight(hideOverlay = true) {
-            if (tvWidget) {
-                tvWidget.onChartReady(() => {
-                    const chart = tvWidget.chart();
-                    highlightShapeIds.forEach(id => { try { chart.removeEntity(id); } catch(e) {} });
-                    highlightOrderLines.forEach(line => { try { line.remove(); } catch(e) {} });
-                });
+            if (klChart) {
+                try { klChart.removeOverlay({ groupId: 'highlight' }); } catch(e) {}
             }
-            highlightShapeIds = [];
-            highlightOrderLines = [];
+            highlightOverlayIds = [];
             if (highlightedTradeRow) {
                 highlightedTradeRow.classList.remove('highlighted');
                 highlightedTradeRow = null;
@@ -7094,10 +6974,7 @@
                 markersLoaded = false;
                 lastMarkersKey = '';
                 klinesData = [];
-                if (tvWidget) {
-                    const res = IV_TO_TV_RES[currentInterval] ?? '1';
-                    tvWidget.onChartReady(() => tvWidget.chart().setResolution(res));
-                }
+                loadKlines();
             });
         });
 
@@ -8647,7 +8524,7 @@
 
             // Real-time trade markers: refresh every 5 seconds to pick up new trades
             setInterval(() => {
-                if (!demoMode && tvWidget && klinesData.length > 0) {
+                if (!demoMode && klChart && klinesData.length > 0) {
                     loadTradeMarkers();
                 }
             }, 5000);
@@ -8657,7 +8534,7 @@
 
             // Cleanup on page unload
             window.addEventListener('beforeunload', () => {
-                if (botDatafeed) botDatafeed._disconnectWs();
+                _disconnectKlineWs();
             });
         }
 
@@ -8884,21 +8761,18 @@
             }
         });
 
-        // Wait for tvWidget to be ready, then subscribe to crosshair events
+        // Subscribe klinecharts crosshair events for ruler
         var waitChart = setInterval(function() {
-            if (tvWidget) {
+            if (klChart) {
                 clearInterval(waitChart);
-                tvWidget.onChartReady(function() {
-                    var tvChart = tvWidget.chart();
-                    // Track crosshair position for ruler price/time
-                    tvChart.crossHairMoved(function(param) {
-                        if (param && param.price !== undefined && param.time !== undefined) {
-                            _rulerLastCursor.price = param.price;
-                            _rulerLastCursor.time  = param.time;
+                try {
+                    klChart.subscribeAction(window.klinecharts.ActionType.OnCrosshairChange, function(data) {
+                        if (data && data.price != null) {
+                            _rulerLastCursor.price = data.price;
+                            _rulerLastCursor.time  = data.dataIndex ?? _rulerLastCursor.time;
                         }
                     });
-                });
-                // Subscribe mouse events on chart DOM element
+                } catch(e) {}
                 chartEl.addEventListener('mousedown', onRulerMouseDown);
                 chartEl.addEventListener('mousemove', onRulerMouseMove);
             }
@@ -8929,7 +8803,7 @@
                 }
                 parent = parent.parentElement;
             }
-            // Trigger resize so TradingView recalculates dimensions
+            // Trigger resize so chart recalculates dimensions
             setTimeout(function() {
                 window.dispatchEvent(new Event('resize'));
             }, 60);
