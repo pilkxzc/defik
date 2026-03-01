@@ -3129,10 +3129,6 @@
                     <button class="pm-toggle-pill on" id="pmToggle_panelInstruments" onclick="togglePanelHidden('panelInstruments')"></button>
                 </div>
                 <div class="pm-row">
-                    <span class="pm-row-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Відображення графіка</span>
-                    <button class="pm-toggle-pill on" id="pmToggle_panelDisplay" onclick="togglePanelHidden('panelDisplay')"></button>
-                </div>
-                <div class="pm-row">
                     <span class="pm-row-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Позиція</span>
                     <button class="pm-toggle-pill on" id="pmToggle_positionPanel" onclick="togglePanelHidden('positionPanel')"></button>
                 </div>
@@ -3228,47 +3224,27 @@
                 <div class="resize-handle" data-panel="panelStats"></div>
             </div>
 
-            <!-- Instruments -->
+            <!-- Instruments + Display Toggles -->
             <div class="panel-card resizable-panel" id="panelInstruments" data-panel="instruments" style="height: 120px;">
                 <div class="resize-handle-w" data-panel="panelInstruments"></div>
-                <div class="panel-header" style="position:relative;">
+                <div class="panel-tabs" style="align-items:center;position:relative;">
                     <div class="color-edit-marker" data-target="panelInstruments" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelInstruments',this.value)"></div>
-                    <span class="panel-drag-handle" title="Перетягніть для зміни порядку">⠿</span>
-                    <span class="panel-title">Інструменти</span>
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                            <span id="instrumentsCount" style="font-size: 12px; color: var(--text-tertiary);">0</span>
-                        <button id="instrumentsSortBtn" onclick="cycleInstrumentsSort()" title="Сортування" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:3px 7px;color:var(--text-tertiary);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">A-Z</button>
-                        <button class="panel-hide-btn" onclick="togglePanelHidden('panelInstruments')" title="Приховати панель">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        </button>
-                        <button class="panel-collapse-btn" onclick="togglePanelCollapse('panelInstruments')">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-                        </button>
-                    </div>
+                    <span class="panel-drag-handle" title="Перетягніть для зміни порядку" style="margin-right:2px;">⠿</span>
+                    <button class="panel-tab active" id="instrTab_symbols" onclick="switchInstrumentsTab('symbols')">Символи <span id="instrumentsCount" style="background:rgba(255,255,255,0.08);color:var(--text-tertiary);padding:1px 5px;border-radius:9999px;font-size:10px;margin-left:3px;">0</span></button>
+                    <button class="panel-tab" id="instrTab_display" onclick="switchInstrumentsTab('display')">Графік</button>
+                    <div style="flex:1;"></div>
+                    <button id="instrumentsSortBtn" onclick="cycleInstrumentsSort()" title="Сортування" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:3px 7px;color:var(--text-tertiary);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">A-Z</button>
+                    <button class="panel-hide-btn" onclick="togglePanelHidden('panelInstruments')" title="Приховати панель">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
+                    <button class="panel-collapse-btn" onclick="togglePanelCollapse('panelInstruments')" style="margin-right:8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                    </button>
                 </div>
-                <div class="panel-body" id="instrumentsContent" style="overflow: auto;">
+                <div class="panel-body" id="instrumentsContent" style="overflow:auto;">
                     <div class="empty-state">Немає інструментів</div>
                 </div>
-                <div class="resize-handle" data-panel="panelInstruments"></div>
-            </div>
-
-            <!-- Display Toggles -->
-            <div class="panel-card resizable-panel" id="panelDisplay" data-panel="display" style="height: 100px;">
-                <div class="resize-handle-w" data-panel="panelDisplay"></div>
-                <div class="panel-header" style="position:relative;">
-                    <div class="color-edit-marker" data-target="panelDisplay" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelDisplay',this.value)"></div>
-                    <span class="panel-drag-handle" title="Перетягніть для зміни порядку">⠿</span>
-                    <span class="panel-title">Відображення графіка</span>
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <button class="panel-hide-btn" onclick="togglePanelHidden('panelDisplay')" title="Приховати панель">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        </button>
-                        <button class="panel-collapse-btn" onclick="togglePanelCollapse('panelDisplay')">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="panel-body">
+                <div class="panel-body" id="instrumentsDisplayContent" style="display:none;overflow:auto;">
                     <div class="toggle-section">
                         <button class="toggle-btn positions active" onclick="toggleDisplay('positions')">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -3289,7 +3265,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="resize-handle" data-panel="panelDisplay"></div>
+                <div class="resize-handle" data-panel="panelInstruments"></div>
             </div>
 
             <!-- Current Position -->
@@ -5321,7 +5297,7 @@
             saveUserTheme();
             // Apply panel backgrounds
             if (p.panelBg) {
-                ['panelStats','panelInstruments','panelDisplay','positionPanel','panelOrders'].forEach(id => {
+                ['panelStats','panelInstruments','positionPanel','panelOrders'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) {
                         el.style.backgroundColor = p.panelBg;
@@ -5331,7 +5307,7 @@
                     }
                 });
                 const panelColors = {};
-                ['panelStats','panelInstruments','panelDisplay','positionPanel','panelOrders'].forEach(id => {
+                ['panelStats','panelInstruments','positionPanel','panelOrders'].forEach(id => {
                     panelColors[id] = p.panelBg;
                 });
                 localStorage.setItem(`yamato_bot_${botId}_panelColors`, JSON.stringify(panelColors));
@@ -5346,7 +5322,7 @@
             if (typeof updateCandleColors === 'function') updateCandleColors();
             saveUserTheme();
             // Reset panel colors
-            ['panelStats','panelInstruments','panelDisplay','positionPanel','panelOrders'].forEach(id => {
+            ['panelStats','panelInstruments','positionPanel','panelOrders'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     el.style.backgroundColor = '';
@@ -9370,6 +9346,17 @@
             }
         }
 
+        let instrCurrentTab = 'symbols';
+        function switchInstrumentsTab(tab) {
+            instrCurrentTab = tab;
+            document.getElementById('instrTab_symbols').classList.toggle('active', tab === 'symbols');
+            document.getElementById('instrTab_display').classList.toggle('active', tab === 'display');
+            document.getElementById('instrumentsContent').style.display = tab === 'symbols' ? '' : 'none';
+            document.getElementById('instrumentsDisplayContent').style.display = tab === 'display' ? '' : 'none';
+            const sortBtn = document.getElementById('instrumentsSortBtn');
+            if (sortBtn) sortBtn.style.display = tab === 'symbols' ? '' : 'none';
+        }
+
         function switchPanelTab(tab) {
             const ordersContent = document.getElementById('ordersContent');
             const tradesContent = document.getElementById('tradesContent');
@@ -9581,7 +9568,7 @@
                         if (panel) container.appendChild(panel);
                     });
                 }
-                const panelMinH = { panelStats: 280, panelInstruments: 80, panelDisplay: 80 };
+                const panelMinH = { panelStats: 280, panelInstruments: 80 };
                 Object.keys(sizes).forEach(panelId => {
                     if (panelId === '_order') return;
                     const panel = document.getElementById(panelId);
