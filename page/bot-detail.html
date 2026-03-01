@@ -4041,6 +4041,7 @@
         let markersLoaded = false;
         let markersLoading = false;
         let _chartLoadGen = 0;
+        let _klResizeObserver = null;
 
         // Parse date string as UTC regardless of format (with/without Z suffix)
         function parseUTC(s) {
@@ -6080,7 +6081,7 @@
         // Initialize klinecharts chart
         function initChart() {
             const container = document.getElementById('chart');
-            if (!container || klChart) return;
+            if (!container) return;
 
             if (!window.klinecharts) {
                 console.error('[bot-detail] klinecharts not loaded');
@@ -6088,6 +6089,27 @@
             }
 
             _registerTradeMarkerOverlay();
+            _buildKlChart();
+        }
+
+        // Destroy the current klinecharts instance (if any) and create a fresh one.
+        // Called from initChart() on first load and from loadKlines() on every symbol/interval
+        // switch to guarantee a clean visual re-render (applyNewData on an existing instance
+        // does not always trigger a re-render in klinecharts v9).
+        function _buildKlChart() {
+            const container = document.getElementById('chart');
+            if (!container || !window.klinecharts) return;
+
+            // Dispose previous instance
+            if (klChart) {
+                try { window.klinecharts.dispose(container); } catch(e) {}
+                klChart = null;
+                // All overlays and indicators are gone with the old instance
+                emaIndicatorId = null;
+                positionOverlayId = null;
+                orderLineOverlays.clear();
+                highlightOverlayIds = [];
+            }
 
             klChart = window.klinecharts.init(container, {
                 styles: {
@@ -6146,9 +6168,9 @@
                                 timestamp: t, open: +o, high: +h, low: +l, close: +c, volume: +v,
                             }));
                             _afterMoreData(bars);
-                            klChart.applyMoreData(bars, bars.length === 0);
+                            if (klChart) klChart.applyMoreData(bars, bars.length === 0);
                         })
-                        .catch(() => klChart.applyMoreData([], true));
+                        .catch(() => { if (klChart) klChart.applyMoreData([], true); });
                     return;
                 }
                 const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=500&endTime=${end}`;
@@ -6164,16 +6186,16 @@
                                 volume: +(k.volume || 0),
                             }));
                         _afterMoreData(bars);
-                        klChart.applyMoreData(bars, bars.length === 0);
+                        if (klChart) klChart.applyMoreData(bars, bars.length === 0);
                     })
-                    .catch(() => klChart.applyMoreData([], true));
+                    .catch(() => { if (klChart) klChart.applyMoreData([], true); });
             });
 
-            // Keep watermark in sync with resize
-            const resizeObserver = new ResizeObserver(() => updateWatermark());
-            resizeObserver.observe(container);
-            // NOTE: loadKlines() is NOT called here — loadSymbols() loads data with the
-            // correct symbol after bot data is fetched, preventing the BTCUSDT flash.
+            // Keep watermark in sync with resize (attach observer only once)
+            if (!_klResizeObserver) {
+                _klResizeObserver = new ResizeObserver(() => updateWatermark());
+                _klResizeObserver.observe(container);
+            }
         }
 
         function buildChartOverrides() {
@@ -6301,10 +6323,12 @@
 
         // Reload chart for current symbol/interval
         function loadKlines() {
-            if (!klChart) return;
+            if (!window.klinecharts) return;
             _dbg(`loadKlines sym=${currentSymbol} iv=${currentInterval} gen→${_chartLoadGen+1}`);
-            // Clear chart immediately so user sees the switch happened right away
-            try { klChart.applyNewData([]); } catch(e) {}
+            // Rebuild chart instance — guarantees a clean visual re-render.
+            // applyNewData() on an existing klinecharts instance does not reliably
+            // re-render when the symbol/price range changes.
+            _buildKlChart();
             document.getElementById('chartLoading').style.display = 'flex';
             document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
             klinesData = [];
