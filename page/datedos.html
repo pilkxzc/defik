@@ -666,6 +666,15 @@
                 </button>
             </div>
 
+            <!-- Quote Currency Tabs -->
+            <div style="display:flex;gap:4px;padding:0 12px 10px;flex-wrap:wrap;">
+                <button class="mkt-quote-btn active" data-quote="USDT">USDT</button>
+                <button class="mkt-quote-btn" data-quote="BTC">BTC</button>
+                <button class="mkt-quote-btn" data-quote="ETH">ETH</button>
+                <button class="mkt-quote-btn" data-quote="BNB">BNB</button>
+                <button class="mkt-quote-btn" data-quote="SOL">SOL</button>
+            </div>
+
             <!-- Search Input -->
             <div style="padding: 0 12px 12px;">
                 <input type="text" id="marketSearch" placeholder="Пошук монет..."
@@ -870,6 +879,7 @@
         window.tvWidget = null;
         window.currentChartSymbol = 'BINANCE:BTCUSDT';
         window.allMarkets = [];
+        window.activeQuoteMarkets = [];  // current quote's market data (may differ from allMarkets for non-USDT)
         window.currentTicker = 'BTC';
         window.currentPrice = 0;
         window.orderSide = 'buy';
@@ -948,10 +958,12 @@
                 const response = await fetch('/api/market/prices');
                 const data = await response.json();
                 window.allMarkets = data.prices || [];
+                // Sync activeQuoteMarkets only when USDT is active
+                if (window.quoteCurrency === 'USDT') window.activeQuoteMarkets = window.allMarkets;
 
                 // Seamless update - only update prices, don't rebuild DOM
                 if (marketsInitialized) {
-                    updateMarketPrices(window.allMarkets);
+                    if (window.quoteCurrency === 'USDT') updateMarketPrices(window.allMarkets);
                 } else {
                     renderMarkets(getFilteredMarkets());
                     marketsInitialized = true;
@@ -975,7 +987,7 @@
         }
 
         function getFilteredMarkets() {
-            let filtered = [...window.allMarkets];
+            let filtered = [...(window.activeQuoteMarkets || window.allMarkets)];
 
             // Apply search filter
             if (currentSearchQuery) {
@@ -995,6 +1007,14 @@
             return filtered;
         }
 
+        function formatQuotePrice(price, quote) {
+            if (!quote || quote === 'USDT') return '$' + formatPrice(price);
+            // Crypto-quoted price: more decimals for small values
+            var a = Math.abs(price);
+            var dec = a < 0.000001 ? 8 : a < 0.0001 ? 7 : a < 0.001 ? 6 : a < 0.1 ? 5 : a < 1 ? 4 : 4;
+            return price.toFixed(dec) + ' ' + quote;
+        }
+
         // Seamless price update without rebuilding DOM
         function updateMarketPrices(markets) {
             const items = document.querySelectorAll('.market-item');
@@ -1006,10 +1026,9 @@
                     const changeEl = item.querySelector('.price-change');
 
                     if (priceEl) {
-                        const newPrice = `$${formatPrice(market.price)}`;
+                        const newPrice = formatQuotePrice(market.price, window.quoteCurrency);
                         if (priceEl.textContent !== newPrice) {
                             priceEl.textContent = newPrice;
-                            // Flash animation
                             priceEl.style.color = market.change >= 0 ? '#10B981' : '#EF4444';
                             setTimeout(() => priceEl.style.color = '', 300);
                         }
@@ -1021,7 +1040,6 @@
                         changeEl.className = `price-change ${market.change >= 0 ? '' : 'neg'}`;
                     }
 
-                    // Update data attribute
                     item.dataset.price = market.price;
                 }
             });
@@ -1053,7 +1071,7 @@
                             </div>
                         </div>
                         <div class="coin-price">
-                            <span class="price-val">$${formatPrice(market.price)}</span>
+                            <span class="price-val">${formatQuotePrice(market.price, window.quoteCurrency)}</span>
                             <span class="price-change ${changeClass}">${changeSign}${market.change.toFixed(2)}%</span>
                         </div>
                     </div>
@@ -1088,26 +1106,26 @@
             item.classList.add('active');
 
             window.currentTicker = item.dataset.symbol;
-            window.currentPrice = parseFloat(item.dataset.price);
+
+            // For order calculations always use USDT price
+            const usdtData = window.allMarkets.find(m => m.symbol === window.currentTicker);
+            window.currentPrice = usdtData ? usdtData.price : parseFloat(item.dataset.price) * window.quoteCurrencyPrice;
 
             // Update UI
-            document.getElementById('currentSymbol').textContent = window.currentTicker + '/USDT';
+            const chartQuote = window.quoteCurrency || 'USDT';
+            document.getElementById('currentSymbol').textContent = window.currentTicker + '/' + chartQuote;
             document.getElementById('amountSuffix').textContent = window.currentTicker;
             document.getElementById('orderBtnText').textContent = `${window.orderSide === 'buy' ? 'Купити' : 'Продати'} ${window.currentTicker}`;
             document.getElementById('orderPrice').value = window.currentPrice.toFixed(2);
 
-            // Update 24h stats from market data
-            const marketData = window.allMarkets.find(m => m.symbol === window.currentTicker);
-            if (marketData) {
-                document.getElementById('stat24hHigh').textContent = `$${formatPrice(marketData.high || marketData.price * 1.02)}`;
-                document.getElementById('stat24hVol').textContent = formatVolume(marketData.volume || 0);
+            // Update 24h stats from USDT market data
+            if (usdtData) {
+                document.getElementById('stat24hHigh').textContent = `$${formatPrice(usdtData.high || usdtData.price * 1.02)}`;
+                document.getElementById('stat24hVol').textContent = formatVolume(usdtData.volume || 0);
             }
 
             // Update chart with new symbol (respect quote currency)
-            const chartQuote = window.quoteCurrency || 'USDT';
             const newSymbol = `BINANCE:${window.currentTicker}${chartQuote}`;
-            console.log('Selecting market:', window.currentTicker, '-> chart symbol:', newSymbol);
-            document.getElementById('currentSymbol').textContent = window.currentTicker + '/' + chartQuote;
             initTradingViewWidget(newSymbol);
 
             updateOrderTotal();
@@ -1543,46 +1561,121 @@
         // ================================
         // QUOTE CURRENCY SWITCHING
         // ================================
-        document.querySelectorAll('.quote-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.quote-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
 
-                const newQuote = this.dataset.quote;
-                window.quoteCurrency = newQuote;
+        var _quotePairsCache = {};
+        var _quotePairsCacheTtl = {};
+        var QUOTE_STABLES = new Set(['USDT','USDC','BUSD','FDUSD','TUSD','DAI','USDP','EUR','GBP','AUD','TRY','BRL','BIDR']);
 
-                if (newQuote === 'USDT') {
-                    window.quoteCurrencyPrice = 1;
-                    const symbol = window.currentTicker + 'USDT';
-                    window.currentChartSymbol = 'BINANCE:' + symbol;
-                    window.yamatoChart?.setSymbol(symbol);
-                    document.getElementById('currentSymbol').textContent = window.currentTicker + '/USDT';
-                    updateLivePriceDisplay();
-                    loadOrderBook(window.currentTicker);
-                } else {
-                    // Try native Binance pair first (e.g. SOLBTC)
-                    if (window.currentTicker === newQuote) {
-                        // Can't view BTC/BTC
-                        return;
-                    }
-                    const nativeSymbol = window.currentTicker + newQuote;
-                    window.currentChartSymbol = 'BINANCE:' + nativeSymbol;
-                    window.yamatoChart?.setSymbol(nativeSymbol);
-                    document.getElementById('currentSymbol').textContent = window.currentTicker + '/' + newQuote;
+        async function loadQuoteMarkets(quote) {
+            if (quote === 'USDT') {
+                window.activeQuoteMarkets = window.allMarkets;
+                marketsInitialized = false;
+                renderMarkets(getFilteredMarkets());
+                marketsInitialized = true;
+                return;
+            }
 
-                    // Fetch quote currency USDT price for order book conversion
-                    fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${newQuote}USDT`)
-                        .then(r => r.json())
-                        .then(data => {
-                            window.quoteCurrencyPrice = parseFloat(data.price) || 1;
-                            updateLivePriceDisplay();
-                            loadOrderBook(window.currentTicker);
-                        })
-                        .catch(() => {
-                            window.quoteCurrencyPrice = 1;
-                        });
-                }
+            // Show spinner
+            document.getElementById('marketList').innerHTML =
+                '<div style="padding:20px;text-align:center;color:var(--text-tertiary);">' +
+                '<div class="loader" style="width:20px;height:20px;border:2px solid rgba(255,255,255,0.1);border-top-color:var(--accent-primary);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 8px;"></div>' +
+                'Завантаження ' + quote + ' пар...</div>';
+
+            const now = Date.now();
+            if (_quotePairsCache[quote] && (now - (_quotePairsCacheTtl[quote] || 0)) < 30000) {
+                window.activeQuoteMarkets = _quotePairsCache[quote];
+                marketsInitialized = false;
+                renderMarkets(getFilteredMarkets());
+                marketsInitialized = true;
+                return;
+            }
+
+            try {
+                const resp = await fetch('https://api.binance.com/api/v3/ticker/24hr?type=MINI');
+                const all = await resp.json();
+                const qLen = quote.length;
+
+                const pairs = all
+                    .filter(t => {
+                        if (!t.s.endsWith(quote)) return false;
+                        const base = t.s.slice(0, t.s.length - qLen);
+                        if (base === quote || QUOTE_STABLES.has(base)) return false;
+                        return true;
+                    })
+                    .map(t => {
+                        const lastPrice = parseFloat(t.lastPrice);
+                        const openPrice = parseFloat(t.openPrice);
+                        const change = openPrice > 0 ? ((lastPrice - openPrice) / openPrice) * 100 : 0;
+                        return {
+                            symbol:   t.s.slice(0, t.s.length - qLen),
+                            basePair: t.s,
+                            price:    lastPrice,
+                            change:   change,
+                            volume:   parseFloat(t.quoteVolume) || 0,
+                            high:     parseFloat(t.highPrice) || lastPrice,
+                        };
+                    })
+                    .filter(p => p.price > 0)
+                    .sort((a, b) => b.volume - a.volume)
+                    .slice(0, 300);
+
+                _quotePairsCache[quote] = pairs;
+                _quotePairsCacheTtl[quote] = now;
+                window.activeQuoteMarkets = pairs;
+            } catch(e) {
+                window.activeQuoteMarkets = [];
+            }
+
+            marketsInitialized = false;
+            renderMarkets(getFilteredMarkets());
+            marketsInitialized = true;
+        }
+
+        async function setQuoteCurrency(newQuote) {
+            if (window.currentTicker === newQuote) return; // can't view BTC/BTC
+
+            window.quoteCurrency = newQuote;
+
+            // Sync all quote buttons (both market panel and chart header)
+            document.querySelectorAll('.mkt-quote-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.quote === newQuote);
             });
+            document.querySelectorAll('.quote-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.quote === newQuote);
+            });
+
+            // Update chart symbol
+            const chartSym = window.currentTicker + newQuote;
+            window.currentChartSymbol = 'BINANCE:' + chartSym;
+            window.yamatoChart?.setSymbol(chartSym);
+            document.getElementById('currentSymbol').textContent = window.currentTicker + '/' + newQuote;
+
+            if (newQuote === 'USDT') {
+                window.quoteCurrencyPrice = 1;
+                updateLivePriceDisplay();
+                loadOrderBook(window.currentTicker);
+            } else {
+                // Fetch quote currency USDT price for conversion
+                fetch('https://api.binance.com/api/v3/ticker/price?symbol=' + newQuote + 'USDT')
+                    .then(r => r.json())
+                    .then(data => {
+                        window.quoteCurrencyPrice = parseFloat(data.price) || 1;
+                        updateLivePriceDisplay();
+                        loadOrderBook(window.currentTicker);
+                    })
+                    .catch(() => { window.quoteCurrencyPrice = 1; });
+            }
+
+            // Reload market list for this quote
+            await loadQuoteMarkets(newQuote);
+        }
+
+        document.querySelectorAll('.mkt-quote-btn').forEach(btn => {
+            btn.addEventListener('click', function() { setQuoteCurrency(this.dataset.quote); });
+        });
+
+        document.querySelectorAll('.quote-btn').forEach(btn => {
+            btn.addEventListener('click', function() { setQuoteCurrency(this.dataset.quote); });
         });
 
         function updateLivePriceDisplay() {
@@ -1614,6 +1707,15 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100px); opacity: 0; } }
+
+        .mkt-quote-btn {
+            padding: 4px 9px; font-size: 11px; font-weight: 600;
+            background: var(--surface-tertiary); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 6px; color: var(--text-secondary); cursor: pointer;
+            font-family: inherit; transition: all 0.15s;
+        }
+        .mkt-quote-btn:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.14); }
+        .mkt-quote-btn.active { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
 
         /* Smooth price transitions */
         .price-val, .price-change {
