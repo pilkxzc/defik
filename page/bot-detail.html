@@ -6101,7 +6101,7 @@
                     xAxis: { tickText: { color: userTheme.chart.textColor } },
                     yAxis: { tickText: { color: userTheme.chart.textColor } },
                 },
-                timezone: 'UTC',
+                timezone: 'Europe/Kiev',
             });
 
             klChart.createIndicator('VOL', false);
@@ -6264,6 +6264,7 @@
             document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
             klinesData = [];
             lastMarkersKey = '';
+            _chartLoadGen++;
             _disconnectKlineWs();
             _fetchKlines().then(() => {
                 document.getElementById('chartLoading').style.display = 'none';
@@ -6275,13 +6276,18 @@
         }
 
         async function _fetchKlines() {
-            // Sub-minute intervals have no REST history — data comes from WS only
-            if (SUB_MIN_IVS.has(currentInterval)) return;
+            const myGen = _chartLoadGen;
+            // Sub-minute intervals have no REST history — clear chart and let WS fill it
+            if (SUB_MIN_IVS.has(currentInterval)) {
+                if (klChart) klChart.applyNewData([]);
+                return;
+            }
 
             const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${Date.now()}`;
             try {
                 const r = await fetch(url, { credentials: 'include' });
                 const data = await r.json();
+                if (_chartLoadGen !== myGen) return; // stale — newer loadKlines already fired
                 const raw = data.klines || [];
                 const bars = raw
                     .filter(k => k.time != null && !isNaN(+k.open))
@@ -7013,22 +7019,8 @@
                     } catch(e) {}
 
                     // Scroll chart to show the trade candle
-                    if (!noNavigate && klinesData.length > 0) {
-                        const idx = klinesData.findIndex(k => k.time >= openTime);
-                        if (idx >= 0) {
-                            const fromRight = klinesData.length - 1 - idx;
-                            try {
-                                klChart.scrollToRealTime(0);
-                                setTimeout(() => {
-                                    try {
-                                        const barSpace = (klChart.getBarSpace?.()?.bar) || 8;
-                                        const visibleBars = Math.floor(document.getElementById('chart').offsetWidth / barSpace);
-                                        const scrollDist = -(fromRight - Math.floor(visibleBars / 2)) * barSpace;
-                                        if (fromRight > 2) klChart.scrollByDistance(scrollDist, 400);
-                                    } catch(e) {}
-                                }, 50);
-                            } catch(e) {}
-                        }
+                    if (!noNavigate) {
+                        try { klChart.scrollToTimestamp(barTime * 1000, 300); } catch(e) {}
                     }
                 }
             }

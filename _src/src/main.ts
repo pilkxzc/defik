@@ -170,6 +170,7 @@ if (!rootEl) {
       periods:           PERIODS,
       theme:             'dark',
       locale:            'en-US',
+      timezone:          'Europe/Kiev',
       drawingBarVisible: true,
       subIndicators:     ['VOL'],
       mainIndicators:    [],
