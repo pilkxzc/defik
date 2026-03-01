@@ -1,0 +1,5 @@
+{
+  "watch": ["server.js"],
+  "ignore": ["*.sqlite", "*.json", "sessions.json", "database.sqlite"],
+  "ext": "js"
+}

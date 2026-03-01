@@ -1,0 +1,39 @@
+# ── Node ─────────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+*.log
+
+# ── Build output ──────────────────────────────────────────────────────────────
+_src/dist/
+_src/.vite/
+chart/.vite/
+js/chart/chart.js
+
+# ── Sensitive / persistent data (НІКОЛИ не в git) ────────────────────────────
+server/database.sqlite
+server/candles.sqlite
+server/sessions.json
+server/settings.json
+server/ssl/
+uploads/
+
+# ── Local dev ─────────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*
+.DS_Store
+Thumbs.db
+.claude/
+.vscode/
+
+# ── pixel-agents (окремий VS Code extension — не частина сайту) ───────────────
+pixel-agents/
+
+# ── TradingView Charting Library (ліцензована, не для git) ────────────────────
+charting_library/
+
+# ── Тимчасові файли ───────────────────────────────────────────────────────────
+*.tmp
+*.swp
+*.swo
+.tileset-working/

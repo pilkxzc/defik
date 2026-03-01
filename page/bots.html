@@ -1,0 +1,1139 @@
+<html lang="uk"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Торгові боти Yamato — автоматизована торгівля криптовалютою з підтримкою Binance Futures.">
+    <title>Yamato - Торгові боти</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #080808;
+            --surface: #141414;
+            --surface-secondary: #1C1C1C;
+            --accent-primary: #10B981;
+            --accent-white: #FFFFFF;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A1A1A1;
+            --text-tertiary: #636363;
+            --radius-xl: 32px;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-full: 9999px;
+            --gap-md: 20px;
+            --gap-sm: 12px;
+            --shadow-soft: 0 12px 32px rgba(0,0,0,0.4);
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.2);
+            --color-up: #10B981;
+            --color-down: #EF4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: 60px 1fr;
+        }
+
+        .header-bar {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .main-content {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-md);
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .main-content::-webkit-scrollbar { display: none; }
+
+        .bots-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 8px;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .btn-create {
+            background: var(--accent-primary);
+            color: white;
+            padding: 12px 28px;
+            border-radius: var(--radius-full);
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+        }
+        .btn-create:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        .bots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: var(--gap-md);
+        }
+
+        .bot-card {
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .bot-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .bot-info {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .bot-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: var(--surface-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .bot-name { font-size: 18px; font-weight: 700; }
+        .bot-type { font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--color-up); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        .bot-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background: var(--surface-secondary);
+            border-radius: var(--radius-md);
+            padding: 16px;
+        }
+
+        .stat-item { display: flex; flex-direction: column; gap: 4px; }
+        .stat-label { font-size: 11px; color: var(--text-tertiary); font-weight: 600; }
+        .stat-value { font-size: 16px; font-weight: 700; }
+        .stat-value.up { color: var(--color-up); }
+        .stat-value.down { color: var(--color-down); }
+
+        .bot-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+        }
+
+        .config-link {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .config-link:hover { color: var(--text-primary); }
+        .bot-footer-links {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .clickable-item {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .clickable-item:hover {
+            opacity: 0.8;
+        }
+
+        .status-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            text-transform: uppercase;
+        }
+        .status-active { background: rgba(16, 185, 129, 0.1); color: var(--color-up); }
+        .status-inactive { background: rgba(255, 255, 255, 0.05); color: var(--text-tertiary); }
+
+        svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* Bot Activity Log Styles */
+        .bot-activity {
+            background: var(--bg-app);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            margin-top: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .bot-activity::-webkit-scrollbar { display: none; }
+
+        .activity-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .activity-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: var(--color-up);
+            font-weight: 600;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--color-up);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .activity-log {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-entry {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 11px;
+            padding: 6px 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 6px;
+        }
+
+        .log-time {
+            color: var(--text-tertiary);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .log-action {
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .log-action .buy { color: var(--color-up); font-weight: 600; }
+        .log-action .sell { color: var(--color-down); font-weight: 600; }
+        .log-action .signal { color: #8CA8FF; font-weight: 600; }
+        .log-action .price { color: var(--text-primary); font-weight: 600; }
+
+        .log-profit {
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .log-profit.positive { color: var(--color-up); }
+        .log-profit.negative { color: var(--color-down); }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-card {
+            background: var(--surface);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-xl);
+            padding: 48px;
+            max-width: 520px;
+            width: 90%;
+            box-shadow: var(--shadow-soft);
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 59, 48, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+
+        .modal-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .modal-text {
+            font-size: 16px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .modal-btn {
+            background: var(--accent-primary);
+            color: white;
+            padding: 14px 32px;
+            border-radius: var(--radius-full);
+            border: none;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .modal-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* ==================== MOBILE ==================== */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            }
+            .app-container {
+                grid-template-columns: 1fr !important;
+                grid-template-rows: auto 1fr !important;
+                gap: 0;
+                border-radius: 0;
+            }
+            .header-bar {
+                grid-column: 1 !important;
+                grid-row: 1 !important;
+            }
+            .main-content {
+                grid-column: 1 !important;
+                grid-row: 2 !important;
+                padding: 12px;
+            }
+            .bots-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .bots-grid {
+                grid-template-columns: 1fr !important;
+                gap: 12px;
+            }
+            .bot-card {
+                padding: 20px;
+                border-radius: 20px;
+            }
+            .page-title {
+                font-size: 22px;
+            }
+            .modal-overlay {
+                padding: 0;
+                align-items: flex-end;
+            }
+            .modal-card {
+                padding: 24px 20px !important;
+                border-radius: 24px 24px 0 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: 92vh;
+                overflow-y: auto;
+                animation: slideUp 0.3s ease-out;
+            }
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+            .data-row {
+                grid-template-columns: 1fr 1fr !important;
+                gap: 6px;
+                font-size: 13px;
+            }
+            .data-row.header {
+                display: none;
+            }
+            .account-summary {
+                grid-template-columns: 1fr 1fr !important;
+            }
+        }
+        @media (max-width: 480px) {
+            .bot-card { padding: 16px; border-radius: 16px; }
+            .modal-card { padding: 20px 16px !important; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/shared-layout.css">
+    <link rel="stylesheet" href="/css/nav-fix.css">
+    <link rel="stylesheet" href="/css/responsive.css">
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 768px)">
+</head>
+<body>
+
+    <div class="app-container">
+
+        <nav class="nav-sidebar">
+            <a href="/dashboard" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </a>
+            <a href="/portfolio" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+            </a>
+            <a href="/bots" class="nav-item active">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+            </a>
+            <a href="/news" class="nav-item" title="Новини">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
+            </a>
+            <a href="/subscriptions" class="nav-item" title="Підписки">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </a>
+            <a href="/community" class="nav-item" title="Спільнота">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </a>
+            <a href="/admin" class="nav-item admin-nav-item" id="adminNavLink" style="display: none;" title="Панель адміна">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </a>
+            <a href="/profile" class="nav-item" style="margin-top: auto">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </a>
+        </nav>
+
+        <header class="header-bar">
+            <div class="brand-pill">
+                <img src="/logo.svg" style="width: 24px; height: 24px; border-radius: 50%;" alt="Yamato">
+                YAMATO
+            </div>
+
+            <div class="user-pill">
+                <span id="headerBalance">$0.00</span>
+                <div class="user-avatar" id="userAvatar">U</div>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-left: -8px"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+            </div>
+        </header>
+
+        <main class="main-content">
+
+            <div class="bots-header">
+                <div>
+                    <div class="page-title">Торгові боти</div>
+                    <div style="color: var(--text-tertiary); font-size: 14px; margin-top: 4px;">Автоматизовані стратегії для стабільної роботи на ринку</div>
+                </div>
+                <button class="btn-create" id="createBotBtn" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white"><path d="M12 5v14M5 12h14"></path></svg>
+                    Додати нового бота
+                </button>
+            </div>
+
+            <div class="bots-grid">
+                <!-- Bots will be loaded dynamically from API -->
+                <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-tertiary);">
+                    <div class="spinner" style="margin: 0 auto 16px;"></div>
+                    Завантаження ботів...
+                </div>
+            </div>
+
+
+            <div class="card" style="margin-top: 20px;">
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 24px;">Загальна ефективність ботів</div>
+                <div style="display: flex; gap: 48px; align-items: flex-end;">
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase;">Загальний П/З (Активні боти)</div>
+                        <div style="font-size: 32px; font-weight: 700; color: var(--color-up); margin-top: 4px;" data-total-pl>$0.00</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase;">Активні інвестиції</div>
+                        <div style="font-size: 24px; font-weight: 700; margin-top: 4px;" data-active-allocation>$0.00</div>
+                    </div>
+                    <div style="flex: 1; height: 60px; background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.1), transparent); border-radius: var(--radius-md); position: relative; overflow: hidden;">
+                        <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: var(--color-up);"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create Bot Modal -->
+    <div class="modal-overlay" id="createBotModal">
+        <div class="modal-card" style="max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <div class="modal-title" style="margin: 0;">Додати Binance бота</div>
+                <button onclick="closeCreateModal()" style="background: var(--surface-secondary); border: none; width: 36px; height: 36px; border-radius: 50%; color: var(--text-secondary); cursor: pointer;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="createBotForm">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Назва бота</label>
+                    <input type="text" id="botName" required placeholder="Мій ф'ючерсний бот" style="width: 100%; padding: 12px 16px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); color: white; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Binance API ключ (лише для читання)</label>
+                    <input type="text" id="apiKey" required placeholder="Ваш Binance API ключ" style="width: 100%; padding: 12px 16px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); color: white; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">API секрет</label>
+                    <input type="password" id="apiSecret" required placeholder="Ваш API секрет" style="width: 100%; padding: 12px 16px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); color: white; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Режим</label>
+                    <select id="botMode" style="width: 100%; padding: 12px 16px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); color: white; font-size: 14px;">
+                        <option value="test">Тестовий режим (Паперова торгівля)</option>
+                        <option value="bot">Режим бота (Живий моніторинг)</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">Налаштування відображення</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--surface-secondary); border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showPositions" checked style="width: 18px; height: 18px;">
+                            <span style="font-size: 13px;">Позиції</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--surface-secondary); border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showLimits" checked style="width: 18px; height: 18px;">
+                            <span style="font-size: 13px;">Лімітні ордери</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--surface-secondary); border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showStops" checked style="width: 18px; height: 18px;">
+                            <span style="font-size: 13px;">Стоп-ордери</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--surface-secondary); border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showTakeProfits" checked style="width: 18px; height: 18px;">
+                            <span style="font-size: 13px;">Тейк-профіти</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--surface-secondary); border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showTrades" checked style="width: 18px; height: 18px;">
+                            <span style="font-size: 13px;">Останні угоди</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--surface-secondary); border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showIncome" checked style="width: 18px; height: 18px;">
+                            <span style="font-size: 13px;">Історія доходів</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="createBotError" style="color: #EF4444; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
+                <button type="submit" class="modal-btn" id="createBotSubmit" style="width: 100%;">Створити бота</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bot Details Modal -->
+    <div class="modal-overlay" id="botDetailsModal">
+        <div class="modal-card" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; position: sticky; top: 0; background: var(--surface); padding-bottom: 16px; z-index: 10;">
+                <div>
+                    <div class="modal-title" style="margin: 0;" id="botDetailsName">Деталі бота</div>
+                    <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;" id="botDetailsMode">Режим: Тест</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-tertiary);">
+                        <div id="autoRefreshDot" style="width: 6px; height: 6px; border-radius: 50%; background: #10B981; animation: pulse-dot 2s ease-in-out infinite;"></div>
+                        <span>Авто</span>
+                    </div>
+                    <button onclick="refreshBotData()" style="background: var(--accent-primary); border: none; padding: 8px 16px; border-radius: var(--radius-full); color: white; font-weight: 600; cursor: pointer;">
+                        Оновити
+                    </button>
+                    <button onclick="closeBotDetails()" style="background: var(--surface-secondary); border: none; width: 36px; height: 36px; border-radius: 50%; color: var(--text-secondary); cursor: pointer;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Account Summary -->
+            <div id="accountSummary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;">
+                <div style="background: var(--surface-secondary); padding: 16px; border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Баланс гаманця</div>
+                    <div style="font-size: 20px; font-weight: 700;" id="walletBalance">$0.00</div>
+                </div>
+                <div style="background: var(--surface-secondary); padding: 16px; border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Нереалізований PNL</div>
+                    <div style="font-size: 20px; font-weight: 700;" id="unrealizedPnl">$0.00</div>
+                </div>
+                <div style="background: var(--surface-secondary); padding: 16px; border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Маржинальний баланс</div>
+                    <div style="font-size: 20px; font-weight: 700;" id="marginBalance">$0.00</div>
+                </div>
+                <div style="background: var(--surface-secondary); padding: 16px; border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Доступно</div>
+                    <div style="font-size: 20px; font-weight: 700;" id="availableBalance">$0.00</div>
+                </div>
+            </div>
+
+            <!-- Positions -->
+            <div id="positionsSection" style="margin-bottom: 24px;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                    Відкриті позиції
+                </div>
+                <div id="positionsList" style="background: var(--surface-secondary); border-radius: 12px; overflow: hidden;"></div>
+            </div>
+
+            <!-- Limit Orders -->
+            <div id="limitsSection" style="margin-bottom: 24px;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    Лімітні ордери
+                </div>
+                <div id="limitsList" style="background: var(--surface-secondary); border-radius: 12px; overflow: hidden;"></div>
+            </div>
+
+            <!-- Stop Orders -->
+            <div id="stopsSection" style="margin-bottom: 24px;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                    Стоп-ордери
+                </div>
+                <div id="stopsList" style="background: var(--surface-secondary); border-radius: 12px; overflow: hidden;"></div>
+            </div>
+
+            <!-- Take Profit Orders -->
+            <div id="takeProfitsSection" style="margin-bottom: 24px;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                    Ордери тейк-профіт
+                </div>
+                <div id="takeProfitsList" style="background: var(--surface-secondary); border-radius: 12px; overflow: hidden;"></div>
+            </div>
+
+            <!-- Recent Trades -->
+            <div id="tradesSection" style="margin-bottom: 24px;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+                    Останні угоди
+                </div>
+                <div id="tradesList" style="background: var(--surface-secondary); border-radius: 12px; overflow: hidden; max-height: 300px; overflow-y: auto;"></div>
+            </div>
+
+            <!-- Income History -->
+            <div id="incomeSection">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    Історія доходів
+                </div>
+                <div id="incomeList" style="background: var(--surface-secondary); border-radius: 12px; overflow: hidden; max-height: 300px; overflow-y: auto;"></div>
+            </div>
+
+            <div id="botDetailsLoading" style="display: none; text-align: center; padding: 40px; color: var(--text-tertiary);">
+                <div style="width: 32px; height: 32px; border: 3px solid var(--surface-secondary); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
+                Завантаження даних бота...
+            </div>
+            <div id="botDetailsError" style="display: none; text-align: center; padding: 40px; color: #EF4444;"></div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+        .data-row { display: grid; grid-template-columns: 100px 1fr 100px 100px 100px; gap: 12px; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center; font-size: 13px; }
+        .data-row:last-child { border-bottom: none; }
+        .data-row.header { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; font-weight: 600; }
+        .long { color: #10B981; }
+        .short { color: #EF4444; }
+        .empty-data { padding: 24px; text-align: center; color: var(--text-tertiary); font-size: 13px; }
+    </style>
+
+    <script>
+        let currentBotId = null;
+        let currentBotSettings = {};
+
+        function openCreateModal() {
+            document.getElementById('createBotModal').classList.add('active');
+        }
+
+        function closeCreateModal() {
+            document.getElementById('createBotModal').classList.remove('active');
+            document.getElementById('createBotForm').reset();
+            document.getElementById('createBotError').style.display = 'none';
+        }
+
+        let botAutoRefreshTimer = null;
+        const BOT_REFRESH_INTERVAL = 5000; // 5 seconds
+
+        function openBotDetails(botId) {
+            currentBotId = botId;
+            document.getElementById('botDetailsModal').classList.add('active');
+            loadBotData(botId);
+            startBotAutoRefresh();
+        }
+
+        function closeBotDetails() {
+            stopBotAutoRefresh();
+            document.getElementById('botDetailsModal').classList.remove('active');
+            currentBotId = null;
+        }
+
+        function startBotAutoRefresh() {
+            stopBotAutoRefresh();
+            botAutoRefreshTimer = setInterval(() => {
+                if (currentBotId) loadBotData(currentBotId, true);
+            }, BOT_REFRESH_INTERVAL);
+        }
+
+        function stopBotAutoRefresh() {
+            if (botAutoRefreshTimer) {
+                clearInterval(botAutoRefreshTimer);
+                botAutoRefreshTimer = null;
+            }
+        }
+
+        async function loadBotData(botId, silent) {
+            const loading = document.getElementById('botDetailsLoading');
+            const error = document.getElementById('botDetailsError');
+
+            // On first load show spinner; on silent refresh — don't
+            if (!silent) {
+                loading.style.display = 'block';
+                error.style.display = 'none';
+
+                // Hide all sections while loading
+                ['accountSummary', 'positionsSection', 'limitsSection', 'stopsSection', 'takeProfitsSection', 'tradesSection', 'incomeSection'].forEach(id => {
+                    document.getElementById(id).style.display = 'none';
+                });
+            }
+
+            try {
+                const response = await fetch(`/api/bots/${botId}/data`, { credentials: 'include' });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Не вдалося завантажити дані бота');
+                }
+
+                // If bot changed while request was in-flight, discard
+                if (currentBotId !== botId) return;
+
+                loading.style.display = 'none';
+                error.style.display = 'none';
+                currentBotSettings = data.bot.displaySettings || {};
+
+                // Update header
+                document.getElementById('botDetailsName').textContent = data.bot.name;
+                document.getElementById('botDetailsMode').textContent = `Режим: ${data.bot.mode === 'bot' ? 'Живий моніторинг' : 'Тестовий режим'}`;
+
+                // Update account summary
+                document.getElementById('accountSummary').style.display = 'grid';
+                document.getElementById('walletBalance').textContent = '$' + data.account.totalWalletBalance.toFixed(2);
+                document.getElementById('unrealizedPnl').textContent = (data.account.totalUnrealizedProfit >= 0 ? '+' : '') + '$' + data.account.totalUnrealizedProfit.toFixed(2);
+                document.getElementById('unrealizedPnl').style.color = data.account.totalUnrealizedProfit >= 0 ? '#10B981' : '#EF4444';
+                document.getElementById('marginBalance').textContent = '$' + data.account.totalMarginBalance.toFixed(2);
+                document.getElementById('availableBalance').textContent = '$' + data.account.availableBalance.toFixed(2);
+
+                // Render positions
+                if (currentBotSettings.showPositions !== false) {
+                    document.getElementById('positionsSection').style.display = 'block';
+                    renderPositions(data.positions);
+                }
+
+                // Render limit orders
+                if (currentBotSettings.showLimits !== false) {
+                    document.getElementById('limitsSection').style.display = 'block';
+                    renderLimitOrders(data.limitOrders);
+                }
+
+                // Render stop orders
+                if (currentBotSettings.showStops !== false) {
+                    document.getElementById('stopsSection').style.display = 'block';
+                    renderStopOrders(data.stopOrders);
+                }
+
+                // Render take profit orders
+                if (currentBotSettings.showTakeProfits !== false) {
+                    document.getElementById('takeProfitsSection').style.display = 'block';
+                    renderTakeProfitOrders(data.takeProfitOrders);
+                }
+
+                // Render recent trades
+                if (currentBotSettings.showTrades !== false) {
+                    document.getElementById('tradesSection').style.display = 'block';
+                    renderTrades(data.recentTrades);
+                }
+
+                // Render income history
+                if (currentBotSettings.showIncome !== false) {
+                    document.getElementById('incomeSection').style.display = 'block';
+                    renderIncome(data.incomeHistory);
+                }
+
+            } catch (err) {
+                // On silent refresh, don't show error UI (just log it)
+                if (silent) {
+                    console.warn('Bot auto-refresh failed:', err.message);
+                    return;
+                }
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = err.message;
+            }
+        }
+
+        function refreshBotData() {
+            if (currentBotId) loadBotData(currentBotId);
+        }
+
+        function renderPositions(positions) {
+            const container = document.getElementById('positionsList');
+            if (!positions || positions.length === 0) {
+                container.innerHTML = '<div class="empty-data">Немає відкритих позицій</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="data-row header">
+                    <div>Символ</div>
+                    <div>Сторона</div>
+                    <div>Розмір</div>
+                    <div>Вхід</div>
+                    <div>PNL</div>
+                </div>
+                ${positions.map(p => `
+                    <div class="data-row">
+                        <div style="font-weight: 600;">${p.symbol}</div>
+                        <div class="${p.side.toLowerCase()}">${p.side}</div>
+                        <div>${p.positionAmt}</div>
+                        <div>$${p.entryPrice.toFixed(2)}</div>
+                        <div class="${p.unrealizedProfit >= 0 ? 'long' : 'short'}">${p.unrealizedProfit >= 0 ? '+' : ''}$${p.unrealizedProfit.toFixed(2)}</div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function renderLimitOrders(orders) {
+            const container = document.getElementById('limitsList');
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<div class="empty-data">Немає лімітних ордерів</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="data-row header">
+                    <div>Символ</div>
+                    <div>Сторона</div>
+                    <div>Ціна</div>
+                    <div>Кількість</div>
+                    <div>Статус</div>
+                </div>
+                ${orders.map(o => `
+                    <div class="data-row">
+                        <div style="font-weight: 600;">${o.symbol}</div>
+                        <div class="${o.side === 'BUY' ? 'long' : 'short'}">${o.side}</div>
+                        <div>$${o.price.toFixed(2)}</div>
+                        <div>${o.quantity}</div>
+                        <div>${o.status}</div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function renderStopOrders(orders) {
+            const container = document.getElementById('stopsList');
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<div class="empty-data">Немає стоп-ордерів</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="data-row header">
+                    <div>Символ</div>
+                    <div>Сторона</div>
+                    <div>Стоп-ціна</div>
+                    <div>Кількість</div>
+                    <div>Тип</div>
+                </div>
+                ${orders.map(o => `
+                    <div class="data-row">
+                        <div style="font-weight: 600;">${o.symbol}</div>
+                        <div class="${o.side === 'BUY' ? 'long' : 'short'}">${o.side}</div>
+                        <div>$${o.stopPrice.toFixed(2)}</div>
+                        <div>${o.quantity}</div>
+                        <div>${o.type}</div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function renderTakeProfitOrders(orders) {
+            const container = document.getElementById('takeProfitsList');
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<div class="empty-data">Немає ордерів тейк-профіт</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="data-row header">
+                    <div>Символ</div>
+                    <div>Сторона</div>
+                    <div>Ціна</div>
+                    <div>Кількість</div>
+                    <div>Тип</div>
+                </div>
+                ${orders.map(o => `
+                    <div class="data-row">
+                        <div style="font-weight: 600;">${o.symbol}</div>
+                        <div class="${o.side === 'BUY' ? 'long' : 'short'}">${o.side}</div>
+                        <div>$${o.stopPrice.toFixed(2)}</div>
+                        <div>${o.quantity}</div>
+                        <div>${o.type}</div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function renderTrades(trades) {
+            const container = document.getElementById('tradesList');
+            if (!trades || trades.length === 0) {
+                container.innerHTML = '<div class="empty-data">Немає останніх угод</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="data-row header">
+                    <div>Символ</div>
+                    <div>Сторона</div>
+                    <div>Ціна</div>
+                    <div>Кількість</div>
+                    <div>PNL</div>
+                </div>
+                ${trades.map(t => `
+                    <div class="data-row">
+                        <div style="font-weight: 600;">${t.symbol}</div>
+                        <div class="${t.side === 'BUY' ? 'long' : 'short'}">${t.side}</div>
+                        <div>$${t.price.toFixed(2)}</div>
+                        <div>${t.quantity}</div>
+                        <div class="${t.realizedPnl >= 0 ? 'long' : 'short'}">${t.realizedPnl >= 0 ? '+' : ''}$${t.realizedPnl.toFixed(2)}</div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function renderIncome(income) {
+            const container = document.getElementById('incomeList');
+            if (!income || income.length === 0) {
+                container.innerHTML = '<div class="empty-data">Немає історії доходів</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="data-row header" style="grid-template-columns: 100px 1fr 100px 150px;">
+                    <div>Символ</div>
+                    <div>Тип</div>
+                    <div>Сума</div>
+                    <div>Час</div>
+                </div>
+                ${income.map(i => `
+                    <div class="data-row" style="grid-template-columns: 100px 1fr 100px 150px;">
+                        <div style="font-weight: 600;">${i.symbol || '-'}</div>
+                        <div>${i.incomeType}</div>
+                        <div class="${i.income >= 0 ? 'long' : 'short'}">${i.income >= 0 ? '+' : ''}$${i.income.toFixed(4)}</div>
+                        <div style="color: var(--text-tertiary);">${new Date(i.time).toLocaleString()}</div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        // Create bot form handler
+        document.getElementById('createBotForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const errorEl = document.getElementById('createBotError');
+            const submitBtn = document.getElementById('createBotSubmit');
+
+            const data = {
+                name: document.getElementById('botName').value,
+                apiKey: document.getElementById('apiKey').value,
+                apiSecret: document.getElementById('apiSecret').value,
+                mode: document.getElementById('botMode').value,
+                displaySettings: {
+                    showPositions: document.getElementById('showPositions').checked,
+                    showLimits: document.getElementById('showLimits').checked,
+                    showStops: document.getElementById('showStops').checked,
+                    showTakeProfits: document.getElementById('showTakeProfits').checked,
+                    showTrades: document.getElementById('showTrades').checked,
+                    showIncome: document.getElementById('showIncome').checked
+                }
+            };
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Створення...';
+            errorEl.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/bots/binance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Не вдалося створити бота');
+                }
+
+                closeCreateModal();
+                location.reload(); // Reload to show new bot
+
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Створити бота';
+            }
+        });
+
+        // Add click handlers
+        document.addEventListener('DOMContentLoaded', async function() {
+            const createBtn = document.querySelector('.btn-create');
+
+            if (createBtn) createBtn.addEventListener('click', openCreateModal);
+
+            // Close on overlay click
+            document.getElementById('createBotModal').addEventListener('click', function(e) {
+                if (e.target === this) closeCreateModal();
+            });
+            document.getElementById('botDetailsModal').addEventListener('click', function(e) {
+                if (e.target === this) closeBotDetails();
+            });
+
+            // Load user account balance for header
+            try {
+                const response = await fetch('/api/account/info', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const balance = data.activeAccount === 'demo' ? data.demoBalance : data.realBalance;
+                    document.getElementById('headerBalance').textContent = `$${(balance || 0).toFixed(2)}`;
+
+                    // Update avatar
+                    const avatarEl = document.getElementById('userAvatar');
+                    if (data.avatar) {
+                        avatarEl.innerHTML = '';
+                        avatarEl.style.backgroundImage = `url(${data.avatar})`;
+                        avatarEl.style.backgroundSize = 'cover';
+                        avatarEl.style.backgroundPosition = 'center';
+                    } else if (data.fullName) {
+                        avatarEl.textContent = data.fullName.charAt(0).toUpperCase();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load account info:', error);
+            }
+        });
+    </script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/js/app.js"></script>
+<!-- Mobile Bottom Nav -->
+<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Головна</span>
+    </a>
+    <a href="/bots" class="m-nav-tab active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+        <span>Боти</span>
+    </a>
+    <a href="/portfolio" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+        <span>Портфель</span>
+    </a>
+    <a href="/subscriptions" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Підписки</span>
+    </a>
+    <a href="/profile" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Профіль</span>
+    </a>
+</nav>
+<script>
+(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})();
+</script>
+</body></html>

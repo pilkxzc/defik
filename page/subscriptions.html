@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Підписки Yamato — оберіть план для розширеного доступу до торгових функцій та ботів.">
+    <title>Yamato - Підписки</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #080808;
+            --surface: #141414;
+            --surface-secondary: #1C1C1C;
+            --accent-primary: #10B981;
+            --accent-blue: #8CA8FF;
+            --accent-gold: #F59E0B;
+            --accent-purple: #8B5CF6;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A1A1A1;
+            --text-tertiary: #636363;
+            --radius-xl: 32px;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-full: 9999px;
+            --gap-md: 20px;
+            --gap-sm: 12px;
+            --shadow-soft: 0 12px 32px rgba(0,0,0,0.4);
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: 60px 1fr;
+            min-height: 0;
+        }
+
+        .header-bar {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .main-content {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-md);
+            padding-bottom: 40px;
+            overflow-y: auto;
+            min-height: 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .main-content::-webkit-scrollbar { width: 6px; }
+        .main-content::-webkit-scrollbar-track { background: transparent; }
+        .main-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .main-content::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .section-subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Current Plan Banner */
+        .current-plan-banner {
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .current-plan-info h3 {
+            font-size: 14px;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .current-plan-name {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .plan-badge {
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .plan-badge.free { background: rgba(99, 99, 99, 0.2); color: #999; }
+        .plan-badge.pro { background: rgba(245, 158, 11, 0.2); color: #F59E0B; }
+        .plan-badge.enterprise { background: rgba(139, 92, 246, 0.2); color: #8B5CF6; }
+
+        .current-plan-stats {
+            display: flex;
+            gap: 32px;
+        }
+
+        .plan-stat {
+            text-align: right;
+        }
+
+        .plan-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .plan-stat-label {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        /* Pricing Toggle */
+        .pricing-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .toggle-option {
+            padding: 12px 24px;
+            background: var(--surface);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-full);
+            color: var(--text-secondary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .toggle-option.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .toggle-option:hover:not(.active) {
+            border-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .discount-badge {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10B981;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-left: 8px;
+        }
+
+        /* Plans Grid */
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .plan-card {
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .plan-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .plan-card.popular {
+            border-color: var(--accent-gold);
+            background: linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, var(--surface) 100%);
+        }
+
+        .popular-label {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            padding: 6px 16px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .plan-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .plan-icon.free { background: rgba(99, 99, 99, 0.15); color: #999; }
+        .plan-icon.pro { background: rgba(245, 158, 11, 0.15); color: #F59E0B; }
+        .plan-icon.enterprise { background: rgba(139, 92, 246, 0.15); color: #8B5CF6; }
+
+        .plan-name {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .plan-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .plan-price {
+            margin-bottom: 24px;
+        }
+
+        .price-amount {
+            font-size: 42px;
+            font-weight: 700;
+        }
+
+        .price-period {
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        .plan-features {
+            flex: 1;
+            margin-bottom: 24px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            font-size: 14px;
+        }
+
+        .feature-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .feature-icon.included {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10B981;
+        }
+
+        .feature-icon.not-included {
+            background: rgba(99, 99, 99, 0.15);
+            color: #666;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .feature-text.disabled {
+            color: var(--text-tertiary);
+            text-decoration: line-through;
+        }
+
+        .plan-button {
+            width: 100%;
+            padding: 16px;
+            border-radius: var(--radius-full);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            border: none;
+        }
+
+        .plan-button.primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .plan-button.primary:hover {
+            opacity: 0.9;
+        }
+
+        .plan-button.secondary {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .plan-button.secondary:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .plan-button.gold {
+            background: linear-gradient(135deg, #F59E0B, #D97706);
+            color: white;
+        }
+
+        .plan-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Features Comparison */
+        .features-section {
+            margin-top: 60px;
+        }
+
+        .features-table {
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .features-table-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            padding: 20px 32px;
+            background: var(--surface-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .features-table-header span {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .features-table-header span:not(:first-child) {
+            text-align: center;
+        }
+
+        .feature-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            padding: 16px 32px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .feature-row:last-child {
+            border-bottom: none;
+        }
+
+        .feature-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .feature-name {
+            font-size: 14px;
+        }
+
+        .feature-check {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .check-yes {
+            width: 24px;
+            height: 24px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #10B981;
+        }
+
+        .check-no {
+            width: 24px;
+            height: 24px;
+            background: rgba(99, 99, 99, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+
+        .check-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            margin-top: 60px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .faq-item {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+        }
+
+        .faq-question {
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .faq-question:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .faq-icon {
+            color: var(--text-tertiary);
+            transition: 0.3s;
+        }
+
+        .faq-item.open .faq-icon {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            padding: 0 24px 20px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .faq-item.open .faq-answer {
+            display: block;
+        }
+
+        /* Payment Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal {
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 480px;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .payment-summary {
+            background: var(--surface-secondary);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .payment-summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+
+        .payment-summary-row.total {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 12px;
+            padding-top: 16px;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .payment-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .payment-method {
+            padding: 16px;
+            background: var(--surface-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .payment-method:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .payment-method.selected {
+            border-color: var(--accent-primary);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .payment-method-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .payment-method-info h4 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .payment-method-info span {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .pay-button {
+            width: 100%;
+            padding: 16px;
+            background: var(--accent-primary);
+            border: none;
+            border-radius: var(--radius-full);
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .pay-button:hover {
+            opacity: 0.9;
+        }
+
+        @media (max-width: 1024px) {
+            .plans-grid {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            }
+            .app-container {
+                grid-template-columns: 1fr !important;
+                grid-template-rows: auto 1fr !important;
+                gap: 0;
+                border-radius: 0;
+            }
+            .header-bar { grid-column: 1 !important; grid-row: 1 !important; }
+            .main-content {
+                grid-column: 1 !important;
+                grid-row: 2 !important;
+                padding: 16px 12px;
+            }
+            .section-title { font-size: 24px; }
+            .section-subtitle { font-size: 14px; }
+            .current-plan-banner {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+                padding: 20px;
+                border-radius: 20px;
+            }
+            .current-plan-stats { gap: 16px; }
+            .plan-stat { text-align: left; }
+            .pricing-toggle { flex-wrap: wrap; }
+            .features-table-header,
+            .feature-row {
+                grid-template-columns: 2fr 1fr 1fr 1fr;
+                padding: 12px 16px;
+                font-size: 12px;
+            }
+            .plan-card { padding: 28px 24px; border-radius: 24px; }
+            .plan-button { min-height: 48px; border-radius: 14px; }
+            .price-amount { font-size: 36px; }
+        }
+        @media (max-width: 480px) {
+            .features-table-header,
+            .feature-row {
+                grid-template-columns: 1.5fr 1fr 1fr 1fr;
+                padding: 10px 12px;
+                font-size: 11px;
+            }
+            .plan-card { padding: 24px 20px; border-radius: 20px; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/shared-layout.css">
+    <link rel="stylesheet" href="/css/nav-fix.css">
+    <link rel="stylesheet" href="/css/responsive.css">
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 768px)">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Навігація -->
+        <nav class="nav-sidebar">
+            <a href="/dashboard" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </a>
+            <a href="/portfolio" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+            </a>
+            <a href="/bots" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+            </a>
+            <a href="/news" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
+            </a>
+            <a href="/subscriptions" class="nav-item active" title="Підписки">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+            </a>
+            <a href="/community" class="nav-item" title="Спільнота">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </a>
+            <a href="/admin" class="nav-item admin-nav-item" id="adminNavLink" style="display: none;" title="Панель адміністратора">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </a>
+            <a href="/profile" class="nav-item" style="margin-top: auto">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </a>
+        </nav>
+
+        <!-- Заголовок -->
+        <header class="header-bar">
+            <h1 class="page-title">Підписки</h1>
+            <div class="user-pill">
+                <span id="userName">Користувач</span>
+                <div class="user-avatar" id="userAvatar">?</div>
+            </div>
+        </header>
+
+        <!-- Основний контент -->
+        <main class="main-content">
+            <!-- Банер поточного плану -->
+            <div class="current-plan-banner" id="currentPlanBanner">
+                <div class="current-plan-info">
+                    <h3>Ваш поточний план</h3>
+                    <div class="current-plan-name">
+                        <span id="currentPlanName">Безкоштовний</span>
+                        <span class="plan-badge free" id="currentPlanBadge">БЕЗКОШТОВНИЙ</span>
+                    </div>
+                </div>
+                <div class="current-plan-stats">
+                    <div class="plan-stat">
+                        <div class="plan-stat-value" id="botsUsed">1/1</div>
+                        <div class="plan-stat-label">Боти</div>
+                    </div>
+                    <div class="plan-stat">
+                        <div class="plan-stat-value" id="daysLeft">-</div>
+                        <div class="plan-stat-label">Днів залишилось</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Заголовок секції -->
+            <div class="section-header">
+                <h2 class="section-title">Оберіть свій план</h2>
+                <p class="section-subtitle">Розкрийте повний потенціал автоматизованої торгівлі з преміум функціями</p>
+            </div>
+
+            <!-- Перемикач тарифів -->
+            <div class="pricing-toggle">
+                <button class="toggle-option active" data-period="monthly">Щомісяця</button>
+                <button class="toggle-option" data-period="yearly">
+                    Щорічно
+                    <span class="discount-badge">-20%</span>
+                </button>
+            </div>
+
+            <!-- Сітка планів -->
+            <div class="plans-grid">
+                <!-- Безкоштовний план -->
+                <div class="plan-card">
+                    <div class="plan-icon free">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h3 class="plan-name">Безкоштовний</h3>
+                    <p class="plan-description">Ідеально для початківців, щоб спробувати платформу</p>
+                    <div class="plan-price">
+                        <span class="price-amount">$0</span>
+                        <span class="price-period">/ назавжди</span>
+                    </div>
+                    <div class="plan-features">
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">1 торговий бот</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Базові індикатори (RSI)</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Стратегія Grid Trading</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon not-included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </div>
+                            <span class="feature-text disabled">Сповіщення у Telegram</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon not-included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </div>
+                            <span class="feature-text disabled">AI-оптимізація</span>
+                        </div>
+                    </div>
+                    <button class="plan-button secondary" disabled>Поточний план</button>
+                </div>
+
+                <!-- Про план -->
+                <div class="plan-card popular">
+                    <div class="popular-label">Найпопулярніший</div>
+                    <div class="plan-icon pro">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <h3 class="plan-name">Про</h3>
+                    <p class="plan-description">Для серйозних трейдерів з розширеними потребами</p>
+                    <div class="plan-price">
+                        <span class="price-amount" id="proPrice">$29</span>
+                        <span class="price-period">/ місяць</span>
+                    </div>
+                    <div class="plan-features">
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">До 10 торгових ботів</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Всі індикатори</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Всі торгові стратегії</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Сповіщення у Telegram</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Індикатор Volume Profile</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon not-included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </div>
+                            <span class="feature-text disabled">AI-оптимізація</span>
+                        </div>
+                    </div>
+                    <button class="plan-button gold" onclick="openPaymentModal('pro')">Обрати Про</button>
+                </div>
+
+                <!-- Корпоративний план -->
+                <div class="plan-card">
+                    <div class="plan-icon enterprise">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3 class="plan-name">Корпоративний</h3>
+                    <p class="plan-description">Максимальні можливості для професіоналів</p>
+                    <div class="plan-price">
+                        <span class="price-amount" id="enterprisePrice">$99</span>
+                        <span class="price-period">/ місяць</span>
+                    </div>
+                    <div class="plan-features">
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Необмежена кількість ботів</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Всі індикатори + власні</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Всі стратегії + власні</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Сповіщення Telegram + Discord</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">AI-аналіз та оптимізація</span>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon included">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <span class="feature-text">Пріоритетна підтримка 24/7</span>
+                        </div>
+                    </div>
+                    <button class="plan-button primary" onclick="openPaymentModal('enterprise')">Обрати Корпоративний</button>
+                </div>
+            </div>
+
+            <!-- Порівняння функцій -->
+            <div class="features-section">
+                <div class="section-header">
+                    <h2 class="section-title">Порівняння планів</h2>
+                </div>
+
+                <div class="features-table">
+                    <div class="features-table-header">
+                        <span>Функція</span>
+                        <span>Безкоштовний</span>
+                        <span>Про</span>
+                        <span>Корпоративний</span>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Торгові боти</span>
+                        <div class="feature-check"><span class="check-text">1</span></div>
+                        <div class="feature-check"><span class="check-text">10</span></div>
+                        <div class="feature-check"><span class="check-text">Необмежено</span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Торгові пари</span>
+                        <div class="feature-check"><span class="check-text">5</span></div>
+                        <div class="feature-check"><span class="check-text">50</span></div>
+                        <div class="feature-check"><span class="check-text">Всі</span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Grid Trading</span>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Стратегія DCA</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Стратегія Martingale</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Індикатор RSI</span>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">MACD / Смуги Боллінджера</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Volume Profile</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Сповіщення у Telegram</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">AI-оптимізація</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                    <div class="feature-row">
+                        <span class="feature-name">Пріоритетна підтримка</span>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-no"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></div>
+                        <div class="feature-check"><span class="check-yes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Секція FAQ -->
+            <div class="faq-section">
+                <div class="section-header">
+                    <h2 class="section-title">Часті запитання</h2>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <span>Як працює безкоштовний план?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="faq-answer">
+                        Безкоштовний план надає доступ до базових функцій платформи, включаючи одного торгового бота зі стратегією Grid Trading та індикатором RSI. Це чудовий спосіб спробувати платформу перед переходом на платний план.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <span>Чи можу я скасувати підписку будь-коли?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="faq-answer">
+                        Так, ви можете скасувати підписку будь-коли. Після скасування ви зберігаєте доступ до преміум функцій до кінця оплаченого періоду, після чого ваш план автоматично перейде на безкоштовний.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <span>Які способи оплати ви приймаєте?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="faq-answer">
+                        Ми приймаємо оплату криптовалютою (BTC, ETH, USDT), а також банківськими картками Visa та MasterCard. Для корпоративних клієнтів доступна оплата за рахунком.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <span>Чи є знижка на річну підписку?</span>
+                        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="faq-answer">
+                        Так! При річній оплаті ви отримуєте знижку 20%. Це означає, що замість $348 за план Про (12 місяців), ви платите лише $278.
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальне вікно оплати -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Оформлення замовлення</h2>
+                <button class="modal-close" onclick="closePaymentModal()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="payment-summary">
+                    <div class="payment-summary-row">
+                        <span>План</span>
+                        <span id="selectedPlanName">Про</span>
+                    </div>
+                    <div class="payment-summary-row">
+                        <span>Період</span>
+                        <span id="selectedPeriod">1 місяць</span>
+                    </div>
+                    <div class="payment-summary-row total">
+                        <span>Всього</span>
+                        <span id="totalAmount">$29</span>
+                    </div>
+                </div>
+
+                <h4 style="margin-bottom: 16px; font-size: 14px; color: var(--text-secondary);">Оберіть спосіб оплати</h4>
+                <div class="payment-methods">
+                    <div class="payment-method selected" onclick="selectPaymentMethod(this, 'crypto')">
+                        <div class="payment-method-icon" style="background: rgba(247, 147, 26, 0.15);">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="#F7931A"><path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546z"/><path fill="#fff" d="M17.16 10.434c.238-1.594-.976-2.45-2.638-3.021l.539-2.162-1.316-.328-.525 2.106c-.346-.086-.702-.167-1.056-.248l.529-2.119-1.315-.328-.54 2.161c-.286-.065-.567-.13-.84-.197l.001-.006-1.815-.453-.35 1.406s.976.224.955.238c.533.133.63.486.613.765l-.614 2.466c.037.009.084.023.137.044l-.139-.035-.861 3.451c-.065.162-.23.404-.602.313.014.02-.956-.238-.956-.238l-.652 1.508 1.713.426c.318.08.63.163.937.241l-.545 2.187 1.315.328.54-2.164c.359.098.708.188 1.049.273l-.538 2.155 1.316.328.545-2.182c2.245.425 3.932.253 4.64-1.778.571-1.636-.028-2.578-1.21-3.193.861-.198 1.509-.765 1.682-1.936zm-3.01 4.222c-.405 1.636-3.144.752-4.033.53l.72-2.883c.888.222 3.735.662 3.313 2.353zm.406-4.244c-.37 1.487-2.648.732-3.388.546l.652-2.615c.74.184 3.119.528 2.736 2.069z"/></svg>
+                        </div>
+                        <div class="payment-method-info">
+                            <h4>Криптовалюта</h4>
+                            <span>BTC, ETH, USDT</span>
+                        </div>
+                    </div>
+                    <div class="payment-method" onclick="selectPaymentMethod(this, 'card')">
+                        <div class="payment-method-icon" style="background: rgba(140, 168, 255, 0.15);">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8CA8FF" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                        </div>
+                        <div class="payment-method-info">
+                            <h4>Банківська картка</h4>
+                            <span>Visa, MasterCard</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="pay-button" onclick="processPayment()">Сплатити зараз</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPlan = 'free';
+        let selectedPlan = 'pro';
+        let selectedPeriod = 'monthly';
+        let selectedPaymentMethod = 'crypto';
+
+        const prices = {
+            pro: { monthly: 29, yearly: 23 },
+            enterprise: { monthly: 99, yearly: 79 }
+        };
+
+        // Load user info
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/profile');
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error('Failed to load profile');
+                }
+                const data = await response.json();
+                if (data.user) {
+                    const userName = data.user.fullName || data.user.email || 'Користувач';
+                    document.getElementById('userName').textContent = userName;
+                    document.getElementById('userAvatar').textContent = userName.charAt(0).toUpperCase();
+
+                    // Load subscription info
+                    loadSubscriptionInfo(data.user);
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function loadSubscriptionInfo(user) {
+            try {
+                const response = await fetch('/api/subscription');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.subscription) {
+                        currentPlan = data.subscription.plan;
+                        updateCurrentPlanUI(data.subscription);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading subscription:', error);
+            }
+        }
+
+        function updateCurrentPlanUI(subscription) {
+            const planName = document.getElementById('currentPlanName');
+            const planBadge = document.getElementById('currentPlanBadge');
+            const botsUsed = document.getElementById('botsUsed');
+            const daysLeft = document.getElementById('daysLeft');
+
+            planName.textContent = subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1);
+            planBadge.textContent = subscription.plan.toUpperCase();
+            planBadge.className = `plan-badge ${subscription.plan}`;
+
+            // Calculate bots limit
+            const botsLimit = subscription.plan === 'free' ? 1 : subscription.plan === 'pro' ? 10 : '∞';
+            botsUsed.textContent = `${subscription.botsCount || 0}/${botsLimit}`;
+
+            // Calculate days left
+            if (subscription.expiresAt) {
+                const expires = new Date(subscription.expiresAt);
+                const now = new Date();
+                const days = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
+                daysLeft.textContent = days > 0 ? days : '-';
+            } else {
+                daysLeft.textContent = '-';
+            }
+
+            // Update plan buttons
+            updatePlanButtons();
+        }
+
+        function updatePlanButtons() {
+            const planCards = document.querySelectorAll('.plan-card');
+            planCards.forEach(card => {
+                const button = card.querySelector('.plan-button');
+                const planName = card.querySelector('.plan-name').textContent.toLowerCase();
+
+                if (planName === currentPlan) {
+                    button.textContent = 'Поточний план';
+                    button.disabled = true;
+                    button.className = 'plan-button secondary';
+                }
+            });
+        }
+
+        // Pricing toggle
+        document.querySelectorAll('.toggle-option').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.toggle-option').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedPeriod = btn.dataset.period;
+                updatePrices();
+            });
+        });
+
+        function updatePrices() {
+            const proPrice = prices.pro[selectedPeriod];
+            const enterprisePrice = prices.enterprise[selectedPeriod];
+
+            document.getElementById('proPrice').textContent = `$${proPrice}`;
+            document.getElementById('enterprisePrice').textContent = `$${enterprisePrice}`;
+
+            const periodText = selectedPeriod === 'monthly' ? '/ місяць' : '/ місяць (річна оплата)';
+            document.querySelectorAll('.price-period').forEach((el, i) => {
+                if (i > 0) el.textContent = periodText;
+            });
+        }
+
+        // Payment modal
+        function openPaymentModal(plan) {
+            selectedPlan = plan;
+            const price = prices[plan][selectedPeriod];
+
+            document.getElementById('selectedPlanName').textContent = plan.charAt(0).toUpperCase() + plan.slice(1);
+            document.getElementById('selectedPeriod').textContent = selectedPeriod === 'monthly' ? '1 місяць' : '12 місяців';
+            document.getElementById('totalAmount').textContent = selectedPeriod === 'monthly' ? `$${price}` : `$${price * 12}`;
+
+            document.getElementById('paymentModal').style.display = 'flex';
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+        }
+
+        function selectPaymentMethod(element, method) {
+            document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedPaymentMethod = method;
+        }
+
+        async function processPayment() {
+            try {
+                const response = await fetch('/api/subscription/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan: selectedPlan,
+                        period: selectedPeriod,
+                        paymentMethod: selectedPaymentMethod
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    closePaymentModal();
+                    if (typeof showToast === 'function') {
+                        showToast('success', 'Успішно', 'Підписку успішно оформлено!');
+                    } else {
+                        alert('Підписку успішно оформлено!');
+                    }
+                    loadUserInfo();
+                } else {
+                    if (typeof showToast === 'function') {
+                        showToast('error', 'Помилка', data.error || 'Не вдалося оформити підписку');
+                    } else {
+                        alert(data.error || 'Не вдалося оформити підписку');
+                    }
+                }
+            } catch (error) {
+                console.error('Payment error:', error);
+                if (typeof showToast === 'function') {
+                    showToast('error', 'Помилка', 'Помилка обробки платежу');
+                } else {
+                    alert('Помилка обробки платежу');
+                }
+            }
+        }
+
+        // FAQ toggle
+        function toggleFaq(element) {
+            const faqItem = element.closest('.faq-item');
+            faqItem.classList.toggle('open');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('paymentModal').addEventListener('click', (e) => {
+            if (e.target.id === 'paymentModal') {
+                closePaymentModal();
+            }
+        });
+
+        // Initialize
+        loadUserInfo();
+    </script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/js/app.js"></script>
+<!-- Mobile Bottom Nav -->
+<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>
+    <a href="/bots" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg><span>Боти</span></a>
+    <a href="/portfolio" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфель</span></a>
+    <a href="/subscriptions" class="m-nav-tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Підписки</span></a>
+    <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>
+</nav>
+<script>(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})()</script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+/* ==================== RESPONSIVE & ADAPTIVE STYLES ==================== */
+/* Shared across all pages for consistent sizing */
+
+/* Base responsive adjustments */
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+/* Overflow lock only on desktop — mobile overrides this via mobile.css */
+@media (min-width: 769px) {
+    html, body {
+        height: 100%;
+        max-height: 100vh;
+        overflow: hidden;
+    }
+}
+
+/* Main app container - grid layout */
+.app-container {
+    max-height: 100%;
+    overflow: hidden;
+}
+
+/* Cards should not overflow */
+.card {
+    overflow: hidden;
+}
+
+/* Scrollable areas */
+.scroll-y {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+
+.scroll-y::-webkit-scrollbar {
+    width: 4px;
+}
+
+.scroll-y::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scroll-y::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+}
+
+/* ==================== SCREEN SIZE BREAKPOINTS ==================== */
+
+/* Large screens (1920px+) */
+@media (min-width: 1920px) {
+    body {
+        padding: 20px;
+    }
+    .app-container {
+        gap: 20px;
+    }
+}
+
+/* Standard screens (1400px - 1919px) */
+@media (min-width: 1400px) and (max-width: 1919px) {
+    body {
+        padding: 16px;
+    }
+    .app-container {
+        gap: 16px;
+    }
+}
+
+/* Medium screens (1200px - 1399px) */
+@media (min-width: 1200px) and (max-width: 1399px) {
+    body {
+        padding: 12px;
+    }
+    .app-container {
+        gap: 12px;
+    }
+    .card {
+        padding: 16px;
+        border-radius: 20px;
+    }
+    .nav-sidebar {
+        width: 60px;
+    }
+}
+
+/* Small screens (992px - 1199px) */
+@media (min-width: 992px) and (max-width: 1199px) {
+    body {
+        padding: 10px;
+    }
+    .app-container {
+        gap: 10px;
+    }
+    .card {
+        padding: 14px;
+        border-radius: 16px;
+    }
+    .nav-sidebar {
+        width: 55px;
+        padding: 12px 0;
+        gap: 12px;
+    }
+    .nav-item {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* ==================== HEIGHT BREAKPOINTS ==================== */
+
+/* Short screens (< 800px height) */
+@media (max-height: 800px) {
+    body {
+        padding: 8px !important;
+    }
+    .app-container {
+        gap: 8px !important;
+    }
+    .card {
+        padding: 12px !important;
+    }
+    .panel-header {
+        margin-bottom: 8px;
+    }
+    .panel-title {
+        font-size: 14px;
+    }
+    .nav-sidebar {
+        padding: 10px 0;
+        gap: 10px;
+    }
+    .nav-item {
+        width: 34px;
+        height: 34px;
+    }
+}
+
+/* Very short screens (< 700px height) */
+@media (max-height: 700px) {
+    body {
+        padding: 6px !important;
+    }
+    .app-container {
+        gap: 6px !important;
+    }
+    .card {
+        padding: 10px !important;
+        border-radius: 12px !important;
+    }
+    .btn-primary {
+        height: 40px;
+        font-size: 13px;
+    }
+    .input-pill {
+        height: 36px;
+    }
+    .toggle-option {
+        padding: 6px;
+        font-size: 11px;
+    }
+}
+
+/* ==================== DASHBOARD SPECIFIC ==================== */
+
+/* Dashboard grid for different widths */
+@media (max-width: 1600px) {
+    .app-container.dashboard-grid {
+        grid-template-columns: 70px 260px 1fr 260px;
+    }
+}
+
+@media (max-width: 1400px) {
+    .app-container.dashboard-grid {
+        grid-template-columns: 60px 240px 1fr 240px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .app-container.dashboard-grid {
+        grid-template-columns: 55px 220px 1fr 220px;
+    }
+}
+
+/* ==================== BOTS/PORTFOLIO GRID ==================== */
+
+@media (max-width: 1400px) {
+    .bots-grid, .portfolio-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+    }
+}
+
+@media (max-width: 1200px) {
+    .bots-grid, .portfolio-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)) !important;
+    }
+}
+
+/* ==================== ADMIN PANEL ==================== */
+
+@media (max-width: 1400px) {
+    .admin-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+    }
+}
+
+/* ==================== UTILITIES ==================== */
+
+/* Fit content to viewport */
+.fit-viewport {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+}
+
+/* Flexible content area */
+.flex-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* No overflow */
+.no-overflow {
+    overflow: hidden;
+}
+
+/* Compact text */
+@media (max-height: 800px) {
+    .text-compact {
+        font-size: 0.9em;
+    }
+}
+
+/* ==================== MOBILE (≤768px) ==================== */
+
+@media (max-width: 768px) {
+    .app-container {
+        grid-template-columns: 1fr !important;
+    }
+    .header-bar {
+        grid-row: 1 !important;
+        grid-column: 1 !important;
+    }
+    .main-content,
+    .main-area,
+    .profile-content {
+        grid-column: 1 !important;
+    }
+    .bots-grid, .portfolio-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Touch-friendly inputs */
+    input, select, textarea {
+        font-size: 16px !important; /* Prevents iOS zoom on focus */
+    }
+    button, .btn, a.btn {
+        min-height: 44px; /* Apple touch target */
+    }
+}

@@ -1,0 +1,628 @@
+/* ═══════════════════════════════════════════
+   UNIVERSAL MOBILE STYLES — all app pages
+   Loaded via media="(max-width: 768px)"
+   ═══════════════════════════════════════════ */
+
+/* ── Base layout ── */
+body {
+    padding: 0 !important;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: auto !important;
+    max-height: none !important;
+    height: auto !important;
+}
+
+.app-container {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr !important;
+    gap: 0 !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: calc(100vh - 60px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 60px - env(safe-area-inset-bottom, 0px));
+    overflow: visible !important;
+}
+
+/* ── Hide sidebar ── */
+.nav-sidebar { display: none !important; }
+
+/* ── Header ── */
+.header-bar {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    padding: 0 12px !important;
+    background: rgba(8, 8, 8, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.brand-pill {
+    padding: 6px 10px;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+.brand-pill img { width: 22px; height: 22px; }
+
+.user-pill {
+    padding: 4px 4px 4px 10px;
+    gap: 6px;
+    font-size: 11px;
+}
+.user-avatar { width: 28px; height: 28px; font-size: 11px; }
+
+/* ── Cards ── */
+.card {
+    border-radius: 12px !important;
+    border: none !important;
+    padding: 12px !important;
+}
+
+/* ── Mobile bottom nav ── */
+.m-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 9999;
+    background: rgba(17, 17, 17, 0.94);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+    align-items: center;
+}
+
+.m-nav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 0;
+    min-width: 48px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease;
+    color: var(--text-tertiary, #636363);
+}
+.m-nav-tab:active { transform: scale(0.9); }
+.m-nav-tab svg {
+    width: 20px; height: 20px;
+    stroke-width: 1.8;
+    transition: color 0.15s;
+}
+.m-nav-tab span {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    transition: color 0.15s;
+    color: inherit;
+}
+.m-nav-tab.active svg { color: var(--accent-primary, #10B981); }
+.m-nav-tab.active span { color: var(--accent-primary, #10B981); font-weight: 700; }
+
+/* ── Smooth scrolling ── */
+* { -webkit-overflow-scrolling: touch; }
+
+/* ── Touch-friendly inputs ── */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, a.btn { min-height: 40px; }
+
+/* ── Modals — universal mobile fixes ── */
+.modal-overlay,
+.confirm-overlay,
+.stats-modal-overlay,
+.settings-modal-overlay {
+    padding: 12px !important;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.modal,
+.confirm-dialog {
+    max-width: calc(100vw - 24px) !important;
+    border-radius: 14px !important;
+}
+
+/* ── Trade panel toggle (hidden on desktop) ── */
+.trade-panel-toggle { display: none; }
+
+/* ── Chart touch: prevent scroll conflict with canvas interactions ── */
+.chart-container canvas,
+.chart-area canvas,
+#tradingViewChart canvas {
+    touch-action: none;
+}
+
+/* ── Overscroll containment: prevents scroll chaining on iOS ── */
+.trade-panel,
+.scroll-y,
+.panel-body,
+.main-scroll,
+.orders-area,
+.market-list {
+    overscroll-behavior: contain;
+}
+
+/* ── Will-change: smoother drawer animation on low-end devices ── */
+.trade-panel {
+    will-change: transform;
+}
+
+
+/* ═══════════════════════════════════════════
+   PAGE: BOTS LIST (bots.html)
+   ═══════════════════════════════════════════ */
+.bots-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: 8px !important;
+}
+.bot-card {
+    padding: 16px !important;
+    border-radius: 14px !important;
+}
+.page-title { font-size: 22px !important; }
+.page-subtitle { font-size: 12px !important; }
+
+
+/* ═══════════════════════════════════════════
+   PAGE: PORTFOLIO (portfolio.html)
+   ═══════════════════════════════════════════ */
+.sidebar-right,
+.right-panel { display: none !important; }
+
+.summary-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+.wallet-card-main {
+    padding: 20px !important;
+    border-radius: 14px !important;
+}
+.wallet-balance { font-size: 28px !important; }
+.action-btns {
+    flex-wrap: wrap;
+    gap: 6px !important;
+}
+.action-btns button,
+.action-btns .btn {
+    flex: 1;
+    min-width: 80px;
+    font-size: 11px !important;
+    padding: 8px 12px !important;
+}
+.history-item {
+    grid-template-columns: 40px 1fr auto !important;
+    padding: 10px 12px !important;
+}
+.table-header {
+    padding: 12px !important;
+}
+
+
+/* ═══════════════════════════════════════════
+   PAGE: PROFILE (porfile.html)
+   ═══════════════════════════════════════════ */
+.market-panel,
+.profile-nav { display: none !important; }
+
+.profile-content {
+    grid-column: 1 !important;
+    grid-template-columns: 1fr !important;
+    overflow-y: auto !important;
+    padding: 8px !important;
+}
+.detail-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+.profile-header {
+    flex-direction: column !important;
+    text-align: center;
+    gap: 12px !important;
+}
+.profile-avatar-wrap {
+    margin: 0 auto;
+}
+.settings-section {
+    padding: 16px !important;
+}
+.settings-section h3,
+.section-title {
+    font-size: 14px !important;
+}
+.form-group { gap: 6px !important; }
+.form-group label { font-size: 11px !important; }
+
+
+/* ═══════════════════════════════════════════
+   PAGE: NEWS (news.html)
+   ═══════════════════════════════════════════ */
+.news-feed,
+.news-content {
+    padding: 8px !important;
+    gap: 8px !important;
+}
+.news-header {
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding: 12px !important;
+}
+.news-filters {
+    flex-wrap: wrap;
+    gap: 4px !important;
+}
+.filter-btn {
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+}
+.news-card,
+.news-item {
+    padding: 14px !important;
+    border-radius: 12px !important;
+}
+.news-card-image,
+.news-image {
+    height: 120px !important;
+    border-radius: 8px !important;
+}
+.news-title { font-size: 16px !important; }
+.news-excerpt,
+.news-description { font-size: 12px !important; }
+.news-meta { font-size: 10px !important; }
+
+
+/* ═══════════════════════════════════════════
+   PAGE: COMMUNITY (community.html)
+   ═══════════════════════════════════════════ */
+.social-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: 8px !important;
+}
+.social-card {
+    padding: 20px 16px !important;
+    border-radius: 12px !important;
+}
+.banner-icon,
+.community-icon {
+    width: 48px !important;
+    height: 48px !important;
+}
+.community-banner {
+    flex-direction: column !important;
+    text-align: center;
+    gap: 12px !important;
+    padding: 20px 16px !important;
+}
+.page-header {
+    padding: 16px !important;
+    text-align: center;
+}
+.page-header h1 { font-size: 22px !important; }
+.page-header p { font-size: 12px !important; }
+
+
+/* ═══════════════════════════════════════════
+   PAGE: SUBSCRIPTIONS (subscriptions.html)
+   ═══════════════════════════════════════════ */
+.plans-grid,
+.pricing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 8px !important;
+}
+.plan-card,
+.pricing-card {
+    padding: 20px !important;
+    border-radius: 14px !important;
+}
+.plan-price { font-size: 32px !important; }
+.plan-name { font-size: 18px !important; }
+.current-plan-banner {
+    flex-direction: column !important;
+    text-align: center;
+    gap: 12px !important;
+    padding: 20px !important;
+}
+.current-plan-stats {
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+.section-header {
+    padding: 16px 12px !important;
+    text-align: center;
+}
+.section-header h2 { font-size: 20px !important; }
+.section-header p { font-size: 12px !important; }
+.feature-list li { font-size: 12px !important; }
+
+
+/* ═══════════════════════════════════════════
+   PAGE: BOT DETAIL (bot-detail.html)
+   ═══════════════════════════════════════════ */
+
+/* Layout */
+.right-panel {
+    display: block !important;
+    grid-column: 1 !important;
+    max-height: none !important;
+}
+.resize-handle-w,
+.panel-width-resizer { display: none !important; }
+.resize-handle { pointer-events: none !important; }
+.resizable-panel { min-height: 60px !important; }
+
+/* Chart */
+.chart-container {
+    grid-column: 1 !important;
+    min-height: 50vh !important;
+    border-radius: 0 !important;
+}
+
+/* Header */
+.header-left { gap: 6px !important; }
+.bot-title { font-size: 14px !important; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-mode-badge { font-size: 9px !important; padding: 4px 8px !important; }
+.symbol-search-container { min-width: 0 !important; flex: 1 !important; }
+.symbol-search-input { padding: 8px 14px !important; font-size: 12px !important; }
+
+/* Tables */
+.trades-table { font-size: 10px !important; }
+.trades-table th { padding: 6px 8px !important; }
+.trades-table td { padding: 8px 6px !important; }
+.panel-body { overflow-x: auto !important; }
+
+/* Modals */
+.stats-modal,
+.settings-modal {
+    border-radius: 12px !important;
+    max-width: calc(100vw - 24px) !important;
+}
+.settings-tabs { width: 130px !important; }
+.settings-content { padding: 14px 12px !important; }
+.stats-modal-overlay,
+.settings-modal-overlay { padding: 12px !important; }
+
+/* Style editor panel */
+.style-editor-panel {
+    width: calc(100% - 24px) !important;
+    max-width: 320px !important;
+    right: 12px !important;
+    bottom: 72px !important;
+}
+
+/* Toolbar */
+.dashboard-toolbar { bottom: 72px !important; }
+
+/* Dropdowns */
+.symbol-dropdown { max-height: 50vh !important; }
+#headerMoreMenu {
+    position: fixed !important;
+    bottom: 60px !important;
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    border-radius: 12px !important;
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+}
+
+/* Panel cards */
+.panel-card { border-radius: 12px !important; }
+
+/* Chart actions */
+.chart-actions { flex-wrap: wrap !important; gap: 4px !important; }
+
+/* Icon buttons - touch targets */
+.icon-btn-sm {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px;
+}
+
+
+/* ═══════════════════════════════════════════
+   PAGE: DASHBOARD (dashboards-bot.html)
+   ═══════════════════════════════════════════ */
+.dash-body {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto !important;
+}
+.settings-panel,
+.right-sidebar {
+    max-height: 300px !important;
+    overflow-y: auto !important;
+}
+.orders-area {
+    max-height: 200px !important;
+}
+.top-tabs {
+    padding: 0 10px !important;
+    height: 38px !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.top-tabs::-webkit-scrollbar { display: none; }
+.top-tab {
+    padding: 0 12px !important;
+    font-size: 10px !important;
+    white-space: nowrap;
+}
+.sub-nav {
+    padding: 0 10px !important;
+    height: 36px !important;
+    gap: 4px !important;
+}
+.pair-chip {
+    padding: 4px 10px !important;
+    font-size: 10px !important;
+}
+.monitor-top {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+.metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+}
+.heatmap-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+}
+.chart-area {
+    height: 260px !important;
+    min-height: 260px !important;
+}
+.main-content {
+    overflow: auto !important;
+}
+
+
+/* ═══════════════════════════════════════════
+   PAGE: ADMIN (admin.html)
+   ═══════════════════════════════════════════ */
+.admin-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+.admin-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.admin-tabs::-webkit-scrollbar { display: none; }
+.user-list {
+    overflow-x: auto;
+}
+.control-panel {
+    padding: 12px !important;
+}
+
+
+/* ═══════════════════════════════════════════
+   PAGE: DATEDOS (Trading Terminal)
+   ═══════════════════════════════════════════ */
+.market-panel { display: none !important; }
+
+/* Trade panel — fixed bottom drawer */
+.trade-panel {
+    position: fixed !important;
+    bottom: 60px;
+    left: 0; right: 0;
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+    z-index: 500;
+    background: var(--surface, #0A0A0A) !important;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px 16px 0 0 !important;
+    transform: translateY(calc(100% - 44px));
+    transition: transform 0.3s ease;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+}
+.trade-panel.open { transform: translateY(0); }
+.trade-panel-toggle {
+    display: flex !important;
+    align-items: center; justify-content: center;
+    height: 44px; cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 12px; font-weight: 700;
+    color: var(--text-secondary, #A1A1A1);
+    gap: 6px;
+    -webkit-tap-highlight-color: transparent;
+}
+.trade-panel-toggle::before {
+    content: '';
+    width: 32px; height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+}
+
+.chart-container {
+    grid-column: 1 !important;
+    min-height: 55vh !important;
+}
+.chart-actions { flex-wrap: wrap !important; }
+
+/* Order cards */
+.order-card { border-radius: 12px !important; }
+.wallet-card { min-height: 60px !important; }
+.input-pill { height: 44px !important; }
+
+
+/* ═══════════════════════════════════════════
+   SMALL PHONES (≤480px)
+   ═══════════════════════════════════════════ */
+@media (max-width: 480px) {
+    .header-bar {
+        min-height: 44px !important;
+        max-height: 44px !important;
+        padding: 0 8px !important;
+    }
+    .brand-pill { font-size: 12px; gap: 6px; }
+    .brand-pill img { width: 20px; height: 20px; }
+
+    .card { padding: 10px !important; border-radius: 10px !important; }
+
+    /* Bots */
+    .bots-grid { padding: 6px !important; }
+    .bot-card { padding: 14px !important; }
+
+    /* Subscriptions */
+    .plans-grid,
+    .pricing-grid { padding: 6px !important; }
+
+    /* Community */
+    .social-grid { padding: 6px !important; }
+
+    /* News */
+    .news-card,
+    .news-item { padding: 12px !important; }
+
+    /* Dashboard */
+    .metrics-grid { grid-template-columns: 1fr !important; }
+
+    /* Bot Detail */
+    .chart-container { min-height: 45vh !important; }
+    .back-btn { width: 36px !important; height: 36px !important; }
+    .bot-title { font-size: 13px !important; max-width: 70px; }
+    .bot-mode-badge { display: none !important; }
+    .settings-tabs { width: 110px !important; font-size: 11px !important; }
+    .panel-card { padding: 10px !important; }
+    .trades-table { display: block !important; overflow-x: auto !important; }
+
+    /* Portfolio */
+    .wallet-balance { font-size: 24px !important; }
+    .donut-container { width: 120px !important; height: 120px !important; }
+
+    /* Profile */
+    #profileAvatar { width: 60px !important; height: 60px !important; }
+    .security-card { gap: 8px !important; }
+
+    /* Nav */
+    .m-nav-tab span { font-size: 8px; }
+    .m-nav-tab svg { width: 18px; height: 18px; }
+}
+
+/* ═══════════════════════════════════════════
+   VERY SMALL PHONES (≤375px)
+   ═══════════════════════════════════════════ */
+@media (max-width: 375px) {
+    .header-bar { gap: 4px !important; }
+    .header-left { gap: 4px !important; }
+    .bot-title { max-width: 50px; font-size: 12px !important; }
+    .symbol-search-container { display: none !important; }
+    .settings-tabs { width: 100px !important; }
+    .m-nav-tab { min-width: 40px; }
+}

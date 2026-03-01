@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamato — Chart Loading Overlay</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #080808;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        /* ── Demo shell ── */
+        .demo-shell {
+            width: 100%;
+            max-width: 960px;
+            background: #141414;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 24px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .demo-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .demo-pair {
+            font-weight: 700;
+            font-size: 14px;
+            color: #fff;
+        }
+        .demo-price {
+            font-size: 13px;
+            color: #10B981;
+            font-weight: 600;
+        }
+        .demo-tf-btns {
+            margin-left: auto;
+            display: flex;
+            gap: 2px;
+        }
+        .demo-tf { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #636363; cursor: default; }
+        .demo-tf.active { background: #10B981; color: #fff; }
+
+        .chart-area {
+            position: relative;
+            height: 400px;
+            background: #141414;
+        }
+
+        /* ── Fake chart grid (always visible below overlay) ── */
+        .fake-chart {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+            background-size: 80px 60px;
+        }
+
+        /* ─────────────────────────────────────────────────
+           CHART LOADING OVERLAY
+           Copy this block (and .chart-overlay-*)
+           into any page that has a chart container.
+           ───────────────────────────────────────────────── */
+
+        .chart-overlay {
+            position: absolute;
+            inset: 0;
+            background: #141414;
+            z-index: 20;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            /* Fade transitions */
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            pointer-events: auto;
+        }
+
+        /* Hidden state — add this class to fade out */
+        .chart-overlay.is-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Grid lines matching the real chart */
+        .chart-overlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+            background-size: 80px 60px;
+        }
+
+        /* Skeleton canvas fills the overlay */
+        .chart-overlay-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Shimmer sweep — moves left → right */
+        .chart-overlay-shimmer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                105deg,
+                transparent 30%,
+                rgba(16,185,129,0.04) 48%,
+                rgba(16,185,129,0.07) 50%,
+                rgba(16,185,129,0.04) 52%,
+                transparent 70%
+            );
+            background-size: 200% 100%;
+            animation: overlay-shimmer 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes overlay-shimmer {
+            0%   { background-position: -100% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        /* Bottom bar: thin green progress line */
+        .chart-overlay-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 1px;
+            width: 0%;
+            background: linear-gradient(90deg, transparent, #10B981, rgba(16,185,129,0.3));
+            animation: overlay-progress 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes overlay-progress {
+            0%   { width: 0%;  opacity: 1; }
+            70%  { width: 75%; opacity: 1; }
+            90%  { width: 82%; opacity: 0.7; }
+            100% { width: 82%; opacity: 0; }
+        }
+
+        /* Small status text — bottom left */
+        .chart-overlay-label {
+            position: absolute;
+            bottom: 10px;
+            left: 14px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.18);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* WS status dot — bottom right */
+        .chart-overlay-dot {
+            position: absolute;
+            bottom: 13px;
+            right: 14px;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #F59E0B;
+            animation: overlay-dot-pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes overlay-dot-pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
+        /* ── End overlay block ── */
+
+        /* Demo controls */
+        .demo-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .ctrl-btn {
+            padding: 9px 20px;
+            border-radius: 12px;
+            border: none;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .ctrl-btn:hover { opacity: 0.85; }
+        .ctrl-btn.show  { background: #F59E0B; color: #000; }
+        .ctrl-btn.hide  { background: #10B981; color: #000; }
+        .ctrl-hint {
+            font-size: 11px;
+            color: #636363;
+        }
+    </style>
+    <link rel="stylesheet" href="/css/scrollbar.css">
+</head>
+<body>
+
+<div class="demo-shell">
+    <!-- Fake chart header -->
+    <div class="demo-header">
+        <span class="demo-pair">BTC/USDT</span>
+        <span class="demo-price">$84,320.00</span>
+        <div class="demo-tf-btns">
+            <span class="demo-tf">1s</span>
+            <span class="demo-tf">5s</span>
+            <span class="demo-tf">1m</span>
+            <span class="demo-tf active">15m</span>
+            <span class="demo-tf">1h</span>
+            <span class="demo-tf">4h</span>
+        </div>
+    </div>
+
+    <!-- Chart area with overlay on top -->
+    <div class="chart-area">
+        <div class="fake-chart"></div>
+
+        <!-- ════════════════════════════════════════
+             CHART LOADING OVERLAY — embed this in
+             any chart container as #chartLoading
+             ════════════════════════════════════════ -->
+        <div class="chart-overlay" id="chartOverlay">
+            <canvas class="chart-overlay-canvas" id="overlayCanvas"></canvas>
+            <div class="chart-overlay-shimmer"></div>
+            <div class="chart-overlay-progress"></div>
+            <span class="chart-overlay-label">Завантаження...</span>
+            <div class="chart-overlay-dot"></div>
+        </div>
+        <!-- ════════════════════════════════════════ -->
+    </div>
+
+    <!-- Demo controls -->
+    <div class="demo-controls">
+        <button class="ctrl-btn show" onclick="demoShow()">Показати overlay</button>
+        <button class="ctrl-btn hide" onclick="demoHide()">Сховати overlay</button>
+        <span class="ctrl-hint">Симуляція появи і зникнення під час завантаження графіка</span>
+    </div>
+</div>
+
+<script>
+// ── Skeleton candle drawing ────────────────────────────────────────────────────
+
+const canvas  = document.getElementById('overlayCanvas');
+const overlay = document.getElementById('chartOverlay');
+
+function resizeCanvas() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    drawSkeleton();
+}
+
+function drawSkeleton() {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    if (!W || !H) return;
+    ctx.clearRect(0, 0, W, H);
+
+    const BAR_COUNT  = Math.floor(W / 14);
+    const SLOT_W     = W / BAR_COUNT;
+    const BODY_W     = Math.max(3, SLOT_W * 0.45);
+    const MID_Y      = H * 0.52;
+    const RANGE      = H * 0.38;
+
+    // Reproducible pseudo-random (same pattern every draw)
+    function seededRand(seed) {
+        const x = Math.sin(seed + 1.7) * 43758.5453;
+        return x - Math.floor(x);
+    }
+
+    for (let i = 0; i < BAR_COUNT; i++) {
+        const x = i * SLOT_W + SLOT_W / 2;
+        const r1 = seededRand(i * 3);
+        const r2 = seededRand(i * 3 + 1);
+        const r3 = seededRand(i * 3 + 2);
+
+        const bodyH  = RANGE * 0.1 + r1 * RANGE * 0.55;
+        const bodyY  = MID_Y - bodyH / 2 + (r2 - 0.5) * RANGE * 0.35;
+        const wickH  = bodyH + RANGE * (0.05 + r3 * 0.18);
+        const wickY  = bodyY - (wickH - bodyH) / 2;
+
+        const alpha = 0.055 + r1 * 0.045;
+
+        // Wick
+        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.7})`;
+        ctx.fillRect(x - 0.5, wickY, 1, wickH);
+
+        // Body
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.beginPath();
+        ctx.roundRect(x - BODY_W / 2, bodyY, BODY_W, bodyH, 2);
+        ctx.fill();
+    }
+}
+
+window.addEventListener('resize', resizeCanvas);
+// Initial draw after layout settles
+requestAnimationFrame(() => { resizeCanvas(); });
+
+// ── Demo controls ──────────────────────────────────────────────────────────────
+
+function demoHide() {
+    overlay.classList.add('is-hidden');
+}
+
+function demoShow() {
+    overlay.classList.remove('is-hidden');
+}
+
+// Auto-loop: show for 2.5s, hide for 2.5s
+let autoTimer;
+function autoLoop() {
+    demoHide();
+    autoTimer = setTimeout(() => {
+        demoShow();
+        autoTimer = setTimeout(autoLoop, 2500);
+    }, 2500);
+}
+setTimeout(autoLoop, 1500);
+
+// ── Utility exported as window.chartLoadingShow ────────────────────────────────
+// Copy this function into any page that hosts a chart to get smooth transitions.
+// Usage:  window.chartLoadingShow(true)  → shows #chartLoading
+//         window.chartLoadingShow(false) → hides  #chartLoading
+window.chartLoadingShow = function(show) {
+    const el = document.getElementById('chartLoading');
+    if (!el) return;
+    if (show) {
+        el.style.display = 'flex';
+        requestAnimationFrame(() => el.classList.remove('is-hidden'));
+    } else {
+        el.classList.add('is-hidden');
+        el.addEventListener('transitionend', function handler() {
+            el.removeEventListener('transitionend', handler);
+            if (el.classList.contains('is-hidden')) el.style.display = 'none';
+        });
+    }
+};
+</script>
+</body>
+</html>

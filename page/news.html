@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Крипто-новини на Yamato — актуальні події та аналіз ринку криптовалют.">
+    <title>Yamato - Новини</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #080808;
+            --surface: #141414;
+            --surface-secondary: #1C1C1C;
+            --accent-primary: #10B981;
+            --accent-blue: #8CA8FF;
+            --accent-green: #10B981;
+            --accent-white: #FFFFFF;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A1A1A1;
+            --text-tertiary: #636363;
+            --radius-xl: 32px;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-full: 9999px;
+            --gap-md: 20px;
+            --gap-sm: 12px;
+            --shadow-soft: 0 12px 32px rgba(0,0,0,0.4);
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .scroll-y {
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .scroll-y::-webkit-scrollbar { width: 6px; }
+        .scroll-y::-webkit-scrollbar-track { background: transparent; }
+        .scroll-y::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: 60px 1fr;
+        }
+
+        .header-bar {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .main-content {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .news-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 0;
+            flex: 1;
+        }
+
+        .news-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .news-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .news-filters {
+            display: flex;
+            gap: 8px;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border-radius: var(--radius-full);
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .filter-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .filter-btn:hover:not(.active) {
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+        }
+
+        .news-card {
+            background: var(--surface-secondary);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .news-card:hover {
+            border-color: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
+
+        .news-card-header {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .news-category {
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .news-category.update { background: rgba(140, 168, 255, 0.15); color: var(--accent-blue); }
+        .news-category.market { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .news-category.alert { background: rgba(255, 59, 48, 0.15); color: var(--accent-primary); }
+        .news-category.feature { background: rgba(245, 158, 11, 0.15); color: #F59E0B; }
+
+        .news-time {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .news-card-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .news-card-excerpt {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .news-card-image {
+            width: 100%;
+            height: 160px;
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            margin-top: 16px;
+            object-fit: cover;
+        }
+
+        svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            }
+            .app-container {
+                grid-template-columns: 1fr !important;
+                grid-template-rows: auto 1fr !important;
+                gap: 0;
+                border-radius: 0;
+            }
+            .header-bar { grid-column: 1 !important; grid-row: 1 !important; }
+            .main-content {
+                grid-column: 1 !important;
+                grid-row: 2 !important;
+                padding: 12px;
+            }
+            .news-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .news-filters {
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .filter-btn {
+                padding: 8px 14px;
+                font-size: 13px;
+                min-height: 36px;
+            }
+            .news-title { font-size: 22px; }
+            .news-card {
+                border-radius: 20px;
+                padding: 20px;
+            }
+        }
+        @media (max-width: 480px) {
+            .news-card { padding: 16px; border-radius: 16px; }
+            .news-card-title { font-size: 15px; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/shared-layout.css">
+    <link rel="stylesheet" href="/css/nav-fix.css">
+    <link rel="stylesheet" href="/css/responsive.css">
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 768px)">
+</head>
+<body>
+    <div class="app-container">
+        <nav class="nav-sidebar">
+            <a href="/dashboard" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </a>
+            <a href="/portfolio" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+            </a>
+            <a href="/bots" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+            </a>
+            <a href="/news" class="nav-item active" title="Новини">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
+            </a>
+            <a href="/subscriptions" class="nav-item" title="Підписки">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </a>
+            <a href="/community" class="nav-item" title="Спільнота">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </a>
+            <a href="/admin" class="nav-item admin-nav-item" id="adminNavLink" style="display: none;" title="Панель адміністратора">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </a>
+            <a href="/profile" class="nav-item" style="margin-top: auto">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </a>
+        </nav>
+
+        <header class="header-bar">
+            <div class="brand-pill">
+                <img src="/logo.svg" style="width: 24px; height: 24px; border-radius: 50%;" alt="Yamato">
+                YAMATO
+            </div>
+
+            <div class="user-pill">
+                <span id="headerBalance">$0.00</span>
+                <div class="user-avatar" id="userAvatar">U</div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="card scroll-y news-feed">
+                <div class="news-header">
+                    <h1 class="news-title">Ринкові новини</h1>
+                    <div class="news-filters">
+                        <button class="filter-btn active" data-filter="all">Всі</button>
+                        <button class="filter-btn" data-filter="market">Ринок</button>
+                        <button class="filter-btn" data-filter="update">Оновлення</button>
+                        <button class="filter-btn" data-filter="alert">Сповіщення</button>
+                    </div>
+                </div>
+
+                <div id="newsList">
+                    <!-- Новини будуть завантажені тут -->
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let newsData = [];
+        let currentFilter = 'all';
+        let isLoading = false;
+
+        async function loadNews(filter = 'all') {
+            if (isLoading) return;
+            isLoading = true;
+
+            const container = document.getElementById('newsList');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: var(--text-tertiary);">
+                    <div style="width: 32px; height: 32px; border: 3px solid var(--surface-secondary); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
+                    <div style="font-size: 14px;">Завантаження новин...</div>
+                </div>
+            `;
+
+            try {
+                const categoryParam = filter !== 'all' ? `?category=${filter}` : '';
+                const response = await fetch(`/api/news${categoryParam}`);
+
+                if (!response.ok) throw new Error('Failed to fetch news');
+
+                const data = await response.json();
+                newsData = data.news || [];
+
+                renderNews();
+
+            } catch (error) {
+                console.error('Load news error:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; color: var(--text-tertiary);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-bottom: 16px; opacity: 0.5;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Не вдалося завантажити новини</div>
+                        <div style="font-size: 14px;">Спробуйте пізніше</div>
+                    </div>
+                `;
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function renderNews() {
+            const container = document.getElementById('newsList');
+
+            if (newsData.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; color: var(--text-tertiary);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-bottom: 16px; opacity: 0.5;"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path></svg>
+                        <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Новини не знайдено</div>
+                        <div style="font-size: 14px;">Спробуйте обрати іншу категорію</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = newsData.map(news => `
+                <div class="news-card" onclick="openNews(${news.id})">
+                    <div class="news-card-header">
+                        <span class="news-category ${news.category}">${news.category}</span>
+                        <span class="news-time">${news.time}</span>
+                    </div>
+                    <div class="news-card-title">${escapeHtml(news.title)}</div>
+                    <div class="news-card-excerpt">${escapeHtml(news.excerpt || '')}</div>
+                    ${news.imageUrl ? `<img src="${news.imageUrl}" class="news-card-image" alt="" onerror="this.style.display='none'">` : ''}
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function openNews(id) {
+            const news = newsData.find(n => n.id === id);
+            if (news) {
+                // Show news detail modal
+                showNewsDetail(news);
+            }
+        }
+
+        function showNewsDetail(news) {
+            // Create modal if not exists
+            let modal = document.getElementById('newsDetailModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'newsDetailModal';
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `
+                    <div class="modal-card" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <span id="newsDetailCategory" class="news-category"></span>
+                            <button class="modal-close" onclick="closeNewsDetail()">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <h2 id="newsDetailTitle" style="font-size: 22px; font-weight: 700; margin-bottom: 12px; line-height: 1.3;"></h2>
+                        <div id="newsDetailMeta" style="font-size: 13px; color: var(--text-tertiary); margin-bottom: 20px;"></div>
+                        <div id="newsDetailImage" style="margin-bottom: 20px;"></div>
+                        <div id="newsDetailContent" style="font-size: 15px; line-height: 1.7; color: var(--text-secondary);"></div>
+                    </div>
+                `;
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px);
+                    display: flex; align-items: center; justify-content: center;
+                    z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+                `;
+                modal.querySelector('.modal-card').style.cssText = `
+                    background: var(--surface); border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 24px; padding: 32px; width: 90%; box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+                `;
+                modal.querySelector('.modal-header').style.cssText = `
+                    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+                `;
+                modal.querySelector('.modal-close').style.cssText = `
+                    width: 36px; height: 36px; border-radius: 50%; background: var(--surface-secondary);
+                    border: none; color: var(--text-secondary); cursor: pointer; display: flex;
+                    align-items: center; justify-content: center;
+                `;
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeNewsDetail();
+                });
+                document.body.appendChild(modal);
+            }
+
+            // Populate modal
+            document.getElementById('newsDetailCategory').textContent = news.category;
+            document.getElementById('newsDetailCategory').className = `news-category ${news.category}`;
+            document.getElementById('newsDetailTitle').textContent = news.title;
+            document.getElementById('newsDetailMeta').textContent = `${news.authorName || 'Yamato Team'} • ${news.time}`;
+
+            const imageContainer = document.getElementById('newsDetailImage');
+            if (news.imageUrl) {
+                imageContainer.innerHTML = `<img src="${news.imageUrl}" style="width: 100%; border-radius: 16px;" alt="" onerror="this.parentElement.style.display='none'">`;
+                imageContainer.style.display = 'block';
+            } else {
+                imageContainer.style.display = 'none';
+            }
+
+            document.getElementById('newsDetailContent').innerHTML = (news.content || news.excerpt || '').replace(/\n/g, '<br>');
+
+            // Show modal
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'all';
+        }
+
+        function closeNewsDetail() {
+            const modal = document.getElementById('newsDetailModal');
+            if (modal) {
+                modal.style.opacity = '0';
+                modal.style.pointerEvents = 'none';
+            }
+        }
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                loadNews(currentFilter);
+            });
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load news
+            loadNews();
+
+            // Load user data
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+
+                    // Update balance
+                    document.getElementById('headerBalance').textContent = `$${(user.balance || user.demoBalance || 0).toFixed(2)}`;
+
+                    // Update avatar
+                    const avatarEl = document.getElementById('userAvatar');
+                    if (user.avatar) {
+                        avatarEl.innerHTML = '';
+                        avatarEl.style.backgroundImage = `url(${user.avatar})`;
+                        avatarEl.style.backgroundSize = 'cover';
+                        avatarEl.style.backgroundPosition = 'center';
+                    } else {
+                        avatarEl.style.backgroundImage = 'none';
+                        avatarEl.textContent = (user.fullName || 'U').charAt(0).toUpperCase();
+                    }
+
+                    // Show admin link if needed
+                    if (user.role === 'admin' || user.role === 'moderator') {
+                        document.getElementById('adminNavLink').style.display = 'flex';
+                    }
+                }
+            } catch (error) {
+                console.log('User not logged in');
+            }
+        });
+    </script>
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+<!-- Mobile Bottom Nav -->
+<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Головна</span>
+    </a>
+    <a href="/bots" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+        <span>Боти</span>
+    </a>
+    <a href="/portfolio" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+        <span>Портфель</span>
+    </a>
+    <a href="/subscriptions" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Підписки</span>
+    </a>
+    <a href="/profile" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Профіль</span>
+    </a>
+</nav>
+<script>
+(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})();
+</script>
+</body>
+</html>

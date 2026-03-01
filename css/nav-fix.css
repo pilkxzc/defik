@@ -1,0 +1,19 @@
+/* Navigation link fixes */
+.nav-item {
+    text-decoration: none;
+    color: inherit;
+}
+
+a.nav-item {
+    text-decoration: none;
+}
+
+a.nav-item:hover {
+    text-decoration: none;
+}
+
+/* Ensure nav items maintain their styling */
+.nav-sidebar a {
+    text-decoration: none;
+    color: inherit;
+}

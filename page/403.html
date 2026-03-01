@@ -1,0 +1,306 @@
+<html lang="uk"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QUANTUM© - 403 Доступ відмовлено</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --text-main: #ffffff;
+            --text-muted: #666666;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent-color: #ffffff;
+            --font-main: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --spacing-unit: 1rem;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            overflow: hidden;
+            line-height: 1.4;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            top: -100%;
+            left: -100%;
+            width: 300%;
+            height: 300%;
+            background:
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: 1000;
+            animation: noise-shift 0.2s steps(2) infinite;
+        }
+
+        @keyframes noise-shift {
+            0% { transform: translate(0,0); }
+            10% { transform: translate(-5%,-5%); }
+            20% { transform: translate(-10%,5%); }
+            30% { transform: translate(5%,-10%); }
+            40% { transform: translate(-5%,15%); }
+            50% { transform: translate(-10%,5%); }
+            60% { transform: translate(15%,0); }
+            70% { transform: translate(0,10%); }
+            80% { transform: translate(-15%,0); }
+            90% { transform: translate(10%,5%); }
+            100% { transform: translate(5%,0); }
+        }
+
+        .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .label::after {
+            content: " —";
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 4rem;
+            position: relative;
+            z-index: 2;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .btn-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem 2.5rem;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 999px;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            margin-top: 2rem;
+            width: fit-content;
+        }
+
+        .btn-pill:hover {
+            background: var(--text-main);
+            color: #000;
+            border-color: var(--text-main);
+            transform: translateY(-2px);
+        }
+
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 3rem 4rem;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: 400;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+            opacity: 0.5;
+        }
+
+        .hero {
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #dither-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.4;
+            filter: contrast(120%) brightness(80%);
+        }
+
+        .big-code {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 35vw;
+            font-weight: 400;
+            line-height: 1;
+            color: rgba(255, 255, 255, 0.03);
+            pointer-events: none;
+            z-index: 0;
+            letter-spacing: -0.05em;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 10;
+        }
+
+        .hero-title {
+            font-size: clamp(2.5rem, 7vw, 5.5rem);
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            font-weight: 400;
+            letter-spacing: -0.03em;
+        }
+
+        .hero-sub {
+            font-size: 1.1rem;
+            max-width: 480px;
+            color: var(--text-muted);
+            font-weight: 300;
+            margin-bottom: 1rem;
+        }
+
+        .status-footer {
+            position: fixed;
+            bottom: 3rem;
+            left: 4rem;
+            right: 4rem;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            z-index: 100;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 0 2rem; }
+            header { padding: 2rem; }
+            .status-footer { left: 2rem; right: 2rem; bottom: 2rem; flex-direction: column; gap: 0.5rem; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/scrollbar.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo">Система YAMATO</div>
+    </header>
+
+    <main class="hero">
+        <div class="big-code">403</div>
+        <canvas id="dither-canvas"></canvas>
+
+        <div class="container">
+            <div class="hero-content">
+                <span class="label">Доступ обмежено</span>
+                <h1 class="hero-title">ДОСТУП<br>ВІДМОВЛЕНО.</h1>
+                <p class="hero-sub">У вас немає дозволу для доступу до цього ресурсу. Зверніться до адміністратора або поверніться на головну сторінку.</p>
+                <a href="/" class="btn-pill">Повернутися до витоку</a>
+            </div>
+        </div>
+    </main>
+
+    <div class="status-footer">
+        <span>КОД_ПОМИЛКИ: ACCESS_DENIED</span>
+        <span>РІВЕНЬ ДОСТУПУ: НЕДОСТАТНІЙ</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('dither-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let time = 0;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        const bayerMatrix = [
+            [0, 8, 2, 10],
+            [12, 4, 14, 6],
+            [3, 11, 1, 9],
+            [15, 7, 13, 5]
+        ];
+
+        function getThreshold(x, y) {
+            return (bayerMatrix[y % 4][x % 4] / 16) - 0.5;
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, width, height);
+
+            const gridSize = 8;
+            const cols = Math.ceil(width / gridSize);
+            const rows = Math.ceil(height / gridSize);
+
+            const waveCenterY = rows / 2;
+            const waveAmplitude = rows / 3;
+            const frequency = 0.08;
+            const speed = -0.04;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const glitch = Math.tan(time * 0.1) * 0.05;
+                    const wave1 = Math.sin(x * frequency + time + glitch) * waveAmplitude;
+                    const wave2 = Math.cos(x * frequency * 0.8 - time) * (waveAmplitude * 0.4);
+                    const combinedWave = wave1 + wave2;
+
+                    const distFromWave = Math.abs(y - (waveCenterY + combinedWave));
+                    let intensity = Math.max(0, 0.8 - (distFromWave / 12));
+
+                    if (Math.random() > 0.98) intensity = 1.0;
+                    if (Math.random() > 0.99) intensity = 0.0;
+
+                    const threshold = getThreshold(x, y);
+
+                    if (intensity + threshold > 0.5) {
+                        ctx.fillStyle = Math.random() > 0.99 ? '#ff3b30' : '#444444';
+                        ctx.fillRect(x * gridSize, y * gridSize, gridSize - 2, gridSize - 2);
+                    }
+                }
+            }
+
+            time += speed;
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+
+</body></html>

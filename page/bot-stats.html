@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Статистика торгового бота Yamato — аналіз продуктивності та результати торгів.">
+    <title>Yamato — Статистика бота</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/shared-layout.css">
+    <link rel="stylesheet" href="/css/nav-fix.css">
+    <link rel="stylesheet" href="/css/responsive.css">
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <link rel="stylesheet" href="/css/bot-terminal.css">
+    <link rel="stylesheet" href="/css/bot-terminal-mobile.css" media="(max-width: 768px)">
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-screen" id="loadingScreen">
+    <iframe src="/loadingdachbot" style="position:absolute;inset:0;width:100%;height:100%;border:none;"></iframe>
+</div>
+
+<div class="app-container" id="appContainer" style="opacity:0;">
+    <!-- Sidebar -->
+    <nav class="nav-sidebar">
+        <a href="/dashboard" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></a>
+        <a href="/portfolio" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg></a>
+        <a href="/bots" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg></a>
+        <a href="/news" class="nav-item" title="Новини"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg></a>
+        <a href="/subscriptions" class="nav-item" title="Підписки"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></a>
+        <a href="/community" class="nav-item" title="Спільнота"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></a>
+        <a href="/admin" class="nav-item admin-nav-item" id="adminNavLink" style="display:none;" title="Панель адміна"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></a>
+        <a href="/profile" class="nav-item nav-avatar-item" id="navAvatarItem" style="margin-top:auto" title="Профіль">
+            <div class="nav-avatar" id="navAvatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+        </a>
+    </nav>
+
+    <!-- Header -->
+    <header class="header-bar">
+        <a class="back-btn" id="backBtn" href="/bots" title="Назад">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="bot-title" id="botTitle">—</span>
+        <span class="bot-badge test" id="botBadge">—</span>
+        <div class="symbol-select-wrap" id="symbolSelectWrap">
+            <button class="symbol-select-btn" id="symbolSelectBtn">
+                <span id="symbolBadge">—</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="symbol-dropdown" id="symbolDropdown"></div>
+        </div>
+        <div class="header-spacer"></div>
+        <div class="period-pills">
+            <button class="period-pill" data-days="7">7д</button>
+            <button class="period-pill" data-days="30">30д</button>
+            <button class="period-pill active" data-days="90">90д</button>
+            <button class="period-pill" data-days="365">1р</button>
+            <button class="period-pill" data-days="0">Все</button>
+        </div>
+        <button class="header-action" id="exportBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+        </button>
+    </header>
+
+    <!-- Main content -->
+    <div class="main-scroll" id="mainScroll">
+
+        <!-- ═══ Summary strip ═══ -->
+        <div class="summary-strip">
+            <div class="summary-card">
+                <div class="sc-label">Загальний PnL</div>
+                <div class="sc-value" id="sTotalPnl">—</div>
+                <div class="sc-sub" id="sTotalPnlPct"></div>
+            </div>
+            <div class="summary-card">
+                <div class="sc-label">Win Rate</div>
+                <div class="sc-value" id="sWinRate">—</div>
+                <div class="sc-sub" id="sWinCount"></div>
+            </div>
+            <div class="summary-card">
+                <div class="sc-label">Profit Factor</div>
+                <div class="sc-value" id="sProfitFactor">—</div>
+            </div>
+            <div class="summary-card">
+                <div class="sc-label">Всього угод</div>
+                <div class="sc-value" id="sTotalTrades">—</div>
+                <div class="sc-sub" id="sAvgPerDay"></div>
+            </div>
+            <div class="summary-card">
+                <div class="sc-label">Макс. просадка</div>
+                <div class="sc-value down" id="sMaxDD">—</div>
+            </div>
+            <div class="summary-card">
+                <div class="sc-label">Підписники</div>
+                <div class="sc-value" id="sSubscribers">—</div>
+            </div>
+        </div>
+
+        <!-- ═══ TAB NAVIGATION ═══ -->
+        <div class="tabs-bar">
+            <button class="tab-btn active" data-tab="overview">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Огляд
+            </button>
+            <button class="tab-btn" data-tab="statistics">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Статистика
+            </button>
+            <button class="tab-btn" data-tab="trades">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Угоди
+            </button>
+            <button class="tab-btn" data-tab="connect">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Підключення
+            </button>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- TAB: OVERVIEW                      -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="tab-content active" id="tab-overview">
+
+            <!-- Live Chart (interactive: scroll, zoom, crosshair) -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Графік <span id="chartSymbolLabel" style="font-family:var(--font-mono);color:var(--text-tertiary);font-size:11px;"></span></span>
+                    <div class="live-chart-toolbar" style="border:0;padding:0;">
+                        <button class="chart-tf-btn" data-tf="5m">5m</button>
+                        <button class="chart-tf-btn" data-tf="15m">15m</button>
+                        <button class="chart-tf-btn active" data-tf="1h">1H</button>
+                        <button class="chart-tf-btn" data-tf="4h">4H</button>
+                        <button class="chart-tf-btn" data-tf="1d">1D</button>
+                        <button class="chart-tf-btn" data-tf="1w">1W</button>
+                        <span class="chart-hint">scroll: zoom &middot; drag: pan &middot; 2x click: reset</span>
+                    </div>
+                </div>
+                <div class="card-body-np">
+                    <div class="chart-area" style="height:440px;">
+                        <canvas id="liveChartCanvas"></canvas>
+                    </div>
+                    <div class="chart-legend">
+                        <div class="chart-legend-item"><span class="chart-legend-marker entry-long"></span> Вхід Long</div>
+                        <div class="chart-legend-item"><span class="chart-legend-marker entry-short"></span> Вхід Short</div>
+                        <div class="chart-legend-item"><span class="chart-legend-marker exit-profit"></span> Вихід +</div>
+                        <div class="chart-legend-item"><span class="chart-legend-marker exit-loss"></span> Вихід -</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Position + Risk Assessment -->
+            <div class="row-2">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title"><span class="live-dot"></span> Відкриті позиції</span>
+                    </div>
+                    <div class="card-body-np" id="livePositionWrap">
+                        <div style="padding:14px;color:var(--text-tertiary);font-size:12px;">Завантаження...</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Оцінка ризиків</span>
+                        <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;" id="riskOverall">—</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="risk-grid">
+                            <div class="risk-card">
+                                <div class="risk-label">Макс. просадка</div>
+                                <div class="risk-value" id="riskMaxDD">—</div>
+                                <div class="risk-meter"><div class="risk-meter-fill risk-low" id="riskMaxDDBar" style="width:0%"></div></div>
+                            </div>
+                            <div class="risk-card">
+                                <div class="risk-label">Волатильність</div>
+                                <div class="risk-value" id="riskVolatility">—</div>
+                                <div class="risk-meter"><div class="risk-meter-fill risk-low" id="riskVolBar" style="width:0%"></div></div>
+                            </div>
+                            <div class="risk-card">
+                                <div class="risk-label">Експозиція</div>
+                                <div class="risk-value" id="riskExposure">—</div>
+                                <div class="risk-meter"><div class="risk-meter-fill risk-low" id="riskExpBar" style="width:0%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equity Curve + KPIs -->
+            <div class="row-chart-side">
+                <div class="card" data-resizable>
+                    <div class="card-header"><span class="card-title">Крива доходності</span></div>
+                    <div class="card-body-np">
+                        <div class="equity-chart" id="equityChartWrap"><canvas id="equityCanvas"></canvas></div>
+                    </div>
+                    <div class="resize-handle"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Ключові метрики</span></div>
+                    <div class="card-body" style="padding:0;">
+                        <div class="kpi-grid">
+                            <div class="kpi-cell"><div class="kpi-cell-label">Сер. прибуток</div><div class="kpi-cell-value" id="kAvgWin">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Сер. збиток</div><div class="kpi-cell-value" id="kAvgLoss">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Найкраща</div><div class="kpi-cell-value" id="kBestTrade">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Найгірша</div><div class="kpi-cell-value" id="kWorstTrade">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Risk/Reward</div><div class="kpi-cell-value" id="kRiskReward">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Сер. тривалість</div><div class="kpi-cell-value" id="kAvgDuration">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Днів торгівлі</div><div class="kpi-cell-value" id="kTradingDays">—</div></div>
+                            <div class="kpi-cell"><div class="kpi-cell-label">Sharpe Ratio</div><div class="kpi-cell-value" id="kSharpe">—</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- TAB: STATISTICS                    -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="tab-content" id="tab-statistics">
+
+            <!-- Long vs Short + Streaks -->
+            <div class="row-2">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Лонги vs Шорти</span></div>
+                    <div class="card-body">
+                        <div class="row-2" style="gap:10px;">
+                            <div class="ls-card long-card">
+                                <div class="ls-header"><div class="ls-dot" style="background:var(--accent-green)"></div>Лонги</div>
+                                <div class="ls-row"><span class="ls-row-label">Угод</span><span class="ls-row-value" id="lsLongCount">—</span></div>
+                                <div class="ls-row"><span class="ls-row-label">PnL</span><span class="ls-row-value" id="lsLongPnl">—</span></div>
+                                <div class="ls-row"><span class="ls-row-label">Win Rate</span><span class="ls-row-value" id="lsLongWr">—</span></div>
+                            </div>
+                            <div class="ls-card short-card">
+                                <div class="ls-header"><div class="ls-dot" style="background:var(--accent-red)"></div>Шорти</div>
+                                <div class="ls-row"><span class="ls-row-label">Угод</span><span class="ls-row-value" id="lsShortCount">—</span></div>
+                                <div class="ls-row"><span class="ls-row-label">PnL</span><span class="ls-row-value" id="lsShortPnl">—</span></div>
+                                <div class="ls-row"><span class="ls-row-label">Win Rate</span><span class="ls-row-value" id="lsShortWr">—</span></div>
+                            </div>
+                        </div>
+                        <div class="wl-bar-wrap">
+                            <div class="wl-meta">
+                                <span style="color:var(--accent-green)" id="wlWins">—</span>
+                                <span style="color:var(--accent-red)" id="wlLosses">—</span>
+                            </div>
+                            <div class="wl-bar">
+                                <div class="wl-win" id="wlWinBar" style="width:50%"></div>
+                                <div class="wl-loss" id="wlLossBar" style="width:50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Серії та рекорди</span></div>
+                    <div class="card-body">
+                        <div class="streak-row" style="margin-bottom:10px;">
+                            <div class="streak-card">
+                                <div class="streak-val" style="color:var(--accent-green)" id="strWinStreak">—</div>
+                                <div class="streak-label">Макс. Win серія</div>
+                            </div>
+                            <div class="streak-card">
+                                <div class="streak-val" style="color:var(--accent-red)" id="strLossStreak">—</div>
+                                <div class="streak-label">Макс. Loss серія</div>
+                            </div>
+                        </div>
+                        <div class="streak-row">
+                            <div class="streak-card">
+                                <div class="streak-val" id="strCurStreak">—</div>
+                                <div class="streak-label">Поточна серія</div>
+                            </div>
+                            <div class="streak-card">
+                                <div class="streak-val" id="strBestDay">—</div>
+                                <div class="streak-label">Найкращий день</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pairs + Hourly -->
+            <div class="row-2">
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Розподіл по парам</span></div>
+                    <div class="card-body" id="pairsBody">
+                        <div style="color:var(--text-tertiary);font-size:12px;">Завантаження...</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><span class="card-title">Активність по годинах (UTC)</span></div>
+                    <div class="card-body">
+                        <div class="hour-grid" id="hourGrid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drawdown -->
+            <div class="card">
+                <div class="card-header"><span class="card-title">Просадка (Drawdown)</span></div>
+                <div class="card-body-np">
+                    <div class="dd-chart" id="ddChartWrap"><canvas id="ddCanvas"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- TAB: TRADES                        -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="tab-content" id="tab-trades">
+
+            <!-- PnL Calendar -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">PnL Календар</span>
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <button class="period-pill active" id="calPrev" style="padding:4px 8px;font-size:11px;">&larr;</button>
+                        <span style="font-size:12px;font-weight:600;min-width:100px;text-align:center;" id="calMonth">—</span>
+                        <button class="period-pill active" id="calNext" style="padding:4px 8px;font-size:11px;">&rarr;</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="cal-grid" id="calGrid"></div>
+                    <div class="cal-legend">
+                        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(239,68,68,0.3)"></div>Збиток</div>
+                        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(255,255,255,0.05)"></div>Немає</div>
+                        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(16,185,129,0.3)"></div>Прибуток</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Trades -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Останні угоди</span>
+                    <span style="font-size:11px;color:var(--text-tertiary)" id="recentTradesCount"></span>
+                </div>
+                <div class="card-body-np">
+                    <div class="trades-scroll">
+                        <table class="trades-tbl" id="recentTradesTable">
+                            <thead>
+                                <tr>
+                                    <th>Символ</th>
+                                    <th>Сторона</th>
+                                    <th>Ціна входу</th>
+                                    <th>Кількість</th>
+                                    <th>PnL</th>
+                                    <th>Тривалість</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentTradesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- TAB: CONNECT (Copy Trading)        -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="tab-content" id="tab-connect">
+
+            <!-- Subscribe CTA -->
+            <div class="connect-hero">
+                <div class="connect-hero-inner">
+                    <div class="connect-hero-glow"></div>
+                    <div class="connect-hero-content">
+                        <div class="connect-hero-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        </div>
+                        <div class="connect-hero-text">
+                            <h2>Копі-трейдинг</h2>
+                            <p>Підключіть свій Binance акаунт — угоди бота автоматично дублюватимуться на вашому рахунку</p>
+                        </div>
+                        <div class="connect-hero-actions">
+                            <button class="btn-connect-main" id="subscribeBtn">Підписатися</button>
+                            <span class="connect-hero-meta" id="subscribeStatus"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features grid -->
+            <div class="connect-features">
+                <div class="connect-feature-card">
+                    <div class="cf-icon" style="background:rgba(16,185,129,0.1);color:#10B981;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div class="cf-title">Автоматичне дублювання</div>
+                    <div class="cf-desc">Кожна угода бота миттєво виконується на вашому акаунті</div>
+                </div>
+                <div class="connect-feature-card">
+                    <div class="cf-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </div>
+                    <div class="cf-title">Гнучкі налаштування</div>
+                    <div class="cf-desc">Задайте % від позиції та ліміт максимального розміру</div>
+                </div>
+                <div class="connect-feature-card">
+                    <div class="cf-icon" style="background:rgba(59,130,246,0.1);color:#3B82F6;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div class="cf-title">Ваші ключі — ваш контроль</div>
+                    <div class="cf-desc">API ключі зашифровані. Бот не може виводити кошти</div>
+                </div>
+                <div class="connect-feature-card">
+                    <div class="cf-icon" style="background:rgba(245,158,11,0.1);color:#F59E0B;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div class="cf-title">Ризик-менеджмент</div>
+                    <div class="cf-desc">Максимальна позиція обмежена вашими налаштуваннями</div>
+                </div>
+            </div>
+
+            <!-- Two-panel: Copy Trading (left) + Telegram (right) -->
+            <div class="connect-panels">
+                <!-- LEFT: Copy Trading settings -->
+                <div class="card connect-form-card">
+                    <div class="card-header">
+                        <span class="card-title">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            Копі-трейдинг
+                        </span>
+                        <span class="connect-form-badge" id="connectFormBadge">Не підключено</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="connect-form">
+                            <div class="connect-form-field">
+                                <label class="cff-label">Binance API Key</label>
+                                <div class="cff-input-wrap">
+                                    <svg class="cff-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    <input class="cff-input" type="text" id="copyApiKey" placeholder="API Key">
+                                </div>
+                            </div>
+                            <div class="connect-form-field">
+                                <label class="cff-label">Binance API Secret</label>
+                                <div class="cff-input-wrap">
+                                    <svg class="cff-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                    <input class="cff-input" type="password" id="copyApiSecret" placeholder="API Secret">
+                                </div>
+                            </div>
+                            <div class="connect-form-row-compact">
+                                <div class="connect-form-field">
+                                    <label class="cff-label">% позиції</label>
+                                    <div class="cff-input-wrap">
+                                        <input class="cff-input" type="number" id="copyPercentage" placeholder="100" value="100" min="1" max="100" style="padding-left:12px;">
+                                        <span class="cff-suffix">%</span>
+                                    </div>
+                                </div>
+                                <div class="connect-form-field">
+                                    <label class="cff-label">Макс. позиція</label>
+                                    <div class="cff-input-wrap">
+                                        <input class="cff-input" type="number" id="copyMaxPosition" placeholder="1000" value="1000" style="padding-left:12px;">
+                                        <span class="cff-suffix">USD</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="connect-form-warning">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                <span>Створіть окремий API ключ тільки для торгівлі ф'ючерсами.</span>
+                            </div>
+                            <button class="btn-connect-save" id="saveCopyBtn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                Зберегти та активувати
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: Telegram Notifications -->
+                <div class="card" id="telegramCard">
+                    <div class="card-header">
+                        <span class="card-title">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-8.609 3.33c-2.068.8-4.133 1.598-5.724 2.21a405.15 405.15 0 0 1-2.849 1.09c-.42.147-.99.332-1.473.901-.728.855-.395 1.826-.023 2.306.266.342.622.573.86.689.28.136 1.011.44 1.011.44l3.085 1.01s.167.64.382 1.392c.16.559.34 1.178.534 1.452.27.38.56.606.87.723l.005.002c.168.068.34.095.508.085h.002a1.1 1.1 0 0 0 .554-.208l2.283-1.568 3.167 2.413.036.025c.413.28.863.37 1.264.33.404-.04.72-.217.937-.408a2.48 2.48 0 0 0 .646-.929l3.316-15.072A2.157 2.157 0 0 0 21.198 2.433z"/></svg>
+                            Telegram
+                        </span>
+                        <span class="tg-status-badge" id="tgStatusBadge">Перевірка...</span>
+                    </div>
+                    <div class="card-body" id="telegramBody">
+                        <div style="color:var(--text-tertiary);font-size:12px;">Завантаження...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Mobile Bottom Nav (hidden on desktop) -->
+<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Головна</span>
+    </a>
+    <a href="/bots" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+        <span>Боти</span>
+    </a>
+    <a href="/portfolio" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+        <span>Портфель</span>
+    </a>
+    <a href="/subscriptions" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Підписки</span>
+    </a>
+    <a href="/profile" class="m-nav-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Профіль</span>
+    </a>
+</nav>
+
+<!-- JS -->
+<script src="/js/terminal/data.js"></script>
+<script src="/js/terminal/renderers.js"></script>
+<script src="/js/terminal/controls.js"></script>
+<script src="/js/terminal/init.js"></script>
+</body>
+</html>

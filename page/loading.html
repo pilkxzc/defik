@@ -1,0 +1,317 @@
+<html lang="uk"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamato - Loading</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <style>
+        :root {
+            
+            --bg-red: #ea1b1b; 
+            --pixel-yellow: #f4c542;
+            --pixel-green: #3a7a44;
+            --pixel-dark: #1a1a1a;
+            --pixel-light: #ffffff;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-red);
+            font-family: var(--font-mono);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--pixel-dark);
+        }
+
+        
+        .scene {
+            width: 300px;
+            height: 300px;
+            perspective: 1200px;
+            position: relative;
+            z-index: 10;
+        }
+
+        
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotateCube 8s infinite linear;
+        }
+
+        
+        .face {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: transparent;
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            grid-template-rows: repeat(20, 1fr);
+            font-size: 14px; 
+            line-height: 1;
+            font-weight: bold;
+            overflow: hidden;
+            border: 2px solid var(--pixel-dark);
+            backface-visibility: hidden; 
+        }
+
+        
+        .face-front  { transform: rotateY(0deg) translateZ(150px); }
+        .face-back   { transform: rotateY(180deg) translateZ(150px); }
+        .face-right  { transform: rotateY(90deg) translateZ(150px); }
+        .face-left   { transform: rotateY(-90deg) translateZ(150px); }
+        .face-top    { transform: rotateX(90deg) translateZ(150px); }
+        .face-bottom { transform: rotateX(-90deg) translateZ(150px); }
+
+        
+        .char {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            cursor: default;
+        }
+
+        
+        .t-yellow { color: var(--pixel-yellow); background: var(--pixel-dark); }
+        .t-green { color: var(--pixel-green); background: var(--pixel-yellow); }
+        .t-dark { color: var(--pixel-dark); background: transparent; }
+        .t-inv { color: var(--bg-red); background: var(--pixel-dark); }
+
+        
+        .meta-layer {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 5;
+            mix-blend-mode: multiply;
+        }
+
+        .meta-line {
+            font-size: 14px;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+            font-weight: 800;
+        }
+
+        .progress-block {
+            display: flex;
+            gap: 2px;
+            margin-top: 5px;
+        }
+
+        .p-unit {
+            width: 10px;
+            height: 20px;
+            background: var(--pixel-dark);
+        }
+        
+        .p-unit.inactive {
+            background: transparent;
+            border: 1px solid var(--pixel-dark);
+        }
+
+        
+        .bg-texture {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.1;
+            z-index: 1;
+            background-image: radial-gradient(var(--pixel-dark) 1px, transparent 1px);
+            background-size: 4px 4px;
+        }
+
+        
+        @keyframes rotateCube {
+            0% { transform: rotateX(-15deg) rotateY(0deg) rotateZ(5deg); }
+            100% { transform: rotateX(-15deg) rotateY(360deg) rotateZ(5deg); }
+        }
+
+        
+        @keyframes twitch {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            51% { opacity: 0; }
+            52% { opacity: 1; }
+            100% { opacity: 1; }
+        }
+
+        .glitch-char {
+            animation: twitch 2s infinite steps(1);
+        }
+        
+        
+        .floater {
+            position: absolute;
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--pixel-dark);
+            opacity: 0.6;
+            animation: float 10s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+    </style>
+    <link rel="stylesheet" href="/css/scrollbar.css">
+</head>
+<body>
+
+    
+    <div class="bg-texture"></div>
+
+    
+    <div class="floater" style="top: 10%; left: 10%;">Z</div>
+    <div class="floater" style="top: 20%; right: 15%; animation-delay: 1s;">Y</div>
+    <div class="floater" style="bottom: 15%; left: 20%; animation-delay: 2s;">X</div>
+    <div class="floater" style="bottom: 30%; right: 5%; animation-delay: 3s;">01</div>
+
+    
+    <div class="scene">
+        <div class="cube" id="cube">
+            <div class="face face-front"></div>
+            <div class="face face-back"></div>
+            <div class="face face-right"></div>
+            <div class="face face-left"></div>
+            <div class="face face-top"></div>
+            <div class="face face-bottom"></div>
+        </div>
+    </div>
+
+    
+    <div class="meta-layer">
+        <div class="meta-line">SYSTEM_INTEGRITY: CHECKING...</div>
+        <div class="meta-line">VOXEL_DENSITY: <span id="density">0</span>%</div>
+        <div class="progress-block" id="progress">
+            
+        </div>
+        <div class="meta-line" style="margin-top: 10px; font-size: 10px;">
+            MEMORY_ADDRESS: 0x4F 0x4B 0x21
+        </div>
+    </div>
+
+    <script>
+        const chars = ['X', 'Y', 'Z', '0', '1', '/', '\\', '#', '%', 'A', 'B'];
+        const faces = document.querySelectorAll('.face');
+        const densityDisplay = document.getElementById('density');
+        const progressContainer = document.getElementById('progress');
+
+        
+        function populateFace(face) {
+            
+            for (let i = 0; i < 400; i++) {
+                const span = document.createElement('span');
+                span.classList.add('char');
+                
+                
+                span.innerText = chars[Math.floor(Math.random() * chars.length)];
+                
+                
+                const rand = Math.random();
+                if (rand > 0.8) {
+                    span.classList.add('t-yellow');
+                } else if (rand > 0.6) {
+                    span.classList.add('t-green');
+                } else if (rand > 0.95) {
+                    span.classList.add('t-inv');
+                } else {
+                    span.classList.add('t-dark');
+                }
+
+                
+                if (Math.random() > 0.95) {
+                    span.classList.add('glitch-char');
+                    span.style.animationDelay = Math.random() + 's';
+                }
+
+                face.appendChild(span);
+            }
+        }
+
+        
+        faces.forEach(face => populateFace(face));
+
+        
+        
+        setInterval(() => {
+            faces.forEach(face => {
+                const cells = face.children;
+                
+                for(let i=0; i<10; i++) {
+                    const idx = Math.floor(Math.random() * cells.length);
+                    const cell = cells[idx];
+                    cell.innerText = chars[Math.floor(Math.random() * chars.length)];
+                }
+            });
+        }, 50);
+
+        
+        let progress = 0;
+        const totalUnits = 20;
+        
+        
+        for(let i=0; i<totalUnits; i++) {
+            const div = document.createElement('div');
+            div.classList.add('p-unit');
+            div.classList.add('inactive');
+            progressContainer.appendChild(div);
+        }
+
+        const progressUnits = document.querySelectorAll('.p-unit');
+
+        const loadInterval = setInterval(() => {
+            progress++;
+            if (progress > 100) {
+                progress = 0;
+                
+                progressUnits.forEach(u => u.classList.add('inactive'));
+            }
+            
+            densityDisplay.innerText = progress;
+
+            
+            const unitsToFill = Math.floor((progress / 100) * totalUnits);
+            progressUnits.forEach((u, idx) => {
+                if (idx < unitsToFill) {
+                    u.classList.remove('inactive');
+                } else {
+                    u.classList.add('inactive');
+                }
+            });
+
+        }, 100);
+
+        
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / window.innerWidth - 0.5) * 2; 
+            const y = (e.clientY / window.innerHeight - 0.5) * 2;
+            
+            const cube = document.getElementById('cube');
+            
+            
+            
+            document.querySelector('.scene').style.transform = `rotateY(${x * 20}deg) rotateX(${y * -20}deg)`;
+        });
+
+    </script>
+
+</body></html>

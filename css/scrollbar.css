@@ -1,0 +1,84 @@
+/* ===================================
+   Candlestick Scrollbar
+   =================================== */
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #26a69a #0d1117;
+}
+
+/* WebKit — Chrome, Edge, Safari */
+::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+}
+
+::-webkit-scrollbar-corner {
+    background: #0d1117;
+}
+
+::-webkit-scrollbar-track {
+    background: #0d1117;
+    border-left: 1px solid #1e2530;
+}
+
+::-webkit-scrollbar-track:horizontal {
+    border-left: none;
+    border-top: 1px solid #1e2530;
+}
+
+/* --- Vertical thumb: зелена свічка (wick + body) --- */
+::-webkit-scrollbar-thumb:vertical {
+    background:
+        /* Wick — тонка лінія на всю висоту */
+        linear-gradient(#26a69a, #26a69a)
+            center / 2px 100% no-repeat,
+        /* Body — ширший прямокутник по центру */
+        linear-gradient(to bottom, #26a69a 0%, #1b7a6e 100%)
+            center / 10px 60% no-repeat;
+    border-radius: 1px;
+}
+
+::-webkit-scrollbar-thumb:vertical:hover {
+    background:
+        /* Wick — червона свічка при наведенні */
+        linear-gradient(#ef5350, #ef5350)
+            center / 2px 100% no-repeat,
+        linear-gradient(to bottom, #ef5350 0%, #b71c1c 100%)
+            center / 10px 60% no-repeat;
+}
+
+::-webkit-scrollbar-thumb:vertical:active {
+    background:
+        linear-gradient(#ff8a80, #ff8a80)
+            center / 2px 100% no-repeat,
+        linear-gradient(to bottom, #ff8a80 0%, #c62828 100%)
+            center / 10px 60% no-repeat;
+}
+
+/* --- Horizontal thumb --- */
+::-webkit-scrollbar-thumb:horizontal {
+    background:
+        linear-gradient(#26a69a, #26a69a)
+            center / 100% 2px no-repeat,
+        linear-gradient(to right, #26a69a 0%, #1b7a6e 100%)
+            center / 60% 10px no-repeat;
+    border-radius: 1px;
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover {
+    background:
+        linear-gradient(#ef5350, #ef5350)
+            center / 100% 2px no-repeat,
+        linear-gradient(to right, #ef5350 0%, #b71c1c 100%)
+            center / 60% 10px no-repeat;
+}
+
+::-webkit-scrollbar-thumb:horizontal:active {
+    background:
+        linear-gradient(#ff8a80, #ff8a80)
+            center / 100% 2px no-repeat,
+        linear-gradient(to right, #ff8a80 0%, #c62828 100%)
+            center / 60% 10px no-repeat;
+}

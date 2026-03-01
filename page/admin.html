@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Панель адміністратора Yamato.">
+    <title>Yamato - Адміністрування</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #080808;
+            --surface: #141414;
+            --surface-secondary: #1C1C1C;
+            --accent-primary: #10B981;
+            --accent-blue: #8CA8FF;
+            --accent-white: #FFFFFF;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A1A1A1;
+            --text-tertiary: #636363;
+            --radius-xl: 32px;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-full: 9999px;
+            --gap-md: 20px;
+            --gap-sm: 12px;
+            --shadow-soft: 0 12px 32px rgba(0,0,0,0.4);
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.2);
+            --color-up: #10B981;
+            --color-down: #EF4444;
+            --color-warning: #F59E0B;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            height: 100vh;
+            max-height: 100vh;
+            display: flex;
+            overflow: hidden;
+            padding: 12px;
+        }
+
+        .scroll-y {
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .scroll-y::-webkit-scrollbar { display: none; }
+
+        /* Navigation Sidebar */
+        .nav-sidebar {
+            grid-row: 1 / -1;
+            grid-column: 1;
+            background: var(--surface);
+            border-radius: var(--radius-full);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 0;
+            gap: 16px;
+            box-shadow: var(--shadow-soft);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            width: 70px;
+        }
+
+        .nav-item {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+            transition: 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .nav-item.active {
+            background: var(--accent-primary);
+            color: var(--accent-white);
+        }
+
+        .nav-item:hover:not(.active) {
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Header Bar */
+        .header-bar {
+            grid-column: 2;
+            grid-row: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 60px;
+            max-height: 60px;
+            padding: 0 20px;
+            background: var(--surface);
+            border-radius: var(--radius-full);
+        }
+
+        /* Brand Pill */
+        .brand-pill {
+            background: var(--surface);
+            padding: 8px 16px;
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 16px;
+            box-shadow: var(--shadow-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .brand-pill img {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+        }
+
+        /* User Pill */
+        .user-pill {
+            background: var(--accent-primary);
+            padding: 6px 6px 6px 16px;
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-soft);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #1C1C1C 0%, #2a2a2a 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text-primary);
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: 60px 1fr;
+            gap: 12px;
+            width: 100%;
+            height: 100%;
+            max-height: calc(100vh - 24px);
+            overflow: hidden;
+        }
+
+        .header-bar {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .admin-badge {
+            background: var(--accent-primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            margin-left: 12px;
+        }
+
+        /* Main Content */
+        .main-content {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-md);
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
+            padding: 20px;
+            min-height: 0;
+        }
+        .main-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .main-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .main-content::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            display: flex;
+            gap: 8px;
+            background: var(--surface);
+            padding: 8px;
+            border-radius: var(--radius-full);
+            width: fit-content;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            border-radius: var(--radius-full);
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--gap-md);
+            margin-bottom: var(--gap-md);
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-value.up { color: var(--color-up); }
+        .stat-value.down { color: var(--color-down); }
+
+        /* Table Styles */
+        .table-container {
+            flex: 1;
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            min-height: 300px;
+        }
+
+        .table-header {
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .table-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .search-input {
+            background: var(--surface-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-full);
+            padding: 10px 20px;
+            color: white;
+            font-size: 14px;
+            width: 300px;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .table-body {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.15) transparent;
+            min-height: 0;
+        }
+
+        .table-body::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .table-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .table-body::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 3px;
+        }
+
+        .table-row {
+            display: grid;
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .table-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .table-row.header {
+            background: var(--surface-secondary);
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        /* Users Table */
+        .users-table .table-row {
+            grid-template-columns: 50px 1.5fr 1fr 100px 100px 120px;
+            gap: 16px;
+        }
+
+        /* Transactions Table */
+        .transactions-table .table-row {
+            grid-template-columns: 80px 1fr 1fr 100px 100px 100px 140px;
+            gap: 16px;
+        }
+
+        /* Bots Table */
+        .bots-table .table-row {
+            grid-template-columns: 1fr 1fr 100px 100px 100px 100px 120px;
+            gap: 16px;
+        }
+
+        /* Audit Log Table */
+        .audit-table .table-row {
+            grid-template-columns: 140px 1fr 1fr 1fr 140px;
+            gap: 16px;
+        }
+
+        /* News Table */
+        .news-table .table-row {
+            grid-template-columns: 50px 1.5fr 100px 80px 120px 120px 140px;
+            gap: 16px;
+        }
+
+        /* Subscriptions Table */
+        .subscriptions-table .table-row {
+            grid-template-columns: 50px 1.5fr 100px 140px 100px 180px;
+            gap: 16px;
+        }
+
+        .plan-badge {
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .plan-badge.free { background: rgba(99, 99, 99, 0.15); color: #999; }
+        .plan-badge.pro { background: rgba(245, 158, 11, 0.15); color: #F59E0B; }
+        .plan-badge.enterprise { background: rgba(139, 92, 246, 0.15); color: #8B5CF6; }
+
+        .category-badge {
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .category-badge.update { background: rgba(140, 168, 255, 0.15); color: var(--accent-blue); }
+        .category-badge.market { background: rgba(16, 185, 129, 0.15); color: var(--color-up); }
+        .category-badge.alert { background: rgba(255, 59, 48, 0.15); color: var(--accent-primary); }
+        .category-badge.feature { background: rgba(245, 158, 11, 0.15); color: #F59E0B; }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 56px;
+            height: 30px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--surface-secondary);
+            transition: 0.3s;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 3px;
+            background-color: var(--text-secondary);
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+            background-color: white;
+        }
+
+        .user-cell {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-email {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        /* Badges */
+        .role-badge {
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .role-badge.admin {
+            background: rgba(255, 59, 48, 0.1);
+            color: var(--accent-primary);
+        }
+
+        .role-badge.moderator {
+            background: rgba(140, 168, 255, 0.1);
+            color: var(--accent-blue);
+        }
+
+        .role-badge.user {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .status-badge.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--color-up);
+        }
+
+        .status-badge.banned {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--color-down);
+        }
+
+        .status-badge.inactive {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-tertiary);
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            padding: 8px 16px;
+            border-radius: var(--radius-full);
+            border: none;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-btn.primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: var(--surface-secondary);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .action-btn.danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--color-down);
+        }
+
+        .action-btn.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--color-up);
+        }
+
+        .action-btn:hover {
+            opacity: 0.8;
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-card {
+            background: var(--surface);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--surface-secondary);
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--surface-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            color: white;
+            font-size: 14px;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .form-select option {
+            background: var(--surface);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .modal-actions .action-btn {
+            flex: 1;
+            justify-content: center;
+            padding: 14px;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .page-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: none;
+            background: var(--surface-secondary);
+            color: var(--text-secondary);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .page-btn.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .page-btn:hover:not(.active):not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-info {
+            color: var(--text-tertiary);
+            font-size: 13px;
+            margin: 0 12px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state svg {
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-tertiary);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--surface-secondary);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Database Browser */
+        #dbTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #dbTable th:hover {
+            background: var(--surface-secondary);
+        }
+
+        #dbTable tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .editable-cell {
+            cursor: default;
+            transition: background 0.3s;
+        }
+
+        .editable-cell:not([data-column="id"]):not([data-column="created_at"]):hover {
+            background: rgba(99, 102, 241, 0.1);
+            cursor: text;
+        }
+
+        .editable-cell.editing {
+            padding: 6px 12px !important;
+            background: rgba(99, 102, 241, 0.2);
+        }
+
+        /* Access Denied */
+        .access-denied {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+
+        .access-denied-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .access-denied-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .access-denied-text {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        /* Fix for Telegram users list */
+        #telegramUsersList {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        /* Stats Grid container */
+        .stats-grid {
+            flex-shrink: 0;
+        }
+
+        /* Responsive breakpoints */
+        @media (max-width: 1400px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .tabs-container {
+                flex-wrap: wrap;
+                width: 100%;
+                border-radius: var(--radius-lg);
+            }
+
+            .tab-btn {
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+
+            .search-input {
+                width: 200px;
+            }
+
+            .table-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .table-header .search-input {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 50px 1fr;
+            }
+
+            .nav-sidebar {
+                display: none;
+            }
+
+            .main-content {
+                grid-column: 1;
+                padding: 12px;
+            }
+
+            .header-bar {
+                grid-column: 1;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card {
+                padding: 16px;
+            }
+
+            .stat-value {
+                font-size: 22px;
+            }
+
+            .tabs-container {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                padding: 6px;
+            }
+
+            .tab-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+
+            .table-row {
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+
+            .action-btn {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+
+            .modal-content {
+                margin: 10px;
+                padding: 20px;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 768px)">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Sidebar -->
+        <nav class="nav-sidebar">
+            <a href="/dashboard" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </a>
+            <a href="/portfolio" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+            </a>
+            <a href="/bots" class="nav-item">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+            </a>
+            <a href="/news" class="nav-item" title="Новини">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
+            </a>
+            <a href="/subscriptions" class="nav-item" title="Підписки">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </a>
+            <a href="/community" class="nav-item" title="Спільнота">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </a>
+            <a href="/admin" class="nav-item active" title="Адмін панель">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </a>
+            <a href="/profile" class="nav-item" style="margin-top: auto">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </a>
+        </nav>
+
+        <!-- Header -->
+        <header class="header-bar">
+            <div class="brand-pill">
+                <img src="/logo.svg" style="width: 24px; height: 24px; border-radius: 50%;" alt="Yamato">
+                YAMATO
+                <span class="admin-badge">АДМІН</span>
+            </div>
+
+            <div class="user-pill">
+                <span id="headerBalance">$0.00</span>
+                <div class="user-avatar" id="userAvatar">U</div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Loading State -->
+            <div class="loading" id="loadingState">
+                <div class="spinner"></div>
+                <span>Завантаження адмін панелі...</span>
+            </div>
+
+            <!-- Access Denied State (hidden by default) -->
+            <div class="access-denied" id="accessDenied" style="display: none;">
+                <div class="access-denied-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#EF4444">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                    </svg>
+                </div>
+                <div class="access-denied-title">Доступ заборонено</div>
+                <div class="access-denied-text">У вас немає прав для доступу до адмін панелі.</div>
+                <a href="/dashboard" class="action-btn primary">На головну</a>
+            </div>
+
+            <!-- Admin Panel Content (hidden by default) -->
+            <div id="adminPanel" style="display: none; flex-direction: column; flex: 1; overflow: hidden;">
+                <!-- Tabs -->
+                <div class="tabs-container">
+                    <button class="tab-btn active" data-tab="dashboard">Дашборд</button>
+                    <button class="tab-btn" data-tab="users">Користувачі</button>
+                    <button class="tab-btn" data-tab="database" style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);">База даних</button>
+                    <button class="tab-btn" data-tab="subscriptions">Підписки</button>
+                    <button class="tab-btn" data-tab="transactions">Транзакції</button>
+                    <button class="tab-btn" data-tab="bots">Боти</button>
+                    <button class="tab-btn" data-tab="news">Новини</button>
+                    <button class="tab-btn" data-tab="audit">Журнал аудиту</button>
+                </div>
+
+                <!-- Dashboard Tab -->
+                <div class="tab-content active" id="tab-dashboard">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Всього користувачів</div>
+                            <div class="stat-value" id="statTotalUsers">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Активні користувачі (7д)</div>
+                            <div class="stat-value" id="statActiveUsers">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Заблоковані користувачі</div>
+                            <div class="stat-value down" id="statBannedUsers">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Нові реєстрації (30д)</div>
+                            <div class="stat-value up" id="statNewUsers">0</div>
+                        </div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Всього транзакцій</div>
+                            <div class="stat-value" id="statTotalTransactions">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Загальний обсяг</div>
+                            <div class="stat-value" id="statTotalVolume">$0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Всього ботів</div>
+                            <div class="stat-value" id="statTotalBots">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Активні боти</div>
+                            <div class="stat-value up" id="statActiveBots">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Maintenance Mode Card -->
+                    <div class="maintenance-card" style="margin-top: 20px;">
+                        <div class="stat-card" style="display: flex; align-items: center; justify-content: space-between; padding: 24px;">
+                            <div>
+                                <div class="stat-label">Режим технічного обслуговування</div>
+                                <div style="font-size: 14px; color: var(--text-secondary); margin-top: 8px;" id="maintenanceStatus">
+                                    Сайт працює в штатному режимі
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="maintenanceToggle" onchange="toggleMaintenance()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Telegram Bot Card -->
+                    <div class="telegram-card" style="margin-top: 20px;">
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                                <div>
+                                    <div class="stat-label">Telegram Бот</div>
+                                    <div style="font-size: 14px; color: var(--text-secondary); margin-top: 8px;" id="telegramStatus">
+                                        Бот не налаштовано
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="telegramToggle" onchange="toggleTelegram()">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                <div style="flex: 1; min-width: 300px;">
+                                    <label style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 8px; display: block;">Токен бота</label>
+                                    <input type="password" id="telegramToken" placeholder="Введіть токен Telegram бота"
+                                        style="width: 100%; padding: 12px 16px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; font-size: 14px;">
+                                </div>
+                                <div style="display: flex; align-items: flex-end; gap: 8px;">
+                                    <button onclick="saveTelegramSettings()" style="padding: 12px 24px; background: var(--accent-primary); border: none; border-radius: 12px; color: white; font-weight: 600; cursor: pointer;">
+                                        Зберегти
+                                    </button>
+                                    <button onclick="testTelegramBot()" id="testTelegramBtn" style="padding: 12px 24px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; font-weight: 600; cursor: pointer;">
+                                        Тест
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="telegramBotInfo" style="margin-top: 16px; padding: 12px; background: var(--surface-secondary); border-radius: 8px; display: none;">
+                                <span style="font-size: 13px; color: var(--text-secondary);">Bot: <strong id="telegramBotUsername" style="color: var(--accent-blue);">@username</strong></span>
+                            </div>
+
+                            <!-- Telegram Stats -->
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05);">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 24px; font-weight: 700; color: #0088cc;" id="telegramLinkedCount">0</div>
+                                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Прив'язані користувачі</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 24px; font-weight: 700;" id="telegramBotStatusIcon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#555" stroke="none"/></svg></div>
+                                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Статус бота</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 24px; font-weight: 700; color: var(--text-secondary);" id="telegramPercentage">0%</div>
+                                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase;">Прив'язано</div>
+                                </div>
+                            </div>
+
+                            <!-- Linked Users List -->
+                            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Прив'язані Telegram акаунти</span>
+                                    <button onclick="loadTelegramUsers()" style="padding: 6px 12px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--text-secondary); font-size: 12px; cursor: pointer;">
+                                        Оновити
+                                    </button>
+                                </div>
+                                <div id="telegramUsersList" style="max-height: 300px; overflow-y: auto;">
+                                    <div style="color: var(--text-tertiary); font-size: 13px; text-align: center; padding: 20px;">
+                                        Завантаження...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users Tab -->
+                <div class="tab-content" id="tab-users">
+                    <div class="table-container users-table">
+                        <div class="table-header">
+                            <span class="table-title">Користувачі</span>
+                            <input type="text" class="search-input" id="userSearch" placeholder="Пошук за email або ім'ям...">
+                        </div>
+                        <div class="table-body" id="usersTableBody">
+                            <div class="table-row header">
+                                <div>ID</div>
+                                <div>Користувач</div>
+                                <div>Баланс</div>
+                                <div>Роль</div>
+                                <div>Статус</div>
+                                <div>Дії</div>
+                            </div>
+                        </div>
+                        <div class="pagination" id="usersPagination"></div>
+                    </div>
+                </div>
+
+                <!-- Database Browser Tab -->
+                <div class="tab-content" id="tab-database">
+                    <div class="table-container" style="height: 100%; display: flex; flex-direction: column;">
+                        <div class="table-header" style="flex-wrap: wrap; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="table-title">Браузер бази даних</span>
+                                <select id="tableSelector" style="padding: 10px 16px; background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; font-size: 14px; cursor: pointer;">
+                                    <option value="">Оберіть таблицю...</option>
+                                </select>
+                                <button id="refreshTableBtn" style="padding: 10px 16px; background: var(--accent-primary); border: none; border-radius: 8px; color: white; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <input type="text" class="search-input" id="dbSearch" placeholder="Пошук у таблиці..." style="min-width: 250px;">
+                                <button id="addRecordBtn" style="padding: 10px 16px; background: #10B981; border: none; border-radius: 8px; color: white; font-size: 14px; cursor: pointer; display: none; align-items: center; gap: 6px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Додати запис
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Table Info Bar -->
+                        <div id="tableInfoBar" style="padding: 12px 20px; background: var(--surface-secondary); border-radius: 8px; margin-bottom: 16px; display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; gap: 20px;">
+                                    <span style="color: var(--text-secondary);">Таблиця: <strong id="currentTableName" style="color: white;"></strong></span>
+                                    <span style="color: var(--text-secondary);">Рядків: <strong id="totalRows" style="color: white;"></strong></span>
+                                    <span style="color: var(--text-secondary);">Стовпців: <strong id="totalColumns" style="color: white;"></strong></span>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <select id="pageSizeSelect" style="padding: 6px 12px; background: var(--surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: white; font-size: 13px;">
+                                        <option value="25">25 на сторінку</option>
+                                        <option value="50" selected>50 на сторінку</option>
+                                        <option value="100">100 на сторінку</option>
+                                        <option value="200">200 на сторінку</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Table -->
+                        <div id="dbTableContainer" style="flex: 1; overflow: auto; background: var(--surface-secondary); border-radius: 12px;">
+                            <div id="dbTablePlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-tertiary); text-align: center; padding: 40px;">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 16px; opacity: 0.5;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                                <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Браузер бази даних</div>
+                                <div style="font-size: 14px;">Оберіть таблицю зі списку вище, щоб переглянути та редагувати дані</div>
+                            </div>
+                            <table id="dbTable" style="width: 100%; border-collapse: collapse; display: none;">
+                                <thead id="dbTableHead" style="position: sticky; top: 0; background: var(--surface); z-index: 10;"></thead>
+                                <tbody id="dbTableBody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="pagination" id="dbPagination" style="margin-top: 16px;"></div>
+                    </div>
+                </div>
+
+                <!-- Subscriptions Tab -->
+                <div class="tab-content" id="tab-subscriptions">
+                    <div class="table-container subscriptions-table">
+                        <div class="table-header">
+                            <span class="table-title">Підписки користувачів</span>
+                            <input type="text" class="search-input" id="subscriptionSearch" placeholder="Пошук за email або ім'ям...">
+                        </div>
+                        <div class="table-body" id="subscriptionsTableBody">
+                            <div class="table-row header">
+                                <div>ID</div>
+                                <div>Користувач</div>
+                                <div>Тариф</div>
+                                <div>Закінчується</div>
+                                <div>Статус</div>
+                                <div>Дії</div>
+                            </div>
+                        </div>
+                        <div class="pagination" id="subscriptionsPagination"></div>
+                    </div>
+                </div>
+
+                <!-- Transactions Tab -->
+                <div class="tab-content" id="tab-transactions">
+                    <div class="table-container transactions-table">
+                        <div class="table-header">
+                            <span class="table-title">Всі транзакції</span>
+                        </div>
+                        <div class="table-body" id="transactionsTableBody">
+                            <div class="table-row header">
+                                <div>ID</div>
+                                <div>Користувач</div>
+                                <div>Тип</div>
+                                <div>Валюта</div>
+                                <div>Сума</div>
+                                <div>Статус</div>
+                                <div>Дата</div>
+                            </div>
+                        </div>
+                        <div class="pagination" id="transactionsPagination"></div>
+                    </div>
+                </div>
+
+                <!-- Bots Tab -->
+                <div class="tab-content" id="tab-bots">
+                    <div class="table-container bots-table">
+                        <div class="table-header">
+                            <span class="table-title">Всі боти</span>
+                        </div>
+                        <div class="table-body" id="botsTableBody">
+                            <div class="table-row header">
+                                <div>Назва бота</div>
+                                <div>Власник</div>
+                                <div>Тип</div>
+                                <div>Пара</div>
+                                <div>Прибуток</div>
+                                <div>Статус</div>
+                                <div>Дії</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- News Tab -->
+                <div class="tab-content" id="tab-news">
+                    <div class="table-container news-table">
+                        <div class="table-header">
+                            <span class="table-title">Новини та оголошення</span>
+                            <button class="action-btn primary" onclick="openNewsModal()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Додати новину
+                            </button>
+                        </div>
+                        <div class="table-body" id="newsTableBody">
+                            <div class="table-row header">
+                                <div>ID</div>
+                                <div>Заголовок</div>
+                                <div>Категорія</div>
+                                <div>Статус</div>
+                                <div>Автор</div>
+                                <div>Дата</div>
+                                <div>Дії</div>
+                            </div>
+                        </div>
+                        <div class="pagination" id="newsPagination"></div>
+                    </div>
+                </div>
+
+                <!-- Audit Log Tab -->
+                <div class="tab-content" id="tab-audit">
+                    <div class="table-container audit-table">
+                        <div class="table-header">
+                            <span class="table-title">Журнал дій адміністратора</span>
+                        </div>
+                        <div class="table-body" id="auditTableBody">
+                            <div class="table-row header">
+                                <div>Дата</div>
+                                <div>Адмін</div>
+                                <div>Дія</div>
+                                <div>Деталі</div>
+                                <div>IP адреса</div>
+                            </div>
+                        </div>
+                        <div class="pagination" id="auditPagination"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- User Edit Modal -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">Редагувати користувача</span>
+                <button class="modal-close" onclick="closeModal('userModal')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="userEditForm">
+                <input type="hidden" id="editUserId">
+                <div class="form-group">
+                    <label class="form-label">Повне ім'я</label>
+                    <input type="text" class="form-input" id="editFullName">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" id="editEmail" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Телефон</label>
+                    <input type="tel" class="form-input" id="editPhone">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Демо баланс ($)</label>
+                    <input type="number" class="form-input" id="editDemoBalance" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Роль</label>
+                    <select class="form-select" id="editRole">
+                        <option value="user">Користувач</option>
+                        <option value="moderator">Модератор</option>
+                        <option value="admin">Адмін</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="action-btn secondary" onclick="closeModal('userModal')">Скасувати</button>
+                    <button type="button" id="changePasswordBtn" class="action-btn" style="background:rgba(245,158,11,0.15);color:#F59E0B;border:1px solid rgba(245,158,11,0.3);">Змінити пароль</button>
+                    <button type="submit" class="action-btn primary">Зберегти зміни</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="changePasswordModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">Змінити пароль</span>
+                <button class="modal-close" onclick="closeModal('changePasswordModal')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="changePasswordForm">
+                <input type="hidden" id="changePasswordUserId">
+                <div class="form-group">
+                    <label class="form-label">Новий пароль</label>
+                    <input type="password" class="form-input" id="newPassword" placeholder="Мін. 6 символів" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Підтвердіть пароль</label>
+                    <input type="password" class="form-input" id="confirmPassword" placeholder="Повторіть пароль" autocomplete="new-password">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="action-btn secondary" onclick="closeModal('changePasswordModal')">Скасувати</button>
+                    <button type="submit" class="action-btn primary">Встановити пароль</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Ban User Modal -->
+    <div class="modal-overlay" id="banModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">Заблокувати користувача</span>
+                <button class="modal-close" onclick="closeModal('banModal')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="banForm">
+                <input type="hidden" id="banUserId">
+                <div class="form-group">
+                    <label class="form-label">Причина блокування</label>
+                    <input type="text" class="form-input" id="banReason" placeholder="Введіть причину...">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="action-btn secondary" onclick="closeModal('banModal')">Скасувати</button>
+                    <button type="submit" class="action-btn danger">Заблокувати</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- News Create/Edit Modal -->
+    <div class="modal-overlay" id="newsModal">
+        <div class="modal-card" style="max-width: 600px;">
+            <div class="modal-header">
+                <span class="modal-title" id="newsModalTitle">Додати новину</span>
+                <button class="modal-close" onclick="closeModal('newsModal')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="newsForm">
+                <input type="hidden" id="editNewsId">
+                <div class="form-group">
+                    <label class="form-label">Заголовок *</label>
+                    <input type="text" class="form-input" id="newsTitle" placeholder="Введіть заголовок новини..." required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Категорія *</label>
+                    <select class="form-select" id="newsCategory" required>
+                        <option value="update">Оновлення</option>
+                        <option value="market">Ринок</option>
+                        <option value="alert">Сповіщення</option>
+                        <option value="feature">Функція</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Анонс (короткий опис)</label>
+                    <textarea class="form-input" id="newsExcerpt" rows="2" placeholder="Короткий опис новини..." style="resize: vertical;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Вміст (повна стаття)</label>
+                    <textarea class="form-input" id="newsContent" rows="5" placeholder="Повний текст новини..." style="resize: vertical;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">URL зображення (необов'язково)</label>
+                    <input type="url" class="form-input" id="newsImageUrl" placeholder="https://example.com/image.jpg">
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
+                    <input type="checkbox" id="newsPublished" checked style="width: 18px; height: 18px;">
+                    <label for="newsPublished" style="font-size: 14px; cursor: pointer;">Опублікувати одразу</label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="action-btn secondary" onclick="closeModal('newsModal')">Скасувати</button>
+                    <button type="submit" class="action-btn primary" id="newsSubmitBtn">Створити новину</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteNewsModal">
+        <div class="modal-card" style="max-width: 400px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+                <span class="modal-title">Видалити новину</span>
+            </div>
+            <div style="padding: 20px 0;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-down)" style="margin-bottom: 16px;">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+                <p style="color: var(--text-secondary); margin-bottom: 8px;">Ви впевнені, що хочете видалити цю новину?</p>
+                <p id="deleteNewsTitle" style="font-weight: 600; color: var(--text-primary);"></p>
+            </div>
+            <input type="hidden" id="deleteNewsId">
+            <div class="modal-actions" style="justify-content: center;">
+                <button type="button" class="action-btn secondary" onclick="closeModal('deleteNewsModal')">Скасувати</button>
+                <button type="button" class="action-btn danger" onclick="confirmDeleteNews()">Видалити</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grant Subscription Modal -->
+    <div class="modal-overlay" id="subscriptionModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">Надати підписку</span>
+                <button class="modal-close" onclick="closeModal('subscriptionModal')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="subscriptionForm">
+                <input type="hidden" id="subscriptionUserId">
+                <div class="form-group">
+                    <label class="form-label">Користувач</label>
+                    <input type="text" class="form-input" id="subscriptionUserName" disabled style="background: var(--surface);">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тарифний план</label>
+                    <select class="form-select" id="subscriptionPlan" required>
+                        <option value="free">Безкоштовний</option>
+                        <option value="pro">Pro ($29/місяць)</option>
+                        <option value="enterprise">Enterprise ($99/місяць)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="subscriptionDaysGroup">
+                    <label class="form-label">Тривалість (днів)</label>
+                    <select class="form-select" id="subscriptionDays">
+                        <option value="7">7 днів</option>
+                        <option value="14">14 днів</option>
+                        <option value="30" selected>30 днів (1 місяць)</option>
+                        <option value="90">90 днів (3 місяці)</option>
+                        <option value="180">180 днів (6 місяців)</option>
+                        <option value="365">365 днів (1 рік)</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="action-btn secondary" onclick="closeModal('subscriptionModal')">Скасувати</button>
+                    <button type="submit" class="action-btn primary">Надати підписку</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Revoke Subscription Confirmation Modal -->
+    <div class="modal-overlay" id="revokeSubscriptionModal">
+        <div class="modal-card" style="max-width: 400px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+                <span class="modal-title">Скасувати підписку</span>
+            </div>
+            <div style="padding: 20px 0;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" style="margin-bottom: 16px;">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    <line x1="5" y1="5" x2="19" y2="19" stroke-width="2"/>
+                </svg>
+                <p style="color: var(--text-secondary); margin-bottom: 8px;">Ви впевнені, що хочете скасувати підписку для:</p>
+                <p id="revokeSubscriptionUserName" style="font-weight: 600; color: var(--text-primary);"></p>
+                <p id="revokeSubscriptionPlan" style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px;"></p>
+            </div>
+            <input type="hidden" id="revokeSubscriptionUserId">
+            <div class="modal-actions" style="justify-content: center;">
+                <button type="button" class="action-btn secondary" onclick="closeModal('revokeSubscriptionModal')">Скасувати</button>
+                <button type="button" class="action-btn danger" onclick="confirmRevokeSubscription()">Відкликати</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/admin.js"></script>
+<!-- Mobile Bottom Nav -->
+<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>
+    <a href="/bots" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg><span>Боти</span></a>
+    <a href="/portfolio" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфель</span></a>
+    <a href="/subscriptions" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Підписки</span></a>
+    <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>
+</nav>
+<script>(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})()</script>
+</body>
+</html>

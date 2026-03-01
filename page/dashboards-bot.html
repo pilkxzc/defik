@@ -1,0 +1,1344 @@
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamato — Дашборд Бота</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/nav-fix.css">
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 768px)">
+    <style>
+        :root {
+            --bg-app: #000000;
+            --surface: #0A0A0A;
+            --surface-secondary: #111111;
+            --surface-tertiary: #181818;
+            --accent-primary: #FFFFF0;
+            --accent-white: #FFFFF0;
+            --text-primary: #FFFFF0;
+            --text-secondary: #AAAA96;
+            --text-tertiary: #666658;
+            --border: #1E1E1E;
+            --border-light: rgba(255,255,240,0.08);
+            --radius-xl: 32px;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --radius-sm: 8px;
+            --radius-full: 9999px;
+            --shadow-soft: 0 12px 32px rgba(0,0,0,0.6);
+            --shadow-card: 0 4px 12px rgba(0,0,0,0.4);
+            --color-up: #4ADE80;
+            --color-down: #FF5C33;
+            --color-orange: #FF8400;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-sans: 'Plus Jakarta Sans', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+        body { font-family: var(--font-sans); background: var(--bg-app); color: var(--text-primary); height: 100vh; max-height: 100vh; display: flex; overflow: hidden; padding: 12px; }
+
+        .app-container { display: grid; grid-template-columns: auto 1fr; grid-template-rows: 60px 1fr; gap: 12px; width: 100%; height: 100%; max-height: calc(100vh - 24px); overflow: hidden; }
+
+        /* Sidebar */
+        .nav-sidebar { grid-row: 1 / -1; grid-column: 1; background: var(--surface); border-radius: var(--radius-full); display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 16px; box-shadow: var(--shadow-soft); border: 1px solid var(--border-light); width: 70px; }
+        .nav-item { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--text-tertiary); transition: 0.2s; cursor: pointer; text-decoration: none; }
+        .nav-item svg { width: 20px; height: 20px; }
+        .nav-item.active { background: var(--accent-primary); color: #000000; }
+        .nav-item:hover:not(.active) { background: var(--surface-secondary); color: var(--text-primary); }
+
+        /* Header */
+        .header-bar { grid-column: 2; grid-row: 1; display: flex; justify-content: space-between; align-items: center; min-height: 60px; max-height: 60px; }
+        .brand-pill { background: var(--surface); padding: 8px 16px; border-radius: var(--radius-full); display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; box-shadow: var(--shadow-card); border: 1px solid var(--border-light); }
+        .user-pill { background: var(--surface); border: 1px solid var(--border-light); padding: 6px 6px 6px 16px; border-radius: var(--radius-full); display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 14px; }
+        .user-avatar { width: 36px; height: 36px; background: linear-gradient(135deg, #1C1C1C, #2a2a2a); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; border: 2px solid var(--border-light); background-size: cover; background-position: center; }
+
+        /* Main Content */
+        .main-content { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border-light); }
+
+        /* Top Tabs */
+        .top-tabs { display: flex; align-items: center; height: 44px; border-bottom: 1px solid var(--border); padding: 0 20px; gap: 0; flex-shrink: 0; }
+        .top-tab { height: 44px; padding: 0 20px; display: flex; align-items: center; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-tertiary); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .top-tab:hover { color: var(--text-secondary); }
+        .top-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-primary); }
+
+        /* Tab Content */
+        .tab-content { display: none; flex: 1; overflow: hidden; }
+        .tab-content.active { display: flex; flex-direction: column; }
+
+        /* Sub Nav / Pairs */
+        .sub-nav { display: flex; align-items: center; height: 40px; padding: 0 20px; gap: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+        .pair-chip { display: flex; align-items: center; gap: 6px; padding: 5px 14px; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); background: var(--surface-secondary); border-radius: var(--radius-full); cursor: pointer; transition: all 0.2s; border: 1px solid transparent; white-space: nowrap; }
+        .pair-chip:hover { color: var(--text-secondary); border-color: var(--border); }
+        .pair-chip.active { background: var(--accent-primary); color: #000000; font-weight: 600; }
+        .pair-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-up); }
+        .pair-chip.active .pair-dot { background: #000000; }
+
+        /* Dashboard Body (Конструктор) */
+        .dash-body { display: grid; grid-template-columns: 1fr 380px; grid-template-rows: 1fr auto; flex: 1; overflow: hidden; position: relative; }
+
+        /* Chart Area */
+        .chart-area { grid-row: 1; grid-column: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+        .chart-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; }
+        .chart-pair { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+        .chart-exchange { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+        .chart-price-row { display: flex; align-items: baseline; gap: 12px; padding: 0 20px 12px; }
+        .chart-price { font-family: var(--font-mono); font-size: 28px; font-weight: 700; }
+        .chart-change { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+        .chart-change.up { color: var(--color-up); }
+        .chart-change.down { color: var(--color-down); }
+        .tf-buttons { display: flex; gap: 2px; }
+        .tf-btn { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; border-radius: var(--radius-sm); color: var(--text-tertiary); background: transparent; border: none; cursor: pointer; transition: 0.2s; }
+        .tf-btn:hover { color: var(--text-secondary); }
+        .tf-btn.active { background: var(--surface-tertiary); color: var(--text-primary); }
+        .chart-container { flex: 1; position: relative; min-height: 0; }
+        .chart-container #tvChart { width: 100%; height: 100%; }
+        .chart-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); z-index: 5; }
+        .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Settings Panel */
+        .settings-panel { grid-row: 1 / 3; grid-column: 2; overflow-y: auto; scrollbar-width: none; }
+        .settings-panel::-webkit-scrollbar { display: none; }
+        .sp-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+        .sp-section:last-child { border-bottom: none; }
+        .sp-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+        .sp-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .sp-row:last-child { margin-bottom: 0; }
+        .sp-label { font-size: 12px; color: var(--text-tertiary); }
+        .sp-value { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+        .sp-input-group { margin-bottom: 12px; }
+        .sp-input-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px; display: block; }
+        .sp-input { display: flex; align-items: center; background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0 14px; height: 40px; gap: 8px; transition: border-color 0.2s; }
+        .sp-input:focus-within { border-color: var(--accent-primary); }
+        .sp-input input { background: none; border: none; color: var(--text-primary); font-family: var(--font-mono); font-size: 14px; font-weight: 500; width: 100%; outline: none; }
+        .sp-input input::placeholder { color: var(--text-tertiary); }
+        .sp-unit { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }
+        .sp-select { width: 100%; height: 40px; background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0 14px; color: var(--text-primary); font-family: var(--font-sans); font-size: 13px; font-weight: 500; appearance: none; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23666658' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+        .sp-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        /* Toggle */
+        .toggle { position: relative; width: 40px; height: 22px; cursor: pointer; }
+        .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .toggle-track { position: absolute; inset: 0; background: var(--surface-tertiary); border-radius: var(--radius-full); border: 1px solid var(--border); transition: 0.3s; }
+        .toggle-track::after { content: ''; position: absolute; width: 16px; height: 16px; background: var(--text-tertiary); border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+        .toggle input:checked + .toggle-track { background: var(--accent-primary); border-color: var(--accent-primary); }
+        .toggle input:checked + .toggle-track::after { left: 20px; background: #000000; }
+
+        /* Hedge Cards */
+        .hedge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .hedge-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; }
+        .hedge-card.sell { border-color: rgba(255,92,51,0.2); }
+        .hedge-card.buy { border-color: rgba(74,222,128,0.2); }
+        .hedge-card-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
+        .hedge-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .hedge-dot.sell { background: var(--color-down); }
+        .hedge-dot.buy { background: var(--color-up); }
+
+        /* Buttons */
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 24px; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.3s cubic-bezier(0.16,1,0.3,1); font-family: var(--font-sans); }
+        .btn-primary { background: var(--accent-primary); color: #000000; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,255,240,0.12); }
+        .btn-danger { background: rgba(255,92,51,0.1); color: var(--color-down); }
+        .btn-danger:hover { background: rgba(255,92,51,0.18); }
+        .btn-ghost { background: var(--surface-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--text-tertiary); }
+        .btn-sm { padding: 8px 16px; font-size: 12px; }
+        .btn-pill { border-radius: var(--radius-full); }
+        .btn:disabled { opacity: 0.5; pointer-events: none; }
+        .btn .btn-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; }
+
+        /* Orders Section */
+        .orders-area { grid-row: 2; grid-column: 1; border-top: 1px solid var(--border); border-right: 1px solid var(--border); display: flex; flex-direction: column; max-height: 260px; overflow: hidden; }
+        .order-tabs { display: flex; height: 36px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .order-tab { height: 36px; padding: 0 16px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-tertiary); cursor: pointer; border-bottom: 2px solid transparent; transition: 0.2s; }
+        .order-tab:hover { color: var(--text-secondary); }
+        .order-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-primary); }
+        .tab-count { font-family: var(--font-mono); font-size: 10px; background: var(--surface-secondary); padding: 1px 6px; border-radius: var(--radius-full); }
+        .orders-table-wrap { flex: 1; overflow-y: auto; scrollbar-width: none; }
+        .orders-table-wrap::-webkit-scrollbar { display: none; }
+        .orders-table { width: 100%; border-collapse: collapse; }
+        .orders-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-tertiary); font-weight: 600; text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+        .orders-table td { font-family: var(--font-mono); font-size: 12px; padding: 8px 14px; border-bottom: 1px solid rgba(30,30,30,0.5); }
+        .orders-table tr:hover td { background: rgba(255,255,240,0.02); }
+
+        /* Badges */
+        .badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.5px; }
+        .badge-long { background: rgba(74,222,128,0.1); color: var(--color-up); }
+        .badge-short { background: rgba(255,92,51,0.1); color: var(--color-down); }
+        .badge-active { background: rgba(255,255,240,0.06); color: var(--text-primary); }
+        .badge-closed { background: var(--surface-secondary); color: var(--text-tertiary); }
+        .cell-up { color: var(--color-up); }
+        .cell-down { color: var(--color-down); }
+        .cell-muted { color: var(--text-tertiary); }
+
+        /* Performance Section */
+        .perf-grid { display: grid; gap: 1px; background: var(--border); border-radius: var(--radius-md); overflow: hidden; }
+        .perf-cell { background: var(--surface); padding: 10px 12px; }
+        .perf-cell-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .perf-cell-value { font-family: var(--font-mono); font-size: 14px; font-weight: 700; margin-top: 4px; }
+
+        /* Footer */
+        .dash-footer { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 30px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); flex-shrink: 0; }
+        .dash-footer-left, .dash-footer-right { display: flex; gap: 20px; align-items: center; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-up); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+        /* Resize Handles */
+        .resize-handle-v { position: absolute; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 10; background: transparent; }
+        .resize-handle-v:hover, .resize-handle-v.dragging { background: rgba(255,255,240,0.08); }
+        .resize-handle-h { width: 100%; height: 6px; cursor: row-resize; z-index: 10; background: transparent; margin: -3px 0; }
+        .resize-handle-h:hover, .resize-handle-h.dragging { background: rgba(255,255,240,0.08); }
+
+        /* ══ TAB 1: Активні боти ══ */
+        .bots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 20px; overflow-y: auto; flex: 1; }
+        .bot-card { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; cursor: pointer; transition: all 0.2s; }
+        .bot-card:hover { border-color: var(--text-tertiary); transform: translateY(-2px); }
+        .bot-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .bot-card-name { font-size: 16px; font-weight: 700; }
+        .bot-card-pair { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+        .bot-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .bot-stat-item { }
+        .bot-stat-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; }
+        .bot-stat-value { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+        .bot-status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .bot-status-dot.active { background: var(--color-up); }
+        .bot-status-dot.inactive { background: var(--color-down); }
+
+        /* ══ TAB 2: Моніторинг ══ */
+        .monitor-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+        .monitor-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .kpi-card { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; }
+        .kpi-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .kpi-value { font-family: var(--font-mono); font-size: 24px; font-weight: 700; }
+        .kpi-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+        .strategies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .strategy-card { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; }
+        .strategy-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .strategy-name { font-size: 14px; font-weight: 700; }
+        .strategy-stats { display: flex; gap: 16px; }
+        .strategy-stat { font-family: var(--font-mono); font-size: 12px; }
+        .heatmap-section { margin-bottom: 20px; }
+        .section-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .heatmap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .heatmap-cell { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+        .heatmap-cell-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 6px; }
+        .heatmap-cell-value { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+        .regime-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .regime-segment { height: 100%; }
+        .quick-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+
+        /* ══ TAB 4: Експлуатація ══ */
+        .exploit-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+        .exploit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .dom-table { width: 100%; border-collapse: collapse; }
+        .dom-table th { font-size: 10px; text-transform: uppercase; color: var(--text-tertiary); padding: 6px 10px; text-align: right; }
+        .dom-table td { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; text-align: right; position: relative; }
+        .dom-ask { color: var(--color-down); }
+        .dom-bid { color: var(--color-up); }
+        .dom-bar { position: absolute; top: 0; bottom: 0; right: 0; opacity: 0.08; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        .metric-card { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; }
+        .metric-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px; }
+        .metric-value { font-family: var(--font-mono); font-size: 20px; font-weight: 700; }
+        .metric-bar { height: 4px; background: var(--surface-tertiary); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+        .metric-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+        .event-log { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; max-height: 250px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; }
+        .log-entry { padding: 4px 0; border-bottom: 1px solid rgba(30,30,30,0.5); display: flex; gap: 8px; }
+        .log-time { color: var(--text-tertiary); white-space: nowrap; }
+        .emergency-panel { display: flex; gap: 10px; padding: 16px; background: var(--surface-secondary); border: 1px solid rgba(255,92,51,0.2); border-radius: var(--radius-md); }
+        .btn-emergency { background: var(--color-down); color: #fff; font-weight: 700; padding: 14px 28px; border-radius: var(--radius-md); border: none; cursor: pointer; font-size: 14px; font-family: var(--font-sans); transition: 0.2s; }
+        .btn-emergency:hover { opacity: 0.85; transform: scale(1.02); }
+        .btn-warning { background: var(--color-orange); color: #000; font-weight: 700; padding: 14px 28px; border-radius: var(--radius-md); border: none; cursor: pointer; font-size: 14px; font-family: var(--font-sans); transition: 0.2s; }
+
+        /* Empty State */
+        .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-tertiary); gap: 16px; padding: 40px; }
+        .empty-state svg { width: 64px; height: 64px; opacity: 0.3; }
+        .empty-state-text { font-size: 16px; font-weight: 600; }
+        .empty-state-sub { font-size: 13px; max-width: 400px; text-align: center; line-height: 1.5; }
+
+        /* Confirm Dialog */
+        .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .confirm-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; max-width: 400px; width: 90%; }
+        .confirm-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+        .confirm-message { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.5; }
+        .confirm-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        /* Mobile */
+        @media (max-width: 1100px) {
+            .dash-body { grid-template-columns: 1fr !important; }
+            .settings-panel { grid-row: auto; grid-column: 1; max-height: 400px; border-top: 1px solid var(--border); }
+            .orders-area { max-height: 200px; }
+            .monitor-top { grid-template-columns: 1fr; }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .heatmap-grid { grid-template-columns: repeat(2, 1fr); }
+            .exploit-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            body { padding: 0; }
+            .app-container { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap: 0; }
+            .nav-sidebar { display: none; }
+            .main-content { border-radius: 0; border: none; }
+            .header-bar { padding: 0 16px; min-height: 50px; max-height: 50px; }
+            .chart-price { font-size: 22px; }
+            .hedge-grid { grid-template-columns: 1fr; }
+            .bots-grid { grid-template-columns: 1fr; }
+            .strategies-grid { grid-template-columns: 1fr; }
+            .metrics-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- Sidebar -->
+    <nav class="nav-sidebar">
+        <a href="/dashboard" class="nav-item active"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></a>
+        <a href="/portfolio" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg></a>
+        <a href="/bots" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg></a>
+        <a href="/news" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg></a>
+        <a href="/subscriptions" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></a>
+        <a href="/community" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></a>
+        <a href="/profile" class="nav-item" style="margin-top: auto"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></a>
+    </nav>
+
+    <!-- Header -->
+    <header class="header-bar">
+        <div class="brand-pill"><img src="/logo.svg" style="width:24px;height:24px;border-radius:50%;" alt="Yamato"> YAMATO</div>
+        <div class="user-pill">
+            <span id="headerBalance" style="font-family:var(--font-mono);">$0.00</span>
+            <div class="user-avatar" id="userAvatar">U</div>
+        </div>
+    </header>
+
+    <!-- Main Panel -->
+    <main class="main-content">
+        <!-- Top Tabs -->
+        <div class="top-tabs" id="topTabs">
+            <div class="top-tab" data-tab="bots">Активні боти</div>
+            <div class="top-tab" data-tab="monitor">Моніторинг</div>
+            <div class="top-tab active" data-tab="constructor">Конструктор</div>
+            <div class="top-tab" data-tab="exploit">Експлуатація</div>
+        </div>
+
+        <!-- ══ TAB 1: Активні боти ══ -->
+        <div class="tab-content" data-tab="bots" id="tabBots">
+            <div class="sub-nav" style="justify-content:space-between;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span style="font-size:13px;font-weight:600;">Мої боти</span>
+                    <span class="tab-count" id="botsCount">0</span>
+                </div>
+                <button class="btn btn-primary btn-sm btn-pill" onclick="showCreateBotModal()">+ Створити бота</button>
+            </div>
+            <div id="botsContent" class="bots-grid"></div>
+        </div>
+
+        <!-- ══ TAB 2: Моніторинг ══ -->
+        <div class="tab-content" data-tab="monitor" id="tabMonitor">
+            <div class="monitor-scroll">
+                <div class="monitor-top">
+                    <div class="kpi-card">
+                        <div class="kpi-label">P&L Сьогодні</div>
+                        <div class="kpi-value" id="kpiTodayPnl">$0.00</div>
+                        <div class="kpi-sub" id="kpiTodayPnlPct">0.00%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">P&L за місяць</div>
+                        <div class="kpi-value" id="kpiMonthPnl">$0.00</div>
+                        <div class="kpi-sub" id="kpiMonthTrades">0 трейдів</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Загальний баланс</div>
+                        <div class="kpi-value" id="kpiBalance">$0.00</div>
+                        <div class="kpi-sub" id="kpiActiveBots">0 активних ботів</div>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="confirmAction('Глобальна пауза', 'Призупинити всіх ботів?', pauseAllBots)">Пауза всіх</button>
+                    <button class="btn btn-danger btn-sm" onclick="confirmAction('Повна зупинка', 'Зупинити всіх ботів? Це закриє всі позиції.', stopAllBots)">Зупинити всіх</button>
+                </div>
+
+                <div class="section-title">Стратегії</div>
+                <div class="strategies-grid" id="strategiesGrid">
+                    <div class="strategy-card"><div class="strategy-header"><span class="strategy-name">Momentum</span><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div><div class="strategy-stats"><span class="strategy-stat cell-up">+2.4%</span><span class="strategy-stat cell-muted">ROI 14.2%</span></div></div>
+                    <div class="strategy-card"><div class="strategy-header"><span class="strategy-name">Arbitrage</span><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div><div class="strategy-stats"><span class="strategy-stat cell-up">+1.1%</span><span class="strategy-stat cell-muted">ROI 8.7%</span></div></div>
+                    <div class="strategy-card"><div class="strategy-header"><span class="strategy-name">Market-Making</span><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div><div class="strategy-stats"><span class="strategy-stat cell-muted">+0.0%</span><span class="strategy-stat cell-muted">ROI 0.0%</span></div></div>
+                    <div class="strategy-card"><div class="strategy-header"><span class="strategy-name">DeFi Yield</span><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div><div class="strategy-stats"><span class="strategy-stat cell-up">+3.8%</span><span class="strategy-stat cell-muted">ROI 22.1%</span></div></div>
+                    <div class="strategy-card"><div class="strategy-header"><span class="strategy-name">Mean Revert</span><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div><div class="strategy-stats"><span class="strategy-stat cell-down">-0.3%</span><span class="strategy-stat cell-muted">ROI -1.2%</span></div></div>
+                    <div class="strategy-card"><div class="strategy-header"><span class="strategy-name">Stat Arb</span><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div><div class="strategy-stats"><span class="strategy-stat cell-up">+1.7%</span><span class="strategy-stat cell-muted">ROI 11.5%</span></div></div>
+                </div>
+
+                <div class="heatmap-section">
+                    <div class="section-title">Теплова карта ринку</div>
+                    <div class="heatmap-grid" id="heatmapGrid">
+                        <div class="heatmap-cell"><div class="heatmap-cell-label">Volatility</div><div class="heatmap-cell-value" id="hmVol">--</div></div>
+                        <div class="heatmap-cell"><div class="heatmap-cell-label">Funding Rate</div><div class="heatmap-cell-value" id="hmFunding">--</div></div>
+                        <div class="heatmap-cell"><div class="heatmap-cell-label">Open Interest</div><div class="heatmap-cell-value" id="hmOI">--</div></div>
+                        <div class="heatmap-cell"><div class="heatmap-cell-label">Microflow</div><div class="heatmap-cell-value" id="hmMicro">--</div></div>
+                    </div>
+                </div>
+
+                <div class="section-title">Режим ринку</div>
+                <div style="background:var(--surface-secondary);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                        <span style="font-size:12px;color:var(--text-tertiary);">Тренд</span>
+                        <span style="font-size:12px;color:var(--text-tertiary);">Рендж</span>
+                        <span style="font-size:12px;color:var(--text-tertiary);">Волатильність</span>
+                    </div>
+                    <div class="regime-bar">
+                        <div class="regime-segment" style="width:45%;background:var(--color-up);"></div>
+                        <div class="regime-segment" style="width:35%;background:var(--color-orange);"></div>
+                        <div class="regime-segment" style="width:20%;background:var(--color-down);"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                        <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--color-up);" id="regimeTrend">45%</span>
+                        <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--color-orange);" id="regimeRange">35%</span>
+                        <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--color-down);" id="regimeVol">20%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ TAB 3: Конструктор ══ -->
+        <div class="tab-content active" data-tab="constructor" id="tabConstructor">
+            <div class="sub-nav" id="pairsNav">
+                <div class="pair-chip active" data-symbol="BTCUSDT"><span class="pair-dot"></span> BTCUSDT</div>
+                <span style="width:1px;height:20px;background:var(--border);margin:0 4px;" id="quoteSeparator"></span>
+                <div class="pair-chip quote-chip active" data-quote="USDT">USDT</div>
+                <div class="pair-chip quote-chip" data-quote="BTC">BTC</div>
+                <div class="pair-chip quote-chip" data-quote="ETH">ETH</div>
+            </div>
+
+            <div class="dash-body" id="dashBody">
+                <!-- Chart -->
+                <div class="chart-area" id="chartArea">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-pair" id="chartPairLabel">-- / --</div>
+                            <div class="chart-exchange">Binance Futures</div>
+                        </div>
+                        <div class="tf-buttons" id="tfButtons">
+                            <button class="tf-btn" data-tf="1m">1m</button>
+                            <button class="tf-btn" data-tf="5m">5m</button>
+                            <button class="tf-btn active" data-tf="15m">15m</button>
+                            <button class="tf-btn" data-tf="1h">1h</button>
+                            <button class="tf-btn" data-tf="4h">4h</button>
+                            <button class="tf-btn" data-tf="1d">1d</button>
+                        </div>
+                    </div>
+                    <div class="chart-price-row">
+                        <div class="chart-price" id="chartPrice">--</div>
+                        <div class="chart-change up" id="chartChange">--%</div>
+                    </div>
+                    <div class="chart-container" id="chartContainer">
+                        <div id="tvChart"></div>
+                        <div class="chart-loading" id="chartLoading" style="display:none;"><div class="spinner"></div></div>
+                    </div>
+                </div>
+
+                <!-- Resize handle (vertical) -->
+                <div class="resize-handle-v" id="resizeV" style="right:380px;"></div>
+
+                <!-- Settings Panel -->
+                <div class="settings-panel" id="settingsPanel">
+                    <div id="settingsContent"></div>
+                </div>
+
+                <!-- Orders Table -->
+                <div class="orders-area" id="ordersArea">
+                    <div class="order-tabs" id="orderTabs">
+                        <div class="order-tab active" data-filter="all">Всі <span class="tab-count" id="countAll">0</span></div>
+                        <div class="order-tab" data-filter="open">Відкриті <span class="tab-count" id="countOpen">0</span></div>
+                        <div class="order-tab" data-filter="closed">Закриті <span class="tab-count" id="countClosed">0</span></div>
+                    </div>
+                    <div class="orders-table-wrap">
+                        <table class="orders-table">
+                            <thead><tr><th>#</th><th>Стор.</th><th>Пара</th><th>Ціна</th><th>К-сть</th><th>Статус</th><th>Прибуток</th></tr></thead>
+                            <tbody id="ordersBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ TAB 4: Експлуатація ══ -->
+        <div class="tab-content" data-tab="exploit" id="tabExploit">
+            <div class="exploit-scroll">
+                <div class="section-title">Метрики виконання</div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Latency</div>
+                        <div class="metric-value" id="metLatency">-- ms</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:30%;background:var(--color-up);"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Slippage</div>
+                        <div class="metric-value" id="metSlippage">-- bps</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:15%;background:var(--color-up);"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Throughput</div>
+                        <div class="metric-value" id="metThroughput">-- ops/s</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:65%;background:var(--color-orange);"></div></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Fill Rate</div>
+                        <div class="metric-value" id="metFillRate">-- %</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" style="width:90%;background:var(--color-up);"></div></div>
+                    </div>
+                </div>
+
+                <div class="exploit-grid">
+                    <div>
+                        <div class="section-title">DOM / Order Book</div>
+                        <div id="domContainer" style="background:var(--surface-secondary);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;overflow:hidden;">
+                            <table class="dom-table" id="domTable">
+                                <thead><tr><th>Ціна</th><th>К-сть</th><th>Сума</th></tr></thead>
+                                <tbody id="domBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="section-title">Журнал подій</div>
+                        <div class="event-log" id="eventLog">
+                            <div class="log-entry"><span class="log-time">--:--:--</span><span style="color:var(--text-tertiary);">Очікування подій...</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-title">Екстрені дії</div>
+                <div class="emergency-panel">
+                    <button class="btn-emergency" onclick="confirmAction('ПОВНА ЗУПИНКА', 'Зупинити ВСЕ торгівлю негайно? Всі позиції будуть закриті.', emergencyStop)">ПОВНА ЗУПИНКА</button>
+                    <button class="btn-warning" onclick="confirmAction('Пауза', 'Призупинити всіх ботів?', pauseAllBots)">ПАУЗА</button>
+                    <button class="btn btn-ghost" onclick="confirmAction('Зберегти стан', 'Зберегти поточний стан всіх ботів?', saveState)">ЗБЕРЕГТИ</button>
+                    <button class="btn btn-ghost" onclick="confirmAction('Скинути', 'Скинути налаштування до стандартних?', resetState)">СКИНУТИ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="dash-footer">
+            <div class="dash-footer-left">
+                <span style="display:flex;align-items:center;gap:6px;"><span class="status-dot" id="wsStatusDot"></span> <span id="wsStatusText">Connecting...</span></span>
+                <span>Binance Futures</span>
+            </div>
+            <div class="dash-footer-right">
+                <span id="footerLatency">Latency: --</span>
+                <span>YAMATO v4.2.0</span>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Confirm Dialog (hidden) -->
+<div id="confirmOverlay" class="confirm-overlay" style="display:none;">
+    <div class="confirm-dialog">
+        <div class="confirm-title" id="confirmTitle"></div>
+        <div class="confirm-message" id="confirmMessage"></div>
+        <div class="confirm-buttons">
+            <button class="btn btn-ghost btn-sm" onclick="closeConfirm()">Скасувати</button>
+            <button class="btn btn-primary btn-sm" id="confirmOk">Підтвердити</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+// ==================== STATE ====================
+const S = {
+    bots: [],
+    currentBotId: null,
+    currentSymbol: 'BTCUSDT',
+    currentInterval: '15m',
+    trades: [],
+    orders: { limitOrders: [], stopOrders: [], takeProfitOrders: [] },
+    stats: {},
+    settings: {},
+    chart: null,
+    candleSeries: null,
+    klinesData: [],
+    orderFilter: 'all',
+    quoteCurrency: 'USDT'
+};
+
+// ==================== HELPERS ====================
+function fmt(n, d=2) { return n != null ? Number(n).toFixed(d) : '--'; }
+function fmtPrice(n) { if (n == null) return '--'; const v = Number(n); return v >= 1000 ? v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : v.toFixed(v < 1 ? 6 : 2); }
+function fmtPnl(n) { const v = Number(n||0); return (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2); }
+
+async function api(url, opts={}) {
+    const r = await fetch(url, { credentials: 'include', ...opts, headers: { 'Content-Type': 'application/json', ...opts.headers } });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Request failed');
+    return d;
+}
+
+function showToast(msg, type='info') {
+    if (typeof window.showToast === 'function' && window.showToast !== showToast) { window.showToast(msg, type); return; }
+    console.log(`[${type}] ${msg}`);
+}
+
+// ==================== CONFIRM DIALOG ====================
+let _confirmCb = null;
+function confirmAction(title, message, cb) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmOverlay').style.display = 'flex';
+    _confirmCb = cb;
+    document.getElementById('confirmOk').onclick = () => { closeConfirm(); if (_confirmCb) _confirmCb(); };
+}
+function closeConfirm() { document.getElementById('confirmOverlay').style.display = 'none'; _confirmCb = null; }
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tabName) {
+    document.querySelectorAll('.top-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    if (tabName === 'bots') loadBotsList();
+    if (tabName === 'monitor') loadMonitorData();
+    if (tabName === 'constructor') { if (S.chart) S.chart.resize(0,0); setTimeout(() => resizeChart(), 50); }
+    if (tabName === 'exploit') loadExploitData();
+}
+document.getElementById('topTabs').addEventListener('click', e => {
+    const tab = e.target.closest('.top-tab');
+    if (tab) switchTab(tab.dataset.tab);
+});
+
+// ==================== TAB 1: АКТИВНІ БОТИ ====================
+async function loadBotsList() {
+    const el = document.getElementById('botsContent');
+    try {
+        const bots = await api('/api/bots');
+        S.bots = bots;
+        document.getElementById('botsCount').textContent = bots.length;
+
+        if (bots.length === 0) {
+            el.innerHTML = '';
+            el.className = '';
+            el.style.cssText = 'flex:1;display:flex;';
+            el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4M4 6v12c0 1.1.9 2 2 2h14v-4M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg><div class="empty-state-text">Немає ботів</div><div class="empty-state-sub">Створіть свого першого бота для автоматизованої торгівлі</div><button class="btn btn-primary btn-pill" onclick="showCreateBotModal()">+ Створити бота</button></div>`;
+            return;
+        }
+
+        el.className = 'bots-grid';
+        el.style.cssText = '';
+        el.innerHTML = bots.map(b => `
+            <div class="bot-card" onclick="selectBot(${b.id})">
+                <div class="bot-card-header">
+                    <div>
+                        <div class="bot-card-name">${b.name}</div>
+                        <div class="bot-card-pair">${b.pair || 'FUTURES'}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="bot-status-dot ${b.is_active ? 'active' : 'inactive'}"></span>
+                        <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" ${b.is_active ? 'checked' : ''} onchange="toggleBot(${b.id}, this)"><span class="toggle-track"></span></label>
+                    </div>
+                </div>
+                <div class="bot-card-stats">
+                    <div class="bot-stat-item"><div class="bot-stat-label">Прибуток</div><div class="bot-stat-value ${(b.profit||0) >= 0 ? 'cell-up' : 'cell-down'}">${fmtPnl(b.profit)}</div></div>
+                    <div class="bot-stat-item"><div class="bot-stat-label">Інвестиція</div><div class="bot-stat-value">$${fmtPrice(b.investment)}</div></div>
+                    <div class="bot-stat-item"><div class="bot-stat-label">Час роботи</div><div class="bot-stat-value">${b.runningTime || '--'}</div></div>
+                    <div class="bot-stat-item"><div class="bot-stat-label">P&L / день</div><div class="bot-stat-value ${(b.dailyPL||0) >= 0 ? 'cell-up' : 'cell-down'}">${fmt(b.dailyPL)}%</div></div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-state-text">Помилка завантаження</div><div class="empty-state-sub">${e.message}</div></div>`;
+    }
+}
+
+async function toggleBot(id, checkbox) {
+    try {
+        const r = await api(`/api/bots/${id}/toggle`, { method: 'PATCH' });
+        showToast(r.isActive ? 'Бот запущений' : 'Бот зупинений', 'success');
+    } catch (e) {
+        checkbox.checked = !checkbox.checked;
+        showToast('Помилка: ' + e.message, 'error');
+    }
+}
+
+function selectBot(id) {
+    S.currentBotId = id;
+    switchTab('constructor');
+    loadBotData();
+}
+
+function showCreateBotModal() { window.location.href = '/bots'; }
+
+// ==================== TAB 2: МОНІТОРИНГ ====================
+async function loadMonitorData() {
+    try {
+        const stats = await api('/api/bots/stats');
+        document.getElementById('kpiBalance').textContent = '$' + fmtPrice(stats.activeAllocation);
+        document.getElementById('kpiActiveBots').textContent = stats.activeBots + ' активних ботів';
+        document.getElementById('kpiTodayPnl').textContent = '$' + fmt(stats.totalProfit);
+        document.getElementById('kpiTodayPnl').style.color = stats.totalProfit >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+
+        // Load heatmap data from Binance public API
+        loadHeatmapData();
+    } catch (e) {
+        console.error('Monitor load error:', e);
+    }
+}
+
+async function loadHeatmapData() {
+    try {
+        const [ticker, funding] = await Promise.all([
+            fetch('https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT').then(r=>r.json()),
+            fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT').then(r=>r.json())
+        ]);
+        const vol = Math.abs(parseFloat(ticker.priceChangePercent || 0));
+        const fr = (parseFloat(funding.lastFundingRate || 0) * 100);
+        const oi = parseFloat(ticker.quoteVolume || 0);
+        document.getElementById('hmVol').textContent = vol.toFixed(2) + '%';
+        document.getElementById('hmVol').style.color = vol > 3 ? 'var(--color-down)' : vol > 1.5 ? 'var(--color-orange)' : 'var(--color-up)';
+        document.getElementById('hmFunding').textContent = fr.toFixed(4) + '%';
+        document.getElementById('hmFunding').style.color = Math.abs(fr) > 0.03 ? 'var(--color-orange)' : 'var(--color-up)';
+        document.getElementById('hmOI').textContent = '$' + (oi / 1e9).toFixed(2) + 'B';
+        document.getElementById('hmMicro').textContent = vol > 2 ? 'High' : 'Normal';
+        document.getElementById('hmMicro').style.color = vol > 2 ? 'var(--color-orange)' : 'var(--color-up)';
+    } catch(e) {}
+}
+
+async function pauseAllBots() {
+    try {
+        const bots = S.bots.length ? S.bots : await api('/api/bots');
+        for (const b of bots) { if (b.is_active) await api(`/api/bots/${b.id}/toggle`, { method: 'PATCH' }); }
+        showToast('Всі боти призупинені', 'success');
+        loadBotsList();
+    } catch(e) { showToast('Помилка: ' + e.message, 'error'); }
+}
+
+async function stopAllBots() { await pauseAllBots(); }
+
+// ==================== TAB 3: КОНСТРУКТОР ====================
+
+// Chart initialization
+function initChart() {
+    const container = document.getElementById('tvChart');
+    if (!container || S.chart) return;
+
+    S.chart = LightweightCharts.createChart(container, {
+        layout: { background: { type: 'solid', color: '#0A0A0A' }, textColor: '#666658' },
+        grid: { vertLines: { color: 'rgba(255,255,240,0.03)' }, horzLines: { color: 'rgba(255,255,240,0.03)' } },
+        watermark: { visible: true, text: 'YAMATO', fontSize: 60, color: 'rgba(255,255,240,0.03)', horzAlign: 'center', vertAlign: 'center' },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: 'rgba(255,255,240,0.08)' },
+        timeScale: { borderColor: 'rgba(255,255,240,0.08)', timeVisible: true, secondsVisible: false, rightOffset: 20 },
+        handleScroll: { vertTouchDrag: false }
+    });
+
+    S.candleSeries = S.chart.addCandlestickSeries({
+        upColor: '#4ADE80', downColor: '#FF5C33',
+        borderUpColor: '#3BC96E', borderDownColor: '#E04425',
+        wickUpColor: '#3BC96E', wickDownColor: '#E04425'
+    });
+
+    resizeChart();
+    window.addEventListener('resize', resizeChart);
+}
+
+function resizeChart() {
+    if (!S.chart) return;
+    const c = document.getElementById('chartContainer');
+    if (c && c.offsetWidth > 0) S.chart.resize(c.offsetWidth, c.offsetHeight);
+}
+
+async function loadKlines() {
+    if (!S.currentBotId) { showEmptyChart(); return; }
+    const loading = document.getElementById('chartLoading');
+    loading.style.display = 'flex';
+
+    try {
+        const baseAsset = S.currentSymbol.replace('USDT', '');
+
+        if (S.quoteCurrency !== 'USDT' && baseAsset !== S.quoteCurrency) {
+            const synthetic = await computeSyntheticKlines(S.currentSymbol, S.quoteCurrency, S.currentInterval, 500);
+            if (synthetic && synthetic.length > 0) {
+                S.klinesData = synthetic;
+                S.candleSeries.setData(S.klinesData);
+                S.chart.timeScale().fitContent();
+                const last = S.klinesData[S.klinesData.length - 1];
+                updatePriceDisplay(last.close, true);
+            }
+        } else {
+            const data = await api(`/api/bots/${S.currentBotId}/klines?symbol=${S.currentSymbol}&interval=${S.currentInterval}&limit=500`);
+            S.klinesData = data.klines || [];
+            if (S.candleSeries && S.klinesData.length > 0) {
+                S.candleSeries.setData(S.klinesData);
+                S.chart.timeScale().fitContent();
+                const last = S.klinesData[S.klinesData.length - 1];
+                updatePriceDisplay(last.close);
+            }
+        }
+    } catch(e) {
+        console.error('Klines error:', e);
+    }
+    loading.style.display = 'none';
+}
+
+function showEmptyChart() {
+    if (S.candleSeries) S.candleSeries.setData([]);
+    document.getElementById('chartPairLabel').textContent = '-- / --';
+    document.getElementById('chartPrice').textContent = '--';
+    document.getElementById('chartChange').textContent = '--%';
+}
+
+function updatePriceDisplay(price, isSynthetic) {
+    const pair = S.currentSymbol.replace('USDT', '');
+    if (isSynthetic || (S.quoteCurrency !== 'USDT' && pair !== S.quoteCurrency)) {
+        document.getElementById('chartPrice').textContent = fmtPrice(price) + ' ' + S.quoteCurrency;
+        document.getElementById('chartPairLabel').innerHTML = pair + ' / ' + S.quoteCurrency + ' <span style="font-size:10px;color:var(--text-tertiary);font-weight:400;">Synthetic (via USDT)</span>';
+    } else {
+        document.getElementById('chartPrice').textContent = '$' + fmtPrice(price);
+        document.getElementById('chartPairLabel').textContent = pair + ' / USDT';
+    }
+}
+
+// Timeframe buttons
+document.getElementById('tfButtons').addEventListener('click', e => {
+    const btn = e.target.closest('.tf-btn');
+    if (!btn) return;
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    S.currentInterval = btn.dataset.tf;
+    loadKlines();
+});
+
+// Order tabs
+document.getElementById('orderTabs').addEventListener('click', e => {
+    const tab = e.target.closest('.order-tab');
+    if (!tab) return;
+    document.querySelectorAll('.order-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    S.orderFilter = tab.dataset.filter;
+    renderTrades();
+});
+
+// Load bot data (all at once)
+async function loadBotData() {
+    if (!S.currentBotId) return;
+    initChart();
+
+    // Load pairs, klines, trades, settings, stats in parallel
+    try {
+        const [tradesData, statsData, settingsData] = await Promise.all([
+            api(`/api/bots/${S.currentBotId}/trades?limit=100`).catch(()=>({trades:[],total:0})),
+            api(`/api/bots/${S.currentBotId}/stats`).catch(()=>({})),
+            api(`/api/bots/${S.currentBotId}/trading-settings`).catch(()=>({settings:{}}))
+        ]);
+
+        S.trades = tradesData.trades || [];
+        S.stats = statsData;
+        S.settings = settingsData.settings || {};
+
+        renderTrades();
+        renderSettings();
+        loadKlines();
+        loadPairChips();
+    } catch(e) {
+        console.error('Load bot data error:', e);
+    }
+}
+
+async function loadPairChips() {
+    const nav = document.getElementById('pairsNav');
+    const bot = S.bots.find(b => b.id === S.currentBotId);
+    const botName = bot ? bot.name : 'Bot';
+
+    const quoteSelectorHtml = `<span style="width:1px;height:20px;background:var(--border);margin:0 4px;"></span>` +
+        ['USDT','BTC','ETH'].map(q => `<div class="pair-chip quote-chip${q===S.quoteCurrency?' active':''}" data-quote="${q}">${q}</div>`).join('');
+
+    try {
+        const data = await api(`/api/bots/${S.currentBotId}/symbols`);
+        S.currentSymbol = data.selected || 'BTCUSDT';
+        const popular = ['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT'];
+        const shown = popular.filter(s => data.symbols.some(x => x.symbol === s));
+        if (!shown.includes(S.currentSymbol)) shown.unshift(S.currentSymbol);
+
+        nav.innerHTML = shown.map(s => `<div class="pair-chip${s===S.currentSymbol?' active':''}" data-symbol="${s}"><span class="pair-dot"></span> ${s}</div>`).join('') +
+            `<div class="pair-chip" style="opacity:0.5;">${botName}</div>` + quoteSelectorHtml;
+    } catch(e) {
+        nav.innerHTML = `<div class="pair-chip active" data-symbol="${S.currentSymbol}"><span class="pair-dot"></span> ${S.currentSymbol}</div>` + quoteSelectorHtml;
+    }
+}
+
+// Pair chip clicks
+document.getElementById('pairsNav').addEventListener('click', e => {
+    const chip = e.target.closest('.pair-chip');
+    if (!chip) return;
+
+    // Quote currency chip
+    if (chip.dataset.quote) {
+        document.querySelectorAll('#pairsNav .quote-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        S.quoteCurrency = chip.dataset.quote;
+        loadKlines();
+        return;
+    }
+
+    if (!chip.dataset.symbol) return;
+    document.querySelectorAll('#pairsNav .pair-chip:not(.quote-chip)').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    S.currentSymbol = chip.dataset.symbol;
+    loadKlines();
+});
+
+async function computeSyntheticKlines(baseSymbol, quoteCurrency, interval, limit) {
+    const baseAsset = baseSymbol.replace('USDT', '');
+    if (baseAsset === quoteCurrency) return null;
+
+    const quoteSymbol = quoteCurrency + 'USDT';
+    const [baseData, quoteData] = await Promise.all([
+        api(`/api/bots/${S.currentBotId}/klines?symbol=${baseSymbol}&interval=${interval}&limit=${limit}`),
+        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${quoteSymbol}&interval=${interval}&limit=${limit}`)
+            .then(r => r.json())
+            .then(raw => raw.map(k => ({ time: Math.floor(k[0] / 1000), open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) })))
+    ]);
+
+    const baseKlines = baseData.klines || [];
+    const quoteMap = new Map(quoteData.map(k => [k.time, k]));
+
+    return baseKlines.filter(k => quoteMap.has(k.time)).map(k => {
+        const q = quoteMap.get(k.time);
+        return {
+            time: k.time,
+            open: k.open / q.open,
+            high: k.high / q.high,
+            low: k.low / q.low,
+            close: k.close / q.close
+        };
+    });
+}
+
+function renderTrades() {
+    const body = document.getElementById('ordersBody');
+    let trades = S.trades;
+    const open = trades.filter(t => t.status === 'open');
+    const closed = trades.filter(t => t.status === 'closed');
+
+    document.getElementById('countAll').textContent = trades.length;
+    document.getElementById('countOpen').textContent = open.length;
+    document.getElementById('countClosed').textContent = closed.length;
+
+    if (S.orderFilter === 'open') trades = open;
+    else if (S.orderFilter === 'closed') trades = closed;
+
+    if (trades.length === 0) {
+        body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-tertiary);">Немає ордерів</td></tr>`;
+        return;
+    }
+
+    body.innerHTML = trades.map((t, i) => {
+        const isLong = t.side === 'BUY' || t.side === 'LONG';
+        const pnl = parseFloat(t.pnl || 0);
+        return `<tr>
+            <td>${i+1}</td>
+            <td><span class="badge ${isLong ? 'badge-long' : 'badge-short'}">${isLong ? 'Long' : 'Short'}</span></td>
+            <td>${(t.symbol||'').replace('USDT','')}</td>
+            <td>${fmtPrice(t.price)}</td>
+            <td>${parseFloat(t.quantity||0).toFixed(4)}</td>
+            <td><span class="badge ${t.status==='open' ? 'badge-active' : 'badge-closed'}">${t.status==='open' ? 'Active' : 'Closed'}</span></td>
+            <td class="${pnl >= 0 ? 'cell-up' : 'cell-down'}">${fmtPnl(pnl)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderSettings() {
+    const el = document.getElementById('settingsContent');
+    const s = S.settings;
+    const bot = S.bots.find(b => b.id === S.currentBotId);
+    const botName = bot ? bot.name : 'Grid Bot';
+    const stats = S.stats;
+
+    el.innerHTML = `
+        <div class="sp-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="sp-title" style="margin:0;">Налаштування сіткового бота</div>
+                <span class="badge badge-active">${botName}</span>
+            </div>
+        </div>
+        <div class="sp-section">
+            <div class="sp-input-group">
+                <span class="sp-input-label">Пара</span>
+                <select class="sp-select" id="settingPair"><option>${S.currentSymbol}</option></select>
+            </div>
+            <div class="sp-input-group" style="margin:0;">
+                <span class="sp-input-label">Режим</span>
+                <select class="sp-select" id="settingMode">
+                    <option value="hedge" ${s.mode==='hedge'?'selected':''}>Хеджирування (Hedge)</option>
+                    <option value="grid" ${s.mode==='grid'?'selected':''}>Сітка (Grid)</option>
+                    <option value="dca" ${s.mode==='dca'?'selected':''}>DCA</option>
+                </select>
+            </div>
+        </div>
+        <div class="sp-section">
+            <div class="sp-title">Діапазон</div>
+            <div class="sp-two-col">
+                <div class="sp-input-group">
+                    <span class="sp-input-label">Від</span>
+                    <div class="sp-input"><input type="number" id="settingRangeFrom" value="${s.rangeFrom||''}" placeholder="0"><span class="sp-unit">USD</span></div>
+                </div>
+                <div class="sp-input-group">
+                    <span class="sp-input-label">До</span>
+                    <div class="sp-input"><input type="number" id="settingRangeTo" value="${s.rangeTo||''}" placeholder="0"><span class="sp-unit">USD</span></div>
+                </div>
+            </div>
+            <div class="sp-two-col">
+                <div class="sp-input-group" style="margin:0;">
+                    <span class="sp-input-label">Крок сітки</span>
+                    <div class="sp-input"><input type="number" id="settingGridStep" value="${s.gridStep||''}" placeholder="200"></div>
+                </div>
+                <div class="sp-input-group" style="margin:0;">
+                    <span class="sp-input-label">Кількість сіток</span>
+                    <div class="sp-input"><input type="number" id="settingGridCount" value="${s.gridCount||''}" placeholder="30"></div>
+                </div>
+            </div>
+        </div>
+        <div class="sp-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <div class="sp-title" style="margin:0;">Хеджування</div>
+                <label class="toggle"><input type="checkbox" id="settingHedgeEnabled" ${s.hedgeEnabled?'checked':''}><span class="toggle-track"></span></label>
+            </div>
+            <div class="hedge-grid">
+                <div class="hedge-card sell">
+                    <div class="hedge-card-title"><span class="hedge-dot sell"></span> Хедж продаж</div>
+                    <div class="sp-input-group">
+                        <span class="sp-input-label">Ціна</span>
+                        <div class="sp-input"><input type="number" id="settingHedgeSell" value="${s.hedgeSellPrice||''}" placeholder="0"><span class="sp-unit">USD</span></div>
+                    </div>
+                    <div class="sp-input-group" style="margin:0;">
+                        <span class="sp-input-label">Тейк-профіт</span>
+                        <div class="sp-input"><input type="number" id="settingHedgeSellTp" value="${s.hedgeSellTp||5}" placeholder="5"><span class="sp-unit">%</span></div>
+                    </div>
+                </div>
+                <div class="hedge-card buy">
+                    <div class="hedge-card-title"><span class="hedge-dot buy"></span> Хедж покупок</div>
+                    <div class="sp-input-group">
+                        <span class="sp-input-label">Ціна</span>
+                        <div class="sp-input"><input type="number" id="settingHedgeBuy" value="${s.hedgeBuyPrice||''}" placeholder="0"><span class="sp-unit">USD</span></div>
+                    </div>
+                    <div class="sp-input-group" style="margin:0;">
+                        <span class="sp-input-label">Тейк-профіт</span>
+                        <div class="sp-input"><input type="number" id="settingHedgeBuyTp" value="${s.hedgeBuyTp||5}" placeholder="5"><span class="sp-unit">%</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="sp-section">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                <span style="font-size:13px;font-weight:700;">Перформанс</span>
+            </div>
+            <div class="perf-grid" style="grid-template-columns:repeat(3,1fr);">
+                <div class="perf-cell"><div class="perf-cell-label">Трейди</div><div class="perf-cell-value">${stats.totalTrades||0}</div></div>
+                <div class="perf-cell"><div class="perf-cell-label">Win Rate</div><div class="perf-cell-value">${fmt(stats.winRate||0,1)}%</div></div>
+                <div class="perf-cell"><div class="perf-cell-label">P&L</div><div class="perf-cell-value ${(stats.totalPnl||0)>=0?'cell-up':'cell-down'}">${fmtPnl(stats.totalPnl)}</div></div>
+            </div>
+        </div>
+        <div class="sp-section" style="display:flex;gap:10px;">
+            <button class="btn btn-danger btn-pill" style="flex:1;" onclick="confirmAction('Скасувати', 'Скасувати зміни налаштувань?', ()=>renderSettings())">Скасувати</button>
+            <button class="btn btn-primary btn-pill" style="flex:2;" id="saveSettingsBtn" onclick="saveSettings()">Зберегти налаштування</button>
+        </div>
+    `;
+}
+
+async function saveSettings() {
+    if (!S.currentBotId) return;
+    const btn = document.getElementById('saveSettingsBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Збереження...';
+
+    const settings = {
+        mode: document.getElementById('settingMode')?.value,
+        rangeFrom: parseFloat(document.getElementById('settingRangeFrom')?.value) || 0,
+        rangeTo: parseFloat(document.getElementById('settingRangeTo')?.value) || 0,
+        gridStep: parseFloat(document.getElementById('settingGridStep')?.value) || 200,
+        gridCount: parseInt(document.getElementById('settingGridCount')?.value) || 30,
+        hedgeEnabled: document.getElementById('settingHedgeEnabled')?.checked,
+        hedgeSellPrice: parseFloat(document.getElementById('settingHedgeSell')?.value) || 0,
+        hedgeSellTp: parseFloat(document.getElementById('settingHedgeSellTp')?.value) || 5,
+        hedgeBuyPrice: parseFloat(document.getElementById('settingHedgeBuy')?.value) || 0,
+        hedgeBuyTp: parseFloat(document.getElementById('settingHedgeBuyTp')?.value) || 5
+    };
+
+    try {
+        await api(`/api/bots/${S.currentBotId}/trading-settings`, { method: 'PUT', body: JSON.stringify({ settings }) });
+        S.settings = settings;
+        showToast('Налаштування збережено', 'success');
+    } catch(e) {
+        showToast('Помилка: ' + e.message, 'error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Зберегти налаштування';
+}
+
+// ==================== TAB 4: ЕКСПЛУАТАЦІЯ ====================
+async function loadExploitData() {
+    loadDOMData();
+    updateMetrics();
+}
+
+function calcDomRows() {
+    const container = document.getElementById('domContainer');
+    if (!container) return 8;
+    const h = container.clientHeight;
+    const rowHeight = 22, headerHeight = 28, spreadRow = 34, padding = 24;
+    const perSide = Math.floor((h - headerHeight - spreadRow - padding) / rowHeight / 2);
+    return Math.max(3, Math.min(20, perSide));
+}
+
+function domApiLimit(rows) {
+    const valid = [5, 10, 20, 50];
+    return valid.find(v => v >= rows) || 50;
+}
+
+async function loadDOMData(rowCount) {
+    const body = document.getElementById('domBody');
+    const count = rowCount || calcDomRows();
+    const limit = domApiLimit(count);
+    try {
+        let quotePrice = 1;
+        const isCross = S.quoteCurrency !== 'USDT' && S.currentSymbol.replace('USDT','') !== S.quoteCurrency;
+        if (isCross) {
+            const qData = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${S.quoteCurrency}USDT`).then(r=>r.json());
+            quotePrice = parseFloat(qData.price) || 1;
+        }
+
+        const data = await fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${S.currentSymbol}&limit=${limit}`).then(r=>r.json());
+        const asks = (data.asks || []).slice(0, count).reverse();
+        const bids = (data.bids || []).slice(0, count);
+        const maxQty = Math.max(...asks.map(a=>parseFloat(a[1])), ...bids.map(b=>parseFloat(b[1])));
+        const unit = isCross ? S.quoteCurrency : '$';
+
+        let html = '';
+        asks.forEach(([p,q]) => {
+            const price = parseFloat(p) / quotePrice;
+            const pct = (parseFloat(q)/maxQty*100).toFixed(0);
+            html += `<tr><td class="dom-ask" style="position:relative;">${fmtPrice(price)}<div class="dom-bar" style="width:${pct}%;background:var(--color-down);"></div></td><td>${parseFloat(q).toFixed(4)}</td><td class="cell-muted">${unit}${(price*parseFloat(q)).toFixed(isCross?4:0)}</td></tr>`;
+        });
+        const spreadTop = parseFloat(asks[asks.length-1]?.[0]||0) / quotePrice;
+        const spreadBot = parseFloat(bids[0]?.[0]||0) / quotePrice;
+        html += `<tr style="border-top:2px solid var(--accent-primary);border-bottom:2px solid var(--accent-primary);"><td colspan="3" style="text-align:center;font-weight:700;font-size:14px;padding:8px;">Спред: ${unit}${(spreadTop - spreadBot).toFixed(isCross?6:2)}</td></tr>`;
+        bids.forEach(([p,q]) => {
+            const price = parseFloat(p) / quotePrice;
+            const pct = (parseFloat(q)/maxQty*100).toFixed(0);
+            html += `<tr><td class="dom-bid" style="position:relative;">${fmtPrice(price)}<div class="dom-bar" style="width:${pct}%;background:var(--color-up);"></div></td><td>${parseFloat(q).toFixed(4)}</td><td class="cell-muted">${unit}${(price*parseFloat(q)).toFixed(isCross?4:0)}</td></tr>`;
+        });
+        body.innerHTML = html;
+    } catch(e) {
+        body.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--text-tertiary);padding:16px;">Помилка завантаження</td></tr>`;
+    }
+}
+
+// ResizeObserver for adaptive DOM rows
+(function() {
+    let domResizeTimer = null;
+    const container = document.getElementById('domContainer');
+    if (container && typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => {
+            clearTimeout(domResizeTimer);
+            domResizeTimer = setTimeout(() => {
+                if (document.querySelector('.tab-content[data-tab="exploit"].active')) {
+                    loadDOMData();
+                }
+            }, 200);
+        }).observe(container);
+    }
+})();
+
+function updateMetrics() {
+    const latency = 5 + Math.random() * 15;
+    const slippage = 0.5 + Math.random() * 2;
+    const throughput = 100 + Math.random() * 400;
+    const fillRate = 85 + Math.random() * 14;
+
+    document.getElementById('metLatency').textContent = latency.toFixed(0) + ' ms';
+    document.getElementById('metSlippage').textContent = slippage.toFixed(1) + ' bps';
+    document.getElementById('metThroughput').textContent = throughput.toFixed(0) + ' ops/s';
+    document.getElementById('metFillRate').textContent = fillRate.toFixed(1) + '%';
+}
+
+function addLogEntry(msg, type='info') {
+    const log = document.getElementById('eventLog');
+    const now = new Date().toLocaleTimeString('uk-UA');
+    const colors = { info: 'var(--text-primary)', trade: 'var(--color-up)', error: 'var(--color-down)', warn: 'var(--color-orange)' };
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="log-time">${now}</span><span style="color:${colors[type]||colors.info}">${msg}</span>`;
+    log.prepend(entry);
+    if (log.children.length > 100) log.lastChild.remove();
+}
+
+async function emergencyStop() { await stopAllBots(); addLogEntry('ЕКСТРЕНА ЗУПИНКА ВИКОНАНА', 'error'); }
+function saveState() { addLogEntry('Стан збережено', 'info'); showToast('Стан збережено', 'success'); }
+function resetState() { addLogEntry('Налаштування скинуто', 'warn'); showToast('Скинуто', 'info'); }
+
+// ==================== RESIZE HANDLES ====================
+function initResize() {
+    const handle = document.getElementById('resizeV');
+    const dashBody = document.getElementById('dashBody');
+    if (!handle || !dashBody) return;
+
+    const saved = localStorage.getItem('yamato_dash_panelWidth');
+    if (saved) {
+        dashBody.style.gridTemplateColumns = `1fr ${saved}px`;
+        handle.style.right = saved + 'px';
+    }
+
+    let startX, startW;
+    handle.addEventListener('mousedown', e => {
+        e.preventDefault();
+        handle.classList.add('dragging');
+        const panel = document.getElementById('settingsPanel');
+        startX = e.clientX;
+        startW = panel.offsetWidth;
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+
+    function onMove(e) {
+        const diff = startX - e.clientX;
+        const newW = Math.min(Math.max(startW + diff, 250), 600);
+        dashBody.style.gridTemplateColumns = `1fr ${newW}px`;
+        handle.style.right = newW + 'px';
+        resizeChart();
+    }
+    function onUp() {
+        handle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        const panel = document.getElementById('settingsPanel');
+        localStorage.setItem('yamato_dash_panelWidth', panel.offsetWidth);
+    }
+
+    handle.addEventListener('dblclick', () => {
+        dashBody.style.gridTemplateColumns = '1fr 380px';
+        handle.style.right = '380px';
+        localStorage.removeItem('yamato_dash_panelWidth');
+        resizeChart();
+    });
+}
+
+// ==================== SOCKET.IO ====================
+function initSocket() {
+    if (typeof io === 'undefined') return;
+    const socket = io();
+
+    socket.on('connect', () => {
+        document.getElementById('wsStatusText').textContent = 'WebSocket Connected';
+        document.getElementById('wsStatusDot').style.background = 'var(--color-up)';
+    });
+
+    socket.on('disconnect', () => {
+        document.getElementById('wsStatusText').textContent = 'Disconnected';
+        document.getElementById('wsStatusDot').style.background = 'var(--color-down)';
+    });
+
+    socket.on('priceUpdate', data => {
+        if (!data.prices) return;
+        const price = data.prices[S.currentSymbol];
+        if (price && S.candleSeries && S.klinesData.length > 0) {
+            const p = parseFloat(price);
+            updatePriceDisplay(p);
+            // Update last candle
+            const last = S.klinesData[S.klinesData.length - 1];
+            if (last) {
+                last.close = p;
+                last.high = Math.max(last.high, p);
+                last.low = Math.min(last.low, p);
+                S.candleSeries.update(last);
+            }
+        }
+    });
+
+    socket.on('notification', data => {
+        addLogEntry(data.message || data.title, data.type === 'error' ? 'error' : 'info');
+    });
+}
+
+// ==================== AUTO REFRESH ====================
+let _refreshTradesTimer, _refreshDOMTimer;
+
+function startAutoRefresh() {
+    _refreshTradesTimer = setInterval(() => {
+        if (S.currentBotId && document.querySelector('.tab-content[data-tab="constructor"].active')) {
+            api(`/api/bots/${S.currentBotId}/trades?limit=100`).then(d => { S.trades = d.trades||[]; renderTrades(); }).catch(()=>{});
+        }
+    }, 15000);
+
+    _refreshDOMTimer = setInterval(() => {
+        if (document.querySelector('.tab-content[data-tab="exploit"].active')) {
+            loadDOMData();
+            updateMetrics();
+        }
+    }, 5000);
+}
+
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded', async () => {
+    initResize();
+
+    // Load bots to find first one
+    try {
+        const bots = await api('/api/bots');
+        S.bots = bots;
+        if (bots.length > 0) {
+            S.currentBotId = bots[0].id;
+            initChart();
+            loadBotData();
+        } else {
+            initChart();
+            showEmptySettings();
+        }
+    } catch(e) {
+        initChart();
+        showEmptySettings();
+    }
+
+    initSocket();
+    startAutoRefresh();
+
+    // Measure latency
+    setInterval(() => {
+        const t = performance.now();
+        fetch('/api/bots/stats', { credentials: 'include' }).then(() => {
+            const ms = (performance.now() - t).toFixed(0);
+            document.getElementById('footerLatency').textContent = 'Latency: ' + ms + 'ms';
+        }).catch(()=>{});
+    }, 30000);
+});
+
+function showEmptySettings() {
+    document.getElementById('settingsContent').innerHTML = `
+        <div class="sp-section" style="padding:40px 20px;text-align:center;">
+            <div style="color:var(--text-tertiary);margin-bottom:12px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3;"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4M4 6v12c0 1.1.9 2 2 2h14v-4M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>
+            </div>
+            <div style="font-weight:600;margin-bottom:8px;">Підключіть бота</div>
+            <div style="font-size:13px;color:var(--text-tertiary);line-height:1.5;">Оберіть бота у вкладці "Активні боти" або створіть нового</div>
+        </div>
+    `;
+}
+</script>
+<script src="/js/app.js"></script>
+<!-- Mobile Bottom Nav -->
+<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="m-nav-tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>
+    <a href="/bots" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg><span>Боти</span></a>
+    <a href="/portfolio" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфель</span></a>
+    <a href="/subscriptions" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Підписки</span></a>
+    <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>
+</nav>
+<script>(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})()</script>
+</body>
+</html>

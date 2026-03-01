@@ -1,0 +1,176 @@
+<html lang="uk"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamato - Підтвердження email</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-app: #080808;
+            --surface: #141414;
+            --surface-secondary: #1C1C1C;
+            --accent-primary: #10B981;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A1A1A1;
+            --text-tertiary: #636363;
+            --radius-xl: 32px;
+            --radius-md: 16px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .verify-card {
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            padding: 48px;
+            max-width: 440px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+            text-align: center;
+        }
+
+        .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 32px; font-weight: 700; font-size: 18px; }
+        .brand img { width: 28px; height: 28px; border-radius: 50%; }
+
+        .status-icon {
+            width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; margin: 0 auto 24px;
+        }
+        .status-icon.loading { background: rgba(59,130,246,0.1); }
+        .status-icon.success { background: rgba(16,185,129,0.1); }
+        .status-icon.error { background: rgba(239,68,68,0.1); }
+
+        h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+        .message { color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; line-height: 1.6; }
+
+        .btn {
+            display: inline-block; padding: 14px 32px; border-radius: var(--radius-md);
+            font-weight: 700; font-size: 14px; text-decoration: none; transition: 0.2s; border: none; cursor: pointer;
+        }
+        .btn-primary { background: var(--accent-primary); color: white; }
+        .btn-primary:hover { transform: translateY(-1px); }
+        .btn-secondary { background: var(--surface-secondary); color: var(--text-secondary); margin-left: 12px; }
+        .btn-secondary:hover { color: white; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner { width: 32px; height: 32px; border: 3px solid rgba(59,130,246,0.2); border-top-color: #3B82F6; border-radius: 50%; animation: spin 1s linear infinite; }
+
+        @media (max-width: 480px) {
+            .verify-card { padding: 32px 20px; border-radius: 20px; }
+            h1 { font-size: 20px; }
+            .btn { padding: 12px 24px; font-size: 13px; }
+            .btn-secondary { margin-left: 0; margin-top: 10px; display: block; width: 100%; }
+            .btn-primary { display: block; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="verify-card">
+        <div class="brand">
+            <img src="/logo.svg" alt="Yamato">
+            YAMATO
+        </div>
+
+        <div id="loadingState">
+            <div class="status-icon loading">
+                <div class="spinner"></div>
+            </div>
+            <h1>Перевірка...</h1>
+            <p class="message">Підтверджуємо вашу email адресу</p>
+        </div>
+
+        <div id="successState" style="display: none;">
+            <div class="status-icon success">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <h1>Email підтверджено!</h1>
+            <p class="message">Ваша email адреса успішно підтверджена. Тепер ви можете користуватися всіма можливостями платформи.</p>
+            <a href="/dashboard" class="btn btn-primary">Перейти до дашборду</a>
+        </div>
+
+        <div id="errorState" style="display: none;">
+            <div class="status-icon error">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+            <h1>Помилка підтвердження</h1>
+            <p class="message" id="errorMessage">Невалідне або прострочене посилання для підтвердження.</p>
+            <a href="/login" class="btn btn-primary">Увійти</a>
+            <button class="btn btn-secondary" id="resendBtn" onclick="resendVerification()">Надіслати повторно</button>
+        </div>
+    </div>
+
+    <script>
+        const token = new URLSearchParams(window.location.search).get('token');
+
+        async function verifyEmail() {
+            if (!token) {
+                showError('Невалідне або відсутнє посилання для підтвердження.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('loadingState').style.display = 'none';
+                    document.getElementById('successState').style.display = 'block';
+                } else {
+                    showError(data.error || 'Не вдалося підтвердити email');
+                }
+            } catch (err) {
+                showError('Помилка мережі. Спробуйте ще раз.');
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('errorState').style.display = 'block';
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        async function resendVerification() {
+            const btn = document.getElementById('resendBtn');
+            btn.disabled = true;
+            btn.textContent = 'Надсилання...';
+
+            try {
+                const response = await fetch('/api/auth/resend-verification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    btn.textContent = 'Надіслано!';
+                    btn.style.background = 'rgba(16,185,129,0.1)';
+                    btn.style.color = '#10B981';
+                } else {
+                    btn.textContent = data.error || 'Помилка';
+                    setTimeout(() => { btn.textContent = 'Надіслати повторно'; btn.disabled = false; }, 3000);
+                }
+            } catch (err) {
+                btn.textContent = 'Помилка мережі';
+                setTimeout(() => { btn.textContent = 'Надіслати повторно'; btn.disabled = false; }, 3000);
+            }
+        }
+
+        verifyEmail();
+    </script>
+
+</body></html>

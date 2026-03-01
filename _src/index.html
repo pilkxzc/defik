@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yamato Chart — Dev</title>
+  <style>
+    :root {
+      --surface: #141414;
+      --accent-primary: #10B981;
+      --text-primary: #FFFFFF;
+      --text-secondary: #A1A1A1;
+      --text-tertiary: #636363;
+      --radius-full: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+    body {
+      background: #080808;
+      color: white;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #chart-root { flex: 1; min-height: 0; padding: 12px; }
+
+    /* ── Shared chart UI styles (duplicated from bot-detail.html) ── */
+    .ws-status {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; background: var(--surface);
+      border-radius: var(--radius-full); font-size: 11px; font-weight: 600;
+    }
+    .ws-status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #6B7280;
+      transition: background 0.3s;
+    }
+    .ws-status-dot.connected { background: #10B981; box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+    .ws-status-dot.connecting { background: #F59E0B; animation: pulse 1s infinite; }
+    .ws-status-dot.error { background: #EF4444; }
+
+    .interval-btns {
+      display: flex; align-items: center;
+      background: var(--surface); border-radius: var(--radius-full);
+      padding: 3px; gap: 1px;
+    }
+    .interval-group { display: flex; gap: 1px; }
+    .interval-tf-sep {
+      width: 1px; height: 14px; background: rgba(255,255,255,0.1);
+      margin: 0 3px; flex-shrink: 0; align-self: center;
+    }
+    .interval-btn {
+      padding: 5px 9px; border-radius: var(--radius-full);
+      border: none; background: transparent;
+      color: var(--text-tertiary); font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: 0.2s; white-space: nowrap;
+      font-family: inherit;
+    }
+    .interval-btn.sub-tf { color: rgba(139,92,246,0.6); }
+    .interval-btn.sub-tf:hover:not(.active) { color: #C4B5FD; }
+    .interval-btn.sub-tf.active { background: #8B5CF6; color: white; }
+    .interval-btn.active { background: var(--accent-primary); color: white; }
+    .interval-btn:hover:not(.active) { color: var(--text-primary); }
+
+    .live-price {
+      font-family: 'SF Mono', 'Monaco', monospace;
+      font-size: 16px; font-weight: 700;
+      padding: 6px 14px; background: var(--surface);
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .live-price.flash-up   { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); }
+    .live-price.flash-down { background: rgba(239,68,68,0.15);  border-color: rgba(239,68,68,0.3); }
+
+    .sub-min-notice {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.25);
+      border-radius: 8px; padding: 4px 10px;
+      font-size: 11px; color: #C4B5FD; font-weight: 600;
+    }
+    .sub-min-notice .live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #8B5CF6; animation: pulse 1s infinite;
+    }
+
+    .spinner {
+      width: 24px; height: 24px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @keyframes spin  { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="chart-root" style="width:100%;height:100%;"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

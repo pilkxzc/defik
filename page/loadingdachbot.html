@@ -1,0 +1,654 @@
+<html lang="uk"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sandro Kozmanishvili</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,700;1,9..40,300&family=Fragment+Mono&display=swap');
+        :root {
+            --bg: #0A0A0A;
+            --ink: #E8E6E0;
+            --ink-dim: #888880;
+            --hairline: rgba(255, 255, 255, 0.08);
+            --glass-bg: rgba(255, 255, 255, 0.04);
+            --glass-blur: 16px;
+            --glass-radius: 12px;
+            --font-main: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'Fragment Mono', monospace;
+            --corner-size: 4rem;
+            --pad: 2.5rem;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            cursor: crosshair; 
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--ink);
+            font-family: var(--font-main);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .filters {
+            position: absolute;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+        }
+
+        #layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            z-index: 10;
+        }
+
+        #canvas-zone {
+            height: 100vh;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .hero-text { display: none; }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 300;
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+            color: var(--ink);
+            transition: none;
+        }
+
+        .subline {
+            font-size: 1rem;
+            color: var(--ink-dim);
+            font-weight: 300;
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            letter-spacing: -0.01em;
+        }
+
+        #panel-zone { display: none; }
+
+        .panel-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .timestamp {
+            font-family: 'Fragment Mono', monospace;
+            font-size: 0.68rem;
+            color: var(--ink-dim);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .bio-text {
+            max-width: 32ch;
+            color: var(--ink);
+            transition: opacity 0.2s;
+        }
+
+        .bio-text:hover {
+            filter: url(#noise-dither);
+        }
+
+        .links-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        a {
+            color: var(--ink);
+            text-decoration: none;
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            font-weight: 300;
+            display: inline-block;
+            width: fit-content;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.25s, opacity 0.25s;
+        }
+        a:hover { border-bottom: 1px solid rgba(232,230,224,0.3); opacity: 0.6; }
+
+        .colophon {
+            margin-top: 1rem;
+            color: #555550;
+            font-size: 0.63rem;
+            font-family: 'Fragment Mono', monospace;
+            line-height: 2;
+        }
+
+        .meta-data {
+            text-align: right;
+            font-family: 'Fragment Mono', monospace;
+            font-size: 0.65rem;
+            color: #444440;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+        }
+
+        .corner-idx { display: none; }
+
+        .tl { top: 0; left: 0; padding: var(--pad); }
+        .tr { top: 0; right: 0; padding: var(--pad); }
+        .bl { bottom: 0; left: 0; padding: var(--pad); }
+        .br { bottom: 0; right: 0; padding: var(--pad); }
+
+        #nav-overlay { display: none; }
+
+        #nav-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .nav-list {
+            list-style: none;
+            text-align: center;
+        }
+
+        .nav-item {
+            font-size: 4.5rem;
+            margin: 0.4rem 0;
+            font-weight: 300;
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            letter-spacing: -0.02em;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            color: var(--ink);
+            transition: opacity 0.2s;
+        }
+        .nav-item span {
+            display: inline-block;
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .nav-item:hover { opacity: 0.5; }
+        .nav-item:hover span { transform: translateX(8px); }
+
+        .mono { font-family: var(--font-mono); }
+        
+        @media (max-width: 768px) {
+            #panel-zone {
+                grid-template-columns: 1fr;
+                height: auto;
+                width: calc(100% - 2rem);
+                margin-bottom: 2rem;
+                padding: 1.5rem;
+            }
+            .hero-text {
+                left: 1rem;
+                right: 1rem;
+                max-width: none;
+                padding: 1.5rem;
+            }
+            .corner-idx { font-size: 2rem; padding: 1.5rem; }
+            h1 { font-size: 2rem; }
+            #canvas-zone { height: 50vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <svg class="filters">
+        <defs>
+            <filter id="pixel-mosh" x="-20%" y="-20%" width="140%" height="140%">
+                <feFlood flood-color="#0A0A0A" result="neutral-gray"></feFlood>
+                <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="1" result="noise"></feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+                <feMorphology operator="dilate" radius="2" in="SourceGraphic" result="dilated"></feMorphology>
+                <feComposite operator="in" in="dilated" in2="SourceGraphic"></feComposite>
+            </filter>
+
+            <filter id="noise-dither">
+                <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"></feTurbulence>
+                <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 100 -20"></feColorMatrix>
+                <feComposite operator="in" in2="SourceGraphic"></feComposite>
+                <feBlend mode="screen" in2="SourceGraphic"></feBlend>
+            </filter>
+        </defs>
+    </svg>
+
+
+
+    <div id="layout">
+        <div id="canvas-zone">
+            <canvas id="generative-canvas"></canvas>
+            <div class="hero-text">
+                <h1>Material Systems &amp;<br>Digital Geography</h1>
+                <div class="subline">Exploring the topology of interface.</div>
+            </div>
+        </div>
+        
+        <div id="panel-zone">
+            <div class="panel-col">
+                <div>
+                    <span class="timestamp" id="time-display">NYC — 10:42 AM</span>
+                    <p class="bio-text">
+                        Sandro Kozmanishvili is a multidisciplinary designer. Currently building visual video sound and digital products.
+                    </p>
+                </div>
+                <div>
+                    <p class="bio-text" style="color: var(--ink-dim); font-size: 0.85rem; margin-top: 1rem;">
+                        Focused on tools that feel like instruments.
+                    </p>
+                </div>
+            </div>
+
+            <div class="panel-col">
+                <div class="links-group">
+                    <a href="#">Email</a>
+                    <a href="#">Are.na</a>
+                    <a href="#">GitHub</a>
+                    <a href="#">Instagram</a>
+                </div>
+                <div class="colophon">
+                    Built with Nuxt, Prismic, Vercel, Supabase.
+                    <br>Typeface: Inter &amp; JetBrains Mono.
+                </div>
+            </div>
+
+            <div class="meta-data">
+                <div>© 2024</div>
+                <div class="ping-monitor">
+                    SYS <span id="ping-val">12</span>ms
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-label" style="position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);z-index:50;font-family:'Fragment Mono',monospace;font-size:1.45rem;letter-spacing:0.35em;color:rgba(232,230,224,0.45);pointer-events:none;">LOADING</div>
+
+    <script>
+        function toggleNav() {
+            const nav = document.getElementById('nav-overlay');
+            nav.classList.toggle('active');
+        }
+
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+            document.getElementById('time-display').textContent = `NYC — ${timeString}`;
+            if (Math.random() > 0.8) {
+                document.getElementById('ping-val').textContent = 8 + Math.floor(Math.random() * 14);
+            }
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        const canvas = document.getElementById('generative-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let mouse = { x: -9999, y: -9999, vx: 0, vy: 0 };
+        let lastMouse = { x: 0, y: 0 };
+        const COLS = 120;
+        let rows = 0;
+        let cellW, cellH;
+        let time = 0;
+
+        let phase = 'intro';          
+        let introProgress = 0;        
+        const INTRO_DURATION = 180;   
+        let idleTime = 0;
+
+        let zoomTarget = 1.0;   
+        let zoomCurrent = 1.0;
+
+        let speedTarget = 1.0;
+        let speedCurrent = 1.0;
+
+        let scrollBoost = 0;
+
+        let hoverActive = false;
+        let hoverType = null; 
+
+        const RGB_COLS  = ['#331111','#113311','#111133']; 
+        let rgbAccents  = [];
+        let accentTimer = 0;
+        let glitchMode  = false;
+        let glitchStrip = [];
+
+        const waveChars  = ' .,;:!|/\\-_~^`'.split('');
+        const glitchChars = '/\\|!?;:.,+=-~^'.split('');
+
+        function resize() {
+            width  = canvas.parentElement.offsetWidth;
+            height = canvas.parentElement.offsetHeight;
+            canvas.width  = width  * window.devicePixelRatio;
+            canvas.height = height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            cellW = width / COLS;
+            cellH = cellW * 1.55;
+            rows  = Math.ceil(height / cellH);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        window.addEventListener('wheel', e => {
+            scrollBoost = Math.min(scrollBoost + Math.abs(e.deltaY) * 0.015, 4);
+        }, { passive: true });
+
+        window.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.vx   = e.clientX - lastMouse.x;
+            mouse.vy   = e.clientY - lastMouse.y;
+            mouse.x    = e.clientX - rect.left;
+            mouse.y    = e.clientY - rect.top;
+            lastMouse.x = e.clientX;
+            lastMouse.y = e.clientY;
+        });
+
+        const cornerEls = document.querySelectorAll('.corner-idx');
+        const h1El      = document.querySelector('h1');
+        const linkEls   = document.querySelectorAll('a');
+
+        let h1Rect = null;
+        function refreshH1Rect() {
+            if (h1El) h1Rect = h1El.getBoundingClientRect();
+        }
+        refreshH1Rect();
+        window.addEventListener('resize', refreshH1Rect);
+
+        let h1DistortStrength = 0;  
+        let h1DistortCurrent  = 0;
+
+        function setHover(type) {
+            hoverActive = !!type;
+            hoverType   = type;
+            if (type === 'h1') {
+                zoomTarget       = 1.12;
+                speedTarget      = 0.9;
+                h1DistortStrength = 1.0;
+            } else if (type === 'link') {
+                zoomTarget       = 0.92;
+                speedTarget      = 0.4;
+                h1DistortStrength = 0;
+            } else if (type === 'corner') {
+                zoomTarget       = 1.2;
+                speedTarget      = 1.8;
+                h1DistortStrength = 0;
+            } else {
+                zoomTarget       = 1.0;
+                speedTarget      = phase === 'idle' ? 0.18 : 1.0;
+                h1DistortStrength = 0;
+            }
+        }
+
+        document.addEventListener('mousemove', e => {
+            let detected = null;
+
+            cornerEls.forEach(el => {
+                const r  = el.getBoundingClientRect();
+                const cx = r.left + r.width  / 2;
+                const cy = r.top  + r.height / 2;
+                const d  = Math.hypot(e.clientX - cx, e.clientY - cy);
+                if (d < 80) {
+                    detected = 'corner';
+                    el.classList.add('glitch-active');
+                } else {
+                    el.classList.remove('glitch-active');
+                }
+            });
+
+            if (h1El) {
+                refreshH1Rect();
+                const r = h1Rect;
+                const pad = 24;
+                const inside = e.clientX >= r.left - pad && e.clientX <= r.right  + pad &&
+                               e.clientY >= r.top  - pad && e.clientY <= r.bottom + pad;
+                if (inside) detected = 'h1';
+            }
+
+            linkEls.forEach(el => {
+                const r = el.getBoundingClientRect();
+                const inside = e.clientX >= r.left && e.clientX <= r.right &&
+                               e.clientY >= r.top  && e.clientY <= r.bottom;
+                if (inside) detected = 'link';
+            });
+
+            setHover(detected);
+            glitchMode = (detected === 'corner');
+        });
+
+        // Trading chart data
+        const CANDLE_COUNT = 90;
+        let candleData = [];
+        let candleTick = 0;
+
+        function initCandles() {
+            candleData = [];
+            let p = 0.5;
+            for (let i = 0; i < CANDLE_COUNT; i++) {
+                p = Math.max(0.08, Math.min(0.92, p + (Math.random() - 0.47) * 0.045));
+                candleData.push({ close: p, high: Math.min(0.96, p + Math.random()*0.025), low: Math.max(0.04, p - Math.random()*0.025) });
+            }
+        }
+        initCandles();
+
+        function getMA(data, idx, period) {
+            const s = Math.max(0, idx - period + 1);
+            const sl = data.slice(s, idx + 1);
+            return sl.reduce((a, d) => a + d.close, 0) / sl.length;
+        }
+
+        function tickCandles() {
+            candleTick++;
+            if (candleTick % 38 === 0) {
+                const last = candleData[candleData.length - 1];
+                last.close = Math.max(0.08, Math.min(0.92, last.close + (Math.random()-0.47)*0.022));
+            }
+            if (candleTick % 190 === 0) {
+                candleData.shift();
+                const p = candleData[candleData.length-1].close;
+                const np = Math.max(0.08, Math.min(0.92, p + (Math.random()-0.47)*0.045));
+                candleData.push({ close: np, high: Math.min(0.96, np+Math.random()*0.025), low: Math.max(0.04, np-Math.random()*0.025) });
+            }
+        }
+
+        function waveAmp(col, rowFrac, t, spd) {
+            const ci  = Math.floor((col / COLS) * (CANDLE_COUNT - 1));
+            const cd  = candleData[Math.min(ci, candleData.length - 1)];
+            const ma7 = getMA(candleData, ci, 7);
+            const ma21= getMA(candleData, ci, 21);
+            // invert: price 1 = top (row 0)
+            const pr  = 1 - cd.close, hr = 1 - cd.high, lr = 1 - cd.low;
+            const m7r = 1 - ma7,   m21r= 1 - ma21;
+            const body = Math.exp(-Math.pow(rowFrac-pr,2)  / 0.0018) * 1.2;
+            const wick = (Math.exp(-Math.pow(rowFrac-hr,2) / 0.0003) + Math.exp(-Math.pow(rowFrac-lr,2) / 0.0003)) * 0.7;
+            const ma   = Math.exp(-Math.pow(rowFrac-m7r,2) / 0.0012)*0.55 + Math.exp(-Math.pow(rowFrac-m21r,2)/0.0012)*0.45;
+            return Math.min(1, body + wick + ma) - 0.5;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.textBaseline = 'middle';
+            ctx.textAlign    = 'center';
+
+            if (phase === 'intro') {
+                introProgress++;
+                if (introProgress >= INTRO_DURATION) {
+                    phase = 'idle';
+                    speedTarget  = 0.18;  
+                    zoomTarget   = 1.0;
+                }
+            } else {
+                idleTime++;
+            }
+
+            const lerpK = 0.04;
+            zoomCurrent      += (zoomTarget      - zoomCurrent)      * lerpK;
+            speedCurrent     += (speedTarget     - speedCurrent)     * lerpK;
+            h1DistortCurrent += (h1DistortStrength - h1DistortCurrent) * 0.05;
+            scrollBoost      *= 0.94;
+
+            const effectiveSpeed = speedCurrent + scrollBoost;
+            time += 0.012 * effectiveSpeed;
+            accentTimer++;
+
+            const rgbRate = phase === 'intro' ? 6 : (glitchMode ? 8 : 22);
+            if (accentTimer % rgbRate === 0) {
+                const count = glitchMode ? 3 : (phase === 'intro' ? 2 : 1);
+                for (let i = 0; i < count; i++) {
+                    const cx  = Math.floor(Math.random() * COLS);
+                    const cy  = Math.floor(Math.random() * rows * 0.85 + rows * 0.1);
+                    const col = RGB_COLS[Math.floor(Math.random() * 3)];
+                    rgbAccents.push({ cx, cy, col, life: 0, maxLife: glitchMode ? 14 : 28 });
+                }
+                if (rgbAccents.length > 10) rgbAccents.splice(0, 3);
+            }
+            rgbAccents.forEach(a => a.life++);
+            rgbAccents = rgbAccents.filter(a => a.life < a.maxLife);
+
+            if (glitchMode && accentTimer % 7 === 0) {
+                glitchStrip = [{ row: Math.floor(Math.random() * rows), shift: (Math.random() > 0.5 ? 1 : -1) * (2 + Math.floor(Math.random() * 4)) }];
+            } else if (phase === 'intro' && introProgress < 60 && accentTimer % 10 === 0) {
+                glitchStrip = [{ row: Math.floor(Math.random() * rows), shift: (Math.random() > 0.5 ? 1 : -1) * 2 }];
+            } else if (!glitchMode) {
+                glitchStrip = [];
+            }
+
+            const velMag   = Math.hypot(mouse.vx, mouse.vy);
+            const CHAR_SIZE = Math.max(8, Math.round(cellH * 0.70));
+            ctx.font = `${CHAR_SIZE}px "Fragment Mono", monospace`;
+
+            ctx.save();
+            const cx0 = width  / 2;
+            const cy0 = height / 2;
+            ctx.translate(cx0, cy0);
+            ctx.scale(zoomCurrent, zoomCurrent);
+            ctx.translate(-cx0, -cy0);
+
+            for (let row = 0; row < rows; row++) {
+                const strip    = glitchStrip.find(s => s.row === row);
+                const colShift = strip ? strip.shift : 0;
+
+                for (let col = 0; col < COLS; col++) {
+                    let px = (col + colShift) * cellW + cellW / 2;
+                    let py = row * cellH + cellH / 2;
+
+                    const dx   = px - mouse.x / zoomCurrent;
+                    const dy   = py - mouse.y / zoomCurrent;
+                    const dist = Math.hypot(dx, dy);
+                    const RADIUS = 140;
+                    const affected = dist < RADIUS;
+
+                    if (col === 0) tickCandles();
+                    const rowFrac    = row / rows;
+                    const rawAmp     = waveAmp(col, rowFrac, time, effectiveSpeed);
+                    const waveDensity = Math.max(0, Math.min(1, rawAmp + 0.5));
+
+                    const charIdx = Math.floor(Math.min(waveDensity, 0.9999) * (waveChars.length - 1));
+                    let char    = waveChars[Math.max(0, Math.min(charIdx, waveChars.length - 1))];
+                    let opacity = waveDensity * 0.90;
+
+                    let renderX = px, renderY = py;
+                    if (affected) {
+                        const f  = (RADIUS - dist) / RADIUS;
+                        renderX += (dx / (dist || 1)) * f * 14;
+                        renderY += (dy / (dist || 1)) * f * 14;
+                        opacity  = Math.min(1, opacity + f * 0.35);
+                        if (velMag > 5) char = Math.random() > 0.5 ? '/' : '\\';
+                    }
+
+                    if (h1DistortCurrent > 0.01 && h1Rect) {
+                        const canvasRect = canvas.getBoundingClientRect();
+                        const hcx = (h1Rect.left + h1Rect.width  / 2) - canvasRect.left;
+                        const hcy = (h1Rect.top  + h1Rect.height / 2) - canvasRect.top;
+                        const hdx = px - hcx;
+                        const hdy = py - hcy;
+                        const hd  = Math.hypot(hdx, hdy);
+                        const falloff = Math.max(0, 1 - hd / 240); 
+                        if (falloff > 0) {
+                            const breathe = Math.sin(time * 1.4) * 0.5 + 0.5;
+                            const push = falloff * h1DistortCurrent * breathe * 18;
+                            renderX += (hdx / (hd || 1)) * push;
+                            renderY += (hdy / (hd || 1)) * push * 0.6;
+                            if (falloff > 0.6) opacity = Math.max(opacity, falloff * h1DistortCurrent * 0.55);
+                            if (falloff > 0.7 && falloff < 0.85 && Math.random() < h1DistortCurrent * 0.3) {
+                                char = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+                            }
+                        }
+                    }
+
+                    if (glitchMode && Math.random() < 0.025) {
+                        char    = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+                        opacity = 0.3 + Math.random() * 0.25;
+                    }
+
+                    const acc = rgbAccents.find(a => a.cx === col && a.cy === row);
+                    if (acc) {
+                        const t01   = acc.life / acc.maxLife;
+                        const alpha = Math.sin(t01 * Math.PI) * 0.75; 
+                        const hx = acc.col;
+                        const r  = parseInt(hx.slice(1,3),16);
+                        const g  = parseInt(hx.slice(3,5),16);
+                        const b  = parseInt(hx.slice(5,7),16);
+                        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+                        ctx.fillText(char || '.', renderX, renderY);
+                    } else if (char && char !== ' ' && opacity > 0.04) {
+                        const ci2  = Math.floor((col / COLS) * (CANDLE_COUNT - 1));
+                        const cd2  = candleData[Math.min(ci2, candleData.length-1)];
+                        const ma21c= getMA(candleData, ci2, 21);
+                        let r=232,g=230,b=224;
+                        if (opacity > 0.42) {
+                            if (cd2.close >= ma21c) { r=0;   g=220; b=110; }
+                            else                    { r=255; g=70;  b=70;  }
+                        }
+                        ctx.fillStyle = `rgba(${r},${g},${b},${opacity})`;
+                        ctx.fillText(char, renderX, renderY);
+                    }
+                }
+            }
+
+            ctx.restore();
+            requestAnimationFrame(draw);
+        }
+
+        // Animate loading label
+        const loadingEl = document.getElementById('loading-label');
+        const loadingChars = '/\\|!?;:.,+=-~^`'.split('');
+        const loadingBase = 'LOADING';
+        let loadingTick = 0;
+        setInterval(() => {
+            loadingTick++;
+            let result = '';
+            for (let i = 0; i < loadingBase.length; i++) {
+                if (Math.random() < 0.12) {
+                    result += loadingChars[Math.floor(Math.random() * loadingChars.length)];
+                } else {
+                    result += loadingBase[i];
+                }
+            }
+            const dots = loadingTick % 4;
+            result += '.'.repeat(dots);
+            loadingEl.textContent = result;
+            // Flicker opacity
+            loadingEl.style.opacity = (0.3 + Math.random() * 0.35).toFixed(2);
+        }, 120);
+
+        draw();
+    </script>
+
+</body></html>
