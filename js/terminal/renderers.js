@@ -47,7 +47,8 @@ function renderHeader() {
     const badge = document.getElementById('botBadge');
     badge.textContent = isTestMode() ? 'ТЕСТ' : 'LIVE';
     badge.className = 'bot-badge ' + (isTestMode() ? 'test' : 'live');
-    document.getElementById('backBtn').href = `/bot/${botId}`;
+    const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'moderator');
+    document.getElementById('backBtn').href = isAdmin ? `/bot/${botId}` : '/bots';
     document.title = `Yamato — ${getBotName()} Статистика`;
 
     const symbolBadge = document.getElementById('symbolBadge');
