@@ -1089,8 +1089,12 @@ router.get('/api/bots/:id/trade-markers', requireAuth, async (req, res) => {
 
         const orders  = Object.values(orderMap).sort((a, b) => a.time - b.time);
         const markers = orders.map(o => {
-            const isEntry = Math.abs(o.realizedPnl) < 0.0001;
-            const isBuy   = o.side === 'BUY';
+            const isBuy = o.side === 'BUY';
+            // Determine entry/exit using positionSide (hedge mode is unambiguous)
+            let isEntry;
+            if (o.positionSide === 'LONG')       isEntry = isBuy;   // LONG+BUY=open, LONG+SELL=close
+            else if (o.positionSide === 'SHORT')  isEntry = !isBuy;  // SHORT+SELL=open, SHORT+BUY=close
+            else isEntry = Math.abs(o.realizedPnl) < 0.0001;         // BOTH (one-way): use pnl
             const isLong  = o.positionSide === 'LONG' || (o.positionSide === 'BOTH' && isBuy);
             return {
                 time: Math.floor(o.time / 1000), closeTime: null,

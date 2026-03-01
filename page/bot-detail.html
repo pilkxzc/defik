@@ -2994,7 +2994,7 @@
                 </button>
                 <div class="ind-sep"></div>
                 <!-- Ruler — moved from header -->
-                <button class="ind-btn ruler-btn" id="rulerBtn" onclick="toggleRuler()" title="Лінійка (вимірювання)">
+                <button class="ind-btn ruler-btn" id="rulerBtn" title="Лінійка (вимірювання)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><line x1="14" y1="13" x2="11" y2="10"/><line x1="10.5" y1="16.5" x2="7.5" y2="13.5"/><line x1="17.5" y1="9.5" x2="14.5" y2="6.5"/></svg>
                     Лінійка
                 </button>
@@ -3223,6 +3223,7 @@
                         <button class="toggle-btn positions active" onclick="toggleDisplay('positions')">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                             Позиції
+                            <span id="posGridBadge" style="display:none;font-size:9px;font-weight:600;opacity:0.8;margin-left:2px;"></span>
                         </button>
                         <button class="toggle-btn limits active" onclick="toggleDisplay('limits')">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
@@ -6456,21 +6457,32 @@
                         }
 
                         // Single marker → triangle
+                        // Entry: solid filled; Exit: hollow (stroke) + semi-transparent fill
                         const pointsUp = isEntry ? isLong : !isLong;
                         const sz = 7, off = 12;
                         const pts = pointsUp
                             ? [{ x: c.x, y: c.y + off }, { x: c.x - sz, y: c.y + off + sz }, { x: c.x + sz, y: c.y + off + sz }]
                             : [{ x: c.x, y: c.y - off }, { x: c.x - sz, y: c.y - off - sz }, { x: c.x + sz, y: c.y - off - sz }];
-                        // Outer glow (semi-transparent, slightly larger)
-                        const glowSz = sz + 2, glowOff = off - 1;
-                        const glowPts = pointsUp
-                            ? [{ x: c.x, y: c.y + glowOff }, { x: c.x - glowSz, y: c.y + glowOff + glowSz }, { x: c.x + glowSz, y: c.y + glowOff + glowSz }]
-                            : [{ x: c.x, y: c.y - glowOff }, { x: c.x - glowSz, y: c.y - glowOff - glowSz }, { x: c.x + glowSz, y: c.y - glowOff - glowSz }];
-                        const glowColor = isLong ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)';
-                        return [
-                            { type: 'polygon', attrs: { coordinates: glowPts }, styles: { style: 'fill', color: glowColor } },
-                            { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } },
-                        ];
+
+                        if (isEntry) {
+                            // Entry: glow + solid fill
+                            const glowSz = sz + 2, glowOff = off - 1;
+                            const glowPts = pointsUp
+                                ? [{ x: c.x, y: c.y + glowOff }, { x: c.x - glowSz, y: c.y + glowOff + glowSz }, { x: c.x + glowSz, y: c.y + glowOff + glowSz }]
+                                : [{ x: c.x, y: c.y - glowOff }, { x: c.x - glowSz, y: c.y - glowOff - glowSz }, { x: c.x + glowSz, y: c.y - glowOff - glowSz }];
+                            const glowColor = isLong ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)';
+                            return [
+                                { type: 'polygon', attrs: { coordinates: glowPts }, styles: { style: 'fill', color: glowColor } },
+                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } },
+                            ];
+                        } else {
+                            // Exit: hollow — transparent fill + colored border
+                            const alphaFill = isLong ? 'rgba(16,185,129,0.14)' : 'rgba(239,68,68,0.14)';
+                            return [
+                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color: alphaFill } },
+                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'stroke', color, size: 1.5 } },
+                            ];
+                        }
                     },
                     onClick({ overlay, coordinate }) {
                         if (overlay.extendData) showMarkerPopup(overlay.extendData, { point: coordinate });
@@ -6534,14 +6546,51 @@
                     createPointFigures({ overlay, coordinates, bounding }) {
                         const c = coordinates?.[0];
                         if (!c) return [];
-                        const color = overlay.extendData?.color || '#888';
-                        const text  = overlay.extendData?.text  || '';
+                        const ed    = overlay.extendData || {};
+                        const color = ed.color || '#888';
+                        const text  = ed.text  || '';
+                        const type  = ed.type  || 'order';
                         const y = c.y;
                         const w = bounding?.width ?? 600;
-                        return [
-                            { type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] }, styles: { style: 'dashed', color, size: 1 } },
-                            { type: 'text', attrs: { x: w - 4, y: y - 3, text, align: 'right', baseline: 'bottom' }, styles: { color, size: 11 } },
-                        ];
+
+                        // Helper: hex → rgba
+                        const rgba = (hex, a) => {
+                            if (!hex || !hex.startsWith('#')) return hex;
+                            const r = parseInt(hex.slice(1,3),16);
+                            const g = parseInt(hex.slice(3,5),16);
+                            const b = parseInt(hex.slice(5,7),16);
+                            return `rgba(${r},${g},${b},${a})`;
+                        };
+
+                        const figs = [];
+
+                        // Line: solid for entry position, short-dash for stop, long-dash for limit/tp
+                        if (type === 'entry') {
+                            figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                                        styles: { color, size: 1.5 } });
+                        } else if (type === 'stop') {
+                            figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                                        styles: { style: 'dashed', color, size: 1, dashedValue: [2, 5] } });
+                        } else {
+                            figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                                        styles: { style: 'dashed', color, size: 1, dashedValue: [6, 4] } });
+                        }
+
+                        // Label pill — positioned at right edge
+                        const padH = 8, fontSize = 10;
+                        const labelW = text.length * 6 + padH * 2;
+                        const labelH = 17;
+                        const lx = w - labelW - 4;
+                        const ly = y - labelH / 2;
+
+                        figs.push({ type: 'rect', attrs: { x: lx, y: ly, width: labelW, height: labelH },
+                                    styles: { style: 'fill', color: rgba(color, 0.16) } });
+                        figs.push({ type: 'rect', attrs: { x: lx, y: ly, width: labelW, height: labelH },
+                                    styles: { style: 'stroke', color: rgba(color, 0.45), size: 0.5 } });
+                        figs.push({ type: 'text', attrs: { x: lx + padH, y, text, align: 'left', baseline: 'middle' },
+                                    styles: { color, size: fontSize, weight: '600' } });
+
+                        return figs;
                     }
                 });
                 // Candle glow overlay (column highlight when clicking trade row)
@@ -6801,16 +6850,18 @@
             const klinesEnd   = klinesData[klinesData.length - 1].time;
             const avgPrice    = klinesData.reduce((s, k) => s + k.close, 0) / klinesData.length;
             const lineOffset  = avgPrice * 0.003;
+            // Candle interval in seconds (for gap-free inclusion of containing candle)
+            const ivSec = klinesData.length > 1 ? klinesData[1].time - klinesData[0].time : 900;
 
             const posWindowsRecent = posWindows
-                .filter(w => w.from >= klinesStart && w.to >= klinesStart)
-                .map(w => ({ ...w, to: Math.min(w.to, klinesEnd) }));
+                .filter(w => w.to >= klinesStart && w.from <= klinesEnd)
+                .map(w => ({ ...w, from: Math.max(w.from, klinesStart), to: Math.min(w.to, klinesEnd) }));
 
             // Draw positionFill overlays (dashed line + colored fill + endpoint dots)
             posWindowsRecent.forEach(w => {
                 const pts = [];
                 for (const k of klinesData) {
-                    if (k.time < w.from) continue;
+                    if (k.time + ivSec <= w.from) continue;  // candle ends before window — skip
                     if (k.time > w.to) break;
                     // LONG: follow candle lows (line below price), SHORT: follow candle highs (line above)
                     const val = w.trend === 1 ? k.low - lineOffset : k.high + lineOffset;
@@ -7377,7 +7428,31 @@
             if (!position) {
                 panel.style.display = 'block';
                 content.innerHTML = summaryHtml + '<div class="empty-state" style="padding:12px;">Немає відкритих позицій</div>';
+                const badge = document.getElementById('posGridBadge');
+                if (badge) badge.style.display = 'none';
                 return;
+            }
+
+            // Grid stats for Positions button: V_pos/V_i (filled orders count) + fill%
+            {
+                const badge = document.getElementById('posGridBadge');
+                if (badge) {
+                    const vPos = Math.abs(parseFloat(position.positionAmt || 0));
+                    const sameSideLimits = (fullData.limitOrders || [])
+                        .filter(o => position.side === 'LONG' ? o.side === 'BUY' : o.side === 'SELL');
+                    const vRem = sameSideLimits.reduce((s, o) => s + parseFloat(o.quantity || 0), 0);
+                    const vAll = vPos + vRem;
+                    const vI   = sameSideLimits.length > 0 ? parseFloat(sameSideLimits[0].quantity || 0) : 0;
+                    if (vI > 0 && vAll > 0) {
+                        const filled = Math.round(vPos / vI);
+                        const total  = Math.round(vAll / vI);
+                        const pct    = (vPos / vAll * 100).toFixed(0);
+                        badge.textContent = `${filled}/${total} · ${pct}%`;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
             }
 
             panel.style.display = 'block';
@@ -7616,9 +7691,9 @@
             }
 
             const desiredLines = new Map();
-            function addDesired(key, price, color, text) {
+            function addDesired(key, price, color, text, type) {
                 if (!price || price <= 0) return;
-                desiredLines.set(key, { price, color, text });
+                desiredLines.set(key, { price, color, text, type: type || 'order' });
             }
 
             if (data.position && displaySettings.positions) {
@@ -7626,22 +7701,36 @@
                 addDesired(`pos-${data.position.side}-${data.position.entryPrice}`,
                     data.position.entryPrice,
                     isLong ? userTheme.colors.long : userTheme.colors.short,
-                    `${data.position.side} Entry`
+                    isLong ? 'Long Entry' : 'Short Entry',
+                    'entry'
                 );
             }
             if (displaySettings.limits) {
-                (data.limitOrders || []).forEach((o, i) =>
-                    addDesired(`limit-${o.side}-${o.price}-${i}`, o.price, userTheme.colors.limit, `LIMIT ${o.side}`)
-                );
+                (data.limitOrders || []).forEach((o, i) => {
+                    const isBuy = o.side === 'BUY';
+                    addDesired(`limit-${o.side}-${o.price}-${i}`, o.price,
+                        isBuy ? userTheme.colors.long : userTheme.colors.short,
+                        isBuy ? 'Buy Limit' : 'Sell Limit',
+                        'limit'
+                    );
+                });
             }
             if (displaySettings.stops) {
                 (data.stopOrders || []).forEach((o, i) =>
-                    addDesired(`stop-${o.side}-${o.stopPrice}-${i}`, o.stopPrice, userTheme.colors.stop, `STOP ${o.side}`)
+                    addDesired(`stop-${o.side}-${o.stopPrice}-${i}`, o.stopPrice,
+                        userTheme.colors.stop,
+                        o.side === 'BUY' ? 'Stop Buy' : 'Stop Sell',
+                        'stop'
+                    )
                 );
             }
             if (displaySettings.tps) {
                 (data.takeProfitOrders || []).forEach((o, i) =>
-                    addDesired(`tp-${o.side}-${o.stopPrice}-${i}`, o.stopPrice, userTheme.colors.tp, `TP ${o.side}`)
+                    addDesired(`tp-${o.side}-${o.stopPrice}-${i}`, o.stopPrice,
+                        userTheme.colors.tp,
+                        'Take Profit',
+                        'tp'
+                    )
                 );
             }
 
@@ -7662,7 +7751,7 @@
                         groupId: 'pricelines',
                         lock: true,
                         points: [{ value: cfg.price }],
-                        extendData: { color: cfg.color, text: cfg.text },
+                        extendData: { color: cfg.color, text: cfg.text, type: cfg.type },
                     });
                     const oid = Array.isArray(id) ? id[0] : id;
                     if (oid) orderLineOverlays.set(key, oid);
@@ -9803,6 +9892,8 @@
         // ── Drawing tools ──────────────────────────────────────────────────────
         var _drawingGroup = 'user-0';
         var _drawingGroupIdx = 0;
+        var _activeDrawingTool = null;
+        var _activeDrawingId = null;
 
         function toggleDrawingMenu() {
             var menu = document.getElementById('drawingToolsMenu');
@@ -9825,9 +9916,27 @@
             var menu = document.getElementById('drawingToolsMenu');
             if (menu) menu.style.display = 'none';
             if (!klChart) return;
+            // Clicking the same tool a 2nd time cancels it
+            if (_activeDrawingTool === toolName && _activeDrawingId) {
+                try { klChart.removeOverlay({ id: _activeDrawingId }); } catch(e) {}
+                _activeDrawingTool = null;
+                _activeDrawingId = null;
+                return;
+            }
+            // Cancel any previous in-progress drawing
+            if (_activeDrawingId) {
+                try { klChart.removeOverlay({ id: _activeDrawingId }); } catch(e) {}
+                _activeDrawingId = null;
+            }
             try {
-                klChart.createOverlay({ name: toolName, groupId: _drawingGroup });
-            } catch(e) { console.warn('[drawing] createOverlay failed:', e); }
+                var result = klChart.createOverlay({ name: toolName, groupId: _drawingGroup });
+                _activeDrawingId = Array.isArray(result) ? result[0] : result;
+                _activeDrawingTool = toolName;
+            } catch(e) {
+                console.warn('[drawing] createOverlay failed:', e);
+                _activeDrawingId = null;
+                _activeDrawingTool = null;
+            }
         }
 
         function clearAllUserDrawings() {
@@ -9931,8 +10040,8 @@
         }
 
         function countBars(t1, t2) {
-            var ivSec = { '1s': 1, '2s': 2, '5s': 5, '15s': 15, '30s': 30, '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 }[currentInterval] || 60;
-            return Math.round(Math.abs(t2 - t1) / ivSec);
+            // t1/t2 are dataIndex values (bar indices), direct difference = bar count
+            return Math.abs(t2 - t1);
         }
 
         function updateRulerLabel(startPrice, endPrice, startTime, endTime, x, y) {
