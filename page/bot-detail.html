@@ -10131,13 +10131,15 @@
         }
 
         function updateRulerLabel(startPrice, endPrice, startIdx, endIdx, x, y) {
+            if (startPrice == null || endPrice == null) return;
             if (!rulerLabel) {
                 rulerLabel = document.createElement('div');
                 rulerLabel.className = 'ruler-label';
                 chartEl.appendChild(rulerLabel);
             }
             var diff = endPrice - startPrice;
-            var pct  = startPrice !== 0 ? (diff / startPrice) * 100 : 0;
+            var pct  = (startPrice !== 0 && isFinite(startPrice)) ? (diff / startPrice) * 100 : 0;
+            if (!isFinite(pct)) pct = 0;
             var bars = Math.abs((endIdx || 0) - (startIdx || 0));
             var pctClass = pct >= 0 ? 'pos' : 'neg';
             var sign = pct >= 0 ? '+' : '';
@@ -10549,10 +10551,14 @@
             try {
                 klChart.subscribeAction(window.klinecharts.ActionType.OnCrosshairChange, function(data) {
                     if (!data) return;
-                    if (data.price     != null) _rulerLastCursor.price     = data.price;
                     if (data.dataIndex != null) _rulerLastCursor.dataIndex = data.dataIndex;
                     if (data.x != null) _rulerLastCursor.x = data.x;
                     if (data.y != null) _rulerLastCursor.y = data.y;
+                    // price: prefer direct field, fallback to kLineData.close, then klinesData array
+                    var p = data.price;
+                    if (p == null && data.kLineData) p = data.kLineData.close;
+                    if (p == null && data.dataIndex != null && klinesData[data.dataIndex]) p = klinesData[data.dataIndex].close;
+                    if (p != null && p !== 0) _rulerLastCursor.price = p;
                 });
             } catch(e) {}
             try {
