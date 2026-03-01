@@ -2796,6 +2796,7 @@
                         <div class="ws-status-dot" id="wsStatusDot"></div>
                         <span id="wsStatusText">Підключення</span>
                     </div>
+                    <div id="dbgLog" style="font-size:10px;color:#F59E0B;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:6px;max-width:340px;overflow:hidden;white-space:nowrap;font-family:monospace;display:none;"></div>
                 </div>
 
                 <div class="header-sep"></div>
@@ -6301,6 +6302,7 @@
         // Reload chart for current symbol/interval
         function loadKlines() {
             if (!klChart) return;
+            _dbg(`loadKlines sym=${currentSymbol} iv=${currentInterval} gen→${_chartLoadGen+1}`);
             // Clear chart immediately so user sees the switch happened right away
             try { klChart.applyNewData([]); } catch(e) {}
             document.getElementById('chartLoading').style.display = 'flex';
@@ -6322,6 +6324,7 @@
 
         async function _fetchKlines() {
             const myGen = _chartLoadGen;
+            _dbg(`_fetchKlines START sym=${currentSymbol} gen=${myGen}`);
 
             if (SUB_MIN_IVS.has(currentInterval)) {
                 // 1s klines — fetch from Binance Spot directly (server has no sub-minute endpoint)
@@ -6356,7 +6359,10 @@
             try {
                 const r = await fetch(url, { credentials: 'include' });
                 const data = await r.json();
-                if (_chartLoadGen !== myGen) return; // stale — newer loadKlines already fired
+                if (_chartLoadGen !== myGen) {
+                    _dbg(`_fetchKlines STALE gen=${myGen} cur=${_chartLoadGen} sym=${currentSymbol}`);
+                    return;
+                }
                 const raw = data.klines || [];
                 const bars = raw
                     .filter(k => k.time != null && !isNaN(+k.open))
@@ -6365,6 +6371,7 @@
                         open: +k.open, high: +k.high, low: +k.low, close: +k.close,
                         volume: +(k.volume || 0),
                     }));
+                _dbg(`_fetchKlines APPLY ${bars.length} bars sym=${currentSymbol} gen=${myGen}`);
                 if (klChart) klChart.applyNewData(bars); // always apply — clears if empty
                 if (bars.length > 0) {
                     klinesData = bars.map(b => ({
@@ -8201,7 +8208,16 @@
         }
 
         // Quick-switch symbol by clicking an instrument chip
+        function _dbg(msg) {
+            const el = document.getElementById('dbgLog');
+            if (!el) return;
+            el.style.display = 'block';
+            el.textContent = msg;
+            console.log('[YamatoDBG]', msg);
+        }
+
         function changeSymbol(symbol) {
+            _dbg(`changeSymbol(${symbol}) locked=${symbolLocked}`);
             // Instrument chips always allowed to switch even when search box is locked
             const wasLocked = symbolLocked;
             symbolLocked = false;
