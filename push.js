@@ -192,18 +192,22 @@ function ask(question) {
     console.log(`${c.bold}  PUSH + DEPLOY${c.reset}`);
     console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
 
-    const commitMsg = process.argv[2] || '';
+    const args = process.argv.slice(2);
+    const noBackup = args.includes('--no-backup');
+    const commitMsg = args.filter(a => !a.startsWith('--')).join(' ');
 
     info('[1/4] Перевірка залежностей...');
     checkLocalDeps();
     console.log('');
 
     info('[2/4] Бекап бази даних...');
-    const backupAns = await ask(`${c.yellow}  Зробити бекап бази з VPS? [Y/n]: ${c.reset}`);
-    if (backupAns === '' || backupAns === 'y' || backupAns === 'yes' || backupAns === 'т' || backupAns === 'так') {
-        backupDB();
+    let doBackup = false;
+    if (noBackup) {
+        warn('Бекап пропущено (--no-backup)');
     } else {
-        warn('Бекап пропущено');
+        const backupAns = await ask(`${c.yellow}  Зробити бекап бази з VPS? [Y/n]: ${c.reset}`);
+        doBackup = backupAns === '' || backupAns === 'y' || backupAns === 'yes' || backupAns === 'т' || backupAns === 'так';
+        if (doBackup) backupDB(); else warn('Бекап пропущено');
     }
     console.log('');
 

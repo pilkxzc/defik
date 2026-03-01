@@ -5897,23 +5897,26 @@
 
             currentSymbol = symbol;
             klinesData = []; // reset for new symbol
-            markersLoaded = false; // reset so fitContent fires on new symbol
+            markersLoaded = false;
             lastMarkersKey = '';
             document.getElementById('symbolSearchInput').value = symbol;
             document.getElementById('symbolDropdown').classList.remove('active');
             const _symEl = document.getElementById('currentSymbol');
             if (_symEl) _symEl.textContent = symbol;
 
-            // Save selected symbol (admin only)
+            // Start chart reload immediately — don't wait for admin save
+            loadKlines();
+
+            // Save selected symbol in background (admin only)
             if (isAdmin) {
-                await fetch(`/api/bots/${botId}/symbol`, {
+                fetch(`/api/bots/${botId}/symbol`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ symbol })
-                });
+                }).catch(() => {});
             }
 
-            loadKlines();
             await refreshData();
         }
 
