@@ -1430,7 +1430,7 @@
         /* Resizable Panels */
         .resizable-panel {
             position: relative;
-            min-height: 80px;
+            min-height: 120px;
             transition: none;
             display: flex;
             flex-direction: column;
@@ -1709,6 +1709,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            flex-shrink: 0;
         }
 
         .panel-title {
@@ -1872,32 +1873,70 @@
         .toggle-section {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
+            padding: 2px 0;
         }
 
         .toggle-btn {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 12px;
-            background: var(--surface-secondary);
-            border: 1px solid transparent;
-            border-radius: 8px;
-            color: var(--text-secondary);
-            font-size: 12px;
-            font-weight: 600;
+            padding: 7px 11px;
+            background: transparent;
+            border: 1.5px solid;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
             cursor: pointer;
-            transition: 0.2s;
+            transition: background 0.18s, opacity 0.18s, transform 0.1s;
+            letter-spacing: 0.02em;
+            opacity: 0.38;
+        }
+        .toggle-btn:active { transform: scale(0.95); }
+        .toggle-btn.active { opacity: 1; }
+
+        /* Per-type color identity */
+        .toggle-btn.positions {
+            border-color: var(--color-long);
+            color: var(--color-long);
+            background: transparent;
+        }
+        .toggle-btn.positions.active {
+            background: rgba(16,185,129,0.12);
+        }
+        .toggle-btn.limits {
+            border-color: var(--color-limit);
+            color: var(--color-limit);
+            background: transparent;
+        }
+        .toggle-btn.limits.active {
+            background: rgba(139,92,246,0.12);
+        }
+        .toggle-btn.stops {
+            border-color: var(--color-stop);
+            color: var(--color-stop);
+            background: transparent;
+        }
+        .toggle-btn.stops.active {
+            background: rgba(245,158,11,0.12);
+        }
+        .toggle-btn.tps {
+            border-color: var(--color-tp);
+            color: var(--color-tp);
+            background: transparent;
+        }
+        .toggle-btn.tps.active {
+            background: rgba(6,182,212,0.12);
+        }
+        .toggle-btn.canceled {
+            border-color: var(--color-canceled);
+            color: var(--color-canceled);
+        }
+        .toggle-btn.canceled.active {
+            background: rgba(107,114,128,0.12);
         }
 
-        .toggle-btn.active { border-color: currentColor; color: var(--text-primary); }
-        .toggle-btn .dot { width: 8px; height: 8px; border-radius: 50%; }
-
-        .toggle-btn.positions .dot { background: var(--color-long); }
-        .toggle-btn.limits .dot { background: var(--color-limit); }
-        .toggle-btn.stops .dot { background: var(--color-stop); }
-        .toggle-btn.tps .dot { background: var(--color-tp); }
-        .toggle-btn.canceled .dot { background: var(--color-canceled); }
+        .toggle-btn .dot { display: none; }
 
         .orders-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -3155,16 +3194,20 @@
                 <div class="panel-body">
                     <div class="toggle-section">
                         <button class="toggle-btn positions active" onclick="toggleDisplay('positions')">
-                            <span class="dot"></span> Позиції
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            Позиції
                         </button>
                         <button class="toggle-btn limits active" onclick="toggleDisplay('limits')">
-                            <span class="dot"></span> Ліміти
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+                            Ліміти
                         </button>
                         <button class="toggle-btn stops active" onclick="toggleDisplay('stops')">
-                            <span class="dot"></span> Стопи
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            Стопи
                         </button>
                         <button class="toggle-btn tps active" onclick="toggleDisplay('tps')">
-                            <span class="dot"></span> TP
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            TP
                         </button>
                     </div>
                 </div>
@@ -5469,7 +5512,7 @@
                 document.addEventListener('mousemove', (e) => {
                     if (!dragging || !panel) return;
                     const delta = e.clientX - startX;
-                    const newW = Math.max(200, startW + delta);
+                    const newW = Math.max(220, startW + delta);
                     panel.style.width = newW + 'px';
                     panel.style.minWidth = newW + 'px';
                     panel.style.maxWidth = newW + 'px';
@@ -5479,7 +5522,7 @@
                 document.addEventListener('touchmove', (e) => {
                     if (!dragging || !panel) return;
                     const delta = e.touches[0].clientX - startX;
-                    const newW = Math.max(200, startW + delta);
+                    const newW = Math.max(220, startW + delta);
                     panel.style.width = newW + 'px';
                     panel.style.minWidth = newW + 'px';
                     panel.style.maxWidth = newW + 'px';
@@ -9503,7 +9546,7 @@
                 if (!resizing || !currentResizePanel) return;
 
                 const deltaY = e.clientY - startY;
-                const newHeight = Math.max(80, startHeight + deltaY);
+                const newHeight = Math.max(120, startHeight + deltaY);
                 currentResizePanel.style.height = newHeight + 'px';
 
                 // Remove collapsed state if resizing
@@ -9516,7 +9559,7 @@
                 if (!resizing || !currentResizePanel) return;
 
                 const deltaY = e.touches[0].clientY - startY;
-                const newHeight = Math.max(80, startHeight + deltaY);
+                const newHeight = Math.max(120, startHeight + deltaY);
                 currentResizePanel.style.height = newHeight + 'px';
 
                 if (currentResizePanel.classList.contains('collapsed')) {
