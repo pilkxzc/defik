@@ -390,16 +390,47 @@ function renderEquityChart() {
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(W - pad.right, zeroY); ctx.stroke(); ctx.setLineDash([]);
 
+    // Helper: draw filled area between curve and zero line using clipping
+    const drawFill = (isAbove) => {
+        const clipTop    = isAbove ? pad.top        : zeroY;
+        const clipBottom = isAbove ? zeroY          : H - pad.bottom;
+        const gradTop    = isAbove ? pad.top        : zeroY;
+        const gradBot    = isAbove ? zeroY          : H - pad.bottom;
+        const colFull    = isAbove ? 'rgba(16,185,129,' : 'rgba(239,68,68,';
+
+        const g = ctx.createLinearGradient(0, gradTop, 0, gradBot);
+        if (isAbove) {
+            // shadow strongest near the curve (top), fades to zero at the baseline
+            g.addColorStop(0,    colFull + '0.22)');
+            g.addColorStop(0.55, colFull + '0.07)');
+            g.addColorStop(1,    colFull + '0.00)');
+        } else {
+            // shadow strongest near the curve (bottom), fades to zero at the baseline
+            g.addColorStop(0,    colFull + '0.00)');
+            g.addColorStop(0.45, colFull + '0.07)');
+            g.addColorStop(1,    colFull + '0.22)');
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pad.left, clipTop, chartW, clipBottom - clipTop + 1);
+        ctx.clip();
+
+        ctx.beginPath();
+        ctx.moveTo(toX(0), toY(cumPnl[0]));
+        for (let i = 1; i < cumPnl.length; i++) ctx.lineTo(toX(i), toY(cumPnl[i]));
+        ctx.lineTo(toX(cumPnl.length - 1), zeroY);
+        ctx.lineTo(toX(0), zeroY);
+        ctx.closePath();
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.restore();
+    };
+
+    if (maxV > 0) drawFill(true);
+    if (minV < 0) drawFill(false);
+
     const lastVal = cumPnl[cumPnl.length - 1];
-    const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
-    if (lastVal >= 0) { grad.addColorStop(0, 'rgba(16,185,129,0.15)'); grad.addColorStop(1, 'rgba(16,185,129,0)'); }
-    else { grad.addColorStop(0, 'rgba(239,68,68,0)'); grad.addColorStop(1, 'rgba(239,68,68,0.15)'); }
-
-    ctx.beginPath(); ctx.moveTo(toX(0), toY(cumPnl[0]));
-    for (let i = 1; i < cumPnl.length; i++) ctx.lineTo(toX(i), toY(cumPnl[i]));
-    ctx.lineTo(toX(cumPnl.length - 1), H - pad.bottom); ctx.lineTo(toX(0), H - pad.bottom);
-    ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
-
     ctx.beginPath(); ctx.moveTo(toX(0), toY(cumPnl[0]));
     for (let i = 1; i < cumPnl.length; i++) ctx.lineTo(toX(i), toY(cumPnl[i]));
     ctx.strokeStyle = lastVal >= 0 ? '#10B981' : '#EF4444'; ctx.lineWidth = 2; ctx.stroke();
@@ -408,6 +439,7 @@ function renderEquityChart() {
     ctx.beginPath(); ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
     ctx.fillStyle = lastVal >= 0 ? '#10B981' : '#EF4444'; ctx.fill();
     ctx.font = '600 11px JetBrains Mono'; ctx.textAlign = 'right';
+    ctx.fillStyle = lastVal >= 0 ? '#10B981' : '#EF4444';
     ctx.fillText(fmt(lastVal), lastX - 8, lastY - 8);
 }
 
