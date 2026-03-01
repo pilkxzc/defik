@@ -147,7 +147,7 @@
                 </div>
                 <div class="card-body-np">
                     <div class="chart-area" style="height:440px;">
-                        <canvas id="liveChartCanvas"></canvas>
+                        <div id="liveChartCanvas" style="width:100%;height:100%;background:#141414;border-radius:8px;"></div>
                     </div>
                     <div class="chart-legend">
                         <div class="chart-legend-item"><span class="chart-legend-marker entry-long"></span> Вхід Long</div>
@@ -518,6 +518,7 @@
 </nav>
 
 <!-- JS -->
+<script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.umd.min.js"></script>
 <script src="/js/terminal/data.js"></script>
 <script src="/js/terminal/renderers.js"></script>
 <script src="/js/terminal/controls.js"></script>

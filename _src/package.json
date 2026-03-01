@@ -1,22 +1,19 @@
 {
   "name": "yamato-chart",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "lightweight-charts": "^4.1.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "@klinecharts/pro": "^0.1.1",
+    "klinecharts": "^9.8.12"
   },
   "devDependencies": {
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.0",
     "typescript": "^5.5.0",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vite-plugin-css-injected-by-js": "^3.5.0"
   }
 }

@@ -698,22 +698,6 @@
                     <span id="wsStatusText">—</span>
                 </div>
 
-                <!-- Timeframe buttons -->
-                <div class="tf-btns">
-                    <button class="tf-btn sub" data-tf="1s">1s</button>
-                    <button class="tf-btn sub" data-tf="5s">5s</button>
-                    <button class="tf-btn sub" data-tf="15s">15s</button>
-                    <div class="tf-sep"></div>
-                    <button class="tf-btn" data-tf="1m">1m</button>
-                    <button class="tf-btn" data-tf="5m">5m</button>
-                    <button class="tf-btn active" data-tf="15m">15m</button>
-                    <button class="tf-btn" data-tf="1h">1h</button>
-                    <button class="tf-btn" data-tf="4h">4h</button>
-                    <button class="tf-btn" data-tf="1d">1d</button>
-                    <div class="tf-sep"></div>
-                    <button class="tf-btn prec-btn" id="precisionBtn" title="Точність ціни (auto → .2 → .4 → .5 → .6 → .8)">auto</button>
-                </div>
-
                 <!-- Quote currency selector -->
                 <div class="tf-btns" style="margin-left: 8px; gap: 2px;">
                     <div class="tf-sep"></div>
@@ -1754,7 +1738,6 @@
         }
     </style>
 
-    <script src="/charting_library/charting_library.js"></script>
     <script src="/js/chart/chart.js"></script>
     <script src="/js/dashboard.js"></script>
 
@@ -1824,26 +1807,7 @@
     // ── Chart init ─────────────────────────────────────────────────────────────
     window._yamatoInitSymbol = (window.currentTicker || 'BTC') + (window.quoteCurrency || 'USDT');
 
-    // Timeframe buttons
-    document.querySelectorAll('.tf-btn:not(.prec-btn)').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.tf-btn:not(.prec-btn)').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            window.yamatoChart?.setTimeframe(this.dataset.tf);
-        });
-    });
-
-    // Price precision cycling button
-    const PREC_CYCLE = [0, 2, 4, 5, 6, 8];
-    const PREC_LABEL = ['auto', '.00', '.0000', '.00000', '.000000', '.00000000'];
-    let precIdx = 0;
-    document.getElementById('precisionBtn')?.addEventListener('click', function() {
-        precIdx = (precIdx + 1) % PREC_CYCLE.length;
-        const n = PREC_CYCLE[precIdx];
-        this.textContent = PREC_LABEL[precIdx];
-        this.classList.toggle('prec-active', n > 0);
-        window.yamatoChart?.setPriceDecimals(n);
-    });
+    // (Timeframe + precision buttons removed — KLineChart Pro has its own toolbar)
     </script>
     <script src="/js/dashboard-customizer.js"></script>
 <!-- Mobile Bottom Nav -->

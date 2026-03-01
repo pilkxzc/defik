@@ -448,317 +448,137 @@ function renderDrawdownChart() {
 }
 
 // ═══════════════════════════════════════════
-//  INTERACTIVE CANDLESTICK CHART
-//  - scroll (mouse wheel), drag to pan
-//  - crosshair on hover, OHLCV tooltip
-//  - trade markers overlay
+//  INTERACTIVE CANDLESTICK CHART — klinecharts
 // ═══════════════════════════════════════════
-const chartState = {
-    offset: 0, visibleCount: 80,
-    isDragging: false, dragStartX: 0, dragStartOffset: 0,
-    mouseX: -1, mouseY: -1,
-    autoScroll: true, // pin to right edge when true
-    _rafId: 0,
-};
+let _klineChart = null;
+let _klineMarkerGroup = 'trm-0';
+let _klineMarkerIdx = 0;
+let _klineMarkerRegistered = false;
 
 function _scheduleChartRender() {
-    if (chartState._rafId) return;
-    chartState._rafId = requestAnimationFrame(() => { chartState._rafId = 0; renderLiveChart(); });
+    // klinecharts handles its own render loop — just call renderLiveChart directly
+    renderLiveChart();
+}
+
+function _registerTradeMarkerOverlay() {
+    if (_klineMarkerRegistered || !window.klinecharts) return;
+    try {
+        window.klinecharts.registerOverlay({
+            name: 'tradeMarker',
+            totalStep: 1,
+            needDefaultPointFigure: false,
+            needDefaultXAxisFigure: false,
+            needDefaultYAxisFigure: false,
+            createPointFigures({ overlay, coordinates }) {
+                const c = coordinates && coordinates[0];
+                if (!c) return [];
+                const data  = overlay.extendData || {};
+                const isBuy = data.isBuy === true;
+                const color = isBuy ? '#10B981' : '#EF4444';
+                const size  = 7, offset = 12;
+                let coords;
+                if (isBuy) {
+                    const tipY = c.y + offset;
+                    coords = [
+                        { x: c.x,        y: tipY },
+                        { x: c.x - size, y: tipY + size * 1.5 },
+                        { x: c.x + size, y: tipY + size * 1.5 },
+                    ];
+                } else {
+                    const tipY = c.y - offset;
+                    coords = [
+                        { x: c.x,        y: tipY },
+                        { x: c.x - size, y: tipY - size * 1.5 },
+                        { x: c.x + size, y: tipY - size * 1.5 },
+                    ];
+                }
+                return [{ type: 'polygon', attrs: { coordinates: coords }, styles: { style: 'fill', color } }];
+            },
+        });
+        _klineMarkerRegistered = true;
+    } catch (e) { /* already registered */ }
+}
+
+function _getOrInitKlineChart() {
+    if (_klineChart) return _klineChart;
+    const el = document.getElementById('liveChartCanvas');
+    if (!el || !window.klinecharts) return null;
+
+    _registerTradeMarkerOverlay();
+
+    _klineChart = window.klinecharts.init(el);
+    if (!_klineChart) return null;
+
+    // Dark theme styles
+    _klineChart.setStyles({
+        grid: {
+            horizontal: { color: 'rgba(255,255,255,0.04)' },
+            vertical:   { color: 'rgba(255,255,255,0.04)' },
+        },
+        candle: {
+            upColor:       '#10B981',
+            downColor:     '#EF4444',
+            noChangeColor: '#A1A1A1',
+            bar: {
+                upColor:         '#10B981', downColor:         '#EF4444', noChangeColor:   '#A1A1A1',
+                upBorderColor:   '#10B981', downBorderColor:   '#EF4444', noChangeBorderColor: '#A1A1A1',
+                upWickColor:     '#10B981', downWickColor:     '#EF4444', noChangeWickColor:   '#A1A1A1',
+            },
+        },
+    });
+
+    // Add volume indicator
+    try { _klineChart.createIndicator('VOL', false, { id: 'candle_pane' }); } catch (e) { /* ok */ }
+
+    return _klineChart;
 }
 
 function initChartInteraction() {
-    const canvas = document.getElementById('liveChartCanvas');
-    if (!canvas || canvas._chartBound) return;
-    canvas._chartBound = true;
-
-    // Wheel → zoom (centered around cursor)
-    canvas.addEventListener('wheel', e => {
-        e.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const mouseRatio = (e.clientX - rect.left) / rect.width; // 0..1 where cursor is
-        const oldCount = chartState.visibleCount;
-
-        // Smoother zoom: proportional to current zoom level
-        const zoomFactor = e.deltaY > 0 ? 1.08 : 0.93;
-        chartState.visibleCount = Math.round(Math.max(10, Math.min(klineData.length, chartState.visibleCount * zoomFactor)));
-
-        // Adjust offset to keep candle under cursor stable
-        const delta = chartState.visibleCount - oldCount;
-        const offsetShift = Math.round(delta * mouseRatio);
-        chartState.offset = Math.max(0, Math.min(klineData.length - chartState.visibleCount, chartState.offset - offsetShift));
-        chartState.autoScroll = (chartState.offset >= klineData.length - chartState.visibleCount);
-        _scheduleChartRender();
-    }, { passive: false });
-
-    // Drag to pan
-    canvas.addEventListener('mousedown', e => {
-        if (e.button !== 0) return;
-        chartState.isDragging = true;
-        chartState.dragStartX = e.clientX;
-        chartState.dragStartOffset = chartState.offset;
-        canvas.style.cursor = 'grabbing';
-    });
-    window.addEventListener('mousemove', e => {
-        if (chartState.isDragging) {
-            const rect = canvas.getBoundingClientRect();
-            const pxPerCandle = rect.width / chartState.visibleCount;
-            const dx = chartState.dragStartX - e.clientX;
-            const candleDelta = Math.round(dx / pxPerCandle);
-            chartState.offset = Math.max(0, Math.min(klineData.length - chartState.visibleCount, chartState.dragStartOffset + candleDelta));
-            chartState.autoScroll = (chartState.offset >= klineData.length - chartState.visibleCount);
-            _scheduleChartRender();
-        }
-    });
-    window.addEventListener('mouseup', () => {
-        if (chartState.isDragging) {
-            chartState.isDragging = false;
-            const c = document.getElementById('liveChartCanvas');
-            if (c) c.style.cursor = 'crosshair';
-        }
-    });
-
-    // Double-click → reset to latest (auto-scroll on)
-    canvas.addEventListener('dblclick', () => {
-        chartState.visibleCount = 80;
-        chartState.offset = Math.max(0, klineData.length - chartState.visibleCount);
-        chartState.autoScroll = true;
-        _scheduleChartRender();
-    });
-
-    // Crosshair
-    canvas.addEventListener('mousemove', e => {
-        if (chartState.isDragging) return;
-        const rect = canvas.getBoundingClientRect();
-        chartState.mouseX = e.clientX - rect.left;
-        chartState.mouseY = e.clientY - rect.top;
-        _scheduleChartRender();
-    });
-    canvas.addEventListener('mouseleave', () => {
-        chartState.mouseX = -1; chartState.mouseY = -1;
-        _scheduleChartRender();
-    });
-
-    // Touch support (mobile pan)
-    let touchStartX = 0, touchStartOffset = 0;
-    canvas.addEventListener('touchstart', e => {
-        if (e.touches.length === 1) {
-            touchStartX = e.touches[0].clientX;
-            touchStartOffset = chartState.offset;
-        }
-    }, { passive: true });
-    canvas.addEventListener('touchmove', e => {
-        if (e.touches.length === 1) {
-            e.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            const pxPerCandle = rect.width / chartState.visibleCount;
-            const dx = touchStartX - e.touches[0].clientX;
-            chartState.offset = Math.max(0, Math.min(klineData.length - chartState.visibleCount, touchStartOffset + Math.round(dx / pxPerCandle)));
-            chartState.autoScroll = (chartState.offset >= klineData.length - chartState.visibleCount);
-            _scheduleChartRender();
-        }
-    }, { passive: false });
+    // klinecharts handles its own scroll/zoom/crosshair/touch interactions
+    // This function is kept for API compatibility with init.js
+    _getOrInitKlineChart();
 }
 
 function renderLiveChart() {
-    const canvas = document.getElementById('liveChartCanvas');
-    const wrap = document.querySelector('.chart-area');
-    if (!wrap || !canvas) return;
-    const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 2;
-    canvas.width = wrap.clientWidth * dpr; canvas.height = wrap.clientHeight * dpr;
-    ctx.scale(dpr, dpr);
-    const W = wrap.clientWidth, H = wrap.clientHeight;
-    ctx.clearRect(0, 0, W, H);
+    const chart = _getOrInitKlineChart();
 
-    if (!klineData || klineData.length === 0) {
-        ctx.fillStyle = '#636363'; ctx.font = '13px Plus Jakarta Sans'; ctx.textAlign = 'center';
-        ctx.fillText('Завантаження графіка...', W / 2, H / 2); return;
-    }
-
-    // Parse all klines
-    const allCandles = klineData.map(k => Array.isArray(k)
-        ? { time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]) }
-        : { time: k.time, open: parseFloat(k.open), high: parseFloat(k.high), low: parseFloat(k.low), close: parseFloat(k.close), volume: parseFloat(k.volume) }
-    );
-
-    // Clamp offset
-    if (chartState.visibleCount > allCandles.length) chartState.visibleCount = allCandles.length;
-    if (chartState.autoScroll) chartState.offset = Math.max(0, allCandles.length - chartState.visibleCount);
-    if (chartState.offset > allCandles.length - chartState.visibleCount) chartState.offset = Math.max(0, allCandles.length - chartState.visibleCount);
-
-    const start = chartState.offset;
-    const candles = allCandles.slice(start, start + chartState.visibleCount);
-    if (candles.length === 0) return;
-
-    const pad = { top: 20, bottom: 30, left: 60, right: 80 };
-    const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
-    const allH = candles.map(c => c.high), allL = candles.map(c => c.low);
-    const minP = Math.min(...allL), maxP = Math.max(...allH), range = maxP - minP || 1;
-    const candleW = Math.max(1.5, (cW / candles.length) * 0.7);
-    const gap = cW / candles.length;
-    const toX = i => pad.left + i * gap + gap / 2;
-    const toY = p => pad.top + (1 - (p - minP) / range) * cH;
-
-    const firstTime = candles[0].time;
-    const lastTime = candles[candles.length - 1].time;
-    const candleInterval = candles.length > 1 ? candles[1].time - candles[0].time : 1;
-
-    // Grid lines + price labels
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
-    const gridSteps = 6;
-    for (let i = 0; i <= gridSteps; i++) {
-        const p = minP + (range / gridSteps) * i;
-        const y = toY(p);
-        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
-        ctx.fillStyle = '#505050'; ctx.font = '500 9px JetBrains Mono'; ctx.textAlign = 'right';
-        ctx.fillText(fmtPrice(p), pad.left - 6, y + 3);
-    }
-
-    // Time labels at bottom
-    ctx.fillStyle = '#505050'; ctx.font = '500 9px JetBrains Mono'; ctx.textAlign = 'center';
-    const labelEvery = Math.max(1, Math.floor(candles.length / 6));
-    candles.forEach((c, i) => {
-        if (i % labelEvery !== 0) return;
-        const d = new Date(c.time * 1000);
-        const label = d.getUTCHours() === 0 && d.getUTCMinutes() === 0
-            ? `${d.getUTCDate()}/${d.getUTCMonth()+1}`
-            : `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
-        ctx.fillText(label, toX(i), H - pad.bottom + 14);
-    });
-
-    // Volume
-    const maxVol = Math.max(...candles.map(c => c.volume), 1);
-    const volH = cH * 0.1;
-    candles.forEach((c, i) => {
-        const x = toX(i), h = (c.volume / maxVol) * volH;
-        ctx.fillStyle = c.close >= c.open ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
-        ctx.fillRect(x - candleW / 2, pad.top + cH - h, candleW, h);
-    });
-
-    // Candles
-    candles.forEach((c, i) => {
-        const x = toX(i);
-        const color = c.close >= c.open ? '#10B981' : '#EF4444';
-        ctx.strokeStyle = color; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(x, toY(c.high)); ctx.lineTo(x, toY(c.low)); ctx.stroke();
-        const bodyTop = toY(Math.max(c.open, c.close));
-        const bodyBot = toY(Math.min(c.open, c.close));
-        ctx.fillStyle = color; ctx.fillRect(x - candleW / 2, bodyTop, candleW, Math.max(bodyBot - bodyTop, 1));
-    });
-
-    // ── Trade Markers ──
-    if (tradeMarkers && tradeMarkers.length > 0) {
-        const firstSec = firstTime;
-        const lastSec = lastTime;
-        const intervalSec = candleInterval;
-
-        const visible = tradeMarkers.filter(m => m.time >= firstSec - intervalSec && m.time <= lastSec + intervalSec);
-
-        const entries = visible.filter(m => m.isEntry);
-        const exits = visible.filter(m => !m.isEntry);
-        for (const entry of entries) {
-            const exit = exits.find(e => e.side === entry.side && e.time > entry.time);
-            if (exit) {
-                const ei = (entry.time - firstTime) / (candleInterval || 1);
-                const xi = (exit.time - firstTime) / (candleInterval || 1);
-                const pnl = parseFloat(exit.pnl || 0);
-                ctx.strokeStyle = pnl >= 0 ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)';
-                ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-                ctx.beginPath(); ctx.moveTo(toX(ei), toY(entry.price)); ctx.lineTo(toX(xi), toY(exit.price)); ctx.stroke();
-                ctx.setLineDash([]);
-            }
-        }
-
-        for (const m of visible) {
-            const iFloat = (m.time - firstTime) / (candleInterval || 1);
-            const mx = toX(iFloat), my = toY(m.price);
-            const isLongSide = m.side === 'LONG' || m.side === 'BUY';
-            const size = 6;
-
-            if (m.isEntry) {
-                const color = isLongSide ? '#10B981' : '#EF4444';
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                if (isLongSide) { const ty = my + 6; ctx.moveTo(mx, ty); ctx.lineTo(mx - size, ty + size * 1.4); ctx.lineTo(mx + size, ty + size * 1.4); }
-                else { const ty = my - 6; ctx.moveTo(mx, ty); ctx.lineTo(mx - size, ty - size * 1.4); ctx.lineTo(mx + size, ty - size * 1.4); }
-                ctx.closePath(); ctx.fill();
-            } else {
-                const pnl = parseFloat(m.pnl || 0);
-                const color = pnl >= 0 ? '#10B981' : '#EF4444';
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.moveTo(mx, my - size); ctx.lineTo(mx + size, my); ctx.lineTo(mx, my + size); ctx.lineTo(mx - size, my);
-                ctx.closePath(); ctx.fill();
-                ctx.font = '600 8px JetBrains Mono'; ctx.textAlign = 'center'; ctx.fillStyle = color;
-                ctx.fillText((pnl >= 0 ? '+' : '') + pnl.toFixed(1), mx, my - size - 4);
-            }
-        }
-    }
-
-    // Current price line
-    const lastClose = candles[candles.length - 1].close;
-    const lastY = toY(lastClose);
-    ctx.strokeStyle = 'rgba(139,92,246,0.4)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad.left, lastY); ctx.lineTo(W - pad.right, lastY); ctx.stroke(); ctx.setLineDash([]);
-
-    // Price label on right
-    ctx.fillStyle = '#8B5CF6';
-    const priceTag = fmtPrice(lastClose);
-    ctx.beginPath(); ctx.roundRect(W - pad.right + 4, lastY - 10, pad.right - 8, 20, 4); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = '600 10px JetBrains Mono'; ctx.textAlign = 'center';
-    ctx.fillText(priceTag, W - pad.right / 2, lastY + 3);
-
-    // ── Crosshair ──
-    if (chartState.mouseX >= pad.left && chartState.mouseX <= W - pad.right && chartState.mouseY >= pad.top && chartState.mouseY <= pad.top + cH) {
-        const mx = chartState.mouseX, my = chartState.mouseY;
-        // Vertical line
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
-        ctx.beginPath(); ctx.moveTo(mx, pad.top); ctx.lineTo(mx, pad.top + cH); ctx.stroke();
-        // Horizontal line
-        ctx.beginPath(); ctx.moveTo(pad.left, my); ctx.lineTo(W - pad.right, my); ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Price on right axis
-        const hoverPrice = minP + (1 - (my - pad.top) / cH) * range;
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.beginPath(); ctx.roundRect(W - pad.right + 4, my - 10, pad.right - 8, 20, 4); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '600 9px JetBrains Mono'; ctx.textAlign = 'center';
-        ctx.fillText(fmtPrice(hoverPrice), W - pad.right / 2, my + 3);
-
-        // Find nearest candle
-        const ci = Math.round((mx - pad.left - gap / 2) / gap);
-        if (ci >= 0 && ci < candles.length) {
-            const c = candles[ci];
-            const d = new Date(c.time * 1000);
-            const timeStr = `${d.getUTCDate()}/${d.getUTCMonth()+1} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
-            const chg = c.close - c.open;
-            const chgPct = ((chg / c.open) * 100).toFixed(2);
-            const chgColor = chg >= 0 ? '#10B981' : '#EF4444';
-
-            // OHLCV tooltip
-            const tx = Math.min(mx + 12, W - 180), ty = Math.max(pad.top, my - 80);
-            ctx.fillStyle = 'rgba(17,17,17,0.95)';
-            ctx.beginPath(); ctx.roundRect(tx, ty, 165, 76, 6); ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.roundRect(tx, ty, 165, 76, 6); ctx.stroke();
-
-            ctx.font = '500 9px JetBrains Mono'; ctx.textAlign = 'left';
-            ctx.fillStyle = '#888'; ctx.fillText(timeStr, tx + 8, ty + 14);
-            ctx.fillStyle = '#aaa'; ctx.fillText(`O: ${fmtPrice(c.open)}  H: ${fmtPrice(c.high)}`, tx + 8, ty + 28);
-            ctx.fillText(`L: ${fmtPrice(c.low)}   C: ${fmtPrice(c.close)}`, tx + 8, ty + 42);
-            ctx.fillStyle = '#888'; ctx.fillText(`Vol: ${fmtVol(c.volume)}`, tx + 8, ty + 56);
-            ctx.fillStyle = chgColor; ctx.fillText(`${chg >= 0 ? '+' : ''}${chgPct}%`, tx + 100, ty + 56);
-
-            // Highlight candle
-            const hx = toX(ci);
-            ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
-            ctx.strokeRect(hx - candleW / 2 - 2, toY(c.high) - 2, candleW + 4, toY(c.low) - toY(c.high) + 4);
-        }
-    }
-
-    // Symbol label
+    // Update symbol label
     const symbolLabel = document.getElementById('chartSymbolLabel');
     if (symbolLabel) symbolLabel.textContent = getSymbol();
+
+    if (!chart) return;
+
+    if (!klineData || klineData.length === 0) return;
+
+    // Normalize kline data → klinecharts format (timestamp in ms)
+    const data = klineData.map(k => {
+        if (Array.isArray(k)) {
+            return { timestamp: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
+        }
+        // k.time is in seconds (from API), klinecharts expects ms
+        return { timestamp: k.time * 1000, open: +k.open, high: +k.high, low: +k.low, close: +k.close, volume: +(k.volume || 0) };
+    });
+
+    chart.applyNewData(data);
+
+    // Remove old trade marker overlays and redraw
+    try { chart.removeOverlay({ groupId: _klineMarkerGroup }); } catch (e) { /* ok */ }
+    _klineMarkerGroup = `trm-${++_klineMarkerIdx}`;
+
+    if (tradeMarkers && tradeMarkers.length > 0) {
+        for (const m of tradeMarkers) {
+            const isLongSide = m.side === 'LONG' || m.side === 'BUY';
+            try {
+                chart.createOverlay({
+                    name:       'tradeMarker',
+                    groupId:    _klineMarkerGroup,
+                    lock:       true,
+                    points:     [{ timestamp: m.time * 1000, value: m.price }],
+                    extendData: { isBuy: m.isEntry ? isLongSide : null, isExit: !m.isEntry },
+                });
+            } catch (e) { /* ok */ }
+        }
+    }
 }
 
 // ═══════════════════════════════════════════
@@ -939,15 +759,16 @@ function initResizablePanels() {
             const onMove = ev => {
                 const newH = Math.max(120, startH + ev.clientY - startY);
                 card.style.height = newH + 'px';
-                // Re-render canvas inside if any
-                const canvas = card.querySelector('canvas');
-                if (canvas) {
-                    requestAnimationFrame(() => {
-                        if (canvas.id === 'liveChartCanvas') renderLiveChart();
-                        else if (canvas.id === 'equityCanvas') renderEquityChart();
+                // Re-render charts inside card after resize
+                requestAnimationFrame(() => {
+                    const canvas = card.querySelector('canvas');
+                    if (canvas) {
+                        if (canvas.id === 'equityCanvas') renderEquityChart();
                         else if (canvas.id === 'ddCanvas') renderDrawdownChart();
-                    });
-                }
+                    }
+                    // klinecharts handles its own resize via ResizeObserver
+                    if (card.querySelector('#liveChartCanvas')) renderLiveChart();
+                });
             };
             const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
             window.addEventListener('mousemove', onMove);

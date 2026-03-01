@@ -49,6 +49,21 @@ function run(cmd, opts = {}) {
     }
 }
 
+// ── 0. Перевірка конфігурації ─────────────────────────────────────────────────
+function checkLocalDeps() {
+    const pkgPath = path.join(__dirname, '_src', 'package.json');
+    if (!fs.existsSync(pkgPath)) {
+        fail('_src/package.json не знайдено!');
+    }
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    info(`Ключові залежності _src/:`);
+    for (const [name, ver] of Object.entries(deps)) {
+        console.log(`   ${c.blue}•${c.reset} ${name}@${ver}`);
+    }
+    ok('npm install + build відбудеться на VPS автоматично');
+}
+
 // ── 1. Бекап бази з VPS ──────────────────────────────────────────────────────
 function backupDB() {
     if (!fs.existsSync(VPS_KEY)) {
@@ -171,15 +186,19 @@ console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
 
 const commitMsg = process.argv[2] || '';
 
-info('[1/3] Бекап бази даних...');
+info('[1/4] Перевірка залежностей...');
+checkLocalDeps();
+console.log('');
+
+info('[2/4] Бекап бази даних...');
 backupDB();
 console.log('');
 
-info('[2/3] Git commit + push...');
+info('[3/4] Git commit + push...');
 gitPush(commitMsg);
 console.log('');
 
-info('[3/3] Деплой на VPS...');
+info('[4/4] Деплой на VPS...');
 deployVPS();
 
 console.log('');
