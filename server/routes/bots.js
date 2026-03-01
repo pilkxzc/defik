@@ -314,6 +314,32 @@ async function syncBinanceTrades(botId) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
+router.get('/api/bots/tree', requireAuth, (req, res) => {
+    try {
+        const cats = dbAll('SELECT * FROM bot_categories WHERE is_visible=1 ORDER BY sort_order');
+        const bots = dbAll(`
+            SELECT b.id, b.name, b.category_id, b.is_active, b.selected_symbol,
+                   b.profit, b.investment, b.mode,
+                   bs.total_trades, bs.winning_trades
+            FROM bots b LEFT JOIN bot_stats bs ON bs.bot_id = b.id ORDER BY b.id
+        `);
+        const toCard = b => ({
+            id: b.id, name: b.name, is_active: !!b.is_active,
+            symbol: b.selected_symbol || '',
+            profit: b.profit || 0, investment: b.investment || 0, mode: b.mode,
+            winRate: b.total_trades > 0 ? Math.round((b.winning_trades / b.total_trades) * 100) : null,
+            totalTrades: b.total_trades || 0,
+        });
+        const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));
+        const uncat = bots.filter(b => !b.category_id);
+        if (uncat.length) tree.push({ id: null, name: 'Інші', color: '#6B7280', icon: '📋', bots: uncat.map(toCard) });
+        res.json({ tree });
+    } catch (error) {
+        console.error('Bots tree error:', error);
+        res.status(500).json({ error: 'Failed to fetch bots tree' });
+    }
+});
+
 router.get('/api/bots', requireAuth, (req, res) => {
     const bots = dbAll('SELECT * FROM bots ORDER BY created_at DESC', []);
     const botsWithTime = bots.map(bot => {

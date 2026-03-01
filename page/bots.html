@@ -430,6 +430,65 @@
             .bot-card { padding: 16px; border-radius: 16px; }
             .modal-card { padding: 20px 16px !important; }
         }
+
+        /* ==================== TREE VIEW ==================== */
+        .bots-tree { display:flex; flex-direction:column; gap:32px; }
+
+        .cat-header { display:flex; align-items:center; gap:10px; padding-bottom:14px;
+            border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:16px; }
+        .cat-line  { width:3px; height:22px; border-radius:2px; flex-shrink:0; }
+        .cat-icon  { font-size:18px; }
+        .cat-name  { font-size:15px; font-weight:700; color:#fff; flex:1; }
+        .cat-badge { font-size:11px; color:var(--text-tertiary);
+            background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:20px; }
+
+        .cat-bots { display:flex; flex-direction:column; gap:8px;
+            padding-left:18px; border-left:1px solid rgba(255,255,255,0.05); }
+
+        .cat-empty { font-size:12px; color:var(--text-tertiary); padding:8px 0; }
+
+        .bot-card-tree {
+            display:flex; align-items:center; gap:14px;
+            background:var(--surface); border:1px solid rgba(255,255,255,0.06);
+            border-radius:14px; padding:12px 16px;
+            transition:border-color .15s, background .15s;
+            position:relative;
+        }
+        .bot-card-tree::before {
+            content:''; position:absolute; left:-19px; top:50%;
+            width:10px; height:1px; background:rgba(255,255,255,0.08);
+        }
+        .bot-card-tree:hover { border-color:rgba(255,255,255,0.11); background:var(--surface-secondary,#1A1A1A); }
+
+        .bct-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .bct-dot.on  { background:#10B981; box-shadow:0 0 6px rgba(16,185,129,.5); }
+        .bct-dot.off { background:#6B7280; }
+
+        .bct-name { font-size:14px; font-weight:700; color:#fff; min-width:90px; }
+        .bct-tickers { display:flex; gap:5px; flex-wrap:wrap; flex:1; }
+        .ticker-chip { font-size:10px; font-weight:700; padding:2px 7px;
+            border-radius:5px; background:rgba(255,255,255,0.07);
+            color:var(--text-secondary); font-family:monospace; }
+
+        .bct-stats { display:flex; gap:20px; }
+        .bct-stat  { text-align:center; }
+        .bct-lbl   { font-size:10px; color:var(--text-tertiary); }
+        .bct-val   { font-size:12px; font-weight:700; color:var(--text-secondary); }
+        .bct-val.up   { color:#10B981; }
+        .bct-val.down { color:#EF4444; }
+
+        .bct-btn {
+            padding:6px 12px; border-radius:8px; font-size:11px; font-weight:600;
+            background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);
+            color:var(--text-secondary); text-decoration:none; white-space:nowrap;
+            transition:background .15s;
+        }
+        .bct-btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
+
+        @media (max-width: 768px) {
+            .bct-stats { display:none; }
+            .bct-name  { min-width:unset; font-size:13px; }
+        }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
@@ -495,10 +554,9 @@
                 </button>
             </div>
 
-            <div class="bots-grid">
-                <!-- Bots will be loaded dynamically from API -->
-                <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-tertiary);">
-                    <div class="spinner" style="margin: 0 auto 16px;"></div>
+            <div class="bots-tree" id="botsTree">
+                <div style="text-align:center; padding:60px 20px; color:var(--text-tertiary);">
+                    <div class="spinner" style="margin:0 auto 16px;"></div>
                     Завантаження ботів...
                 </div>
             </div>
@@ -1046,8 +1104,61 @@
             }
         });
 
+        // ── Tree view ────────────────────────────────────────────────────────
+        async function loadBotsTree() {
+            try {
+                const res = await fetch('/api/bots/tree', { credentials: 'include' });
+                if (!res.ok) throw new Error('Failed to load tree');
+                const { tree } = await res.json();
+                document.getElementById('botsTree').innerHTML = tree.map(cat => {
+                    const bots = cat.bots || [];
+                    return `
+                        <div class="cat-section">
+                            <div class="cat-header">
+                                <div class="cat-line" style="background:${cat.color}"></div>
+                                <span class="cat-icon">${cat.icon}</span>
+                                <span class="cat-name">${cat.name}</span>
+                                <span class="cat-badge">${bots.length}</span>
+                            </div>
+                            <div class="cat-bots">
+                                ${bots.length === 0
+                                    ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
+                                    : bots.map(b => renderBotCard(b)).join('')}
+                            </div>
+                        </div>`;
+                }).join('') || '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає категорій</div>';
+            } catch (err) {
+                document.getElementById('botsTree').innerHTML =
+                    '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Не вдалося завантажити ботів</div>';
+            }
+        }
+
+        function renderBotCard(b) {
+            const pnl = b.profit || 0;
+            const pnlClass = pnl > 0 ? 'up' : pnl < 0 ? 'down' : '';
+            const pnlStr  = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
+            const tickers = b.symbol
+                ? b.symbol.split(',').map(s =>
+                    `<span class="ticker-chip">${s.replace(/USDT|BUSD/g,'')}</span>`).join('')
+                : '<span class="ticker-chip" style="opacity:.4">—</span>';
+            const win = b.winRate !== null ? b.winRate + '%' : '—';
+            return `
+                <div class="bot-card-tree">
+                    <div class="bct-dot ${b.is_active ? 'on' : 'off'}"></div>
+                    <div class="bct-name">${b.name}</div>
+                    <div class="bct-tickers">${tickers}</div>
+                    <div class="bct-stats">
+                        <div class="bct-stat"><div class="bct-lbl">PnL</div><div class="bct-val ${pnlClass}">${pnlStr}</div></div>
+                        <div class="bct-stat"><div class="bct-lbl">Win</div><div class="bct-val">${win}</div></div>
+                    </div>
+                    <a class="bct-btn" href="/bot/${b.id}">Деталі →</a>
+                </div>`;
+        }
+
         // Add click handlers
         document.addEventListener('DOMContentLoaded', async function() {
+            loadBotsTree();
+
             const createBtn = document.querySelector('.btn-create');
 
             if (createBtn) createBtn.addEventListener('click', openCreateModal);

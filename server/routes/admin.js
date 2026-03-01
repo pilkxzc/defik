@@ -450,7 +450,7 @@ router.get('/api/admin/bots', requireAuth, requireRole('admin', 'moderator'), (r
         res.json({
             bots: bots.map(b => ({
                 id: b.id, userId: b.user_id, userEmail: b.email, userName: b.full_name,
-                name: b.name, type: b.type, pair: b.pair,
+                name: b.name, type: b.type, pair: b.pair, categoryId: b.category_id || null,
                 investment: b.investment, profit: b.profit, isActive: !!b.is_active, createdAt: b.created_at
             }))
         });
@@ -481,6 +481,69 @@ router.delete('/api/admin/bots/:id', requireAuth, requireRole('admin'), (req, re
     } catch (error) {
         console.error('Admin delete bot error:', error);
         res.status(500).json({ error: 'Failed to delete bot' });
+    }
+});
+
+// ==================== BOT CATEGORIES ====================
+
+router.get('/api/admin/bot-categories', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const categories = dbAll('SELECT * FROM bot_categories ORDER BY sort_order');
+        res.json({ categories });
+    } catch (error) {
+        console.error('Bot categories error:', error);
+        res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+});
+
+router.post('/api/admin/bot-categories', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const { name, color, icon, sort_order, is_visible } = req.body;
+        if (!name) return res.status(400).json({ error: 'Name is required' });
+        const result = dbRun(
+            'INSERT INTO bot_categories (name, color, icon, sort_order, is_visible) VALUES (?, ?, ?, ?, ?)',
+            [name, color || '#10B981', icon || '🤖', sort_order || 0, is_visible !== undefined ? is_visible : 1]
+        );
+        res.json({ success: true, id: result.lastInsertRowid });
+    } catch (error) {
+        console.error('Create category error:', error);
+        res.status(500).json({ error: 'Failed to create category' });
+    }
+});
+
+router.put('/api/admin/bot-categories/:id', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const { name, color, icon, sort_order, is_visible } = req.body;
+        dbRun(
+            'UPDATE bot_categories SET name=?, color=?, icon=?, sort_order=?, is_visible=? WHERE id=?',
+            [name, color, icon, sort_order, is_visible, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Update category error:', error);
+        res.status(500).json({ error: 'Failed to update category' });
+    }
+});
+
+router.delete('/api/admin/bot-categories/:id', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        dbRun('UPDATE bots SET category_id = NULL WHERE category_id = ?', [req.params.id]);
+        dbRun('DELETE FROM bot_categories WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete category error:', error);
+        res.status(500).json({ error: 'Failed to delete category' });
+    }
+});
+
+router.patch('/api/admin/bots/:id/category', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const { category_id } = req.body;
+        dbRun('UPDATE bots SET category_id = ? WHERE id = ?', [category_id || null, req.params.id]);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Set bot category error:', error);
+        res.status(500).json({ error: 'Failed to set category' });
     }
 });
 

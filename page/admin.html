@@ -1274,6 +1274,17 @@
 
                 <!-- Bots Tab -->
                 <div class="tab-content" id="tab-bots">
+                    <!-- Category management -->
+                    <div class="table-container" style="margin-bottom:24px;">
+                        <div class="table-header">
+                            <span class="table-title">Категорії ботів</span>
+                            <button class="action-btn primary" onclick="openCatModal()">+ Нова категорія</button>
+                        </div>
+                        <div id="catList" style="padding:16px;display:flex;flex-direction:column;gap:8px;">
+                            <div style="color:var(--text-tertiary);font-size:13px;">Завантаження...</div>
+                        </div>
+                    </div>
+
                     <div class="table-container bots-table">
                         <div class="table-header">
                             <span class="table-title">Всі боти</span>
@@ -1566,6 +1577,46 @@
             <div class="modal-actions" style="justify-content: center;">
                 <button type="button" class="action-btn secondary" onclick="closeModal('revokeSubscriptionModal')">Скасувати</button>
                 <button type="button" class="action-btn danger" onclick="confirmRevokeSubscription()">Відкликати</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bot Category Modal -->
+    <div class="modal-overlay" id="catModal">
+        <div class="modal-card" style="max-width:420px;text-align:left;">
+            <div class="modal-header">
+                <span class="modal-title" id="catModalTitle">Нова категорія</span>
+                <button class="modal-close" onclick="closeCatModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div style="padding:20px 0;display:flex;flex-direction:column;gap:14px;">
+                <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);">
+                    Назва
+                    <input id="catName" class="form-input" placeholder="AI BOT">
+                </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);">
+                        Колір
+                        <input id="catColor" type="color" value="#10B981" style="height:40px;width:100%;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:var(--surface-secondary);cursor:pointer;">
+                    </label>
+                    <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);">
+                        Іконка (емодзі)
+                        <input id="catIcon" class="form-input" value="🤖" maxlength="4">
+                    </label>
+                </div>
+                <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);">
+                    Порядок сортування
+                    <input id="catOrder" class="form-input" type="number" value="0" min="0">
+                </label>
+                <label style="display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--text-secondary);">
+                    Видима
+                    <input type="checkbox" id="catVisible" checked style="width:18px;height:18px;">
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="action-btn secondary" onclick="closeCatModal()">Скасувати</button>
+                <button class="action-btn primary" onclick="saveCat()">Зберегти</button>
             </div>
         </div>
     </div>

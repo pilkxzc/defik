@@ -141,6 +141,7 @@ function switchTab(tabName) {
             break;
         case 'bots':
             loadBots();
+            loadCategories();
             break;
         case 'news':
             loadNews();
@@ -744,8 +745,12 @@ async function loadBots() {
     const tableBody = document.getElementById('botsTableBody');
 
     try {
-        const response = await fetch('/api/admin/bots');
+        const [response, catRes] = await Promise.all([
+            fetch('/api/admin/bots'),
+            fetch('/api/admin/bot-categories', { credentials: 'include' })
+        ]);
         if (!response.ok) throw new Error('Failed to fetch bots');
+        const categories = catRes.ok ? (await catRes.json()).categories : [];
 
         const data = await response.json();
 
@@ -769,6 +774,8 @@ async function loadBots() {
         }
 
         data.bots.forEach(bot => {
+            const catOptions = `<option value="" ${!bot.categoryId ? 'selected' : ''}>— Без категорії —</option>` +
+                categories.map(c => `<option value="${c.id}" ${bot.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
             const row = document.createElement('div');
             row.className = 'table-row';
             row.innerHTML = `
@@ -782,6 +789,10 @@ async function loadBots() {
                 <div class="${bot.profit >= 0 ? 'up' : 'down'}">${bot.profit >= 0 ? '+' : ''}${bot.profit?.toFixed(2) || 0}%</div>
                 <div><span class="status-badge ${bot.isActive ? 'active' : 'inactive'}">${bot.isActive ? 'Active' : 'Stopped'}</span></div>
                 <div class="actions-cell">
+                    <select style="font-size:11px;padding:4px 6px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--text-secondary);"
+                        onchange="setBotCategory(${bot.id}, this.value)" data-bot-cat="${bot.id}">
+                        ${catOptions}
+                    </select>
                     <button class="action-btn ${bot.isActive ? 'danger' : 'success'}" onclick="toggleBot(${bot.id}, ${!bot.isActive})">
                         ${bot.isActive ? 'Stop' : 'Start'}
                     </button>
@@ -794,6 +805,19 @@ async function loadBots() {
     } catch (error) {
         console.error('Load bots error:', error);
         tableBody.innerHTML += `<div class="empty-state"><div class="empty-state-text">Error loading bots</div></div>`;
+    }
+}
+
+async function setBotCategory(botId, categoryId) {
+    try {
+        await fetch(`/api/admin/bots/${botId}/category`, {
+            method: 'PATCH', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category_id: categoryId || null })
+        });
+        showNotification('Категорію змінено', 'success');
+    } catch (e) {
+        showNotification('Помилка зміни категорії', 'error');
     }
 }
 
@@ -842,6 +866,97 @@ async function confirmDeleteBot() {
     } catch (error) {
         console.error('Delete bot error:', error);
         showNotification('Failed to delete bot', 'error');
+    }
+}
+
+// ==================== BOT CATEGORIES ====================
+let editCatId = null;
+
+async function loadCategories() {
+    try {
+        const res = await fetch('/api/admin/bot-categories', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed');
+        const { categories } = await res.json();
+        const list = document.getElementById('catList');
+        if (!list) return;
+        if (categories.length === 0) {
+            list.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px;">Немає категорій</div>';
+            return;
+        }
+        list.innerHTML = categories.map(c => `
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface-secondary);border-radius:10px;">
+                <span style="font-size:18px;">${c.icon}</span>
+                <span style="font-weight:700;color:#fff;flex:1;">${escapeHtml(c.name)}</span>
+                <span style="font-size:11px;color:var(--text-tertiary);background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:12px;">#${c.sort_order}</span>
+                <span style="font-size:11px;color:${c.is_visible ? '#10B981' : '#6B7280'};">${c.is_visible ? 'Видима' : 'Прихована'}</span>
+                <span style="width:12px;height:12px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>
+                <button class="action-btn secondary" onclick="editCat(${c.id})">✎ Ред.</button>
+                <button class="action-btn danger" onclick="deleteCat(${c.id})">✕</button>
+            </div>`).join('');
+    } catch (e) {
+        const list = document.getElementById('catList');
+        if (list) list.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px;">Помилка завантаження</div>';
+    }
+}
+
+function openCatModal(cat = null) {
+    editCatId = cat ? cat.id : null;
+    const modal = document.getElementById('catModal');
+    if (!modal) return;
+    document.getElementById('catModalTitle').textContent = cat ? 'Редагувати категорію' : 'Нова категорія';
+    document.getElementById('catName').value  = cat?.name  || '';
+    document.getElementById('catColor').value = cat?.color || '#10B981';
+    document.getElementById('catIcon').value  = cat?.icon  || '🤖';
+    document.getElementById('catOrder').value = cat?.sort_order ?? 0;
+    document.getElementById('catVisible').checked = cat ? !!cat.is_visible : true;
+    modal.classList.add('active');
+}
+
+function closeCatModal() {
+    const modal = document.getElementById('catModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function saveCat() {
+    const body = {
+        name: document.getElementById('catName').value,
+        color: document.getElementById('catColor').value,
+        icon: document.getElementById('catIcon').value,
+        sort_order: +document.getElementById('catOrder').value,
+        is_visible: document.getElementById('catVisible').checked ? 1 : 0,
+    };
+    if (!body.name) { showNotification('Введіть назву категорії', 'error'); return; }
+    try {
+        const url    = editCatId ? `/api/admin/bot-categories/${editCatId}` : '/api/admin/bot-categories';
+        const method = editCatId ? 'PUT' : 'POST';
+        const res    = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error('Failed');
+        closeCatModal();
+        loadCategories();
+        showNotification(editCatId ? 'Категорію оновлено' : 'Категорію створено', 'success');
+    } catch (e) {
+        showNotification('Помилка збереження', 'error');
+    }
+}
+
+async function deleteCat(id) {
+    if (!confirm('Видалити категорію? Боти залишаться без категорії.')) return;
+    try {
+        await fetch(`/api/admin/bot-categories/${id}`, { method: 'DELETE', credentials: 'include' });
+        loadCategories();
+        showNotification('Категорію видалено', 'success');
+    } catch (e) {
+        showNotification('Помилка видалення', 'error');
+    }
+}
+
+async function editCat(id) {
+    try {
+        const res = await fetch('/api/admin/bot-categories', { credentials: 'include' });
+        const { categories } = await res.json();
+        openCatModal(categories.find(c => c.id === id));
+    } catch (e) {
+        showNotification('Помилка завантаження', 'error');
     }
 }
 

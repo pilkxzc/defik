@@ -59,6 +59,28 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bots ADD COLUMN trading_settings TEXT DEFAULT "{}"'); } catch(e) {}
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_key TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_secret TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE bots ADD COLUMN category_id INTEGER DEFAULT NULL'); } catch(e) {}
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bot_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            color TEXT DEFAULT '#10B981',
+            icon TEXT DEFAULT '🤖',
+            sort_order INTEGER DEFAULT 0,
+            is_visible INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    try {
+        const cnt = dbGet('SELECT COUNT(*) as c FROM bot_categories');
+        if (!cnt || cnt.c === 0) {
+            [['AI BOT','#8B5CF6','🧠',1],['Grid Bot','#10B981','⚡',2],['Neutral Bot','#F59E0B','⚖️',3]]
+                .forEach(([name,color,icon,sort]) =>
+                    db.run('INSERT INTO bot_categories (name,color,icon,sort_order) VALUES (?,?,?,?)',[name,color,icon,sort]));
+        }
+    } catch(e) {}
 
     db.run(`
         CREATE TABLE IF NOT EXISTS bot_order_history (
