@@ -4042,6 +4042,7 @@
         let markersLoading = false;
         let _chartLoadGen = 0;
         let _klResizeObserver = null;
+        let _pendingHighlight = null; // { trade, rowEl, noNavigate } — applied after symbol switch
 
         // Parse date string as UTC regardless of format (with/without Z suffix)
         function parseUTC(s) {
@@ -6343,6 +6344,12 @@
                 if (lastChartData) drawPriceLines(lastChartData);
                 loadTradeMarkers();
                 applyIndicators();
+                // If a trade was clicked while on a different symbol, highlight it now
+                if (_pendingHighlight) {
+                    const ph = _pendingHighlight;
+                    _pendingHighlight = null;
+                    highlightTrade(ph.trade, ph.rowEl, ph.noNavigate);
+                }
             });
         }
 
@@ -7046,6 +7053,14 @@
         let highlightedTradeRow = null;
 
         function highlightTrade(trade, rowEl, noNavigate) {
+            // If the trade belongs to a different symbol, switch first — highlight after load
+            const tradeSymbol = (trade.symbol || '').toUpperCase().replace(/^[^:]+:/, '');
+            if (tradeSymbol && tradeSymbol !== currentSymbol) {
+                _pendingHighlight = { trade, rowEl, noNavigate };
+                changeSymbol(tradeSymbol);
+                return;
+            }
+
             clearTradeHighlight(false);
 
             highlightedTradeRow = rowEl;
