@@ -2905,31 +2905,30 @@
             </div>
         </header>
 
-        <!-- Indicators Toolbar -->
-        <div id="indicatorsToolbar" class="chart-indicators-bar">
-            <button class="ind-btn" id="indEma" onclick="toggleIndicator('ema')" title="EMA лінія">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/></svg>
-                EMA
-            </button>
-            <button class="ind-btn" id="indFill" onclick="toggleIndicator('fill')" title="Заливка між ціною та EMA">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 Q16 12 21 8 L21 16 Q16 20 12 16 Q8 12 3 16Z" fill="rgba(16,185,129,0.4)" stroke="none"/></svg>
-                Заливка
-            </button>
-            <button class="ind-btn" id="indSignals" onclick="toggleIndicator('signals')" title="Авто сигнали Buy/Sell">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16 14 18 21 12 17 6 21 8 14 2 9 9 9"/></svg>
-                Сигнали
-            </button>
-            <div class="ind-sep"></div>
-            <button class="ind-btn active" id="indTrades" onclick="toggleIndicator('trades')" title="Угоди бота">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
-                Угоди
-            </button>
-        </div>
-
         <!-- Chart — klinecharts -->
-        <div class="chart-container" id="chartContainer" style="position: relative;">
+        <div class="chart-container" id="chartContainer" style="position: relative; display:flex; flex-direction:column;">
+            <!-- Indicators Toolbar -->
+            <div id="indicatorsToolbar" class="chart-indicators-bar">
+                <button class="ind-btn" id="indEma" onclick="toggleIndicator('ema')" title="EMA лінія">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/></svg>
+                    EMA
+                </button>
+                <button class="ind-btn" id="indFill" onclick="toggleIndicator('fill')" title="Заливка між ціною та EMA">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 Q16 12 21 8 L21 16 Q16 20 12 16 Q8 12 3 16Z" fill="rgba(16,185,129,0.4)" stroke="none"/></svg>
+                    Заливка
+                </button>
+                <button class="ind-btn" id="indSignals" onclick="toggleIndicator('signals')" title="Авто сигнали Buy/Sell">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16 14 18 21 12 17 6 21 8 14 2 9 9 9"/></svg>
+                    Сигнали
+                </button>
+                <div class="ind-sep"></div>
+                <button class="ind-btn active" id="indTrades" onclick="toggleIndicator('trades')" title="Угоди бота">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+                    Угоди
+                </button>
+            </div>
             <div class="color-edit-marker" data-target="chartBg" title="Змінити фон графіка" style="top:8px;right:8px;z-index:60;"><input type="color" value="#141414" onchange="setElementColor('chartBg',this.value)"></div>
-            <div id="chart" style="width:100%;height:100%;"></div>
+            <div id="chart" style="width:100%;flex:1;min-height:0;"></div>
             <button class="chart-fs-exit" id="chartFsExit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg> Esc</button>
             <!-- Repeating YAMATO watermark canvas (drawn via JS to support custom font + tiling) -->
             <canvas id="yamatoWatermarkCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;"></canvas>
