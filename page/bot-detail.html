@@ -3100,7 +3100,8 @@
                     <span class="panel-drag-handle" title="Перетягніть для зміни порядку">⠿</span>
                     <span class="panel-title">Інструменти</span>
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <span id="instrumentsCount" style="font-size: 12px; color: var(--text-tertiary);">0</span>
+                            <span id="instrumentsCount" style="font-size: 12px; color: var(--text-tertiary);">0</span>
+                        <button id="instrumentsSortBtn" onclick="cycleInstrumentsSort()" title="Сортування" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:3px 7px;color:var(--text-tertiary);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">A-Z</button>
                         <button class="panel-hide-btn" onclick="togglePanelHidden('panelInstruments')" title="Приховати панель">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                         </button>
@@ -3177,7 +3178,8 @@
                     <div class="color-edit-marker" data-target="panelOrders" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelOrders',this.value)"></div>
                     <span class="panel-drag-handle" title="Перетягніть для зміни порядку" style="margin-right:2px;">⠿</span>
                     <button class="panel-tab active" onclick="switchPanelTab('orders')">Ордери <span id="ordersCount">0</span></button>
-                    <button class="panel-tab" onclick="switchPanelTab('trades')">Історія <span id="tradesCount" style="background:rgba(139,92,246,0.2);color:#8B5CF6;padding:1px 6px;border-radius:9999px;font-size:10px;margin-left:4px;">0</span></button>
+                    <button class="panel-tab" onclick="switchPanelTab('trades')">Угоди <span id="tradesCount" style="background:rgba(139,92,246,0.2);color:#8B5CF6;padding:1px 6px;border-radius:9999px;font-size:10px;margin-left:4px;">0</span></button>
+                    <button class="panel-tab" onclick="switchPanelTab('positions')">Позиції <span id="posBlockCount" style="background:rgba(16,185,129,0.15);color:#10B981;padding:1px 6px;border-radius:9999px;font-size:10px;margin-left:4px;">0</span></button>
                     <div style="flex: 1;"></div>
                     <button onclick="syncBinanceTrades()" id="syncTradesBtn" title="Синхронізація з Binance" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);padding:4px;display:flex;align-items:center;" >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
@@ -3200,6 +3202,11 @@
                 <div class="panel-body" style="flex: 1; padding: 0; display: none; overflow: auto;" id="tradesContent">
                     <div style="padding: 16px;">
                         <div class="empty-state">Немає історії угод</div>
+                    </div>
+                </div>
+                <div class="panel-body" style="flex: 1; padding: 0; display: none; overflow: auto;" id="positionsContent">
+                    <div style="padding: 16px;">
+                        <div class="empty-state">Немає даних позицій</div>
                     </div>
                 </div>
                 <div class="resize-handle" data-panel="panelOrders"></div>
@@ -4243,16 +4250,18 @@
 
         // ==================== STATS MODAL (Phase 7) ====================
         const statsTimeframes = [
-            { label: '30хв',  value: '30m', ms: 30 * 60 * 1000 },
             { label: '1год',  value: '1h',  ms: 60 * 60 * 1000 },
-            { label: '2год',  value: '2h',  ms: 2 * 60 * 60 * 1000 },
             { label: '4год',  value: '4h',  ms: 4 * 60 * 60 * 1000 },
             { label: '1день', value: '1d',  ms: 24 * 60 * 60 * 1000 },
             { label: '7днів', value: '7d',  ms: 7 * 24 * 60 * 60 * 1000 },
-            { label: 'Усі',   value: 'all', ms: 0 }
+            { label: '30днів', value: '30d', ms: 30 * 24 * 60 * 60 * 1000 },
+            { label: 'Усі',   value: 'all', ms: 0 },
+            { label: 'Дата',  value: 'custom', ms: -1 }
         ];
         let currentStatsTf = 'all';
         let statsIsFullscreen = false;
+        let statsCustomFrom = null;
+        let statsCustomTo = null;
 
         function toggleStatsFullscreen() {
             statsIsFullscreen = !statsIsFullscreen;
@@ -4273,8 +4282,21 @@
             const bar = document.getElementById('statsTfBar');
             bar.innerHTML = statsTimeframes.map(tf =>
                 `<button class="stats-tf-btn${tf.value === currentStatsTf ? ' active' : ''}" data-tf="${tf.value}" onclick="setStatsTf('${tf.value}')">${tf.label}</button>`
-            ).join('');
+            ).join('') + `
+            <div id="statsCustomRange" style="display:${currentStatsTf === 'custom' ? 'flex' : 'none'};align-items:center;gap:6px;margin-left:8px;flex-wrap:wrap;">
+                <input type="date" id="statsFromDate" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;padding:4px 8px;color:#fff;font-size:11px;font-family:inherit;" onchange="applyCustomDateRange()">
+                <span style="color:var(--text-tertiary);font-size:11px;">—</span>
+                <input type="date" id="statsToDate" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;padding:4px 8px;color:#fff;font-size:11px;font-family:inherit;" onchange="applyCustomDateRange()">
+            </div>`;
             renderStatsForTimeframe(currentStatsTf);
+        }
+
+        function applyCustomDateRange() {
+            const from = document.getElementById('statsFromDate')?.value;
+            const to = document.getElementById('statsToDate')?.value;
+            statsCustomFrom = from ? new Date(from).getTime() : null;
+            statsCustomTo = to ? new Date(to + 'T23:59:59').getTime() : null;
+            renderStatsForTimeframe('custom');
         }
 
         function closeStatsModal() {
@@ -4288,6 +4310,8 @@
             document.querySelectorAll('.stats-tf-btn').forEach(b =>
                 b.classList.toggle('active', b.dataset.tf === tf)
             );
+            const customRange = document.getElementById('statsCustomRange');
+            if (customRange) customRange.style.display = tf === 'custom' ? 'flex' : 'none';
             renderStatsForTimeframe(tf);
         }
 
@@ -4295,6 +4319,12 @@
             const tfObj = statsTimeframes.find(t => t.value === tf);
             const now = Date.now();
             const trades = allEquityTrades.filter(t => {
+                if (tf === 'custom') {
+                    const ts = parseUTC(t.closedAt);
+                    if (statsCustomFrom && ts < statsCustomFrom) return false;
+                    if (statsCustomTo && ts > statsCustomTo) return false;
+                    return true;
+                }
                 if (!tfObj || tfObj.ms === 0) return true;
                 return parseUTC(t.closedAt) >= now - tfObj.ms;
             });
@@ -4340,6 +4370,38 @@
             const shortWins = shorts.filter(t => parseFloat(t.pnl) > 0).length;
             const longWr  = longs.length  > 0 ? (longWins  / longs.length  * 100).toFixed(0)  : '—';
             const shortWr = shorts.length > 0 ? (shortWins / shorts.length * 100).toFixed(0) : '—';
+            const longAvgWin  = longs.filter(t => parseFloat(t.pnl) > 0).reduce((s,t) => s + parseFloat(t.pnl), 0) / (longs.filter(t => parseFloat(t.pnl) > 0).length || 1);
+            const shortAvgWin = shorts.filter(t => parseFloat(t.pnl) > 0).reduce((s,t) => s + parseFloat(t.pnl), 0) / (shorts.filter(t => parseFloat(t.pnl) > 0).length || 1);
+
+            // Max Drawdown calculation (equity curve)
+            let peak = 0, maxDD = 0, equity = 0;
+            trades.forEach(t => {
+                equity += parseFloat(t.pnl || 0);
+                if (equity > peak) peak = equity;
+                const dd = peak > 0 ? (peak - equity) / peak * 100 : 0;
+                if (dd > maxDD) maxDD = dd;
+            });
+
+            // Daily performance
+            const dayMap = {};
+            trades.forEach(t => {
+                const d = (t.closedAt || '').slice(0, 10);
+                if (!d) return;
+                if (!dayMap[d]) dayMap[d] = { pnl: 0, count: 0, wins: 0 };
+                dayMap[d].pnl += parseFloat(t.pnl || 0);
+                dayMap[d].count++;
+                if (parseFloat(t.pnl) > 0) dayMap[d].wins++;
+            });
+            const days = Object.values(dayMap);
+            const profitDays = days.filter(d => d.pnl > 0).length;
+            const lossDays = days.filter(d => d.pnl <= 0).length;
+            const avgDayPnl = days.length > 0 ? days.reduce((s, d) => s + d.pnl, 0) / days.length : 0;
+            const avgTradesPerDay = days.length > 0 ? trades.length / days.length : 0;
+
+            // Period duration
+            const firstTs = trades.length > 0 ? parseUTC(trades[0].closedAt || '') : 0;
+            const lastTs  = trades.length > 0 ? parseUTC(trades[trades.length - 1].closedAt || '') : 0;
+            const periodDays = firstTs && lastTs ? Math.max(1, Math.ceil((lastTs - firstTs) / 86400000)) : 0;
 
             const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
             const pfStr = profitFactor === Infinity ? '∞' : profitFactor.toFixed(2);
@@ -4422,12 +4484,54 @@
                         <div class="stats-ls-row"><span>PnL</span><span class="val" style="color:${longPnl>=0?'var(--color-long)':'var(--color-short)'}">${fmt(longPnl)}</span></div>
                         <div class="stats-ls-row"><span>Win Rate</span><span class="val">${longWr}%</span></div>
                         <div class="stats-ls-row"><span>Угод</span><span class="val">${longs.length}</span></div>
+                        ${longs.length > 0 ? `<div class="stats-ls-row"><span>Сер. прибуток</span><span class="val" style="color:var(--color-long)">${fmt(longAvgWin)}</span></div>` : ''}
                     </div>
                     <div class="stats-ls-card" style="border:1px solid rgba(239,68,68,0.12);">
                         <div class="stats-ls-card-label" style="color:var(--color-short)">▼ Шорти (${shorts.length})</div>
                         <div class="stats-ls-row"><span>PnL</span><span class="val" style="color:${shortPnl>=0?'var(--color-long)':'var(--color-short)'}">${fmt(shortPnl)}</span></div>
                         <div class="stats-ls-row"><span>Win Rate</span><span class="val">${shortWr}%</span></div>
                         <div class="stats-ls-row"><span>Угод</span><span class="val">${shorts.length}</span></div>
+                        ${shorts.length > 0 ? `<div class="stats-ls-row"><span>Сер. прибуток</span><span class="val" style="color:var(--color-long)">${fmt(shortAvgWin)}</span></div>` : ''}
+                    </div>
+                </div>
+
+                <div class="stats-divider"></div>
+                <div class="stats-section-title">Ризик та просадка</div>
+
+                <div class="stats-kpi-grid-3">
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:var(--color-short)">-${maxDD.toFixed(1)}%</div>
+                        <div class="stats-kpi-label">Макс. просадка</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value">${profitFactor > 0 && grossLoss > 0 ? (grossProfit / maxDD.toFixed(2) || '—') : '—'}</div>
+                        <div class="stats-kpi-label">Calmar Ratio</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value">${periodDays > 0 ? periodDays + 'д' : '—'}</div>
+                        <div class="stats-kpi-label">Тривалість</div>
+                    </div>
+                </div>
+
+                <div class="stats-divider"></div>
+                <div class="stats-section-title">Щоденна статистика</div>
+
+                <div class="stats-kpi-grid">
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:${avgDayPnl>=0?'var(--color-long)':'var(--color-short)'}">${fmt(avgDayPnl)}</div>
+                        <div class="stats-kpi-label">Сер. PnL/день</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value">${avgTradesPerDay.toFixed(1)}</div>
+                        <div class="stats-kpi-label">Угод/день</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:var(--color-long)">${profitDays}</div>
+                        <div class="stats-kpi-label">Прибуткових днів</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:var(--color-short)">${lossDays}</div>
+                        <div class="stats-kpi-label">Збиткових днів</div>
                     </div>
                 </div>
             `;
@@ -4626,6 +4730,187 @@
                     } catch(e) {}
                 };
             });
+        }
+
+        // ==================== POSITION BLOCKS (History by Positions) ====================
+
+        function buildPositionBlocks(trades) {
+            // Group trades into position blocks per symbol
+            // A block starts when positionAmt goes from 0 to non-zero, ends when it returns to ~0
+            const bySymbol = {};
+            trades.forEach(t => {
+                const sym = t.symbol || t.pair || currentSymbol;
+                if (!bySymbol[sym]) bySymbol[sym] = [];
+                bySymbol[sym].push(t);
+            });
+
+            const blocks = [];
+            Object.keys(bySymbol).forEach(sym => {
+                const symTrades = bySymbol[sym].slice().sort((a, b) => parseUTC(a.openedAt || a.closedAt) - parseUTC(b.openedAt || b.closedAt));
+                let blockTrades = [];
+                let netQty = 0;
+
+                symTrades.forEach(t => {
+                    blockTrades.push(t);
+                    const qty = parseFloat(t.quantity || t.qty || 0);
+                    const side = (t.side || '').toUpperCase();
+                    const isClose = t.status === 'closed' || side === 'SELL' || side === 'SHORT_EXIT';
+                    const isEntry = side === 'BUY' || side === 'LONG' || side === 'LONG_ENTRY';
+
+                    if (isEntry) netQty += qty;
+                    else if (isClose) netQty = Math.max(0, netQty - qty);
+
+                    // Close block when position returns to ~0 or on last trade
+                    if (netQty < 0.0001 && blockTrades.length > 0) {
+                        blocks.push(buildBlock(sym, blockTrades));
+                        blockTrades = [];
+                        netQty = 0;
+                    }
+                });
+
+                // Remaining unclosed block
+                if (blockTrades.length > 0) {
+                    const b = buildBlock(sym, blockTrades);
+                    b.isOpen = true;
+                    blocks.push(b);
+                }
+            });
+
+            // Sort blocks by end time descending
+            blocks.sort((a, b) => (b.endTime || b.startTime) - (a.endTime || a.startTime));
+            return blocks;
+        }
+
+        function buildBlock(sym, trades) {
+            const totalPnl = trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
+            const entries = trades.filter(t => {
+                const side = (t.side || '').toUpperCase();
+                return side === 'BUY' || side === 'LONG';
+            });
+            const exits = trades.filter(t => {
+                const side = (t.side || '').toUpperCase();
+                return side === 'SELL' || side === 'SHORT';
+            });
+            const avgEntry = entries.length > 0
+                ? entries.reduce((s, t) => s + parseFloat(t.entryPrice || t.price || 0), 0) / entries.length : 0;
+            const avgExit = exits.length > 0
+                ? exits.reduce((s, t) => s + parseFloat(t.exitPrice || t.price || 0), 0) / exits.length : 0;
+            const totalQty = entries.reduce((s, t) => s + parseFloat(t.quantity || t.qty || 0), 0);
+            const startTime = parseUTC(trades[0].openedAt || trades[0].closedAt);
+            const endTime = parseUTC(trades[trades.length - 1].closedAt || trades[trades.length - 1].openedAt);
+            const durationMs = endTime - startTime;
+            const side = entries.length >= exits.length ? 'LONG' : 'SHORT';
+
+            return { sym, trades, totalPnl, avgEntry, avgExit, totalQty, startTime, endTime, durationMs, side, isOpen: false };
+        }
+
+        function formatDuration(ms) {
+            if (!ms || ms <= 0) return '—';
+            const h = Math.floor(ms / 3600000);
+            const m = Math.floor((ms % 3600000) / 60000);
+            if (h >= 24) return `${Math.floor(h / 24)}д ${h % 24}год`;
+            if (h > 0) return `${h}год ${m}хв`;
+            return `${m}хв`;
+        }
+
+        function renderPositionBlocks() {
+            const container = document.getElementById('positionsContent');
+            if (!container) return;
+
+            if (!allLoadedTrades || allLoadedTrades.length === 0) {
+                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Завантажте угоди спочатку</div></div>';
+                return;
+            }
+
+            const blocks = buildPositionBlocks(allLoadedTrades);
+            const countEl = document.getElementById('posBlockCount');
+            if (countEl) countEl.textContent = blocks.length;
+
+            if (blocks.length === 0) {
+                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Позиції не знайдено</div></div>';
+                return;
+            }
+
+            // Summary bar
+            const totalPnl = blocks.reduce((s, b) => s + b.totalPnl, 0);
+            const wins = blocks.filter(b => b.totalPnl > 0).length;
+            const wr = blocks.length > 0 ? (wins / blocks.length * 100).toFixed(0) : 0;
+            const longBlocks = blocks.filter(b => b.side === 'LONG');
+            const shortBlocks = blocks.filter(b => b.side === 'SHORT');
+            const longPnl = longBlocks.reduce((s, b) => s + b.totalPnl, 0);
+            const shortPnl = shortBlocks.reduce((s, b) => s + b.totalPnl, 0);
+            const pnlColor = totalPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
+            const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
+
+            const summaryHtml = `
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 12px 6px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <div style="text-align:center;">
+                        <div style="font-size:13px;font-weight:700;color:${pnlColor}">${fmt(totalPnl)}</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Заг. PnL</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:13px;font-weight:700;">${wr}%</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Win Rate</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:13px;font-weight:700;color:var(--color-long)">${fmt(longPnl)}</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Лонги</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:13px;font-weight:700;color:${shortPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)'}">${fmt(shortPnl)}</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Шорти</div>
+                    </div>
+                </div>`;
+
+            const blocksHtml = blocks.map((b, i) => {
+                const pnlC = b.totalPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
+                const sideC = b.side === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
+                const openBadge = b.isOpen ? `<span style="font-size:9px;background:rgba(16,185,129,0.15);color:#10B981;padding:2px 6px;border-radius:9999px;margin-left:4px;">OPEN</span>` : '';
+                const entryStr = b.avgEntry > 0 ? (b.avgEntry >= 1000 ? b.avgEntry.toFixed(1) : b.avgEntry.toFixed(4)) : '—';
+                const exitStr = b.avgExit > 0 ? (b.avgExit >= 1000 ? b.avgExit.toFixed(1) : b.avgExit.toFixed(4)) : '—';
+                const dateStr = b.endTime ? new Date(b.endTime).toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' }) : '';
+
+                return `
+                <div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background 0.15s;"
+                     onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''"
+                     onclick="togglePositionBlockDetail(this, ${i})">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span style="font-size:11px;font-weight:700;">${b.sym.replace('USDT','')}</span>
+                            <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${b.side === 'LONG' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${sideC};">${b.side}</span>
+                            ${openBadge}
+                        </div>
+                        <span style="font-size:12px;font-weight:700;color:${pnlC}">${fmt(b.totalPnl)}</span>
+                    </div>
+                    <div style="display:flex;gap:12px;font-size:10px;color:var(--text-tertiary);">
+                        <span>Вхід <span style="color:var(--text-secondary)">$${entryStr}</span></span>
+                        <span>Вихід <span style="color:var(--text-secondary)">$${exitStr}</span></span>
+                        <span>${b.trades.length} угод</span>
+                        <span style="margin-left:auto;">${formatDuration(b.durationMs)}</span>
+                        <span>${dateStr}</span>
+                    </div>
+                    <div class="pos-block-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.04);">
+                        ${b.trades.map(t => {
+                            const ts = (t.side || '').toUpperCase();
+                            const tc = ts === 'BUY' || ts === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
+                            const tp = parseFloat(t.pnl || 0);
+                            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px;">
+                                <span style="color:${tc};font-weight:600;">${ts}</span>
+                                <span style="color:var(--text-secondary)">$${parseFloat(t.entryPrice || t.price || 0).toFixed(4)}</span>
+                                <span style="color:var(--text-tertiary)">${parseFloat(t.quantity || t.qty || 0).toFixed(4)}</span>
+                                <span style="color:${tp >= 0 ? 'var(--color-long)' : 'var(--color-short)'};">${tp >= 0 ? '+' : ''}$${Math.abs(tp).toFixed(2)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+
+            container.innerHTML = summaryHtml + `<div style="flex:1;overflow-y:auto;">${blocksHtml}</div>`;
+        }
+
+        function togglePositionBlockDetail(row, idx) {
+            const detail = row.querySelector('.pos-block-detail');
+            if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
         }
 
         // ==================== DASHBOARD CONSTRUCTOR (Phase 9) ====================
@@ -5265,6 +5550,7 @@
 
         let allSymbols = [];
         let symbolPrices = {};
+        let instrumentsSortMode = 'alpha'; // 'alpha' | 'price-asc' | 'price-desc'
         let symbolLocked = false;
         const klinesCache = new Map();
         const KLINES_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -5985,6 +6271,8 @@
                         change: t.priceChangePercent
                     };
                 });
+                // Refresh instruments panel with prices
+                if (botDetails?.instruments?.length > 0) updateInstrumentsUI();
             } catch (e) {
                 console.error('Load prices error:', e);
             }
@@ -6810,9 +7098,35 @@
             const panel = document.getElementById('positionPanel');
             const content = document.getElementById('positionContent');
 
+            // Account-level summary bar (total unrealized PnL across ALL positions)
+            const acct = fullData?.account;
+            let summaryHtml = '';
+            if (acct) {
+                const totalUpnl = parseFloat(acct.totalUnrealizedProfit || 0);
+                const totalBal = parseFloat(acct.totalWalletBalance || 0);
+                const upnlColor = totalUpnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
+                const upnlSign = totalUpnl >= 0 ? '+' : '';
+                summaryHtml = `<div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.05);padding:6px 12px;background:rgba(0,0,0,0.18);">
+                    <div style="flex:1;text-align:center;">
+                        <div style="font-size:11px;font-weight:700;color:${upnlColor}">${upnlSign}$${Math.abs(totalUpnl).toFixed(2)}</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Нереалізовано</div>
+                    </div>
+                    <div style="width:1px;background:rgba(255,255,255,0.06);flex-shrink:0;margin:2px 0;"></div>
+                    <div style="flex:1;text-align:center;">
+                        <div style="font-size:11px;font-weight:700;">$${totalBal.toFixed(2)}</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Баланс</div>
+                    </div>
+                    ${totalBal > 0 ? `<div style="width:1px;background:rgba(255,255,255,0.06);flex-shrink:0;margin:2px 0;"></div>
+                    <div style="flex:1;text-align:center;">
+                        <div style="font-size:11px;font-weight:700;color:${upnlColor}">${totalBal > 0 ? (upnlSign + (totalUpnl / totalBal * 100).toFixed(2) + '%') : '—'}</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">ROE</div>
+                    </div>` : ''}
+                </div>`;
+            }
+
             if (!position) {
                 panel.style.display = 'block';
-                content.innerHTML = '<div class="empty-state">Немає відкритих позицій</div>';
+                content.innerHTML = summaryHtml + '<div class="empty-state" style="padding:12px;">Немає відкритих позицій</div>';
                 return;
             }
 
@@ -6900,7 +7214,7 @@
                 </div>`;
             }
 
-            content.innerHTML = `
+            content.innerHTML = summaryHtml + `
                 <div class="position-card" id="positionCardClickable" title="Натисніть для показу на графіку" style="cursor:pointer;">
                     <div class="position-header">
                         <span class="position-side ${position.side.toLowerCase()}">${position.side} ${position.leverage}x</span>
@@ -8098,6 +8412,56 @@
             updateTradesUI();
         }
 
+        function sortInstrumentsList(symbols) {
+            const sorted = [...symbols];
+            if (instrumentsSortMode === 'alpha') {
+                sorted.sort((a, b) => a.localeCompare(b));
+            } else if (instrumentsSortMode === 'price-desc') {
+                sorted.sort((a, b) => {
+                    const pa = parseFloat(symbolPrices[a]?.price || 0);
+                    const pb = parseFloat(symbolPrices[b]?.price || 0);
+                    return pb - pa;
+                });
+            } else if (instrumentsSortMode === 'price-asc') {
+                sorted.sort((a, b) => {
+                    const pa = parseFloat(symbolPrices[a]?.price || 0);
+                    const pb = parseFloat(symbolPrices[b]?.price || 0);
+                    return pa - pb;
+                });
+            }
+            return sorted;
+        }
+
+        function cycleInstrumentsSort() {
+            const modes = ['alpha', 'price-desc', 'price-asc'];
+            const labels = { alpha: 'A-Z', 'price-desc': 'P↓', 'price-asc': 'P↑' };
+            const idx = modes.indexOf(instrumentsSortMode);
+            instrumentsSortMode = modes[(idx + 1) % modes.length];
+            const btn = document.getElementById('instrumentsSortBtn');
+            if (btn) btn.textContent = labels[instrumentsSortMode];
+            updateInstrumentsUI();
+        }
+
+        function renderInstrumentChip(symbol) {
+            const priceData = symbolPrices[symbol];
+            const price = priceData ? parseFloat(priceData.price) : null;
+            const change = priceData ? parseFloat(priceData.change) : null;
+            const priceStr = price ? (price >= 1000 ? '$' + price.toFixed(0) : price >= 1 ? '$' + price.toFixed(2) : '$' + price.toFixed(4)) : '';
+            const changeColor = change >= 0 ? 'var(--color-long)' : 'var(--color-short)';
+            const changeStr = change !== null ? `<span style="font-size:9px;color:${changeColor};font-weight:600;">${change >= 0 ? '+' : ''}${change.toFixed(1)}%</span>` : '';
+            return `
+                <div onclick="changeSymbol('${symbol}')" title="${symbol}" style="
+                    padding: 5px 9px; background: var(--surface-secondary);
+                    border-radius: 8px; font-size: 12px; font-weight: 600;
+                    cursor: pointer; display:flex; flex-direction:column; align-items:center; gap:1px;
+                    border: 1px solid rgba(255,255,255,0.04); transition: border-color 0.15s;
+                " onmouseover="this.style.borderColor='rgba(255,255,255,0.12)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.04)'">
+                    <span>${symbol.replace('USDT', '')}</span>
+                    ${priceStr ? `<span style="font-size:9px;color:var(--text-tertiary);font-weight:500;">${priceStr}</span>` : ''}
+                    ${changeStr}
+                </div>`;
+        }
+
         function updateInstrumentsUI() {
             const container = document.getElementById('instrumentsContent');
             const instruments = botDetails?.instruments || [];
@@ -8109,15 +8473,8 @@
                 return;
             }
 
-            container.innerHTML = `
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    ${instruments.map(symbol => `
-                        <div style="padding: 6px 12px; background: var(--surface-secondary); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;" onclick="changeSymbol('${symbol}')">
-                            ${symbol.replace('USDT', '')}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            const sorted = sortInstrumentsList(instruments);
+            container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px;">${sorted.map(renderInstrumentChip).join('')}</div>`;
         }
 
         // ==================== FULL TRADE HISTORY ====================
@@ -8331,15 +8688,10 @@
                 container.innerHTML = '<div class="empty-state">Інструменти відсутні</div>';
                 return;
             }
-            container.innerHTML = `
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    ${symbols.map(symbol => `
-                        <div style="padding: 6px 12px; background: var(--surface-secondary); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;" onclick="changeSymbol('${symbol}')" title="${symbol}">
-                            ${symbol.replace('USDT', '')}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            // Also merge these into botDetails.instruments if it exists
+            if (botDetails) botDetails.instruments = [...new Set([...(botDetails.instruments || []), ...symbols])];
+            const sorted = sortInstrumentsList(symbols);
+            container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px;">${sorted.map(renderInstrumentChip).join('')}</div>`;
         }
 
         function updateTradesUI() {
@@ -8568,18 +8920,28 @@
         function switchPanelTab(tab) {
             const ordersContent = document.getElementById('ordersContent');
             const tradesContent = document.getElementById('tradesContent');
+            const positionsContent = document.getElementById('positionsContent');
             const tabs = document.querySelectorAll('.panel-tab');
 
             tabs.forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
 
+            ordersContent.style.display = 'none';
+            tradesContent.style.display = 'none';
+            positionsContent.style.display = 'none';
+
             if (tab === 'orders') {
                 ordersContent.style.display = 'block';
-                tradesContent.style.display = 'none';
+            } else if (tab === 'positions') {
+                positionsContent.style.display = 'flex';
+                positionsContent.style.flexDirection = 'column';
+                if (!tradeHistoryLoaded) {
+                    loadFullTradeHistory(true).then(() => renderPositionBlocks());
+                } else {
+                    renderPositionBlocks();
+                }
             } else {
-                ordersContent.style.display = 'none';
                 tradesContent.style.display = 'block';
-                // Load history on first open
                 if (!tradeHistoryLoaded) {
                     loadFullTradeHistory(true);
                 }
@@ -8749,12 +9111,12 @@
 
         // ── Panel state: save/load (sizes + collapsed + hidden + order) ──────────
         function loadPanelSizes() {
-            const saved = localStorage.getItem('botPanelSizes');
+            const saved = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
             if (!saved) return;
             // Bust old oversized panelStats cache
             try {
                 const s = JSON.parse(saved);
-                if (s.panelStats?.height > 500) { delete s.panelStats.height; localStorage.setItem('botPanelSizes', JSON.stringify(s)); }
+                if (s.panelStats?.height > 500) { delete s.panelStats.height; localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(s)); }
             } catch(e) {}
             try {
                 const sizes = JSON.parse(saved);
@@ -8807,7 +9169,7 @@
                     flex: panel.style.flex || ''
                 };
             });
-            localStorage.setItem('botPanelSizes', JSON.stringify(sizes));
+            localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(sizes));
         }
 
         // Toggle panel collapse
@@ -8846,7 +9208,7 @@
         }
 
         function resetPanelLayout() {
-            localStorage.removeItem('botPanelSizes');
+            localStorage.removeItem(`yamato_bot_${botId}_panelSizes`);
             localStorage.removeItem(`yamato_bot_${botId}_chartSize`);
             location.reload();
         }
