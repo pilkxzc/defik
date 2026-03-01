@@ -10141,10 +10141,11 @@
             var lw = rulerLabel.offsetWidth  || 160;
             var lh = rulerLabel.offsetHeight || 44;
             var lx = x + 16;
-            var ly = y - lh - 12;
+            var ly = y - lh / 2;
             if (lx + lw > rect.width  - 4) lx = x - lw - 16;
             if (lx < 4) lx = 4;
-            if (ly < 4) ly = y + 16;
+            if (ly < 4) ly = 4;
+            if (ly + lh > rect.height - 4) ly = rect.height - lh - 4;
             rulerLabel.style.left = lx + 'px';
             rulerLabel.style.top  = ly + 'px';
         }
