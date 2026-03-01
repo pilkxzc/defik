@@ -872,6 +872,15 @@ async function confirmDeleteBot() {
 // ==================== BOT CATEGORIES ====================
 let editCatId = null;
 
+const ADMIN_CAT_ICONS = {
+    cpu:    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>',
+    grid:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>',
+    scale:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="3" x2="12" y2="21"/><path d="M3 6l4 8H3l4-8zm14 0l4 8h-8l4-8z"/></svg>',
+    folder: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+    trend:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+    bot:    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/><line x1="12" y1="4" x2="12" y2="6"/></svg>',
+};
+
 async function loadCategories() {
     try {
         const res = await fetch('/api/admin/bot-categories', { credentials: 'include' });
@@ -880,19 +889,30 @@ async function loadCategories() {
         const list = document.getElementById('catList');
         if (!list) return;
         if (categories.length === 0) {
-            list.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px;">Немає категорій</div>';
+            list.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px;padding:8px 0;">Немає категорій. Натисніть "+ Нова категорія" щоб створити.</div>';
             return;
         }
-        list.innerHTML = categories.map(c => `
-            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface-secondary);border-radius:10px;">
-                <span style="font-size:18px;">${c.icon}</span>
+        list.innerHTML = categories.map(c => {
+            const iconSvg = ADMIN_CAT_ICONS[c.icon] || ADMIN_CAT_ICONS['folder'];
+            return `
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
+                background:var(--surface-secondary);border-radius:10px;
+                border-left:3px solid ${c.color};">
+                <span style="color:${c.color};display:flex;align-items:center;">${iconSvg}</span>
                 <span style="font-weight:700;color:#fff;flex:1;">${escapeHtml(c.name)}</span>
-                <span style="font-size:11px;color:var(--text-tertiary);background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:12px;">#${c.sort_order}</span>
-                <span style="font-size:11px;color:${c.is_visible ? '#10B981' : '#6B7280'};">${c.is_visible ? 'Видима' : 'Прихована'}</span>
-                <span style="width:12px;height:12px;border-radius:50%;background:${c.color};display:inline-block;flex-shrink:0;"></span>
-                <button class="action-btn secondary" onclick="editCat(${c.id})">✎ Ред.</button>
-                <button class="action-btn danger" onclick="deleteCat(${c.id})">✕</button>
-            </div>`).join('');
+                <span style="font-size:10px;font-weight:700;color:var(--text-tertiary);
+                    background:rgba(255,255,255,0.06);padding:2px 7px;border-radius:10px;">#${c.sort_order}</span>
+                <span style="font-size:11px;font-weight:600;color:${c.is_visible ? '#10B981' : '#6B7280'};">
+                    ${c.is_visible ? 'Видима' : 'Прихована'}</span>
+                <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0;"></span>
+                <button class="action-btn secondary" style="padding:6px 10px;" onclick="editCat(${c.id})">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="action-btn danger" style="padding:6px 10px;" onclick="deleteCat(${c.id})">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+            </div>`;
+        }).join('');
     } catch (e) {
         const list = document.getElementById('catList');
         if (list) list.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px;">Помилка завантаження</div>';
@@ -904,10 +924,10 @@ function openCatModal(cat = null) {
     const modal = document.getElementById('catModal');
     if (!modal) return;
     document.getElementById('catModalTitle').textContent = cat ? 'Редагувати категорію' : 'Нова категорія';
-    document.getElementById('catName').value  = cat?.name  || '';
-    document.getElementById('catColor').value = cat?.color || '#10B981';
-    document.getElementById('catIcon').value  = cat?.icon  || '🤖';
-    document.getElementById('catOrder').value = cat?.sort_order ?? 0;
+    document.getElementById('catName').value   = cat?.name  || '';
+    document.getElementById('catColor').value  = cat?.color || '#10B981';
+    document.getElementById('catIcon').value   = cat?.icon  || 'cpu';
+    document.getElementById('catOrder').value  = cat?.sort_order ?? 0;
     document.getElementById('catVisible').checked = cat ? !!cat.is_visible : true;
     modal.classList.add('active');
 }

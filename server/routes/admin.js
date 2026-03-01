@@ -502,7 +502,7 @@ router.post('/api/admin/bot-categories', requireAuth, requireRole('admin'), (req
         if (!name) return res.status(400).json({ error: 'Name is required' });
         const result = dbRun(
             'INSERT INTO bot_categories (name, color, icon, sort_order, is_visible) VALUES (?, ?, ?, ?, ?)',
-            [name, color || '#10B981', icon || '🤖', sort_order || 0, is_visible !== undefined ? is_visible : 1]
+            [name, color || '#10B981', icon || 'bot', sort_order || 0, is_visible !== undefined ? is_visible : 1]
         );
         res.json({ success: true, id: result.lastInsertRowid });
     } catch (error) {

@@ -1601,8 +1601,15 @@
                         <input id="catColor" type="color" value="#10B981" style="height:40px;width:100%;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:var(--surface-secondary);cursor:pointer;">
                     </label>
                     <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);">
-                        Іконка (емодзі)
-                        <input id="catIcon" class="form-input" value="🤖" maxlength="4">
+                        Іконка
+                        <select id="catIcon" class="form-input" style="padding:10px 12px;">
+                            <option value="cpu">CPU — AI бот</option>
+                            <option value="grid">Grid — Сітковий</option>
+                            <option value="scale">Scale — Нейтральний</option>
+                            <option value="trend">Trend — Трендовий</option>
+                            <option value="bot">Bot — Бот</option>
+                            <option value="folder">Folder — Інші</option>
+                        </select>
                     </label>
                 </div>
                 <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);">

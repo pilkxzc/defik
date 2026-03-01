@@ -66,7 +66,7 @@ async function initDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             color TEXT DEFAULT '#10B981',
-            icon TEXT DEFAULT '🤖',
+            icon TEXT DEFAULT 'bot',
             sort_order INTEGER DEFAULT 0,
             is_visible INTEGER DEFAULT 1,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -76,7 +76,7 @@ async function initDatabase() {
     try {
         const cnt = dbGet('SELECT COUNT(*) as c FROM bot_categories');
         if (!cnt || cnt.c === 0) {
-            [['AI BOT','#8B5CF6','🧠',1],['Grid Bot','#10B981','⚡',2],['Neutral Bot','#F59E0B','⚖️',3]]
+            [['AI BOT','#8B5CF6','cpu',1],['Grid Bot','#10B981','grid',2],['Neutral Bot','#F59E0B','scale',3]]
                 .forEach(([name,color,icon,sort]) =>
                     db.run('INSERT INTO bot_categories (name,color,icon,sort_order) VALUES (?,?,?,?)',[name,color,icon,sort]));
         }

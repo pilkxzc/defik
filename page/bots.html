@@ -432,62 +432,142 @@
         }
 
         /* ==================== TREE VIEW ==================== */
-        .bots-tree { display:flex; flex-direction:column; gap:32px; }
+        .bots-tree { display:flex; flex-direction:column; gap:24px; }
 
-        .cat-header { display:flex; align-items:center; gap:10px; padding-bottom:14px;
-            border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:16px; }
-        .cat-line  { width:3px; height:22px; border-radius:2px; flex-shrink:0; }
-        .cat-icon  { font-size:18px; }
-        .cat-name  { font-size:15px; font-weight:700; color:#fff; flex:1; }
-        .cat-badge { font-size:11px; color:var(--text-tertiary);
-            background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:20px; }
+        /* Category section uses CSS custom property for its accent color */
+        .cat-section { --cc: #10B981; }
 
-        .cat-bots { display:flex; flex-direction:column; gap:8px;
-            padding-left:18px; border-left:1px solid rgba(255,255,255,0.05); }
+        .cat-header {
+            display: flex; align-items: center; gap: 12px;
+            padding: 13px 18px 13px 20px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-left: 3px solid var(--cc);
+            border-radius: 14px;
+            margin-bottom: 10px;
+            position: relative;
+        }
 
-        .cat-empty { font-size:12px; color:var(--text-tertiary); padding:8px 0; }
+        .cat-icon-wrap {
+            width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+            background: color-mix(in srgb, var(--cc) 15%, transparent);
+            border: 1px solid color-mix(in srgb, var(--cc) 30%, transparent);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .cat-icon-wrap svg { stroke: var(--cc); }
+
+        .cat-name { font-size: 14px; font-weight: 800; color: #fff; flex: 1; letter-spacing: 0.2px; }
+        .cat-badge {
+            font-size: 11px; font-weight: 700; color: var(--cc);
+            background: color-mix(in srgb, var(--cc) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--cc) 25%, transparent);
+            padding: 2px 9px; border-radius: 20px;
+        }
+
+        .cat-bots {
+            display: flex; flex-direction: column; gap: 6px;
+            padding-left: 16px;
+            border-left: 1px solid rgba(255,255,255,0.04);
+            margin-left: 10px;
+        }
+
+        .cat-empty { font-size: 12px; color: var(--text-tertiary); padding: 10px 12px; }
 
         .bot-card-tree {
-            display:flex; align-items:center; gap:14px;
-            background:var(--surface); border:1px solid rgba(255,255,255,0.06);
-            border-radius:14px; padding:12px 16px;
-            transition:border-color .15s, background .15s;
-            position:relative;
+            display: flex; align-items: center; gap: 14px;
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-left: 3px solid color-mix(in srgb, var(--cc) 70%, transparent);
+            border-radius: 12px; padding: 12px 16px;
+            position: relative;
+            transition: border-color .15s, background .15s, box-shadow .15s;
+            cursor: default;
         }
         .bot-card-tree::before {
-            content:''; position:absolute; left:-19px; top:50%;
-            width:10px; height:1px; background:rgba(255,255,255,0.08);
+            content: ''; position: absolute; left: -17px; top: 50%;
+            width: 8px; height: 1px;
+            background: rgba(255,255,255,0.07);
         }
-        .bot-card-tree:hover { border-color:rgba(255,255,255,0.11); background:var(--surface-secondary,#1A1A1A); }
+        .bot-card-tree:hover {
+            background: rgba(255,255,255,0.025);
+            border-color: rgba(255,255,255,0.1);
+            border-left-color: var(--cc);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+        }
 
-        .bct-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-        .bct-dot.on  { background:#10B981; box-shadow:0 0 6px rgba(16,185,129,.5); }
-        .bct-dot.off { background:#6B7280; }
+        /* Status dot */
+        .bct-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            position: relative;
+        }
+        .bct-dot.on {
+            background: #10B981;
+            box-shadow: 0 0 0 2px rgba(16,185,129,.2);
+        }
+        .bct-dot.on::after {
+            content: ''; position: absolute; inset: -3px; border-radius: 50%;
+            background: rgba(16,185,129,.15);
+            animation: pulse-ring 2s ease-in-out infinite;
+        }
+        .bct-dot.off { background: #3A3A3A; }
+        @keyframes pulse-ring {
+            0%, 100% { opacity: 0; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.6); }
+        }
 
-        .bct-name { font-size:14px; font-weight:700; color:#fff; min-width:90px; }
-        .bct-tickers { display:flex; gap:5px; flex-wrap:wrap; flex:1; }
-        .ticker-chip { font-size:10px; font-weight:700; padding:2px 7px;
-            border-radius:5px; background:rgba(255,255,255,0.07);
-            color:var(--text-secondary); font-family:monospace; }
+        /* Bot info */
+        .bct-main { display: flex; flex-direction: column; gap: 2px; min-width: 110px; }
+        .bct-name { font-size: 13px; font-weight: 700; color: #fff; }
+        .bct-mode { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .bct-stats { display:flex; gap:20px; }
-        .bct-stat  { text-align:center; }
-        .bct-lbl   { font-size:10px; color:var(--text-tertiary); }
-        .bct-val   { font-size:12px; font-weight:700; color:var(--text-secondary); }
-        .bct-val.up   { color:#10B981; }
-        .bct-val.down { color:#EF4444; }
+        /* Tickers */
+        .bct-tickers { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+        .ticker-chip {
+            font-size: 10px; font-weight: 700; padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-secondary); font-family: monospace;
+        }
 
+        /* Stats */
+        .bct-stats { display: flex; gap: 4px; }
+        .bct-stat {
+            display: flex; flex-direction: column; align-items: center;
+            padding: 5px 10px; border-radius: 8px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            min-width: 52px;
+        }
+        .bct-lbl { font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .bct-val { font-size: 12px; font-weight: 800; color: var(--text-secondary); }
+        .bct-val.up   { color: #10B981; }
+        .bct-val.down { color: #EF4444; }
+
+        /* Action button */
         .bct-btn {
-            padding:6px 12px; border-radius:8px; font-size:11px; font-weight:600;
-            background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);
-            color:var(--text-secondary); text-decoration:none; white-space:nowrap;
-            transition:background .15s;
+            padding: 7px 14px; border-radius: 8px; font-size: 11px; font-weight: 700;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.09);
+            color: var(--text-secondary); text-decoration: none; white-space: nowrap;
+            transition: all .15s;
+            display: flex; align-items: center; gap: 5px;
         }
-        .bct-btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
+        .bct-btn:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.15); }
+        .bct-btn.admin {
+            background: color-mix(in srgb, var(--cc) 10%, transparent);
+            border-color: color-mix(in srgb, var(--cc) 30%, transparent);
+            color: var(--cc);
+        }
+        .bct-btn.admin:hover {
+            background: color-mix(in srgb, var(--cc) 20%, transparent);
+            color: #fff;
+        }
 
         @media (max-width: 768px) {
-            .bct-stats { display:none; }
-            .bct-name  { min-width:unset; font-size:13px; }
+            .bct-stats { display: none; }
+            .bct-main { min-width: unset; }
+            .bct-name { font-size: 12px; }
         }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
@@ -1104,54 +1184,87 @@
             }
         });
 
+        // ── Category icon SVG lookup ─────────────────────────────────────
+        const CAT_ICONS = {
+            cpu:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>',
+            grid:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>',
+            scale:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="3" x2="12" y2="21"/><path d="M3 6l4 8H3l4-8zm14 0l4 8h-8l4-8z"/></svg>',
+            folder: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+            trend:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+            bot:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/><line x1="12" y1="4" x2="12" y2="6"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/></svg>',
+        };
+        function getCatIcon(key) {
+            return CAT_ICONS[key] || CAT_ICONS['folder'];
+        }
+
         // ── Tree view ────────────────────────────────────────────────────────
+        let _isAdmin = false;
+
         async function loadBotsTree() {
             try {
-                const res = await fetch('/api/bots/tree', { credentials: 'include' });
-                if (!res.ok) throw new Error('Failed to load tree');
-                const { tree } = await res.json();
-                document.getElementById('botsTree').innerHTML = tree.map(cat => {
+                const [treeRes, authRes] = await Promise.all([
+                    fetch('/api/bots/tree', { credentials: 'include' }),
+                    fetch('/api/auth/me', { credentials: 'include' })
+                ]);
+                if (!treeRes.ok) throw new Error('Failed to load tree');
+                const { tree } = await treeRes.json();
+                const user = authRes.ok ? await authRes.json() : null;
+                _isAdmin = user?.role === 'admin' || user?.role === 'moderator';
+
+                const html = tree.map(cat => {
                     const bots = cat.bots || [];
                     return `
-                        <div class="cat-section">
+                        <div class="cat-section" style="--cc:${cat.color}">
                             <div class="cat-header">
-                                <div class="cat-line" style="background:${cat.color}"></div>
-                                <span class="cat-icon">${cat.icon}</span>
+                                <div class="cat-icon-wrap">${getCatIcon(cat.icon)}</div>
                                 <span class="cat-name">${cat.name}</span>
                                 <span class="cat-badge">${bots.length}</span>
                             </div>
                             <div class="cat-bots">
                                 ${bots.length === 0
                                     ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
-                                    : bots.map(b => renderBotCard(b)).join('')}
+                                    : bots.map(b => renderBotCard(b, cat.color)).join('')}
                             </div>
                         </div>`;
-                }).join('') || '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає категорій</div>';
+                }).join('');
+                document.getElementById('botsTree').innerHTML = html ||
+                    '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає категорій</div>';
             } catch (err) {
                 document.getElementById('botsTree').innerHTML =
                     '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Не вдалося завантажити ботів</div>';
             }
         }
 
-        function renderBotCard(b) {
+        function renderBotCard(b, catColor) {
             const pnl = b.profit || 0;
             const pnlClass = pnl > 0 ? 'up' : pnl < 0 ? 'down' : '';
             const pnlStr  = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
             const tickers = b.symbol
-                ? b.symbol.split(',').map(s =>
+                ? b.symbol.split(',').slice(0,4).map(s =>
                     `<span class="ticker-chip">${s.replace(/USDT|BUSD/g,'')}</span>`).join('')
-                : '<span class="ticker-chip" style="opacity:.4">—</span>';
+                : `<span class="ticker-chip" style="opacity:.35">—</span>`;
             const win = b.winRate !== null ? b.winRate + '%' : '—';
+            const modeLabel = b.mode === 'bot' ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || '').toUpperCase();
+
+            const btnHref = _isAdmin ? `/bot/${b.id}` : `/bot-stats/${b.id}`;
+            const btnLabel = _isAdmin
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> Деталі`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Статистика`;
+            const btnClass = _isAdmin ? 'bct-btn admin' : 'bct-btn';
+
             return `
                 <div class="bot-card-tree">
                     <div class="bct-dot ${b.is_active ? 'on' : 'off'}"></div>
-                    <div class="bct-name">${b.name}</div>
+                    <div class="bct-main">
+                        <div class="bct-name">${b.name}</div>
+                        ${modeLabel ? `<div class="bct-mode">${modeLabel}</div>` : ''}
+                    </div>
                     <div class="bct-tickers">${tickers}</div>
                     <div class="bct-stats">
                         <div class="bct-stat"><div class="bct-lbl">PnL</div><div class="bct-val ${pnlClass}">${pnlStr}</div></div>
                         <div class="bct-stat"><div class="bct-lbl">Win</div><div class="bct-val">${win}</div></div>
                     </div>
-                    <a class="bct-btn" href="/bot/${b.id}">Деталі →</a>
+                    <a class="${btnClass}" href="${btnHref}">${btnLabel}</a>
                 </div>`;
         }
 

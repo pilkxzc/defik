@@ -332,7 +332,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
         });
         const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));
         const uncat = bots.filter(b => !b.category_id);
-        if (uncat.length) tree.push({ id: null, name: 'Інші', color: '#6B7280', icon: '📋', bots: uncat.map(toCard) });
+        if (uncat.length) tree.push({ id: null, name: 'Інші', color: '#6B7280', icon: 'folder', bots: uncat.map(toCard) });
         res.json({ tree });
     } catch (error) {
         console.error('Bots tree error:', error);
