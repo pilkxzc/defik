@@ -10138,16 +10138,13 @@
                 '<span class="rl-bars">' + bars + '\u00a0бар' + (bars === 1 ? '' : bars < 5 ? 'и' : 'ів') + '</span>';
 
             var rect = chartEl.getBoundingClientRect();
-            var lw = rulerLabel.offsetWidth  || 160;
-            var lh = rulerLabel.offsetHeight || 44;
+            var lw = rulerLabel.offsetWidth || 160;
             var lx = x + 16;
-            var ly = y - lh / 2;
-            if (lx + lw > rect.width  - 4) lx = x - lw - 16;
+            if (lx + lw > rect.width - 4) lx = x - lw - 16;
             if (lx < 4) lx = 4;
-            if (ly < 4) ly = 4;
-            if (ly + lh > rect.height - 4) ly = rect.height - lh - 4;
-            rulerLabel.style.left = lx + 'px';
-            rulerLabel.style.top  = ly + 'px';
+            rulerLabel.style.left      = lx + 'px';
+            rulerLabel.style.top       = y + 'px';
+            rulerLabel.style.transform = 'translateY(-50%)';
         }
 
         // mousedown — capture phase so we intercept before klinecharts panning
