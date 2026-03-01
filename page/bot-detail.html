@@ -6497,6 +6497,10 @@
                 document.getElementById('chartLoading').style.display = 'flex';
                 document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
 
+                // Invalidate any in-flight loadTradeMarkers from the previous interval
+                markersLoading = false;
+                const _myGen = ++_chartLoadGen;
+
                 // Reset lazy loading state; block loadMoreKlines until we finish
                 hasMoreHistory = true;
                 isLoadingMore = true;  // will be cleared after initial setData
@@ -6650,6 +6654,7 @@
         // Called after every loadChartData and loadTradeMarkers so the marker
         // always reflects the currently open position (or is removed when flat).
         let markersLoading = false; // mutex: true while loadTradeMarkers is running
+        let _chartLoadGen = 0;     // incremented each loadKlines(); loadTradeMarkers aborts if stale
 
         function applyPositionMarker(position, _internal) {
             if (!candlestickSeries || klinesData.length === 0) return;
@@ -6700,12 +6705,14 @@
         async function loadTradeMarkers() {
             if (!candlestickSeries || demoMode || markersLoading) return;
             markersLoading = true;
+            const _myGen = _chartLoadGen; // snapshot — if loadKlines fires again, this becomes stale
             console.log(`[TradeMarkers] Loading for symbol=${currentSymbol} interval=${currentInterval}`);
             try {
                 const resp = await fetch(`/api/bots/${botId}/trade-markers?symbol=${currentSymbol}`, { credentials: 'include' });
                 console.log(`[TradeMarkers] API response status: ${resp.status}`);
                 if (!resp.ok) { console.warn('[TradeMarkers] API error, skipping'); return; }
                 const data = await resp.json();
+                if (_chartLoadGen !== _myGen) return; // interval changed while fetching — discard
                 const rawMarkers = data.markers || [];
                 console.log(`[TradeMarkers] Got ${rawMarkers.length} raw markers from API`, rawMarkers);
 
@@ -6771,6 +6778,7 @@
                             _drawingOverlay = false;
                         }
                         // Single render after all batches are collected
+                        if (_chartLoadGen !== _myGen) return; // interval changed during batch fetch
                         if (totalAdded > 0) {
                             try { candlestickSeries.setData(klinesData); } catch(e) {}
                             if (svdBefore) { try { chart.timeScale().setVisibleLogicalRange({ from: svdBefore.from + totalAdded, to: svdBefore.to + totalAdded }); } catch(e) {} }
@@ -6867,6 +6875,7 @@
 
                 // Compute a hash of rawMarkers to skip expensive overlay rebuild when nothing changed
                 const markersKey = rawMarkers.map(m => m.time + ':' + m.side + ':' + (m.pnl || 0)).join('|');
+                if (_chartLoadGen !== _myGen) return; // interval changed while processing markers
                 if (markersKey !== lastMarkersKey) {
                     lastMarkersKey = markersKey;
                     // New orders detected — invalidate klines cache for all intervals of this symbol
