@@ -1458,19 +1458,26 @@
         .resizable-panel.collapsed {
             min-height: 48px !important;
             height: 48px !important;
+            max-height: 48px !important;
+            flex: 0 0 48px !important;
+            overflow: hidden !important;
         }
 
         .resizable-panel.collapsed .panel-body {
-            display: none;
+            display: none !important;
+        }
+
+        .resizable-panel.collapsed .resize-handle {
+            display: none !important;
         }
 
         .resize-handle {
             position: relative;
             flex-shrink: 0;
-            height: 18px;
+            height: 22px;
             cursor: ns-resize;
             background: var(--surface);
-            border-top: 1px solid rgba(255, 255, 255, 0.07);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             z-index: 10;
             display: flex;
             align-items: center;
@@ -1479,17 +1486,17 @@
 
         .resize-handle::after {
             content: '';
-            width: 40px;
+            width: 44px;
             height: 4px;
-            background: rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.35);
             border-radius: 2px;
             transition: background 0.2s, width 0.2s;
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
-            background: rgba(16, 185, 129, 0.65);
-            width: 52px;
+            background: rgba(16, 185, 129, 0.75);
+            width: 56px;
         }
 
         /* ── Panel width resize handle (right edge) ── */
@@ -1508,15 +1515,15 @@
         .resize-handle-w::after {
             content: '';
             width: 3px;
-            height: 30px;
-            background: rgba(255,255,255,0.08);
+            height: 32px;
+            background: rgba(255,255,255,0.2);
             border-radius: 2px;
             transition: background 0.2s, height 0.2s;
         }
         .resize-handle-w:hover::after,
         .resize-handle-w.active::after {
-            background: rgba(139,92,246,0.6);
-            height: 50px;
+            background: rgba(139,92,246,0.75);
+            height: 56px;
         }
 
         /* ── Chart resize handles ── */
@@ -3031,13 +3038,13 @@
                     <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="#10B981"/></svg>Long вхід
                 </div>
                 <div class="cml-chip" id="cml_exitLong" onclick="toggleMarkerType('exitLong')" title="Long вихід — натисніть щоб приховати">
-                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="#10B981"/></svg>Long вихід
+                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="rgba(16,185,129,0.15)" stroke="#10B981" stroke-width="1.2"/></svg>Long вихід
                 </div>
                 <div class="cml-chip" id="cml_entryShort" onclick="toggleMarkerType('entryShort')" title="Short вхід — натисніть щоб приховати">
                     <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="#EF4444"/></svg>Short вхід
                 </div>
                 <div class="cml-chip" id="cml_exitShort" onclick="toggleMarkerType('exitShort')" title="Short вихід — натисніть щоб приховати">
-                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="#EF4444"/></svg>Short вихід
+                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="rgba(239,68,68,0.15)" stroke="#EF4444" stroke-width="1.2"/></svg>Short вихід
                 </div>
                 <div class="cml-chip" id="cml_grouped" onclick="toggleMarkerType('grouped')" title="Кілька угод на одній свічці — натисніть щоб приховати">
                     <svg width="9" height="9" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#8B5CF6"/></svg>Кілька
@@ -9899,6 +9906,12 @@
             var menu = document.getElementById('drawingToolsMenu');
             if (!menu) return;
             var isOpen = menu.style.display !== 'none';
+            // Cancel any in-progress drawing when toggling the menu
+            if (_activeDrawingId) {
+                try { klChart && klChart.removeOverlay({ id: _activeDrawingId }); } catch(e) {}
+                _activeDrawingId = null;
+                _activeDrawingTool = null;
+            }
             menu.style.display = isOpen ? 'none' : 'block';
             if (!isOpen) {
                 setTimeout(function() {
@@ -9916,14 +9929,7 @@
             var menu = document.getElementById('drawingToolsMenu');
             if (menu) menu.style.display = 'none';
             if (!klChart) return;
-            // Clicking the same tool a 2nd time cancels it
-            if (_activeDrawingTool === toolName && _activeDrawingId) {
-                try { klChart.removeOverlay({ id: _activeDrawingId }); } catch(e) {}
-                _activeDrawingTool = null;
-                _activeDrawingId = null;
-                return;
-            }
-            // Cancel any previous in-progress drawing
+            // Cancel any previous in-progress drawing before starting a new one
             if (_activeDrawingId) {
                 try { klChart.removeOverlay({ id: _activeDrawingId }); } catch(e) {}
                 _activeDrawingId = null;
@@ -10139,6 +10145,13 @@
                             _rulerLastCursor.price = data.price;
                             _rulerLastCursor.time  = data.dataIndex ?? _rulerLastCursor.time;
                         }
+                    });
+                } catch(e) {}
+                // When a user drawing is completed, clear the in-progress tracking
+                try {
+                    klChart.subscribeAction(window.klinecharts.ActionType.OnDrawEnd, function() {
+                        _activeDrawingId = null;
+                        _activeDrawingTool = null;
                     });
                 } catch(e) {}
                 chartEl.addEventListener('mousedown', onRulerMouseDown);
