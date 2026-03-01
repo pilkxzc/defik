@@ -1467,7 +1467,7 @@
         .resize-handle {
             position: relative;
             flex-shrink: 0;
-            height: 14px;
+            height: 18px;
             cursor: ns-resize;
             background: var(--surface);
             border-top: 1px solid rgba(255, 255, 255, 0.07);
@@ -1479,17 +1479,17 @@
 
         .resize-handle::after {
             content: '';
-            width: 36px;
-            height: 3px;
-            background: rgba(255, 255, 255, 0.18);
+            width: 40px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.22);
             border-radius: 2px;
             transition: background 0.2s, width 0.2s;
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
-            background: rgba(139, 92, 246, 0.6);
-            width: 48px;
+            background: rgba(16, 185, 129, 0.65);
+            width: 52px;
         }
 
         /* ── Panel width resize handle (right edge) ── */
@@ -1699,6 +1699,8 @@
             border-radius: var(--radius-lg);
             border: 1px solid rgba(255, 255, 255, 0.05);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .panel-header {
@@ -2956,15 +2958,30 @@
                 </div>
                 <div id="tioBody"></div>
             </div>
-            <!-- Trade markers legend -->
-            <div class="chart-markers-legend">
-                <div class="cml-item"><span class="cml-icon cml-entry-long">▲</span> Вхід Long</div>
-                <div class="cml-item"><span class="cml-icon cml-entry-short">▼</span> Вхід Short</div>
-                <div class="cml-item"><span class="cml-diamond cml-exit-profit"></span> Вихід +</div>
-                <div class="cml-item"><span class="cml-diamond cml-exit-loss"></span> Вихід −</div>
-                <div class="cml-item"><span class="cml-diamond cml-grouped"></span> Кілька угод</div>
-                <div class="cml-item"><span class="cml-line cml-long-line"></span> Позиція Long</div>
-                <div class="cml-item"><span class="cml-line cml-short-line"></span> Позиція Short</div>
+            <!-- Trade markers legend (toggleable chips) -->
+            <div class="chart-markers-legend" id="markersLegend">
+                <span class="cml-label">Маркери</span>
+                <div class="cml-chip" id="cml_entryLong" onclick="toggleMarkerType('entryLong')" title="Long вхід — натисніть щоб приховати">
+                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="#10B981"/></svg>Long вхід
+                </div>
+                <div class="cml-chip" id="cml_exitLong" onclick="toggleMarkerType('exitLong')" title="Long вихід — натисніть щоб приховати">
+                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="#10B981"/></svg>Long вихід
+                </div>
+                <div class="cml-chip" id="cml_entryShort" onclick="toggleMarkerType('entryShort')" title="Short вхід — натисніть щоб приховати">
+                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,7 0,0 8,0" fill="#EF4444"/></svg>Short вхід
+                </div>
+                <div class="cml-chip" id="cml_exitShort" onclick="toggleMarkerType('exitShort')" title="Short вихід — натисніть щоб приховати">
+                    <svg width="8" height="7" viewBox="0 0 8 7"><polygon points="4,0 0,7 8,7" fill="#EF4444"/></svg>Short вихід
+                </div>
+                <div class="cml-chip" id="cml_grouped" onclick="toggleMarkerType('grouped')" title="Кілька угод на одній свічці — натисніть щоб приховати">
+                    <svg width="9" height="9" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#8B5CF6"/></svg>Кілька
+                </div>
+                <div class="cml-chip" id="cml_trend" onclick="toggleMarkerType('trend')" title="Лінії позицій — натисніть щоб приховати">
+                    <svg width="20" height="8" viewBox="0 0 20 8">
+                        <line x1="0" y1="4" x2="9" y2="4" stroke="#10B981" stroke-width="2" stroke-dasharray="2 2"/>
+                        <line x1="11" y1="4" x2="20" y2="4" stroke="#EF4444" stroke-width="2" stroke-dasharray="2 2"/>
+                    </svg>Позиція
+                </div>
             </div>
         </div>
 
@@ -3175,7 +3192,7 @@
             </div>
 
             <!-- Open Orders & Trades -->
-            <div class="panel-card resizable-panel" id="panelOrders" data-panel="orders" style="flex: 1; min-height: 200px; display: flex; flex-direction: column; overflow: hidden;">
+            <div class="panel-card resizable-panel" id="panelOrders" data-panel="orders" style="flex: 1; min-height: 200px;">
                 <div class="resize-handle-w" data-panel="panelOrders"></div>
                 <div class="panel-tabs" style="align-items:center;position:relative;">
                     <div class="color-edit-marker" data-target="panelOrders" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelOrders',this.value)"></div>
@@ -4051,6 +4068,8 @@
         let markerTimeMap = {};
         let markersLoaded = false;
         let markersLoading = false;
+        let lastRawMarkers = [];
+        const markerVisState = { entryLong: true, exitLong: true, entryShort: true, exitShort: true, grouped: true, trend: true };
         let _chartLoadGen = 0;
         let _klResizeObserver = null;
         let _pendingHighlight = null; // { trade, rowEl, noNavigate } — applied after symbol switch
@@ -6346,28 +6365,81 @@
                         if (!c) return [];
                         const ed = overlay.extendData || {};
                         const count   = ed._count || 1;
-                        // isLong = position side (LONG/SHORT), isBuy = direction for triangle placement
                         const isLong  = ed._isLong !== undefined ? ed._isLong : ed.isBuy !== false;
                         const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
-                        // Color follows position side (long=green, short=red), not order direction
-                        const color = ed._mixed ? '#8B5CF6' : (isLong ? '#10B981' : '#EF4444');
-                        // Triangle direction: entry=from below (up), exit=from above (down)
+                        const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#10B981' : '#EF4444');
+
+                        // Grouped → diamond (ромб) shape
+                        if (count > 1) {
+                            const dsz = 8;
+                            const dpts = [
+                                { x: c.x,       y: c.y - dsz - 8 },
+                                { x: c.x + dsz, y: c.y - 8 },
+                                { x: c.x,       y: c.y + dsz - 8 },
+                                { x: c.x - dsz, y: c.y - 8 },
+                            ];
+                            return [
+                                { type: 'polygon', attrs: { coordinates: dpts }, styles: { style: 'fill', color: 'rgba(139,92,246,0.18)' } },
+                                { type: 'polygon', attrs: { coordinates: dpts }, styles: { style: 'stroke', color: '#8B5CF6', size: 1.5 } },
+                                { type: 'text', attrs: { x: c.x, y: c.y - 8, text: String(count), align: 'center', baseline: 'middle' }, styles: { color: '#C4B5FD', size: 9, weight: '700' } },
+                            ];
+                        }
+
+                        // Single marker → triangle
                         const pointsUp = isEntry ? isLong : !isLong;
-                        const sz = count > 1 ? 8 : 7;
-                        const off = count > 1 ? 14 : 12;
+                        const sz = 7, off = 12;
                         const pts = pointsUp
                             ? [{ x: c.x, y: c.y + off }, { x: c.x - sz, y: c.y + off + sz }, { x: c.x + sz, y: c.y + off + sz }]
                             : [{ x: c.x, y: c.y - off }, { x: c.x - sz, y: c.y - off - sz }, { x: c.x + sz, y: c.y - off - sz }];
-                        const figs = [{ type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } }];
-                        if (count > 1) {
-                            const badgeY = pointsUp ? c.y + off + sz + 11 : c.y - off - sz - 5;
-                            figs.push({ type: 'text', attrs: { x: c.x, y: badgeY, text: `×${count}`, align: 'center', baseline: 'middle' }, styles: { color, size: 10, weight: '600' } });
-                        }
-                        return figs;
+                        // Outer glow (semi-transparent, slightly larger)
+                        const glowSz = sz + 2, glowOff = off - 1;
+                        const glowPts = pointsUp
+                            ? [{ x: c.x, y: c.y + glowOff }, { x: c.x - glowSz, y: c.y + glowOff + glowSz }, { x: c.x + glowSz, y: c.y + glowOff + glowSz }]
+                            : [{ x: c.x, y: c.y - glowOff }, { x: c.x - glowSz, y: c.y - glowOff - glowSz }, { x: c.x + glowSz, y: c.y - glowOff - glowSz }];
+                        const glowColor = isLong ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.22)';
+                        return [
+                            { type: 'polygon', attrs: { coordinates: glowPts }, styles: { style: 'fill', color: glowColor } },
+                            { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'fill', color } },
+                        ];
                     },
                     onClick({ overlay, coordinate }) {
                         if (overlay.extendData) showMarkerPopup(overlay.extendData, { point: coordinate });
                         return true;
+                    }
+                });
+                // Position fill+line overlay (replaces built-in segment for trend lines)
+                window.klinecharts.registerOverlay({
+                    name: 'positionFill',
+                    totalStep: 2,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates, bounding }) {
+                        if (!coordinates || coordinates.length < 2) return [];
+                        const [c1, c2] = coordinates;
+                        const ed = overlay.extendData || {};
+                        const color  = ed.color || '#888';
+                        const isLong = ed.isLong !== false;
+                        const h = bounding?.height || 400;
+                        // Fill: LONG → above the line (bullish zone), SHORT → below (bearish zone)
+                        const fillColor = isLong ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)';
+                        const fillPts   = isLong
+                            ? [c1, c2, { x: c2.x, y: 0 }, { x: c1.x, y: 0 }]
+                            : [c1, c2, { x: c2.x, y: h }, { x: c1.x, y: h }];
+                        const figs = [
+                            { type: 'polygon', attrs: { coordinates: fillPts }, styles: { style: 'fill', color: fillColor } },
+                            { type: 'line', attrs: { coordinates: [c1, c2] }, styles: { style: 'dashed', color, size: 1.5, dashedValue: [4, 3] } },
+                        ];
+                        // Endpoint dots (only on first/last segments of each position window)
+                        if (ed.isFirst) {
+                            figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' } });
+                            figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 3 }, styles: { style: 'fill', color } });
+                        }
+                        if (ed.isLast) {
+                            figs.push({ type: 'circle', attrs: { x: c2.x, y: c2.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' } });
+                            figs.push({ type: 'circle', attrs: { x: c2.x, y: c2.y, r: 3 }, styles: { style: 'fill', color } });
+                        }
+                        return figs;
                     }
                 });
                 // Horizontal price level with label
@@ -6606,6 +6678,7 @@
             try { klChart.removeOverlay({ groupId: trendOverlayGroup }); } catch(e) {}
             trendOverlayGroup = `trend-${++trendOverlayIdx}`;
 
+            if (!markerVisState.trend) return;
             if (!rawMarkers || rawMarkers.length === 0) return;
 
             const allSortedMarkers = [...rawMarkers].sort((a, b) => a.time - b.time);
@@ -6647,27 +6720,29 @@
                 .filter(w => w.from >= klinesStart && w.to >= klinesStart)
                 .map(w => ({ ...w, to: Math.min(w.to, klinesEnd) }));
 
-            // Draw segments following candle lows
+            // Draw positionFill overlays (dashed line + colored fill + endpoint dots)
             posWindowsRecent.forEach(w => {
                 const pts = [];
                 for (const k of klinesData) {
                     if (k.time < w.from) continue;
                     if (k.time > w.to) break;
-                    pts.push({ timestamp: k.time * 1000, value: k.low - lineOffset });
+                    // LONG: follow candle lows (line below price), SHORT: follow candle highs (line above)
+                    const val = w.trend === 1 ? k.low - lineOffset : k.high + lineOffset;
+                    pts.push({ timestamp: k.time * 1000, value: val });
                 }
                 if (pts.length < 2) return;
 
-                const color = w.trend === 1 ? '#10B981' : '#EF4444';
+                const color  = w.trend === 1 ? '#10B981' : '#EF4444';
+                const isLong = w.trend === 1;
 
-                // Draw each pair as a segment overlay
                 for (let i = 0; i < pts.length - 1; i++) {
                     try {
                         klChart.createOverlay({
-                            name: 'segment',
+                            name: 'positionFill',
                             groupId: trendOverlayGroup,
                             lock: true,
                             points: [pts[i], pts[i + 1]],
-                            styles: { line: { color, size: 2, style: 'dashed' } },
+                            extendData: { color, isLong, isFirst: i === 0, isLast: i === pts.length - 2 },
                         });
                     } catch(e) {}
                 }
@@ -6878,6 +6953,7 @@
                 const data = await resp.json();
                 if (_chartLoadGen !== _myGen) return;
                 const rawMarkers = data.markers || [];
+                lastRawMarkers = rawMarkers;
 
                 const markersKey = rawMarkers.map(m => m.time + ':' + m.side + ':' + (m.pnl || 0)).join('|');
                 if (markersKey !== lastMarkersKey) {
@@ -6921,10 +6997,20 @@
                     const allExit  = group.every(m => !m._isEntry);
                     const mixed    = !allLong && !allShort;
                     const count    = group.length;
-                    // Representative values for single-marker overlays
                     const _isLong  = !allShort;
                     const _isEntry = allEntry ? true : (allExit ? false : true);
-                    const isBuy    = _isEntry ? _isLong : !_isLong; // order direction (for backward compat)
+                    const isBuy    = _isEntry ? _isLong : !_isLong;
+
+                    // Per-type visibility filter
+                    if (count > 1) {
+                        if (!markerVisState.grouped) return;
+                    } else {
+                        const m0 = group[0];
+                        if (m0._isLong  &&  m0._isEntry && !markerVisState.entryLong)  return;
+                        if (m0._isLong  && !m0._isEntry && !markerVisState.exitLong)   return;
+                        if (!m0._isLong &&  m0._isEntry && !markerVisState.entryShort) return;
+                        if (!m0._isLong && !m0._isEntry && !markerVisState.exitShort)  return;
+                    }
 
                     // Group marker object for popup
                     const groupMarker = count === 1
@@ -7690,6 +7776,19 @@
             const btnId = 'ind' + name.charAt(0).toUpperCase() + name.slice(1);
             document.getElementById(btnId)?.classList.toggle('active', indState[name]);
             applyIndicators();
+        }
+
+        function toggleMarkerType(type) {
+            markerVisState[type] = !markerVisState[type];
+            document.getElementById('cml_' + type)?.classList.toggle('off', !markerVisState[type]);
+            if (type === 'trend') {
+                drawTrendOverlay(lastRawMarkers, true);
+            } else {
+                // Re-render trade markers with updated filter
+                markersLoaded = false;
+                lastMarkersKey = '';
+                loadTradeMarkers();
+            }
         }
 
         function applyIndicators() {
