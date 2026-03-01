@@ -2166,6 +2166,17 @@
 
         /* ── Ruler tool ── */
         .ruler-btn.active { background: rgba(59,130,246,0.2) !important; border-color: rgba(59,130,246,0.5) !important; color: #3B82F6 !important; }
+
+        /* ── Drawing tools menu ── */
+        .drawing-tool-item {
+            display: flex; align-items: center; gap: 8px;
+            width: 100%; padding: 7px 12px;
+            background: none; border: none; cursor: pointer;
+            color: var(--text-secondary); font-size: 12px;
+            text-align: left; white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+        }
+        .drawing-tool-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
         #chart.ruler-mode { cursor: crosshair !important; }
         .ruler-label {
             position: absolute;
@@ -2779,6 +2790,23 @@
                     <button class="interval-btn ruler-btn" id="rulerBtn" title="Лінійка (вимірювання)">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><line x1="14" y1="13" x2="11" y2="10"/><line x1="10.5" y1="16.5" x2="7.5" y2="13.5"/><line x1="17.5" y1="9.5" x2="14.5" y2="6.5"/></svg>
                     </button>
+                    <!-- Drawing tools -->
+                    <div style="position:relative;">
+                        <button class="interval-btn ruler-btn" id="drawingToolsBtn" onclick="toggleDrawingMenu()" title="Інструменти малювання">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        </button>
+                        <div id="drawingToolsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-md);padding:4px 0;min-width:170px;z-index:200;box-shadow:var(--shadow-card);">
+                            <button class="drawing-tool-item" onclick="startDrawing('segment')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/></svg>Лінія тренду</button>
+                            <button class="drawing-tool-item" onclick="startDrawing('horizontalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/></svg>Горизонтальна лінія</button>
+                            <button class="drawing-tool-item" onclick="startDrawing('verticalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/></svg>Вертикальна лінія</button>
+                            <button class="drawing-tool-item" onclick="startDrawing('priceChannelLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="17" x2="21" y2="17"/></svg>Канал</button>
+                            <button class="drawing-tool-item" onclick="startDrawing('rect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Прямокутник</button>
+                            <button class="drawing-tool-item" onclick="startDrawing('arrow')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>Стрілка</button>
+                            <button class="drawing-tool-item" onclick="startDrawing('text')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Текст</button>
+                            <div style="height:1px;background:rgba(255,255,255,0.06);margin:4px 8px;"></div>
+                            <button class="drawing-tool-item" style="color:var(--color-down);" onclick="clearAllUserDrawings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>Видалити всі</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="header-sep"></div>
@@ -4072,10 +4100,24 @@
         }
 
         // ==================== APPEARANCE TAB (Phase 3) ====================
+
+        // Convert any CSS color (rgba, rgb, named) to #rrggbb for <input type="color">
+        function rgbaToHex(color) {
+            if (!color) return '#000000';
+            if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 1;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            const d = ctx.getImageData(0, 0, 1, 1).data;
+            return '#' + [d[0], d[1], d[2]].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
         function buildColorPicker(label, value, onChange) {
             const row = document.createElement('div');
             row.className = 'color-picker-row';
-            row.innerHTML = `<label>${label}</label><div class="color-picker-wrap"><div class="color-preview" style="background:${value}"><input type="color" value="${value}"></div><input type="text" class="color-hex-input" value="${value}" maxlength="7"></div>`;
+            row.innerHTML = `<label>${label}</label><div class="color-picker-wrap"><div class="color-preview" style="background:${value}"><input type="color" value="${rgbaToHex(value)}"></div><input type="text" class="color-hex-input" value="${value}" maxlength="25"></div>`;
             const colorInput = row.querySelector('input[type="color"]');
             const hexInput = row.querySelector('.color-hex-input');
             const preview = row.querySelector('.color-preview');
@@ -5953,6 +5995,27 @@
 
             klChart.createIndicator('VOL', false);
 
+            // Load older candles when user scrolls to the left edge
+            klChart.loadMore(function(timestamp) {
+                if (SUB_MIN_IVS.has(currentInterval)) { klChart.applyMoreData([], true); return; }
+                const end = timestamp != null ? timestamp - 1 : Date.now();
+                const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=500&endTime=${end}`;
+                fetch(url, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(data => {
+                        const raw = data.klines || [];
+                        const bars = raw
+                            .filter(k => k.time != null && !isNaN(+k.open))
+                            .map(k => ({
+                                timestamp: k.time * 1000,
+                                open: +k.open, high: +k.high, low: +k.low, close: +k.close,
+                                volume: +(k.volume || 0),
+                            }));
+                        klChart.applyMoreData(bars, bars.length === 0);
+                    })
+                    .catch(() => klChart.applyMoreData([], true));
+            });
+
             // Keep watermark in sync with resize
             const resizeObserver = new ResizeObserver(() => updateWatermark());
             resizeObserver.observe(container);
@@ -6100,6 +6163,9 @@
         }
 
         async function _fetchKlines() {
+            // Sub-minute intervals have no REST history — data comes from WS only
+            if (SUB_MIN_IVS.has(currentInterval)) return;
+
             const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${Date.now()}`;
             try {
                 const r = await fetch(url, { credentials: 'include' });
@@ -8580,6 +8646,47 @@
     //  RULER / MEASUREMENT TOOL  (canvas overlay — no series, no recursion)
     // ═══════════════════════════════════════════
     (function() {
+        // ── Drawing tools ──────────────────────────────────────────────────────
+        var _drawingGroup = 'user-0';
+        var _drawingGroupIdx = 0;
+
+        function toggleDrawingMenu() {
+            var menu = document.getElementById('drawingToolsMenu');
+            if (!menu) return;
+            var isOpen = menu.style.display !== 'none';
+            menu.style.display = isOpen ? 'none' : 'block';
+            if (!isOpen) {
+                setTimeout(function() {
+                    document.addEventListener('click', function closeMenu(e) {
+                        if (!e.target.closest('#drawingToolsMenu') && !e.target.closest('#drawingToolsBtn')) {
+                            menu.style.display = 'none';
+                        }
+                        document.removeEventListener('click', closeMenu);
+                    });
+                }, 0);
+            }
+        }
+
+        function startDrawing(toolName) {
+            var menu = document.getElementById('drawingToolsMenu');
+            if (menu) menu.style.display = 'none';
+            if (!klChart) return;
+            try {
+                klChart.createOverlay({ name: toolName, groupId: _drawingGroup });
+            } catch(e) { console.warn('[drawing] createOverlay failed:', e); }
+        }
+
+        function clearAllUserDrawings() {
+            var menu = document.getElementById('drawingToolsMenu');
+            if (menu) menu.style.display = 'none';
+            if (!klChart) return;
+            try {
+                klChart.removeOverlay({ groupId: _drawingGroup });
+                _drawingGroup = 'user-' + (++_drawingGroupIdx);
+            } catch(e) {}
+        }
+        // ── End drawing tools ──────────────────────────────────────────────────
+
         var rulerActive = false;
         var rulerStep = 0; // 0 = idle, 1 = waiting for second click, 2 = finalized
         var rulerStartData = null; // { time, price, x, y }

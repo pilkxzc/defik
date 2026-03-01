@@ -1738,13 +1738,9 @@
         }
     </style>
 
-    <script src="/js/chart/chart.js"></script>
-    <script src="/js/dashboard.js"></script>
-
     <script>
-    // ── Chart loading overlay helpers ──────────────────────────────────────────
+    // ── Chart loading overlay + init symbol — must run BEFORE chart.js ─────────
     (function() {
-        // Draw skeleton candles on the overlay canvas
         function drawOverlaySkeleton() {
             const canvas = document.getElementById('chartLoadingCanvas');
             if (!canvas) return;
@@ -1781,7 +1777,6 @@
             }
         }
 
-        // Smooth show/hide for #chartLoading — used by main.tsx onLoadingChange
         window.chartLoadingShow = function(show) {
             const el = document.getElementById('chartLoading');
             if (!el) return;
@@ -1798,15 +1793,19 @@
             }
         };
 
-        // Draw skeleton once layout is ready
         document.addEventListener('DOMContentLoaded', function() {
             requestAnimationFrame(drawOverlaySkeleton);
         });
+
+        // Set init symbol before chart.js IIFE reads it
+        window._yamatoInitSymbol = (window.currentTicker || 'BTC') + (window.quoteCurrency || 'USDT');
     })();
+    </script>
 
-    // ── Chart init ─────────────────────────────────────────────────────────────
-    window._yamatoInitSymbol = (window.currentTicker || 'BTC') + (window.quoteCurrency || 'USDT');
+    <script src="/js/chart/chart.js"></script>
+    <script src="/js/dashboard.js"></script>
 
+    <script>
     // (Timeframe + precision buttons removed — KLineChart Pro has its own toolbar)
     </script>
     <script src="/js/dashboard-customizer.js"></script>
