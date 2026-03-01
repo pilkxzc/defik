@@ -20,17 +20,30 @@ function logBinanceError(label, err) {
     }
 }
 
+// ── In-memory cache to prevent Binance rate-limit (429) ──────────────────────
+const _serverTimeCache   = { value: null, ts: 0 };           // TTL 30s
+const _binanceDataCache  = {};                                // keyed by apiKey, TTL 8s
+const _binanceDataInFlight = {};                              // prevent duplicate concurrent fetches
+
 // ── Binance helpers ───────────────────────────────────────────────────────────
 
 async function getBinanceServerTime(accountType = 'futures') {
+    const now = Date.now();
+    // Cache server time for 30 seconds — avoids hammering /time endpoint
+    if (_serverTimeCache.value && (now - _serverTimeCache.ts) < 30_000) {
+        // Adjust cached value by elapsed time so signature timestamps stay fresh
+        return _serverTimeCache.value + (now - _serverTimeCache.ts);
+    }
     try {
         const base     = accountType === 'futures' ? 'https://fapi.binance.com' : 'https://api.binance.com';
         const endpoint = accountType === 'futures' ? '/fapi/v1/time' : '/api/v3/time';
         const response = await axios.get(`${base}${endpoint}`, { timeout: 5000 });
+        _serverTimeCache.value = response.data.serverTime;
+        _serverTimeCache.ts    = now;
         return response.data.serverTime;
     } catch (error) {
         console.error('Failed to get Binance server time:', error.message);
-        return Date.now();
+        return now;
     }
 }
 
@@ -52,6 +65,35 @@ async function testBinanceCredentials(apiKey, apiSecret, accountType = 'futures'
 }
 
 async function fetchBinanceFuturesData(apiKey, apiSecret) {
+    const cacheKey = apiKey;
+    const now      = Date.now();
+
+    // Return cached data if fresh (8 seconds)
+    if (_binanceDataCache[cacheKey] && (now - _binanceDataCache[cacheKey].ts) < 8_000) {
+        return _binanceDataCache[cacheKey].data;
+    }
+
+    // Deduplicate concurrent fetches for the same key
+    if (_binanceDataInFlight[cacheKey]) {
+        return _binanceDataInFlight[cacheKey];
+    }
+
+    const promise = _fetchBinanceFuturesDataRaw(apiKey, apiSecret)
+        .then(data => {
+            _binanceDataCache[cacheKey] = { data, ts: Date.now() };
+            delete _binanceDataInFlight[cacheKey];
+            return data;
+        })
+        .catch(err => {
+            delete _binanceDataInFlight[cacheKey];
+            throw err;
+        });
+
+    _binanceDataInFlight[cacheKey] = promise;
+    return promise;
+}
+
+async function _fetchBinanceFuturesDataRaw(apiKey, apiSecret) {
     try {
         const baseUrl   = 'https://fapi.binance.com';
         const timestamp = await getBinanceServerTime('futures');
