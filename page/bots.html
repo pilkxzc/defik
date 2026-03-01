@@ -432,173 +432,130 @@
         }
 
         /* ==================== TREE VIEW ==================== */
-        .bots-tree { display: flex; flex-direction: column; gap: 36px; }
+        .bots-tree { display: flex; flex-direction: column; gap: 16px; }
 
         .cat-section { --cc: #10B981; }
 
-        /* ── Category header ── */
+        /* ── Category block — single rounded container ── */
+        .cat-block {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        /* Category header row */
         .cat-header {
-            display: flex; align-items: center; gap: 12px;
-            margin-bottom: 16px;
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.02);
+        }
+        .cat-accent-bar {
+            width: 3px; height: 18px; border-radius: 2px;
+            background: var(--cc); flex-shrink: 0;
         }
         .cat-icon-wrap {
-            width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-            background: color-mix(in srgb, var(--cc) 14%, transparent);
-            border: 1px solid color-mix(in srgb, var(--cc) 28%, transparent);
+            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+            background: color-mix(in srgb, var(--cc) 13%, transparent);
+            border: 1px solid color-mix(in srgb, var(--cc) 24%, transparent);
             display: flex; align-items: center; justify-content: center;
         }
         .cat-icon-wrap svg { stroke: var(--cc); }
         .cat-name {
-            font-size: 13px; font-weight: 800; color: #fff;
-            text-transform: uppercase; letter-spacing: 1px; flex: 1;
+            font-size: 12px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 0.8px; flex: 1;
         }
         .cat-badge {
-            font-size: 11px; font-weight: 700;
-            color: color-mix(in srgb, var(--cc) 90%, #fff);
-            background: color-mix(in srgb, var(--cc) 12%, transparent);
-            border: 1px solid color-mix(in srgb, var(--cc) 28%, transparent);
-            padding: 3px 10px; border-radius: 20px;
-        }
-        .cat-divider {
-            flex: 1; height: 1px;
-            background: linear-gradient(to right, color-mix(in srgb, var(--cc) 30%, transparent), transparent);
+            font-size: 10px; font-weight: 700;
+            color: var(--text-tertiary);
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 2px 9px; border-radius: 20px;
         }
 
-        /* ── Cards grid ── */
-        .cat-bots {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 12px;
-        }
+        /* Bot rows */
         .cat-empty {
             font-size: 12px; color: var(--text-tertiary);
-            padding: 20px; grid-column: 1/-1;
-            text-align: center;
-            border: 1px dashed rgba(255,255,255,0.07);
-            border-radius: 12px;
+            padding: 20px 18px; text-align: center;
         }
+        .bot-row {
+            display: grid;
+            grid-template-columns: 10px 1fr auto auto 110px;
+            align-items: center;
+            gap: 16px;
+            padding: 13px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            transition: background .12s;
+            text-decoration: none;
+            cursor: default;
+        }
+        .bot-row:last-child { border-bottom: none; }
+        .bot-row:hover { background: rgba(255,255,255,0.025); }
 
-        /* ── Vertical bot card (плашка) ── */
-        .bot-card-v {
-            display: flex; flex-direction: column;
-            background: var(--surface);
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 16px;
-            overflow: hidden;
-            transition: transform .18s, box-shadow .18s, border-color .18s;
-            position: relative;
+        /* Col 1 — status line */
+        .br-indicator {
+            width: 3px; height: 32px; border-radius: 2px; flex-shrink: 0;
+            background: #2a2a2a;
         }
-        .bot-card-v:hover {
-            transform: translateY(-2px);
-            border-color: color-mix(in srgb, var(--cc) 40%, transparent);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.35),
-                        0 0 0 1px color-mix(in srgb, var(--cc) 15%, transparent);
-        }
+        .br-indicator.on { background: #10B981; box-shadow: 0 0 6px rgba(16,185,129,.4); }
 
-        /* Top accent stripe */
-        .bcv-stripe {
-            height: 3px;
-            background: linear-gradient(90deg, var(--cc), color-mix(in srgb, var(--cc) 40%, transparent));
+        /* Col 2 — name + tickers */
+        .br-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+        .br-top  { display: flex; align-items: center; gap: 8px; }
+        .br-name { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .br-mode {
+            font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+            padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
+            background: rgba(255,255,255,.05); color: var(--text-tertiary);
         }
-
-        /* Body */
-        .bcv-body { padding: 14px 14px 0; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-
-        /* Head row: name + status */
-        .bcv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-        .bcv-name { font-size: 14px; font-weight: 800; color: #fff; line-height: 1.2; }
-        .bcv-status {
-            display: flex; align-items: center; gap: 4px;
-            font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 3px 8px; border-radius: 20px; flex-shrink: 0;
-        }
-        .bcv-status.on {
-            background: rgba(16,185,129,.12);
-            color: #10B981;
-            border: 1px solid rgba(16,185,129,.25);
-        }
-        .bcv-status.off {
-            background: rgba(255,255,255,.05);
-            color: var(--text-tertiary);
-            border: 1px solid rgba(255,255,255,.08);
-        }
-        .bcv-dot {
-            width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
-        }
-        .bcv-dot.on { background: #10B981; animation: dot-pulse 2s ease-in-out infinite; }
-        .bcv-dot.off { background: #555; }
-        @keyframes dot-pulse {
-            0%,100% { opacity:1; } 50% { opacity:.4; }
-        }
-
-        /* Mode chip */
-        .bcv-mode {
-            display: inline-flex;
-            font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
-            padding: 2px 7px; border-radius: 4px;
-            background: rgba(255,255,255,.05);
-            color: var(--text-tertiary);
-            align-self: flex-start;
-        }
-        .bcv-mode.live {
-            background: color-mix(in srgb, var(--cc) 12%, transparent);
-            color: var(--cc);
-        }
-
-        /* Tickers */
-        .bcv-tickers { display: flex; flex-wrap: wrap; gap: 4px; }
+        .br-mode.live { background: rgba(16,185,129,.12); color: #10B981; }
+        .br-tickers { display: flex; flex-wrap: wrap; gap: 3px; }
         .ticker-chip {
-            font-size: 10px; font-weight: 700; padding: 2px 7px;
-            border-radius: 5px;
-            background: rgba(255,255,255,.06);
-            border: 1px solid rgba(255,255,255,.09);
-            color: var(--text-secondary); font-family: monospace;
+            font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+            background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+            color: var(--text-tertiary); font-family: monospace; letter-spacing: 0.3px;
         }
 
-        /* Stats grid */
-        .bcv-stats {
-            display: grid; grid-template-columns: 1fr 1fr;
-            gap: 6px; margin-top: auto; padding-top: 4px;
-        }
-        .bcv-stat {
-            background: rgba(255,255,255,.03);
-            border: 1px solid rgba(255,255,255,.06);
-            border-radius: 8px; padding: 8px 10px;
-        }
-        .bcv-lbl { font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
-        .bcv-val { font-size: 14px; font-weight: 800; color: #fff; }
-        .bcv-val.up   { color: #10B981; }
-        .bcv-val.down { color: #EF4444; }
-        .bcv-val.neutral { color: var(--text-secondary); }
+        /* Col 3 — PnL */
+        .br-pnl { text-align: right; }
+        .br-pnl-val { font-size: 14px; font-weight: 800; }
+        .br-pnl-val.up   { color: #10B981; }
+        .br-pnl-val.down { color: #EF4444; }
+        .br-pnl-val.neutral { color: var(--text-secondary); }
+        .br-pnl-lbl { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
 
-        /* Footer button */
-        .bcv-footer { padding: 10px 14px 14px; }
-        .bcv-btn {
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-            width: 100%; padding: 9px 0; border-radius: 10px;
-            font-size: 12px; font-weight: 700; text-decoration: none;
+        /* Col 4 — Win Rate */
+        .br-win { text-align: right; }
+        .br-win-val { font-size: 14px; font-weight: 800; color: var(--text-secondary); }
+        .br-win-lbl { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+
+        /* Col 5 — Button */
+        .br-btn {
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            padding: 7px 0; border-radius: 8px; font-size: 11px; font-weight: 700;
+            text-decoration: none; white-space: nowrap;
             background: rgba(255,255,255,.05);
-            border: 1px solid rgba(255,255,255,.09);
+            border: 1px solid rgba(255,255,255,.08);
             color: var(--text-secondary);
-            transition: all .15s;
+            transition: all .13s;
         }
-        .bcv-btn:hover { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.15); }
-        .bcv-btn.admin {
+        .br-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+        .br-btn.admin {
             background: color-mix(in srgb, var(--cc) 10%, transparent);
-            border-color: color-mix(in srgb, var(--cc) 30%, transparent);
+            border-color: color-mix(in srgb, var(--cc) 28%, transparent);
             color: var(--cc);
         }
-        .bcv-btn.admin:hover {
-            background: color-mix(in srgb, var(--cc) 18%, transparent);
-            color: #fff;
-        }
+        .br-btn.admin:hover { background: color-mix(in srgb, var(--cc) 18%, transparent); color: #fff; }
 
-        @media (max-width: 600px) {
-            .cat-bots { grid-template-columns: 1fr 1fr; gap: 8px; }
-            .bcv-stats { gap: 4px; }
+        @media (max-width: 768px) {
+            .bot-row { grid-template-columns: 10px 1fr auto 90px; }
+            .br-win  { display: none; }
         }
-        @media (max-width: 400px) {
-            .cat-bots { grid-template-columns: 1fr; }
+        @media (max-width: 480px) {
+            .bot-row { grid-template-columns: 10px 1fr 80px; gap: 10px; padding: 11px 14px; }
+            .br-pnl  { display: none; }
+            .br-btn  { font-size: 10px; padding: 7px 0; }
         }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
@@ -1245,18 +1202,16 @@
                 const html = tree.map(cat => {
                     const bots = cat.bots || [];
                     return `
-                        <div class="cat-section" style="--cc:${cat.color}">
+                        <div class="cat-section cat-block" style="--cc:${cat.color}">
                             <div class="cat-header">
+                                <div class="cat-accent-bar"></div>
                                 <div class="cat-icon-wrap">${getCatIcon(cat.icon)}</div>
                                 <span class="cat-name">${cat.name}</span>
                                 <span class="cat-badge">${bots.length}</span>
-                                <div class="cat-divider"></div>
                             </div>
-                            <div class="cat-bots">
-                                ${bots.length === 0
-                                    ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
-                                    : bots.map(b => renderBotCard(b, cat.color)).join('')}
-                            </div>
+                            ${bots.length === 0
+                                ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
+                                : bots.map(b => renderBotRow(b)).join('')}
                         </div>`;
                 }).join('');
                 document.getElementById('botsTree').innerHTML = html ||

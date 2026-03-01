@@ -6301,6 +6301,8 @@
         // Reload chart for current symbol/interval
         function loadKlines() {
             if (!klChart) return;
+            // Clear chart immediately so user sees the switch happened right away
+            try { klChart.applyNewData([]); } catch(e) {}
             document.getElementById('chartLoading').style.display = 'flex';
             document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
             klinesData = [];
@@ -6363,8 +6365,8 @@
                         open: +k.open, high: +k.high, low: +k.low, close: +k.close,
                         volume: +(k.volume || 0),
                     }));
-                if (bars.length > 0 && klChart) {
-                    klChart.applyNewData(bars);
+                if (klChart) klChart.applyNewData(bars); // always apply — clears if empty
+                if (bars.length > 0) {
                     klinesData = bars.map(b => ({
                         time: Math.floor(b.timestamp / 1000),
                         open: b.open, high: b.high, low: b.low, close: b.close,
