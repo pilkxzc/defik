@@ -6110,8 +6110,30 @@
             // Load older candles when user scrolls to the left edge
             klChart.loadMore(function(timestamp) {
                 const end = timestamp != null ? timestamp - 1 : Date.now();
+                const capturedGen = _chartLoadGen;
+
+                // After prepending older bars: update klinesData and reload markers
+                function _afterMoreData(bars) {
+                    if (bars.length === 0 || _chartLoadGen !== capturedGen) return;
+                    const newOlder = bars.map(b => ({
+                        time: Math.floor(b.timestamp / 1000),
+                        open: b.open, high: b.high, low: b.low, close: b.close,
+                    }));
+                    // Prepend, skip dupes
+                    const existingSet = new Set(klinesData.map(k => k.time));
+                    const unique = newOlder.filter(b => !existingSet.has(b.time));
+                    if (unique.length > 0) {
+                        klinesData = [...unique, ...klinesData];
+                        if (klinesData.length > 10000) klinesData.length = 10000;
+                        oldestTimestamp = klinesData[0].time;
+                        // Reload markers so newly revealed older trades become visible
+                        markersLoaded = false;
+                        lastMarkersKey = '';
+                        loadTradeMarkers();
+                    }
+                }
+
                 if (SUB_MIN_IVS.has(currentInterval)) {
-                    // 1s history — fetch from Binance Spot directly
                     const url = `https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=1s&limit=1000&endTime=${end}`;
                     fetch(url)
                         .then(r => r.json())
@@ -6119,6 +6141,7 @@
                             const bars = raw.map(([t, o, h, l, c, v]) => ({
                                 timestamp: t, open: +o, high: +h, low: +l, close: +c, volume: +v,
                             }));
+                            _afterMoreData(bars);
                             klChart.applyMoreData(bars, bars.length === 0);
                         })
                         .catch(() => klChart.applyMoreData([], true));
@@ -6136,6 +6159,7 @@
                                 open: +k.open, high: +k.high, low: +k.low, close: +k.close,
                                 volume: +(k.volume || 0),
                             }));
+                        _afterMoreData(bars);
                         klChart.applyMoreData(bars, bars.length === 0);
                     })
                     .catch(() => klChart.applyMoreData([], true));
@@ -6279,8 +6303,10 @@
             klinesData = [];
             lastMarkersKey = '';
             _chartLoadGen++;
+            const _myLoadGen = _chartLoadGen; // capture — prevents stale .then() from firing
             _disconnectKlineWs();
             _fetchKlines().then(() => {
+                if (_chartLoadGen !== _myLoadGen) return; // newer loadKlines already running
                 document.getElementById('chartLoading').style.display = 'none';
                 _connectKlineWs();
                 if (lastChartData) drawPriceLines(lastChartData);
@@ -6470,7 +6496,7 @@
                             groupId: tradeOverlayGroup,
                             lock: true,
                             points: [{ timestamp: barTime * 1000, value: price }],
-                            extendData: { isBuy: isEntry ? isLong : null, isExit: !isEntry, pnl: m.pnl || 0 },
+                            extendData: { isBuy: isEntry ? isLong : !isLong, isExit: !isEntry, pnl: m.pnl || 0 },
                         });
                     } catch(e) {}
                 });
@@ -8171,7 +8197,11 @@
 
         // Quick-switch symbol by clicking an instrument chip
         function changeSymbol(symbol) {
+            // Instrument chips always allowed to switch even when search box is locked
+            const wasLocked = symbolLocked;
+            symbolLocked = false;
             selectSymbol(symbol);
+            symbolLocked = wasLocked;
         }
 
         // Update instruments panel directly from known symbols list

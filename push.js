@@ -13,8 +13,9 @@
  */
 
 const { execSync, spawnSync } = require('child_process');
-const fs   = require('fs');
-const path = require('path');
+const fs             = require('fs');
+const path           = require('path');
+const readline       = require('readline');
 
 // ── Конфіг ───────────────────────────────────────────────────────────────────
 const VPS_HOST    = '188.137.178.124';
@@ -179,29 +180,42 @@ echo "DONE"
     }
 }
 
+// ── Prompt helper ─────────────────────────────────────────────────────────────
+function ask(question) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans.trim().toLowerCase()); }));
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
-console.log(`\n${c.bold}${'─'.repeat(50)}${c.reset}`);
-console.log(`${c.bold}  🚀 PUSH + DEPLOY${c.reset}`);
-console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
+(async () => {
+    console.log(`\n${c.bold}${'─'.repeat(50)}${c.reset}`);
+    console.log(`${c.bold}  PUSH + DEPLOY${c.reset}`);
+    console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
 
-const commitMsg = process.argv[2] || '';
+    const commitMsg = process.argv[2] || '';
 
-info('[1/4] Перевірка залежностей...');
-checkLocalDeps();
-console.log('');
+    info('[1/4] Перевірка залежностей...');
+    checkLocalDeps();
+    console.log('');
 
-info('[2/4] Бекап бази даних...');
-backupDB();
-console.log('');
+    info('[2/4] Бекап бази даних...');
+    const backupAns = await ask(`${c.yellow}  Зробити бекап бази з VPS? [Y/n]: ${c.reset}`);
+    if (backupAns === '' || backupAns === 'y' || backupAns === 'yes' || backupAns === 'т' || backupAns === 'так') {
+        backupDB();
+    } else {
+        warn('Бекап пропущено');
+    }
+    console.log('');
 
-info('[3/4] Git commit + push...');
-gitPush(commitMsg);
-console.log('');
+    info('[3/4] Git commit + push...');
+    gitPush(commitMsg);
+    console.log('');
 
-info('[4/4] Деплой на VPS...');
-deployVPS();
+    info('[4/4] Деплой на VPS...');
+    deployVPS();
 
-console.log('');
-console.log(`${c.bold}${'─'.repeat(50)}${c.reset}`);
-console.log(`${c.bold}  ✅ Готово!${c.reset}`);
-console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
+    console.log('');
+    console.log(`${c.bold}${'─'.repeat(50)}${c.reset}`);
+    console.log(`${c.bold}  Готово!${c.reset}`);
+    console.log(`${c.bold}${'─'.repeat(50)}${c.reset}\n`);
+})();
