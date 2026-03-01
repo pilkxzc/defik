@@ -666,19 +666,12 @@
                 </button>
             </div>
 
-            <!-- Quote Currency Tabs -->
-            <div style="display:flex;gap:4px;padding:0 12px 10px;flex-wrap:wrap;">
-                <button class="mkt-quote-btn active" data-quote="USDT">USDT</button>
-                <button class="mkt-quote-btn" data-quote="BTC">BTC</button>
-                <button class="mkt-quote-btn" data-quote="ETH">ETH</button>
-                <button class="mkt-quote-btn" data-quote="BNB">BNB</button>
-                <button class="mkt-quote-btn" data-quote="SOL">SOL</button>
-            </div>
-
-            <!-- Search Input -->
-            <div style="padding: 0 12px 12px;">
-                <input type="text" id="marketSearch" placeholder="Пошук монет..."
-                    style="width: 100%; padding: 10px 12px; background: var(--surface-tertiary); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; color: white; font-size: 13px; outline: none;">
+            <!-- Search Input (supports BASE/QUOTE syntax: SOL/BTC, /ETH, BTC) -->
+            <div style="padding: 0 12px 12px; position:relative;">
+                <input type="text" id="marketSearch" placeholder="BTC, SOL/BTC, /ETH..."
+                    style="width: 100%; padding: 10px 12px 10px 34px; background: var(--surface-tertiary); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; color: white; font-size: 13px; outline: none; box-sizing:border-box;">
+                <svg style="position:absolute;left:22px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:0.4;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span id="searchQuoteBadge" style="display:none;position:absolute;right:22px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:700;background:var(--accent-primary);color:#fff;padding:2px 6px;border-radius:4px;pointer-events:none;"></span>
             </div>
 
             <!-- Filter Buttons -->
@@ -707,14 +700,6 @@
                     <span id="wsStatusText">—</span>
                 </div>
 
-                <!-- Quote currency selector -->
-                <div class="tf-btns" style="margin-left: 8px; gap: 2px;">
-                    <div class="tf-sep"></div>
-                    <button class="tf-btn quote-btn active" data-quote="USDT" style="font-size:11px;">USDT</button>
-                    <button class="tf-btn quote-btn" data-quote="BTC" style="font-size:11px;">BTC</button>
-                    <button class="tf-btn quote-btn" data-quote="ETH" style="font-size:11px;">ETH</button>
-                </div>
-
                 <div class="chart-stat" style="margin-left: auto;">
                     <span class="stat-label">Макс. 24г</span>
                     <span class="stat-val" id="stat24hHigh">$0.00</span>
@@ -734,7 +719,11 @@
             </div>
 
             <div class="chart-container" id="tradingview_chart" style="flex: 1; min-height: 350px; position: relative;">
-                <div id="chart-root" style="width:100%;height:100%;min-height:350px;"></div>
+                <!-- Watermark -->
+                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1;user-select:none;">
+                    <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:clamp(48px,8vw,96px);font-weight:900;letter-spacing:0.18em;color:rgba(255,255,255,0.03);text-transform:uppercase;white-space:nowrap;">YAMATO</span>
+                </div>
+                <div id="chart-root" style="width:100%;height:100%;min-height:350px;position:relative;z-index:2;"></div>
                 <!-- Chart loading overlay -->
                 <div class="chart-overlay" id="chartLoading" style="display:flex;">
                     <canvas class="chart-overlay-canvas" id="chartLoadingCanvas"></canvas>
@@ -1140,11 +1129,80 @@
         }
 
         // ================================
-        // SEARCH & FILTER
+        // SEARCH & FILTER  (supports BASE/QUOTE syntax)
         // ================================
-        document.getElementById('marketSearch').addEventListener('input', function(e) {
-            currentSearchQuery = e.target.value.toLowerCase();
-            marketsInitialized = false; // Force full re-render for search
+        var KNOWN_QUOTES = ['USDT','BTC','ETH','BNB','SOL','USDC'];
+
+        function _parseMarketSearch(raw) {
+            // "/BTC" → { base:'', quote:'BTC' }
+            // "SOL/BTC" → { base:'sol', quote:'BTC' }
+            // "BTC" → { base:'btc', quote:null }
+            var s = raw.trim();
+            var slash = s.indexOf('/');
+            if (slash !== -1) {
+                var qPart = s.slice(slash + 1).trim().toUpperCase();
+                var bPart = s.slice(0, slash).trim().toLowerCase();
+                if (KNOWN_QUOTES.includes(qPart)) return { base: bPart, quote: qPart };
+            }
+            return { base: s.toLowerCase(), quote: null };
+        }
+
+        document.getElementById('marketSearch').addEventListener('input', async function(e) {
+            var raw = e.target.value;
+            var badge = document.getElementById('searchQuoteBadge');
+
+            if (!raw.trim()) {
+                // Clear → reset to USDT
+                currentSearchQuery = '';
+                if (window.quoteCurrency !== 'USDT') {
+                    window.quoteCurrency = 'USDT';
+                    window.quoteCurrencyPrice = 1;
+                    window.activeQuoteMarkets = window.allMarkets;
+                    var sym = window.currentTicker + 'USDT';
+                    window.currentChartSymbol = 'BINANCE:' + sym;
+                    window.yamatoChart?.setSymbol(sym);
+                    document.getElementById('currentSymbol').textContent = window.currentTicker + '/USDT';
+                }
+                badge.style.display = 'none';
+                marketsInitialized = false;
+                renderMarkets(getFilteredMarkets());
+                marketsInitialized = true;
+                return;
+            }
+
+            var parsed = _parseMarketSearch(raw);
+            currentSearchQuery = parsed.base;
+
+            // If quote detected and different → switch
+            if (parsed.quote && parsed.quote !== window.quoteCurrency) {
+                window.quoteCurrency = parsed.quote;
+                if (parsed.quote === 'USDT') {
+                    window.quoteCurrencyPrice = 1;
+                    window.activeQuoteMarkets = window.allMarkets;
+                } else {
+                    fetch('https://api.binance.com/api/v3/ticker/price?symbol=' + parsed.quote + 'USDT')
+                        .then(r => r.json()).then(d => { window.quoteCurrencyPrice = parseFloat(d.price) || 1; }).catch(() => {});
+                    await _ensureQuoteMarkets(parsed.quote);
+                }
+                // Update chart to current ticker in new quote
+                if (window.currentTicker !== parsed.quote) {
+                    var csym = window.currentTicker + parsed.quote;
+                    window.currentChartSymbol = 'BINANCE:' + csym;
+                    window.yamatoChart?.setSymbol(csym);
+                    document.getElementById('currentSymbol').textContent = window.currentTicker + '/' + parsed.quote;
+                }
+            }
+
+            // Show badge with active quote
+            var activeQ = parsed.quote || window.quoteCurrency;
+            if (activeQ !== 'USDT' || parsed.quote) {
+                badge.textContent = activeQ;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            marketsInitialized = false;
             renderMarkets(getFilteredMarkets());
             marketsInitialized = true;
         });
@@ -1559,58 +1617,38 @@
         }
 
         // ================================
-        // QUOTE CURRENCY SWITCHING
+        // QUOTE CURRENCY (data helpers)
         // ================================
 
         var _quotePairsCache = {};
         var _quotePairsCacheTtl = {};
         var QUOTE_STABLES = new Set(['USDT','USDC','BUSD','FDUSD','TUSD','DAI','USDP','EUR','GBP','AUD','TRY','BRL','BIDR']);
 
-        async function loadQuoteMarkets(quote) {
-            if (quote === 'USDT') {
-                window.activeQuoteMarkets = window.allMarkets;
-                marketsInitialized = false;
-                renderMarkets(getFilteredMarkets());
-                marketsInitialized = true;
-                return;
-            }
-
-            // Show spinner
-            document.getElementById('marketList').innerHTML =
-                '<div style="padding:20px;text-align:center;color:var(--text-tertiary);">' +
-                '<div class="loader" style="width:20px;height:20px;border:2px solid rgba(255,255,255,0.1);border-top-color:var(--accent-primary);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 8px;"></div>' +
-                'Завантаження ' + quote + ' пар...</div>';
-
+        // Fetch + cache quote markets without rendering
+        async function _ensureQuoteMarkets(quote) {
+            if (quote === 'USDT') { window.activeQuoteMarkets = window.allMarkets; return; }
             const now = Date.now();
             if (_quotePairsCache[quote] && (now - (_quotePairsCacheTtl[quote] || 0)) < 30000) {
-                window.activeQuoteMarkets = _quotePairsCache[quote];
-                marketsInitialized = false;
-                renderMarkets(getFilteredMarkets());
-                marketsInitialized = true;
-                return;
+                window.activeQuoteMarkets = _quotePairsCache[quote]; return;
             }
-
             try {
                 const resp = await fetch('https://api.binance.com/api/v3/ticker/24hr?type=MINI');
                 const all = await resp.json();
                 const qLen = quote.length;
-
                 const pairs = all
                     .filter(t => {
                         if (!t.s.endsWith(quote)) return false;
                         const base = t.s.slice(0, t.s.length - qLen);
-                        if (base === quote || QUOTE_STABLES.has(base)) return false;
-                        return true;
+                        return base !== quote && !QUOTE_STABLES.has(base);
                     })
                     .map(t => {
                         const lastPrice = parseFloat(t.lastPrice);
                         const openPrice = parseFloat(t.openPrice);
-                        const change = openPrice > 0 ? ((lastPrice - openPrice) / openPrice) * 100 : 0;
                         return {
                             symbol:   t.s.slice(0, t.s.length - qLen),
                             basePair: t.s,
                             price:    lastPrice,
-                            change:   change,
+                            change:   openPrice > 0 ? ((lastPrice - openPrice) / openPrice) * 100 : 0,
                             volume:   parseFloat(t.quoteVolume) || 0,
                             high:     parseFloat(t.highPrice) || lastPrice,
                         };
@@ -1618,65 +1656,11 @@
                     .filter(p => p.price > 0)
                     .sort((a, b) => b.volume - a.volume)
                     .slice(0, 300);
-
                 _quotePairsCache[quote] = pairs;
                 _quotePairsCacheTtl[quote] = now;
                 window.activeQuoteMarkets = pairs;
-            } catch(e) {
-                window.activeQuoteMarkets = [];
-            }
-
-            marketsInitialized = false;
-            renderMarkets(getFilteredMarkets());
-            marketsInitialized = true;
+            } catch(e) { window.activeQuoteMarkets = []; }
         }
-
-        async function setQuoteCurrency(newQuote) {
-            if (window.currentTicker === newQuote) return; // can't view BTC/BTC
-
-            window.quoteCurrency = newQuote;
-
-            // Sync all quote buttons (both market panel and chart header)
-            document.querySelectorAll('.mkt-quote-btn').forEach(b => {
-                b.classList.toggle('active', b.dataset.quote === newQuote);
-            });
-            document.querySelectorAll('.quote-btn').forEach(b => {
-                b.classList.toggle('active', b.dataset.quote === newQuote);
-            });
-
-            // Update chart symbol
-            const chartSym = window.currentTicker + newQuote;
-            window.currentChartSymbol = 'BINANCE:' + chartSym;
-            window.yamatoChart?.setSymbol(chartSym);
-            document.getElementById('currentSymbol').textContent = window.currentTicker + '/' + newQuote;
-
-            if (newQuote === 'USDT') {
-                window.quoteCurrencyPrice = 1;
-                updateLivePriceDisplay();
-                loadOrderBook(window.currentTicker);
-            } else {
-                // Fetch quote currency USDT price for conversion
-                fetch('https://api.binance.com/api/v3/ticker/price?symbol=' + newQuote + 'USDT')
-                    .then(r => r.json())
-                    .then(data => {
-                        window.quoteCurrencyPrice = parseFloat(data.price) || 1;
-                        updateLivePriceDisplay();
-                        loadOrderBook(window.currentTicker);
-                    })
-                    .catch(() => { window.quoteCurrencyPrice = 1; });
-            }
-
-            // Reload market list for this quote
-            await loadQuoteMarkets(newQuote);
-        }
-
-        document.querySelectorAll('.mkt-quote-btn').forEach(btn => {
-            btn.addEventListener('click', function() { setQuoteCurrency(this.dataset.quote); });
-        });
-
-        document.querySelectorAll('.quote-btn').forEach(btn => {
-            btn.addEventListener('click', function() { setQuoteCurrency(this.dataset.quote); });
-        });
 
         function updateLivePriceDisplay() {
             const priceEl = document.getElementById('livePrice');
@@ -1707,15 +1691,6 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100px); opacity: 0; } }
-
-        .mkt-quote-btn {
-            padding: 4px 9px; font-size: 11px; font-weight: 600;
-            background: var(--surface-tertiary); border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 6px; color: var(--text-secondary); cursor: pointer;
-            font-family: inherit; transition: all 0.15s;
-        }
-        .mkt-quote-btn:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.14); }
-        .mkt-quote-btn.active { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
 
         /* Smooth price transitions */
         .price-val, .price-change {
