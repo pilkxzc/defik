@@ -3,354 +3,289 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Оновлення сервера — Trading Arena</title>
+<title>Yamato — Оновлення</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:      #050b14;
-    --surface: #0d1b2e;
-    --accent:  #00d4ff;
-    --accent2: #0066ff;
-    --green:   #00ff88;
-    --text:    #c8d8e8;
-    --dim:     #4a6785;
+    --bg:       #080808;
+    --surface:  #141414;
+    --surface2: #1C1C1C;
+    --accent:   #10B981;
+    --accent-d: #0d9268;
+    --white:    #FFFFFF;
+    --t1:       #FFFFFF;
+    --t2:       #A1A1A1;
+    --t3:       #636363;
+    --border:   rgba(255,255,255,0.05);
+    --radius-full: 9999px;
+    --radius-lg: 24px;
+    --radius-md: 16px;
   }
 
   body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
     background: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    min-height: 100vh;
+    color: var(--t1);
+    min-height: 100dvh;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* ── Сітка на фоні ── */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    animation: gridMove 20s linear infinite;
-    pointer-events: none;
-  }
-
-  @keyframes gridMove {
-    from { transform: translateY(0); }
-    to   { transform: translateY(40px); }
-  }
-
-  /* ── Орбітальна анімація ── */
-  .orbit-wrap {
-    position: relative;
-    width: 180px;
-    height: 180px;
-    margin: 0 auto 40px;
-  }
-
-  .orbit {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 1px solid transparent;
-  }
-
-  .orbit-1 {
-    border-color: rgba(0,212,255,.25);
-    animation: spin 3s linear infinite;
-  }
-  .orbit-1::after {
-    content: '';
-    position: absolute;
-    top: -4px; left: 50%;
-    transform: translateX(-50%);
-    width: 8px; height: 8px;
-    background: var(--accent);
-    border-radius: 50%;
-    box-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
-  }
-
-  .orbit-2 {
-    inset: 20px;
-    border-color: rgba(0,102,255,.3);
-    animation: spin 2s linear infinite reverse;
-  }
-  .orbit-2::after {
-    content: '';
-    position: absolute;
-    bottom: -4px; left: 50%;
-    transform: translateX(-50%);
-    width: 6px; height: 6px;
-    background: var(--accent2);
-    border-radius: 50%;
-    box-shadow: 0 0 8px var(--accent2), 0 0 16px var(--accent2);
-  }
-
-  .orbit-3 {
-    inset: 40px;
-    border-color: rgba(0,255,136,.2);
-    animation: spin 4s linear infinite;
-  }
-  .orbit-3::after {
-    content: '';
-    position: absolute;
-    top: -3px; right: 10px;
-    width: 5px; height: 5px;
-    background: var(--green);
-    border-radius: 50%;
-    box-shadow: 0 0 8px var(--green);
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
-
-  /* ── Логотип по центру орбіт ── */
-  .logo-center {
-    position: absolute;
-    inset: 60px;
+  /* ── Логотип ── */
+  .brand {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 22px;
+    gap: 10px;
+    font-size: 18px;
     font-weight: 800;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 12px rgba(0,212,255,.5));
-    animation: pulse 2s ease-in-out infinite;
+    margin-bottom: 40px;
+    color: var(--t1);
+    text-decoration: none;
   }
-  @keyframes pulse {
-    0%, 100% { filter: drop-shadow(0 0 8px rgba(0,212,255,.4)); }
-    50%       { filter: drop-shadow(0 0 20px rgba(0,212,255,.8)); }
-  }
+  .brand img { width: 28px; height: 28px; }
 
   /* ── Картка ── */
   .card {
-    position: relative;
     background: var(--surface);
-    border: 1px solid rgba(0,212,255,.12);
-    border-radius: 20px;
-    padding: 48px 52px;
-    max-width: 520px;
-    width: 90%;
-    text-align: center;
-    box-shadow: 0 0 60px rgba(0,212,255,.06), 0 24px 64px rgba(0,0,0,.6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    width: 100%;
+    max-width: 460px;
   }
-  .card::before {
+
+  /* ── Іконка зверху ── */
+  .icon-wrap {
+    width: 56px;
+    height: 56px;
+    background: rgba(16,185,129,.1);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .icon-wrap svg { width: 26px; height: 26px; color: var(--accent); }
+  /* пульсуюче кільце */
+  .icon-wrap::after {
     content: '';
     position: absolute;
-    top: 0; left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    inset: -1px;
+    border-radius: calc(var(--radius-md) + 1px);
+    border: 1px solid var(--accent);
+    opacity: 0;
+    animation: ring 2.4s ease-out infinite;
+  }
+  @keyframes ring {
+    0%   { transform: scale(1);    opacity: .6; }
+    100% { transform: scale(1.35); opacity: 0;  }
   }
 
   h1 {
-    font-size: 1.45rem;
-    font-weight: 700;
-    margin-bottom: 12px;
-    background: linear-gradient(135deg, #fff 40%, var(--accent));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -.3px;
   }
-
-  .sub {
-    color: var(--dim);
-    font-size: .93rem;
+  .subtitle {
+    font-size: 14px;
+    color: var(--t2);
     line-height: 1.6;
-    margin-bottom: 36px;
-  }
-
-  /* ── Прогрес-бар ── */
-  .progress-wrap {
-    background: rgba(255,255,255,.05);
-    border-radius: 99px;
-    height: 4px;
-    overflow: hidden;
-    margin-bottom: 12px;
-  }
-  .progress-bar {
-    height: 100%;
-    width: 0%;
-    border-radius: 99px;
-    background: linear-gradient(90deg, var(--accent2), var(--accent));
-    box-shadow: 0 0 8px var(--accent);
-    transition: width .3s ease;
-  }
-
-  .countdown-text {
-    font-size: .8rem;
-    color: var(--dim);
     margin-bottom: 32px;
   }
-  .countdown-text span {
-    color: var(--accent);
-    font-weight: 600;
-  }
 
-  /* ── Статус-рядки ── */
-  .status-list {
+  /* ── Термінал ── */
+  .terminal {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12.5px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    text-align: left;
-    background: rgba(0,0,0,.25);
-    border-radius: 12px;
-    padding: 16px 20px;
-    font-size: .82rem;
-    font-family: 'Courier New', monospace;
+    gap: 8px;
+    margin-bottom: 28px;
+    min-height: 120px;
   }
-
-  .status-item {
+  .log-line {
     display: flex;
     align-items: center;
     gap: 10px;
     opacity: 0;
-    animation: fadeIn .4s forwards;
-    color: var(--dim);
+    transform: translateY(4px);
+    animation: slideIn .3s forwards;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .status-item.done  { color: var(--green); }
-  .status-item.active{ color: var(--accent); }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to   { opacity: 1; transform: translateX(0); }
+  @keyframes slideIn {
+    to { opacity: 1; transform: translateY(0); }
   }
-
+  .log-line .prefix { color: var(--t3); flex-shrink: 0; }
+  .log-line.done   .msg { color: var(--t2); }
+  .log-line.active .msg { color: var(--accent); }
+  .log-line.done   .dot { background: var(--accent); }
+  .log-line.active .dot { background: var(--accent); animation: blink .8s step-end infinite; }
   .dot {
-    width: 6px; height: 6px;
+    width: 5px; height: 5px;
     border-radius: 50%;
-    background: currentColor;
+    background: var(--t3);
     flex-shrink: 0;
   }
-  .dot.spin-dot {
-    background: transparent;
-    border: 2px solid currentColor;
-    border-top-color: transparent;
-    animation: spin .7s linear infinite;
-  }
+  @keyframes blink { 50% { opacity: 0; } }
 
-  /* ── Footer ── */
-  .footer {
-    margin-top: 28px;
-    font-size: .75rem;
-    color: var(--dim);
+  /* ── Прогрес + таймер ── */
+  .footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
+  .progress-wrap {
+    flex: 1;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: var(--radius-full);
+    transition: width .25s linear;
+  }
+  .timer-pill {
+    background: var(--surface2);
+    border-radius: var(--radius-full);
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--t2);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .timer-pill span { color: var(--accent); }
 </style>
 </head>
 <body>
 
+<a class="brand" href="/">
+  <img src="/logo.svg" alt="Yamato">
+  Yamato
+</a>
+
 <div class="card">
-  <div class="orbit-wrap">
-    <div class="orbit orbit-1"></div>
-    <div class="orbit orbit-2"></div>
-    <div class="orbit orbit-3"></div>
-    <div class="logo-center">TA</div>
+
+  <div class="icon-wrap">
+    <!-- server icon -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="2" width="20" height="8" rx="2"/>
+      <rect x="2" y="14" width="20" height="8" rx="2"/>
+      <line x1="6" y1="6" x2="6.01" y2="6"/>
+      <line x1="6" y1="18" x2="6.01" y2="18"/>
+    </svg>
   </div>
 
   <h1>Сервер оновлюється</h1>
-  <p class="sub">Ми розгортаємо нову версію платформи.<br>Це займе лічені секунди.</p>
+  <p class="subtitle">Розгортаємо нову версію Yamato.<br>Сторінка оновиться автоматично.</p>
 
-  <div class="progress-wrap">
-    <div class="progress-bar" id="pbar"></div>
+  <div class="terminal" id="terminal"></div>
+
+  <div class="footer-row">
+    <div class="progress-wrap">
+      <div class="progress-bar" id="pbar"></div>
+    </div>
+    <div class="timer-pill">через <span id="timer">10</span> с</div>
   </div>
-  <p class="countdown-text">Перевірка через <span id="timer">10</span> с</p>
 
-  <div class="status-list" id="log"></div>
-
-  <p class="footer">Trading Arena &mdash; автоматичне відновлення</p>
 </div>
 
 <script>
-  const INTERVAL = 10; // секунд між спробами
-  const ENDPOINT = '/api/health'; // або '/' — що є на сервері
-
-  const pbar  = document.getElementById('pbar');
-  const timer = document.getElementById('timer');
-  const log   = document.getElementById('log');
-
-  let attempt = 0;
-
-  const messages = [
-    'Зупинка старого процесу...',
+  const INTERVAL = 10;
+  const steps = [
+    'Зупинка процесу...',
     'Застосування оновлень...',
-    'Встановлення залежностей...',
+    'npm install...',
     'Збірка інтерфейсу...',
     'Запуск сервера...',
   ];
 
-  function addLine(text, state = 'done') {
+  const terminal = document.getElementById('terminal');
+  const pbar     = document.getElementById('pbar');
+  const timerEl  = document.getElementById('timer');
+  let attempt    = 0;
+
+  function addLine(text, state) {
+    const time = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const el = document.createElement('div');
-    el.className = `status-item ${state}`;
+    el.className = `log-line ${state}`;
     el.style.animationDelay = '0s';
-    const dotClass = state === 'active' ? 'dot spin-dot' : 'dot';
-    el.innerHTML = `<span class="${dotClass}"></span><span>${text}</span>`;
-    log.appendChild(el);
-    log.scrollTop = log.scrollHeight;
+    el.innerHTML = `<span class="dot"></span><span class="prefix">${time}</span><span class="msg">${text}</span>`;
+    terminal.appendChild(el);
     return el;
   }
 
-  function showProgress(attempt) {
-    log.innerHTML = '';
-    const show = Math.min(attempt + 1, messages.length);
+  function renderTerminal(attempt) {
+    terminal.innerHTML = '';
+    const show = Math.min(attempt + 1, steps.length);
     for (let i = 0; i < show - 1; i++) {
-      const el = addLine(messages[i], 'done');
-      el.style.animationDelay = `${i * 0.1}s`;
+      const el = addLine(steps[i], 'done');
+      el.style.animationDelay = `${i * 0.08}s`;
     }
-    if (show <= messages.length) {
-      const el = addLine(messages[show - 1], 'active');
-      el.style.animationDelay = `${(show - 1) * 0.1}s`;
+    if (show <= steps.length) {
+      const el = addLine(steps[show - 1], 'active');
+      el.style.animationDelay = `${(show - 1) * 0.08}s`;
     }
   }
 
   async function checkServer() {
     try {
-      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
-      if (res.ok || res.status === 401 || res.status === 403 || res.status === 302) {
-        // Сервер відповідає — перезавантажуємо
-        addLine('Сервер запущено! Перенаправлення...', 'done');
+      const res = await fetch('/', { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+      if (res.ok || res.status === 401 || res.status === 302 || res.status === 403) {
+        addLine('Сервер запущено — перенаправлення...', 'active');
         pbar.style.width = '100%';
-        setTimeout(() => location.reload(), 800);
+        setTimeout(() => location.reload(), 600);
         return true;
       }
     } catch {}
     return false;
   }
 
-  function startCountdown() {
+  function startCycle() {
     attempt++;
-    showProgress(attempt);
+    renderTerminal(attempt);
+    pbar.style.width = '0%';
 
     let left = INTERVAL;
-    pbar.style.width = '0%';
-    timer.textContent = left;
+    timerEl.textContent = left;
 
     const tick = setInterval(async () => {
       left--;
-      timer.textContent = left;
+      timerEl.textContent = left;
       pbar.style.width = `${((INTERVAL - left) / INTERVAL) * 100}%`;
-
       if (left <= 0) {
         clearInterval(tick);
-        const alive = await checkServer();
-        if (!alive) startCountdown();
+        const ok = await checkServer();
+        if (!ok) startCycle();
       }
     }, 1000);
 
-    // Перша перевірка одразу
-    checkServer();
+    checkServer(); // перша перевірка одразу
   }
 
-  startCountdown();
+  startCycle();
 </script>
 </body>
 </html>
