@@ -5963,6 +5963,7 @@
                 loadSymbolPrices();
             } catch (error) {
                 console.error('Load symbols error:', error);
+                loadKlines(); // fallback: load with whatever currentSymbol is set to
             }
         }
 
@@ -6108,8 +6109,21 @@
 
             // Load older candles when user scrolls to the left edge
             klChart.loadMore(function(timestamp) {
-                if (SUB_MIN_IVS.has(currentInterval)) { klChart.applyMoreData([], true); return; }
                 const end = timestamp != null ? timestamp - 1 : Date.now();
+                if (SUB_MIN_IVS.has(currentInterval)) {
+                    // 1s history — fetch from Binance Spot directly
+                    const url = `https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=1s&limit=1000&endTime=${end}`;
+                    fetch(url)
+                        .then(r => r.json())
+                        .then(raw => {
+                            const bars = raw.map(([t, o, h, l, c, v]) => ({
+                                timestamp: t, open: +o, high: +h, low: +l, close: +c, volume: +v,
+                            }));
+                            klChart.applyMoreData(bars, bars.length === 0);
+                        })
+                        .catch(() => klChart.applyMoreData([], true));
+                    return;
+                }
                 const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=500&endTime=${end}`;
                 fetch(url, { credentials: 'include' })
                     .then(r => r.json())
@@ -6130,8 +6144,8 @@
             // Keep watermark in sync with resize
             const resizeObserver = new ResizeObserver(() => updateWatermark());
             resizeObserver.observe(container);
-
-            loadKlines();
+            // NOTE: loadKlines() is NOT called here — loadSymbols() loads data with the
+            // correct symbol after bot data is fetched, preventing the BTCUSDT flash.
         }
 
         function buildChartOverrides() {
@@ -6277,9 +6291,33 @@
 
         async function _fetchKlines() {
             const myGen = _chartLoadGen;
-            // Sub-minute intervals have no REST history — clear chart and let WS fill it
+
             if (SUB_MIN_IVS.has(currentInterval)) {
-                if (klChart) klChart.applyNewData([]);
+                // 1s klines — fetch from Binance Spot directly (server has no sub-minute endpoint)
+                try {
+                    const url = `https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=1s&limit=1000&endTime=${Date.now()}`;
+                    const r = await fetch(url);
+                    if (!r.ok) return;
+                    if (_chartLoadGen !== myGen) return;
+                    const raw = await r.json();
+                    if (_chartLoadGen !== myGen) return;
+                    const bars = raw.map(([t, o, h, l, c, v]) => ({
+                        timestamp: t, open: +o, high: +h, low: +l, close: +c, volume: +v,
+                    }));
+                    if (bars.length > 0 && klChart) {
+                        klChart.applyNewData(bars);
+                        klinesData = bars.map(b => ({
+                            time: Math.floor(b.timestamp / 1000),
+                            open: b.open, high: b.high, low: b.low, close: b.close,
+                        }));
+                        klinesVersion++;
+                        oldestTimestamp = klinesData.length > 0 ? klinesData[0].time : null;
+                        lastPrice = bars[bars.length - 1].close;
+                        updateLivePrice(lastPrice);
+                    }
+                } catch(e) {
+                    console.error('[bot-detail] _fetchKlines (1s) error:', e);
+                }
                 return;
             }
 
