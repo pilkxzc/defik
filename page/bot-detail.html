@@ -2690,6 +2690,46 @@
             .bot-mode-badge { font-size: 10px; padding: 5px 10px; }
             .interval-btns { flex-wrap: wrap; }
         }
+
+        /* ── Trade Detail Popup ── */
+        #trade-popup {
+            position: fixed; z-index: 2000;
+            background: #1A1A1A; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px; padding: 0; width: 240px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+            animation: tpIn 0.15s cubic-bezier(0.16,1,0.3,1);
+        }
+        @keyframes tpIn { from { opacity:0; transform:scale(0.95) translateY(4px) } to { opacity:1; transform:none } }
+        .tp-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px 8px; border-bottom:1px solid rgba(255,255,255,0.07); }
+        .tp-header span { font-size:12px; font-weight:700; color:#fff; display:flex; align-items:center; gap:6px; }
+        .tp-close { background:none; border:none; color:var(--text-tertiary,#636363); cursor:pointer; font-size:16px; padding:0 2px; line-height:1; }
+        #tp-body { padding:10px 14px 12px; }
+        .tp-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; }
+        .tp-label { font-size:11px; color:var(--text-tertiary,#636363); }
+        .tp-value { font-size:12px; font-weight:600; color:#fff; font-family:'SF Mono','Monaco',monospace; }
+        .tp-divider { height:1px; background:rgba(255,255,255,0.06); margin:6px 0; }
+        .tp-badge-long { background:rgba(16,185,129,0.15); color:#10B981; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; }
+        .tp-badge-short { background:rgba(239,68,68,0.15); color:#EF4444; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; }
+
+        /* ── Chart Indicators Toolbar ── */
+        .chart-indicators-bar {
+            display: flex; align-items: center; gap: 4px;
+            padding: 5px 12px; background: var(--bg-app,#080808);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+        }
+        .chart-indicators-bar::-webkit-scrollbar { display: none; }
+        .ind-btn {
+            display: flex; align-items: center; gap: 5px;
+            padding: 5px 10px; background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;
+            color: var(--text-secondary,#A1A1A1); font-size: 11px; font-weight: 600;
+            cursor: pointer; font-family: inherit; white-space: nowrap;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .ind-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .ind-btn.active { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); color: #10B981; }
+        .ind-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.08); margin: 0 4px; flex-shrink:0; }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
@@ -2864,6 +2904,27 @@
 
             </div>
         </header>
+
+        <!-- Indicators Toolbar -->
+        <div id="indicatorsToolbar" class="chart-indicators-bar">
+            <button class="ind-btn" id="indEma" onclick="toggleIndicator('ema')" title="EMA лінія">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/></svg>
+                EMA
+            </button>
+            <button class="ind-btn" id="indFill" onclick="toggleIndicator('fill')" title="Заливка між ціною та EMA">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 Q16 12 21 8 L21 16 Q16 20 12 16 Q8 12 3 16Z" fill="rgba(16,185,129,0.4)" stroke="none"/></svg>
+                Заливка
+            </button>
+            <button class="ind-btn" id="indSignals" onclick="toggleIndicator('signals')" title="Авто сигнали Buy/Sell">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16 14 18 21 12 17 6 21 8 14 2 9 9 9"/></svg>
+                Сигнали
+            </button>
+            <div class="ind-sep"></div>
+            <button class="ind-btn active" id="indTrades" onclick="toggleIndicator('trades')" title="Угоди бота">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+                Угоди
+            </button>
+        </div>
 
         <!-- Chart — klinecharts -->
         <div class="chart-container" id="chartContainer" style="position: relative;">
@@ -4554,8 +4615,13 @@
 
         function attachTradeRowListeners() {
             document.querySelectorAll('.trade-row').forEach(row => {
-                row.onclick = () => {
-                    try { const t = JSON.parse(row.dataset.trade); highlightTrade(t, row); } catch(e) {}
+                row.onclick = (e) => {
+                    e.stopPropagation();
+                    try {
+                        const t = JSON.parse(row.dataset.trade);
+                        showTradePopup(t, row);
+                        highlightTrade(t, row);
+                    } catch(e) {}
                 };
             });
         }
@@ -5891,6 +5957,9 @@
                 const _symEl2 = document.getElementById('currentSymbol');
                 if (_symEl2) _symEl2.textContent = currentSymbol;
 
+                // Reload chart with the correct symbol (init loaded BTC by default)
+                loadKlines();
+
                 // Load 24hr prices for popular symbols
                 loadSymbolPrices();
             } catch (error) {
@@ -5955,6 +6024,49 @@
                         return [
                             { type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] }, styles: { style: 'dashed', color, size: 1 } },
                             { type: 'text', attrs: { x: w - 4, y: y - 3, text, align: 'right', baseline: 'bottom' }, styles: { color, size: 11 } },
+                        ];
+                    }
+                });
+                // Candle glow overlay (column highlight when clicking trade row)
+                window.klinecharts.registerOverlay({
+                    name: 'highlightCandle',
+                    totalStep: 1,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates, bounding, barSpace }) {
+                        const c = coordinates?.[0];
+                        if (!c) return [];
+                        const isBuy = overlay.extendData?.isBuy !== false;
+                        const colorBase = isBuy ? 'rgba(16,185,129,' : 'rgba(239,68,68,';
+                        const w = (barSpace?.bar || 8) * 0.8;
+                        const h = bounding?.height || 400;
+                        return [
+                            { type: 'rect', attrs: { x: c.x - w*2.2, y: 0, width: w*4.4, height: h },
+                              styles: { style:'fill', color: colorBase + '0.04)' }},
+                            { type: 'rect', attrs: { x: c.x - w*1.5, y: 0, width: w*3, height: h },
+                              styles: { style:'fill', color: colorBase + '0.06)' }},
+                            { type: 'line', attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
+                              styles: { color: colorBase + '0.3)', size: 1, style: 'dashed' }},
+                        ];
+                    }
+                });
+                // EMA fill segment overlay (colored column for fill indicator)
+                window.klinecharts.registerOverlay({
+                    name: 'emaFillSegment',
+                    totalStep: 1,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates, bounding }) {
+                        const c = coordinates?.[0];
+                        if (!c) return [];
+                        const above = overlay.extendData?.above;
+                        const color = above ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
+                        const barW = 24;
+                        return [
+                            { type: 'rect', attrs: { x: c.x - barW/2, y: 0, width: barW, height: bounding?.height || 400 },
+                              styles: { style:'fill', color } }
                         ];
                     }
                 });
@@ -6159,6 +6271,7 @@
                 _connectKlineWs();
                 if (lastChartData) drawPriceLines(lastChartData);
                 loadTradeMarkers();
+                applyIndicators();
             });
         }
 
@@ -6888,6 +7001,36 @@
                         const oid = Array.isArray(id) ? id[0] : id;
                         if (oid) highlightOverlayIds.push(oid);
                     } catch(e) {}
+
+                    // Candle glow overlay
+                    try {
+                        const glowId = klChart.createOverlay({
+                            name: 'highlightCandle', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: barTime * 1000, value: price }],
+                            extendData: { isBuy },
+                        });
+                        const goid = Array.isArray(glowId) ? glowId[0] : glowId;
+                        if (goid) highlightOverlayIds.push(goid);
+                    } catch(e) {}
+
+                    // Scroll chart to show the trade candle
+                    if (!noNavigate && klinesData.length > 0) {
+                        const idx = klinesData.findIndex(k => k.time >= openTime);
+                        if (idx >= 0) {
+                            const fromRight = klinesData.length - 1 - idx;
+                            try {
+                                klChart.scrollToRealTime(0);
+                                setTimeout(() => {
+                                    try {
+                                        const barSpace = (klChart.getBarSpace?.()?.bar) || 8;
+                                        const visibleBars = Math.floor(document.getElementById('chart').offsetWidth / barSpace);
+                                        const scrollDist = -(fromRight - Math.floor(visibleBars / 2)) * barSpace;
+                                        if (fromRight > 2) klChart.scrollByDistance(scrollDist, 400);
+                                    } catch(e) {}
+                                }, 50);
+                            } catch(e) {}
+                        }
+                    }
                 }
             }
 
@@ -6919,6 +7062,162 @@
                 highlightedTradeRow = null;
             }
             if (hideOverlay) document.getElementById('tradeInfoOverlay').style.display = 'none';
+        }
+
+        // ===== TRADE DETAIL POPUP =====
+        function showTradePopup(trade, rowEl) {
+            const popup = document.getElementById('trade-popup');
+            const pnl = parseFloat(trade.pnl || 0);
+            const qty = parseFloat(trade.quantity || 0);
+            const price = parseFloat(trade.price || 0);
+            const isBuy = trade.side === 'BUY' || trade.side === 'LONG';
+            const pnlPct = parseFloat(trade.pnlPercent || trade.pnl_percent || 0);
+            const pnlColor = pnl >= 0 ? '#10B981' : '#EF4444';
+
+            let closePrice = null;
+            if (trade.status === 'closed' && pnl !== 0 && qty > 0) {
+                closePrice = isBuy ? price + pnl / qty : price - pnl / qty;
+            }
+
+            let duration = '—';
+            if (trade.openedAt && trade.closedAt) {
+                const ms = new Date(trade.closedAt) - new Date(trade.openedAt);
+                const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+                duration = h > 0 ? `${h}г ${m}хв` : `${m}хв`;
+            }
+
+            document.getElementById('tp-title').innerHTML =
+                `<span class="${isBuy ? 'tp-badge-long' : 'tp-badge-short'}">${isBuy ? 'LONG' : 'SHORT'}</span>${(trade.symbol||'').replace('USDT','')}`;
+
+            document.getElementById('tp-body').innerHTML = `
+                <div class="tp-row"><span class="tp-label">Вхід</span><span class="tp-value">$${price.toFixed(2)}</span></div>
+                ${closePrice ? `<div class="tp-row"><span class="tp-label">Вихід</span><span class="tp-value">$${closePrice.toFixed(2)}</span></div>` : ''}
+                <div class="tp-row"><span class="tp-label">Кількість</span><span class="tp-value">${qty.toFixed(4)}</span></div>
+                <div class="tp-divider"></div>
+                <div class="tp-row"><span class="tp-label">PnL</span><span class="tp-value" style="color:${pnlColor}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</span></div>
+                <div class="tp-row"><span class="tp-label">%</span><span class="tp-value" style="color:${pnlColor}">${pnlPct>=0?'+':''}${pnlPct.toFixed(2)}%</span></div>
+                <div class="tp-divider"></div>
+                <div class="tp-row"><span class="tp-label">Тривалість</span><span class="tp-value">${duration}</span></div>
+                <div class="tp-row"><span class="tp-label">Статус</span><span class="tp-value" style="color:${trade.status==='open'?'#F59E0B':'var(--text-secondary,#A1A1A1)'}">${(trade.status||'').toUpperCase()}</span></div>
+                ${trade.openedAt ? `<div class="tp-row"><span class="tp-label">Відкрито</span><span class="tp-value" style="font-size:10px;">${new Date(trade.openedAt).toLocaleString('uk-UA',{timeZone:'UTC',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></div>` : ''}
+            `;
+
+            const rect = rowEl.getBoundingClientRect();
+            const top = Math.min(rect.top, window.innerHeight - 320);
+            const left = rect.left - 258 > 0 ? rect.left - 258 : rect.right + 8;
+            popup.style.top = top + 'px';
+            popup.style.left = left + 'px';
+            popup.style.display = 'block';
+
+            setTimeout(() => {
+                document.addEventListener('click', hideTradePopupOutside, { once: true });
+            }, 0);
+        }
+
+        function hideTradePopup() {
+            const popup = document.getElementById('trade-popup');
+            if (popup) popup.style.display = 'none';
+        }
+        function hideTradePopupOutside(e) {
+            const popup = document.getElementById('trade-popup');
+            if (popup && !popup.contains(e.target)) hideTradePopup();
+        }
+
+        // ===== CHART INDICATORS =====
+        const indState = { ema: false, fill: false, signals: false, trades: true };
+        let emaIndicatorId = null;
+        const EMA_PERIOD = 20;
+        let fillOverlayGroup = 'ind-fill-0';
+        let signalOverlayGroup = 'ind-sig-0';
+
+        function toggleIndicator(name) {
+            indState[name] = !indState[name];
+            const btnId = 'ind' + name.charAt(0).toUpperCase() + name.slice(1);
+            document.getElementById(btnId)?.classList.toggle('active', indState[name]);
+            applyIndicators();
+        }
+
+        function applyIndicators() {
+            if (!klChart) return;
+
+            // EMA line
+            if (indState.ema) {
+                if (!emaIndicatorId) {
+                    try {
+                        emaIndicatorId = klChart.createIndicator('EMA', false, { id: 'candle_pane' }, { calcParams: [EMA_PERIOD] });
+                    } catch(e) { emaIndicatorId = true; }
+                }
+            } else {
+                if (emaIndicatorId) {
+                    try { klChart.removeIndicator({ paneId: 'candle_pane', name: 'EMA' }); } catch(e) {}
+                    emaIndicatorId = null;
+                }
+            }
+
+            // Fill overlay
+            try { klChart.removeOverlay({ groupId: fillOverlayGroup }); } catch(e) {}
+            if (indState.fill && klinesData.length > EMA_PERIOD) {
+                fillOverlayGroup = 'ind-fill-' + Date.now();
+                drawEmaFillOverlay();
+            }
+
+            // Signal markers
+            try { klChart.removeOverlay({ groupId: signalOverlayGroup }); } catch(e) {}
+            if (indState.signals && klinesData.length > EMA_PERIOD) {
+                signalOverlayGroup = 'ind-sig-' + Date.now();
+                drawSignalMarkers();
+            }
+
+            // Trade markers visibility
+            if (indState.trades) {
+                loadTradeMarkers();
+            } else {
+                try { klChart.removeOverlay({ groupId: tradeOverlayGroup }); } catch(e) {}
+            }
+        }
+
+        function calcEMA(period) {
+            const k = 2 / (period + 1);
+            const values = [];
+            let ema = null;
+            for (const bar of klinesData) {
+                const close = bar.close;
+                ema = ema === null ? close : close * k + ema * (1 - k);
+                values.push({ time: bar.time, ema });
+            }
+            return values;
+        }
+
+        function drawEmaFillOverlay() {
+            const emaVals = calcEMA(EMA_PERIOD);
+            for (let i = 1; i < emaVals.length; i += 3) {
+                const above = klinesData[i]?.close > emaVals[i].ema;
+                try {
+                    klChart.createOverlay({
+                        name: 'emaFillSegment', groupId: fillOverlayGroup, lock: true,
+                        points: [{ timestamp: emaVals[i].time * 1000, value: emaVals[i].ema }],
+                        extendData: { above },
+                    });
+                } catch(e) {}
+            }
+        }
+
+        function drawSignalMarkers() {
+            const emaVals = calcEMA(EMA_PERIOD);
+            for (let i = 1; i < emaVals.length; i++) {
+                const prevAbove = klinesData[i-1]?.close > emaVals[i-1].ema;
+                const currAbove = klinesData[i]?.close > emaVals[i].ema;
+                if (prevAbove !== currAbove) {
+                    const isBuy = currAbove;
+                    try {
+                        klChart.createOverlay({
+                            name: 'tradeMarker', groupId: signalOverlayGroup, lock: true,
+                            points: [{ timestamp: klinesData[i].time * 1000, value: emaVals[i].ema }],
+                            extendData: { isBuy, isSignal: true },
+                        });
+                    } catch(e) {}
+                }
+            }
         }
 
         // ===== REAL-TIME ORDERS POLLING =====
@@ -8947,5 +9246,14 @@
     <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>
 </nav>
 <script>(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})()</script>
+
+<!-- Trade Detail Popup -->
+<div id="trade-popup" style="display:none;">
+    <div class="tp-header">
+        <span id="tp-title">Деталі угоди</span>
+        <button class="tp-close" onclick="hideTradePopup()">×</button>
+    </div>
+    <div id="tp-body"></div>
+</div>
 </body>
 </html>
