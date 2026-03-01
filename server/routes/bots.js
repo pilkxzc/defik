@@ -346,11 +346,104 @@ async function syncBinanceTrades(botId) {
             saveDatabase();
         }
 
-        console.log(`[Bot ${botId}] Sync complete: ${totalSaved} new, ${repaired} repaired`);
-        return { saved: totalSaved, repaired, symbols };
+        // Reconcile any remaining open trades against actual Binance positions
+        const reconciled = await reconcileOpenTrades(botId);
+
+        console.log(`[Bot ${botId}] Sync complete: ${totalSaved} new, ${repaired} repaired, ${reconciled} reconciled`);
+        return { saved: totalSaved, repaired, reconciled, symbols };
     } catch (err) {
         console.error('syncBinanceTrades error:', err.message);
         return { saved: 0, symbols: [] };
+    }
+}
+
+// Close orphaned open trades: DB has status='open' but Binance position is actually closed
+async function reconcileOpenTrades(botId) {
+    try {
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [botId]);
+        if (!bot || !bot.binance_api_key || !bot.binance_api_secret) return 0;
+
+        const openTrades = dbAll('SELECT * FROM bot_trades WHERE bot_id = ? AND status = ?', [botId, 'open']);
+        if (openTrades.length === 0) return 0;
+
+        // Fetch current Binance positions (use cache — only 8s TTL)
+        const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+        const activePositions = new Set(
+            (binData.positions || [])
+                .filter(p => parseFloat(p.positionAmt) !== 0)
+                .map(p => p.symbol)
+        );
+
+        // Find open trades in DB where Binance has no active position
+        const orphaned = openTrades.filter(t => !activePositions.has(t.symbol));
+        if (orphaned.length === 0) return 0;
+
+        console.log(`[Bot ${botId}] reconcileOpenTrades: ${orphaned.length} orphaned open trades`);
+
+        const ts      = () => Date.now();
+        const sign    = (qs) => crypto.createHmac('sha256', bot.binance_api_secret).update(qs).digest('hex');
+        const makeReq = async (endpoint, params = {}) => {
+            const p  = { ...params, timestamp: ts() };
+            const qs = new URLSearchParams(p).toString();
+            const r  = await axios.get(`https://fapi.binance.com${endpoint}?${qs}&signature=${sign(qs)}`, {
+                headers: { 'X-MBX-APIKEY': bot.binance_api_key }, timeout: 10000
+            });
+            return r.data;
+        };
+
+        // Group by symbol to minimise API calls
+        const bySymbol = {};
+        orphaned.forEach(t => { (bySymbol[t.symbol] = bySymbol[t.symbol] || []).push(t); });
+
+        let fixed = 0;
+        for (const [symbol, trades] of Object.entries(bySymbol)) {
+            try {
+                const fills = await makeReq('/fapi/v1/userTrades', { symbol, limit: 200 });
+
+                for (const trade of trades) {
+                    const openMs = new Date(trade.opened_at).getTime() || 0;
+
+                    // Find the best closing fill: pnl≠0, happened after this trade opened
+                    // Prefer the one closest in time to the open (first close)
+                    const closingFill = fills
+                        .filter(f => f.time > openMs && parseFloat(f.realizedPnl) !== 0)
+                        .sort((a, b) => a.time - b.time)[0]; // earliest close after open
+
+                    if (closingFill) {
+                        const pnl      = parseFloat(closingFill.realizedPnl);
+                        const closedAt = new Date(closingFill.time).toISOString();
+                        dbRun(
+                            'UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?',
+                            ['closed', pnl, closedAt, closingFill.id.toString(), trade.id]
+                        );
+                        console.log(`[Bot ${botId}] reconcile: closed trade ${trade.id} (${symbol}) pnl=${pnl}`);
+                    } else {
+                        // No closing fill found in recent history — still force-close so it doesn't stay stuck
+                        dbRun(
+                            'UPDATE bot_trades SET status = ?, closed_at = ? WHERE id = ?',
+                            ['closed', new Date().toISOString(), trade.id]
+                        );
+                        console.log(`[Bot ${botId}] reconcile: force-closed trade ${trade.id} (${symbol}) — no fill found`);
+                    }
+                    fixed++;
+                }
+
+                // Small delay between symbols
+                await new Promise(r => setTimeout(r, 120));
+            } catch (symErr) {
+                console.log(`[Bot ${botId}] reconcile skip ${symbol}:`, symErr.message);
+            }
+        }
+
+        if (fixed > 0) {
+            updateBotStats(botId);
+            saveDatabase();
+            console.log(`[Bot ${botId}] reconcileOpenTrades: fixed ${fixed} trades`);
+        }
+        return fixed;
+    } catch (err) {
+        console.error('reconcileOpenTrades error:', err.message);
+        return 0;
     }
 }
 
@@ -970,6 +1063,12 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
             })),
             total: total?.count || 0
         });
+
+        // Background: check if any open trades are actually closed on Binance
+        const bot = dbGet('SELECT binance_api_key FROM bots WHERE id = ?', [req.params.id]);
+        if (bot?.binance_api_key) {
+            reconcileOpenTrades(req.params.id).catch(e => console.log('Background reconcile:', e.message));
+        }
     } catch (error) {
         console.error('Bot trades error:', error);
         res.status(500).json({ error: 'Failed to fetch trades' });

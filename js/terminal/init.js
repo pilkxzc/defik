@@ -94,6 +94,13 @@ async function init() {
             if (activeTab === 'overview') renderLiveChart();
         }, 60000);
 
+        // Re-sync trades every 2 min to catch any trades closed on Binance
+        setInterval(async () => {
+            await syncTrades();
+            await fetchTrades();
+            applyPeriod();
+        }, 120000);
+
     } catch (err) {
         console.error('Init error:', err);
         document.getElementById('loadingScreen').innerHTML = `

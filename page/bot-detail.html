@@ -10006,6 +10006,7 @@
         var rulerActive = false;
         var rulerStep = 0; // 0 = idle, 1 = set start, waiting 2nd click, 2 = finalized
         var rulerStartData = null; // { price, dataIndex, x, y }
+        var rulerEndData   = null; // { price, dataIndex, x, y }
         var rulerCanvas = null;
         var rulerLabel = null;
         var rulerBtn = document.getElementById('rulerBtn');
@@ -10093,6 +10094,44 @@
             if (rulerLabel) { rulerLabel.remove(); rulerLabel = null; }
             rulerStep = 0;
             rulerStartData = null;
+            rulerEndData = null;
+        }
+
+        // Convert chart coords {dataIndex, price} → pixel {x, y}
+        function _rulerToPixel(dataIndex, price) {
+            if (!klChart || dataIndex == null || price == null) return null;
+            try {
+                var r = klChart.convertToPixel({ dataIndex: dataIndex, value: price }, { paneId: 'candle_pane' });
+                if (r && r.x != null && r.y != null) return r;
+            } catch(e) {}
+            return null;
+        }
+
+        // Convert pixel {x, y} → chart coords {dataIndex, price}
+        function _rulerFromPixel(px, py) {
+            if (!klChart) return null;
+            try {
+                var arr = klChart.convertFromPixel([{ x: px, y: py }], { paneId: 'candle_pane' });
+                var r = Array.isArray(arr) ? arr[0] : arr;
+                if (r && r.dataIndex != null && r.value != null) return { dataIndex: r.dataIndex, price: r.value };
+            } catch(e) {}
+            return null;
+        }
+
+        // Redraw ruler from stored chart coords (called on scroll/zoom)
+        function redrawRulerFromChart() {
+            if (!rulerActive || !rulerStartData || rulerStep === 0) return;
+            var p1 = _rulerToPixel(rulerStartData.dataIndex, rulerStartData.price);
+            if (!p1) return;
+            if (rulerStep === 2 && rulerEndData) {
+                var p2 = _rulerToPixel(rulerEndData.dataIndex, rulerEndData.price);
+                if (!p2) return;
+                rulerStartData.x = p1.x; rulerStartData.y = p1.y;
+                rulerEndData.x   = p2.x; rulerEndData.y   = p2.y;
+                drawRulerLine(p1.x, p1.y, p2.x, p2.y, true);
+                updateRulerLabel(rulerStartData.price, rulerEndData.price,
+                                 rulerStartData.dataIndex, rulerEndData.dataIndex, p2.x, p2.y);
+            }
         }
 
         function toggleRuler() {
@@ -10153,22 +10192,23 @@
             e.stopImmediatePropagation();
             e.preventDefault();
 
-            var cx = _rulerLastCursor.x || (e.clientX - chartEl.getBoundingClientRect().left);
-            var cy = _rulerLastCursor.y || (e.clientY - chartEl.getBoundingClientRect().top);
+            var r = chartEl.getBoundingClientRect();
+            var cx = e.clientX - r.left;
+            var cy = e.clientY - r.top;
+            // Get chart coords at raw pixel position
+            var cp = _rulerFromPixel(cx, cy);
+            var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
+            var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
 
             if (rulerStep === 0 || rulerStep === 2) {
                 cleanupRuler();
-                rulerStartData = {
-                    price:     _rulerLastCursor.price,
-                    dataIndex: _rulerLastCursor.dataIndex,
-                    x: cx, y: cy
-                };
+                rulerStartData = { price: price, dataIndex: dataIndex, x: cx, y: cy };
                 rulerStep = 1;
             } else if (rulerStep === 1) {
-                // Finalize
+                rulerEndData = { price: price, dataIndex: dataIndex, x: cx, y: cy };
                 drawRulerLine(rulerStartData.x, rulerStartData.y, cx, cy, true);
-                updateRulerLabel(rulerStartData.price, _rulerLastCursor.price,
-                                 rulerStartData.dataIndex, _rulerLastCursor.dataIndex, cx, cy);
+                updateRulerLabel(rulerStartData.price, price,
+                                 rulerStartData.dataIndex, dataIndex, cx, cy);
                 rulerStep = 2;
             }
         }
@@ -10181,12 +10221,16 @@
             _rulerRafPending = true;
             requestAnimationFrame(function() {
                 _rulerRafPending = false;
-                var cx = _rulerLastCursor.x || (e.clientX - chartEl.getBoundingClientRect().left);
-                var cy = _rulerLastCursor.y || (e.clientY - chartEl.getBoundingClientRect().top);
+                var r = chartEl.getBoundingClientRect();
+                var cx = e.clientX - r.left;
+                var cy = e.clientY - r.top;
+                var cp = _rulerFromPixel(cx, cy);
+                var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
+                var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
                 drawRulerLine(rulerStartData.x, rulerStartData.y, cx, cy, false);
-                if (_rulerLastCursor.price !== null) {
-                    updateRulerLabel(rulerStartData.price, _rulerLastCursor.price,
-                                     rulerStartData.dataIndex, _rulerLastCursor.dataIndex, cx, cy);
+                if (price !== null) {
+                    updateRulerLabel(rulerStartData.price, price,
+                                     rulerStartData.dataIndex, dataIndex, cx, cy);
                 }
             });
         }
@@ -10539,12 +10583,17 @@
                     if (data.dataIndex != null) _rulerLastCursor.dataIndex = data.dataIndex;
                     if (data.x != null) _rulerLastCursor.x = data.x;
                     if (data.y != null) _rulerLastCursor.y = data.y;
-                    // price: prefer direct field, fallback to kLineData.close, then klinesData array
                     var p = data.price;
                     if (p == null && data.kLineData) p = data.kLineData.close;
                     if (p == null && data.dataIndex != null && klinesData[data.dataIndex]) p = klinesData[data.dataIndex].close;
                     if (p != null && p !== 0) _rulerLastCursor.price = p;
                 });
+            } catch(e) {}
+            // Redraw finalized ruler when chart scrolls or zooms
+            try {
+                klChart.subscribeAction(window.klinecharts.ActionType.OnScroll, redrawRulerFromChart);
+                klChart.subscribeAction(window.klinecharts.ActionType.OnZoom,   redrawRulerFromChart);
+                klChart.subscribeAction(window.klinecharts.ActionType.OnVisibleRangeChange, redrawRulerFromChart);
             } catch(e) {}
             try {
                 klChart.subscribeAction(window.klinecharts.ActionType.OnDrawEnd, function() {
