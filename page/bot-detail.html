@@ -6742,28 +6742,38 @@
                         // No-op: rawMarkers outside [minTime,maxTime] will be skipped automatically.
                     } else {
                         // Standard intervals: extend via REST klines
+                        // Save visible range ONCE before fetching, then do a single setData at the end
+                        const svdBefore = (() => { try { return chart.timeScale().getVisibleLogicalRange(); } catch(e) { return null; } })();
+                        let totalAdded = 0;
                         let batchOldest = klinesData[0].time;
-                        for (let i = 0; i < 12 && batchOldest > oldestNeeded; i++) {
-                            const endTime = batchOldest * 1000 - 1;
-                            try {
-                                const r = await fetch(`/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`, { credentials: 'include' });
-                                if (!r.ok) break;
-                                const kd = await r.json();
-                                if (!kd.klines || kd.klines.length === 0) break;
-                                const cleanBatch = kd.klines.filter(k =>
-                                    k.time != null && k.open != null && k.high != null && k.low != null && k.close != null &&
-                                    !isNaN(k.open) && !isNaN(k.high) && !isNaN(k.low) && !isNaN(k.close)
-                                );
-                                if (cleanBatch.length === 0) break;
-                                const addedCount = cleanBatch.length;
-                                klinesData = [...cleanBatch, ...klinesData];
-                                batchOldest = cleanBatch[0].time;
-                                oldestTimestamp = batchOldest;
-                                const svd = (() => { try { return chart.timeScale().getVisibleLogicalRange(); } catch(e) { return null; } })();
-                                try { candlestickSeries.setData(klinesData); } catch(e) {}
-                                if (svd) { try { chart.timeScale().setVisibleLogicalRange({ from: svd.from + addedCount, to: svd.to + addedCount }); } catch(e) {} }
-                                if (kd.klines.length < 10) break;
-                            } catch (e) { break; }
+                        _drawingOverlay = true;
+                        try {
+                            for (let i = 0; i < 12 && batchOldest > oldestNeeded; i++) {
+                                const endTime = batchOldest * 1000 - 1;
+                                try {
+                                    const r = await fetch(`/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`, { credentials: 'include' });
+                                    if (!r.ok) break;
+                                    const kd = await r.json();
+                                    if (!kd.klines || kd.klines.length === 0) break;
+                                    const cleanBatch = kd.klines.filter(k =>
+                                        k.time != null && k.open != null && k.high != null && k.low != null && k.close != null &&
+                                        !isNaN(k.open) && !isNaN(k.high) && !isNaN(k.low) && !isNaN(k.close)
+                                    );
+                                    if (cleanBatch.length === 0) break;
+                                    totalAdded += cleanBatch.length;
+                                    klinesData = [...cleanBatch, ...klinesData];
+                                    batchOldest = cleanBatch[0].time;
+                                    oldestTimestamp = batchOldest;
+                                    if (kd.klines.length < 10) break;
+                                } catch (e) { break; }
+                            }
+                        } finally {
+                            _drawingOverlay = false;
+                        }
+                        // Single render after all batches are collected
+                        if (totalAdded > 0) {
+                            try { candlestickSeries.setData(klinesData); } catch(e) {}
+                            if (svdBefore) { try { chart.timeScale().setVisibleLogicalRange({ from: svdBefore.from + totalAdded, to: svdBefore.to + totalAdded }); } catch(e) {} }
                         }
                     }
                 }
