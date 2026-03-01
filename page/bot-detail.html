@@ -2128,41 +2128,44 @@
             border-radius: 4px;
         }
 
-        /* ── Chart markers legend ── */
+        /* ── Chart markers legend (toggleable chips) ── */
         .chart-markers-legend {
             display: flex;
-            gap: 14px;
+            gap: 5px;
             align-items: center;
-            justify-content: center;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-top: 1px solid rgba(255,255,255,0.06);
-            font-size: 10px;
-            color: rgba(255,255,255,0.45);
             font-family: 'Plus Jakarta Sans', sans-serif;
+            flex-wrap: wrap;
+            min-height: 30px;
         }
-        .cml-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
-        .cml-icon { font-size: 11px; line-height: 1; }
-        .cml-entry-long { color: #10B981; }
-        .cml-entry-short { color: #EF4444; }
-        .cml-diamond {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            transform: rotate(45deg);
-            border-radius: 1px;
+        .cml-label {
+            font-size: 9px;
+            color: rgba(255,255,255,0.2);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-right: 2px;
+            flex-shrink: 0;
         }
-        .cml-exit-profit { background: #10B981; }
-        .cml-exit-loss { background: #EF4444; }
-        .cml-grouped { background: #A78BFA; }
-        .cml-line {
-            display: inline-block;
-            width: 18px;
-            height: 0;
-            border-top: 2px dotted;
-            vertical-align: middle;
+        .cml-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px 3px 6px;
+            border-radius: 20px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07);
+            color: rgba(255,255,255,0.55);
+            font-size: 10px;
+            transition: background 0.15s, color 0.15s, opacity 0.2s, border-color 0.15s;
+            user-select: none;
+            white-space: nowrap;
         }
-        .cml-long-line { border-color: #10B981; }
-        .cml-short-line { border-color: #EF4444; }
+        .cml-chip:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.14); }
+        .cml-chip.off { opacity: 0.3; }
+        .cml-chip.off:hover { opacity: 0.5; }
+        .cml-dash-pair { display: inline-flex; align-items: center; gap: 1px; flex-shrink: 0; }
 
         /* ── Ruler tool ── */
         .ruler-btn.active { background: rgba(59,130,246,0.2) !important; border-color: rgba(59,130,246,0.5) !important; color: #3B82F6 !important; }
@@ -4034,6 +4037,7 @@
         let positionOverlayId = null;        // overlay id for position marker
         let orderLineOverlays = new Map();   // key → overlay id (price level lines)
         let highlightOverlayIds = [];        // overlay ids for trade highlight (klinecharts)
+        let statsChartOverlayIds = [];       // overlay ids for stats period markers
         const savedPositionPerInterval = {};
         let lastMarkersKey = '';
         let lastKnownPosition = null;
@@ -4301,8 +4305,40 @@
 
         function closeStatsModal() {
             document.getElementById('statsModal').style.display = 'none';
-            // Reset fullscreen when closing
             if (statsIsFullscreen) toggleStatsFullscreen();
+            drawStatsPeriodMarkers(null, null);
+        }
+
+        function drawStatsPeriodMarkers(fromMs, toMs) {
+            if (!klChart) return;
+            // Remove previous period markers
+            if (statsChartOverlayIds.length > 0) {
+                statsChartOverlayIds.forEach(id => { try { klChart.removeOverlay({ id }); } catch(e) {} });
+                statsChartOverlayIds = [];
+            }
+            if (!fromMs && !toMs) return;
+            try {
+                if (fromMs) {
+                    const id = klChart.createOverlay({
+                        name: 'statsPeriodLine',
+                        groupId: 'statsPeriod',
+                        lock: true,
+                        extendData: { isEnd: false },
+                        points: [{ timestamp: fromMs }]
+                    });
+                    if (id) statsChartOverlayIds.push(Array.isArray(id) ? id[0] : id);
+                }
+                if (toMs) {
+                    const id = klChart.createOverlay({
+                        name: 'statsPeriodLine',
+                        groupId: 'statsPeriod',
+                        lock: true,
+                        extendData: { isEnd: true },
+                        points: [{ timestamp: toMs }]
+                    });
+                    if (id) statsChartOverlayIds.push(Array.isArray(id) ? id[0] : id);
+                }
+            } catch(e) {}
         }
 
         function setStatsTf(tf) {
@@ -4405,6 +4441,22 @@
 
             const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(2);
             const pfStr = profitFactor === Infinity ? '∞' : profitFactor.toFixed(2);
+
+            // Draw period markers on chart
+            {
+                let markerFrom = null, markerTo = null;
+                if (tf === 'custom') {
+                    markerFrom = statsCustomFrom;
+                    markerTo = statsCustomTo || Date.now();
+                } else if (tfObj && tfObj.ms > 0) {
+                    markerFrom = now - tfObj.ms;
+                    markerTo = now;
+                } else if (tf === 'all' && firstTs) {
+                    markerFrom = firstTs;
+                    markerTo = lastTs || Date.now();
+                }
+                drawStatsPeriodMarkers(markerFrom, markerTo);
+            }
 
             document.getElementById('statsContent').innerHTML = `
                 <!-- Row 1: main KPIs (4 cards) -->
@@ -6359,6 +6411,32 @@
                               styles: { style:'fill', color: colorBase + '0.06)' }},
                             { type: 'line', attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
                               styles: { color: colorBase + '0.3)', size: 1, style: 'dashed' }},
+                        ];
+                    }
+                });
+                // Stats period boundary line overlay
+                window.klinecharts.registerOverlay({
+                    name: 'statsPeriodLine',
+                    totalStep: 1,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates, bounding }) {
+                        const c = coordinates?.[0];
+                        if (!c) return [];
+                        const isEnd = overlay.extendData?.isEnd;
+                        const color = isEnd ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)';
+                        const colorFill = isEnd ? 'rgba(239,68,68,0.04)' : 'rgba(16,185,129,0.04)';
+                        const label = isEnd ? 'До' : 'Від';
+                        const h = bounding?.height || 400;
+                        const lx = isEnd ? c.x - 32 : c.x + 4;
+                        return [
+                            { type: 'rect', attrs: { x: c.x - 1, y: 0, width: 2, height: h },
+                              styles: { style: 'fill', color: colorFill } },
+                            { type: 'line', attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
+                              styles: { color, size: 1.5, style: 'dashed', dashedValue: [4, 3] } },
+                            { type: 'text', attrs: { x: lx, y: 14, text: label },
+                              styles: { color, size: 10, family: 'inherit', weight: '700' } },
                         ];
                     }
                 });
