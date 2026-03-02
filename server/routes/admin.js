@@ -375,6 +375,157 @@ router.get('/api/admin/analytics/system/health', requireAuth, requireRole('admin
     }
 });
 
+// CSV Export Helper
+function convertToCSV(data) {
+    if (!data || data.length === 0) {
+        return '';
+    }
+
+    // Get headers from first object
+    const headers = Object.keys(data[0]);
+
+    // Create CSV header row
+    const csvHeaders = headers.join(',');
+
+    // Create CSV data rows
+    const csvRows = data.map(row => {
+        return headers.map(header => {
+            const value = row[header];
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (value === null || value === undefined) {
+                return '';
+            }
+            const stringValue = String(value);
+            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
+        }).join(',');
+    });
+
+    return [csvHeaders, ...csvRows].join('\n');
+}
+
+router.get('/api/admin/analytics/export', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const type = req.query.type || 'users';
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        let data = [];
+        let filename = `${type}_export_${new Date().toISOString().split('T')[0]}.csv`;
+
+        switch (type) {
+            case 'users':
+                data = dbAll(`
+                    SELECT
+                        id,
+                        email,
+                        full_name,
+                        balance,
+                        demo_balance,
+                        real_balance,
+                        active_account,
+                        subscription_plan,
+                        role,
+                        is_banned,
+                        totp_enabled,
+                        created_at,
+                        last_login
+                    FROM users
+                    WHERE created_at > ?
+                    ORDER BY created_at DESC
+                `, [cutoffDate]);
+                break;
+
+            case 'bots':
+                data = dbAll(`
+                    SELECT
+                        b.id,
+                        b.user_id,
+                        u.email as user_email,
+                        b.name,
+                        b.type,
+                        b.pair,
+                        b.investment,
+                        b.profit,
+                        b.is_active,
+                        b.mode,
+                        b.account_type,
+                        b.selected_symbol,
+                        b.created_at,
+                        b.updated_at
+                    FROM bots b
+                    LEFT JOIN users u ON b.user_id = u.id
+                    WHERE b.created_at > ?
+                    ORDER BY b.created_at DESC
+                `, [cutoffDate]);
+                break;
+
+            case 'transactions':
+                data = dbAll(`
+                    SELECT
+                        t.id,
+                        t.user_id,
+                        u.email as user_email,
+                        t.type,
+                        t.amount,
+                        t.currency,
+                        t.usd_value,
+                        t.status,
+                        t.tx_hash,
+                        t.created_at,
+                        t.updated_at
+                    FROM transactions t
+                    LEFT JOIN users u ON t.user_id = u.id
+                    WHERE t.created_at > ?
+                    ORDER BY t.created_at DESC
+                `, [cutoffDate]);
+                break;
+
+            case 'trades':
+                data = dbAll(`
+                    SELECT
+                        bt.id,
+                        bt.bot_id,
+                        b.name as bot_name,
+                        bt.user_id,
+                        u.email as user_email,
+                        bt.symbol,
+                        bt.side,
+                        bt.type,
+                        bt.amount,
+                        bt.price,
+                        bt.total,
+                        bt.profit,
+                        bt.status,
+                        bt.created_at
+                    FROM bot_trades bt
+                    LEFT JOIN bots b ON bt.bot_id = b.id
+                    LEFT JOIN users u ON bt.user_id = u.id
+                    WHERE bt.created_at > ?
+                    ORDER BY bt.created_at DESC
+                `, [cutoffDate]);
+                break;
+
+            default:
+                return res.status(400).json({ error: 'Invalid export type. Use: users, bots, transactions, or trades' });
+        }
+
+        // Convert to CSV
+        const csv = convertToCSV(data);
+
+        // Set headers for CSV download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+
+    } catch (error) {
+        console.error('Data export error:', error);
+        res.status(500).json({ error: 'Failed to export data' });
+    }
+});
+
 function formatUptime(seconds) {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
