@@ -46,8 +46,9 @@ const apiRateLimiter = rateLimit({
     legacyHeaders: true, // Also send X-RateLimit-* headers for backwards compatibility
     handler: rateLimitHandler,
     skip: (req) => {
-        // Skip rate limiting for health checks or specific routes if needed
-        return false;
+        // Skip endpoints that have stricter auth rate limiting
+        const authPaths = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/reset-password'];
+        return authPaths.some(path => req.path === path);
     },
     // Use Redis if available, otherwise fall back to memory store
     store: getRedisStatus().available

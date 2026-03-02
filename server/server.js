@@ -41,8 +41,11 @@ async function startServer() {
     app.use(betaMiddleware);
 
     // Rate limiting — applied after session and beta, before routes
-    // Auth endpoints: 5 requests/minute per IP (strict)
-    app.use('/api/auth', authRateLimiter);
+    // Auth endpoints (strict): 5 requests/minute per IP for sensitive operations
+    app.use('/api/auth/login', authRateLimiter);
+    app.use('/api/auth/register', authRateLimiter);
+    app.use('/api/auth/forgot-password', authRateLimiter);
+    app.use('/api/auth/reset-password', authRateLimiter);
     // General API endpoints: 100 requests/minute per user/IP
     app.use('/api', apiRateLimiter);
 
