@@ -810,6 +810,7 @@ router.post('/api/auth/telegram', (req, res) => {
             createNotification(existingUser.id, 'login', 'New Login', `Logged in via Telegram from ${getClientIP(req)}`);
 
             req.session.userId = existingUser.id;
+            req.session.betaAccess = true;
             return req.session.save((err) => {
                 if (err) return res.status(500).json({ error: 'Session error' });
                 res.json({ success: true, user: {
@@ -893,6 +894,7 @@ router.post('/api/auth/telegram-register', async (req, res) => {
         createNotification(userId, 'system', 'Welcome to Yamato!', 'Thank you for registering via Telegram. Wishing you successful trading!');
 
         req.session.userId = userId;
+        req.session.betaAccess = true;
         req.session.save((err) => {
             if (err) return res.status(500).json({ error: 'Session error' });
             res.json({
