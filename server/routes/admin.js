@@ -1908,7 +1908,7 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
 
 // ==================== BUG REPORTS ====================
 
-const BUG_REPORTS_DIR = path.join(__dirname, '..', 'uploads', 'bug-reports');
+const BUG_REPORTS_DIR = path.join(__dirname, '..', '..', 'uploads', 'bug-reports');
 
 function ensureBugReportsDir() {
     if (!fs.existsSync(BUG_REPORTS_DIR)) {
@@ -2095,10 +2095,10 @@ router.delete('/api/admin/bug-reports/:id', requireAuth, requireRole('admin'), (
         if (!report) return res.status(404).json({ error: 'Report not found' });
 
         if (report.screenshot_path) {
-            try { fs.unlinkSync(path.join(__dirname, '..', report.screenshot_path)); } catch (e) {}
+            try { fs.unlinkSync(path.join(__dirname, '..', '..', report.screenshot_path)); } catch (e) {}
         }
         if (report.video_path) {
-            try { fs.unlinkSync(path.join(__dirname, '..', report.video_path)); } catch (e) {}
+            try { fs.unlinkSync(path.join(__dirname, '..', '..', report.video_path)); } catch (e) {}
         }
 
         dbRun('DELETE FROM bug_reports WHERE id = ?', [req.params.id]);
