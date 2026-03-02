@@ -4,18 +4,21 @@ const https = require('https');
 const path  = require('path');
 const express = require('express');
 const cors    = require('cors');
+const helmet  = require('helmet');
 
 const { PORT, HTTPS_PORT, HOST, loadSettings } = require('./config');
 const { initDatabase, saveDatabase, dbGet }    = require('./db');
 const { createSessionMiddleware }              = require('./middleware/session');
 const { maintenanceMiddleware }                = require('./middleware/maintenance');
 const { betaMiddleware, betaSubmit }           = require('./middleware/beta');
+const { errorHandler }                         = require('./middleware/errorHandler');
+const { loginLimiter, registerLimiter, ordersLimiter } = require('./middleware/rateLimiter');
 const { initSocket }                           = require('./socket');
 const { initTelegramBot }                      = require('./services/telegram');
 const { getSSLCredentials }                    = require('./utils/ssl');
 const { startCollector, stopCollector }        = require('./services/candleCollector');
 
-async function startServer() {
+async function createApp() {
     // 1. Load persisted settings
     loadSettings();
 
@@ -26,6 +29,13 @@ async function startServer() {
     const app = express();
 
     app.set('trust proxy', 1);
+
+    // Security headers
+    app.use(helmet({
+        contentSecurityPolicy: false,
+        crossOriginEmbedderPolicy: false
+    }));
+
     app.use(cors({ origin: '*' }));
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
@@ -39,14 +49,13 @@ async function startServer() {
     app.post('/beta', betaSubmit);
     app.use(betaMiddleware);
 
-    // 4. HTTP server
-    const server = http.createServer(app);
+    // 4. API routers with rate limiters
+    const authRouter = require('./routes/auth');
+    app.use('/api/auth/login', loginLimiter);
+    app.use('/api/auth/register', registerLimiter);
+    app.use('/api/orders', ordersLimiter);
 
-    // 5. Socket.IO (HTTP only)
-    initSocket(server, sessionMiddleware);
-
-    // 6. API routers (routes use full /api/... paths internally)
-    app.use(require('./routes/auth'));
+    app.use(authRouter);
     app.use(require('./routes/market'));
     app.use(require('./routes/portfolio'));
     app.use(require('./routes/bots'));
@@ -58,7 +67,7 @@ async function startServer() {
     app.use(require('./routes/admin'));
     app.use(require('./routes/history'));
 
-    // 7. HTML page routes
+    // 5. HTML page routes
     const pages = path.join(__dirname, '..', 'page');
 
     app.get('/',             (req, res) => res.sendFile(path.join(pages, 'index.html')));
@@ -147,23 +156,32 @@ async function startServer() {
     app.use((req, res) => res.status(404).sendFile(path.join(pages, '404erors.html')));
 
     // Error handler
-    app.use((err, req, res, next) => {
-        console.error('[Server] Error:', err);
-        res.status(500).sendFile(path.join(pages, '500.html'));
-    });
+    app.use(errorHandler);
 
-    // 8. Telegram bot
+    return { app, sessionMiddleware };
+}
+
+async function startServer() {
+    const { app, sessionMiddleware } = await createApp();
+
+    // HTTP server
+    const server = http.createServer(app);
+
+    // Socket.IO (HTTP only)
+    initSocket(server, sessionMiddleware);
+
+    // Telegram bot
     await initTelegramBot();
 
-    // 8.5. Start candle collector
+    // Start candle collector
     startCollector().catch(err => console.error('[Server] Candle collector failed:', err));
 
-    // 9. Start HTTP server
+    // Start HTTP server
     server.listen(PORT, HOST, () => {
         console.log(`HTTP  server listening on http://${HOST}:${PORT}`);
     });
 
-    // 10. Start HTTPS server
+    // Start HTTPS server
     try {
         const credentials = getSSLCredentials();
         const httpsServer = https.createServer(credentials, app);
@@ -174,7 +192,7 @@ async function startServer() {
         console.error('HTTPS server could not start:', err.message);
     }
 
-    // 11. Graceful shutdown
+    // Graceful shutdown
     function shutdown(signal) {
         console.log(`\n${signal} received — shutting down gracefully`);
         stopCollector();
@@ -196,7 +214,12 @@ process.on('unhandledRejection', (reason) => {
     console.error('Unhandled rejection:', reason);
 });
 
-startServer().catch((err) => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-});
+// Only start server if run directly (not required for testing)
+if (require.main === module) {
+    startServer().catch((err) => {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    });
+}
+
+module.exports = { createApp };
