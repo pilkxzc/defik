@@ -43,6 +43,46 @@ router.get('/api/admin/stats', requireAuth, requireRole('admin', 'moderator'), (
     }
 });
 
+// ==================== ANALYTICS ====================
+
+router.get('/api/admin/analytics/users', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        // DAU - Daily Active Users (last 24 hours)
+        const dau = dbGet('SELECT COUNT(*) as count FROM users WHERE last_login > ?', [getLocalTimeDaysAgo(1)]);
+
+        // WAU - Weekly Active Users (last 7 days)
+        const wau = dbGet('SELECT COUNT(*) as count FROM users WHERE last_login > ?', [getLocalTimeDaysAgo(7)]);
+
+        // MAU - Monthly Active Users (last 30 days)
+        const mau = dbGet('SELECT COUNT(*) as count FROM users WHERE last_login > ?', [getLocalTimeDaysAgo(30)]);
+
+        // Registration trends - daily registrations over the period
+        const registrationTrends = dbAll(`
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM users
+            WHERE created_at > ?
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `, [cutoffDate]);
+
+        res.json({
+            dau: dau?.count || 0,
+            wau: wau?.count || 0,
+            mau: mau?.count || 0,
+            registrationTrends: registrationTrends.map(r => ({
+                date: r.date,
+                count: r.count
+            }))
+        });
+    } catch (error) {
+        console.error('User analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch user analytics' });
+    }
+});
+
 // ==================== MAINTENANCE ====================
 
 router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
