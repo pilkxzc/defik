@@ -3027,7 +3027,7 @@ async function loadBackupHistory() {
             if (params.get('drive') === 'connected') {
                 showToast('success', 'Підключено', 'Google Drive підключено успішно!');
             } else if (params.get('drive') === 'error') {
-                showToast('Помилка підключення Google Drive', 'error');
+                showToast('error', 'Помилка', 'Не вдалося підключити Google Drive');
             }
             // Clean URL
             window.history.replaceState({}, '', '/admin');
