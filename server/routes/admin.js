@@ -83,6 +83,43 @@ router.get('/api/admin/analytics/users', requireAuth, requireRole('admin', 'mode
     }
 });
 
+router.get('/api/admin/analytics/bots/funnel', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        // Total users (top of funnel)
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+
+        // Users who created at least one bot
+        const usersWithBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots');
+
+        // Users with at least one active bot
+        const usersWithActiveBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots WHERE is_active = 1');
+
+        // Total bots created
+        const totalBots = dbGet('SELECT COUNT(*) as count FROM bots');
+
+        // Active bots
+        const activeBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE is_active = 1');
+
+        const total = totalUsers?.count || 0;
+        const created = usersWithBots?.count || 0;
+        const activated = usersWithActiveBots?.count || 0;
+
+        res.json({
+            totalUsers: total,
+            usersWithBots: created,
+            usersWithActiveBots: activated,
+            totalBots: totalBots?.count || 0,
+            activeBots: activeBots?.count || 0,
+            conversionToCreation: total > 0 ? Math.round((created / total) * 100) : 0,
+            conversionToActivation: created > 0 ? Math.round((activated / created) * 100) : 0,
+            overallConversion: total > 0 ? Math.round((activated / total) * 100) : 0
+        });
+    } catch (error) {
+        console.error('Bot funnel analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch bot funnel analytics' });
+    }
+});
+
 // ==================== MAINTENANCE ====================
 
 router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
