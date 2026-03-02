@@ -1,7 +1,7 @@
 'use strict';
 const session = require('express-session');
 const fs      = require('fs');
-const { SESSIONS_PATH } = require('../config');
+const { SESSIONS_PATH, SESSION_SECRET } = require('../config');
 
 class FileSessionStore extends session.Store {
     constructor() {
@@ -114,7 +114,7 @@ class FileSessionStore extends session.Store {
 function createSessionMiddleware() {
     return session({
         store: new FileSessionStore(),
-        secret: 'yamato-secret-key-2024',
+        secret: SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
         cookie: {
