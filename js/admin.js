@@ -1973,6 +1973,12 @@ async function loadAnalytics() {
             renderTradingVolumeChart(volumeData.volumeTrends);
         }
 
+        const retentionResponse = await fetch('/api/admin/analytics/retention?weeks=8');
+        if (retentionResponse.ok) {
+            const retentionData = await retentionResponse.json();
+            renderRetentionCohortTable(retentionData);
+        }
+
     } catch (error) {
         console.error('Load analytics error:', error);
     }
@@ -2434,6 +2440,159 @@ function renderTradingVolumeChart(trends) {
             }
         }
     });
+}
+
+function renderRetentionCohortTable(data) {
+    const container = document.getElementById('retentionCohortTable');
+    if (!container) return;
+
+    const cohorts = data.cohorts || [];
+    if (cohorts.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #A1A1A1;">Недостатньо даних для відображення когорт</div>';
+        return;
+    }
+
+    // Helper function to get color based on retention rate
+    function getRetentionColor(rate) {
+        if (rate >= 40) {
+            // Good retention - green
+            return `rgba(16, 185, 129, ${0.2 + (rate / 100) * 0.6})`;
+        } else if (rate >= 20) {
+            // Moderate retention - orange
+            return `rgba(245, 158, 11, ${0.2 + (rate / 100) * 0.6})`;
+        } else if (rate > 0) {
+            // Poor retention - red
+            return `rgba(239, 68, 68, ${0.2 + (rate / 100) * 0.6})`;
+        } else {
+            // No retention
+            return 'transparent';
+        }
+    }
+
+    // Get max weeks to display (up to 8)
+    const maxWeeks = Math.min(8, data.weeksAnalyzed || 8);
+
+    // Build table HTML
+    let tableHTML = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: var(--text-primary);">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <th style="padding: 12px 8px; text-align: left; color: var(--text-secondary); font-weight: 500;">Когорта</th>
+                    <th style="padding: 12px 8px; text-align: center; color: var(--text-secondary); font-weight: 500;">Розмір</th>
+                    <th style="padding: 12px 8px; text-align: center; color: var(--text-secondary); font-weight: 500;">Тиждень 0</th>
+    `;
+
+    for (let i = 1; i <= maxWeeks; i++) {
+        tableHTML += `<th style="padding: 12px 8px; text-align: center; color: var(--text-secondary); font-weight: 500;">Тиждень ${i}</th>`;
+    }
+
+    tableHTML += `
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    // Add rows for each cohort
+    cohorts.forEach((cohort, index) => {
+        const cohortDate = new Date(cohort.retention[0]?.week === 0 ? cohort.cohortWeek : cohort.cohortWeek);
+        const cohortLabel = cohortDate instanceof Date && !isNaN(cohortDate)
+            ? `Тиждень ${cohort.cohortWeek}`
+            : cohort.cohortWeek;
+
+        tableHTML += `
+            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                <td style="padding: 12px 8px; color: var(--text-primary); font-weight: 500;">${cohortLabel}</td>
+                <td style="padding: 12px 8px; text-align: center; color: var(--text-secondary);">${cohort.cohortSize}</td>
+        `;
+
+        // Week 0 (always 100%)
+        tableHTML += `
+            <td style="padding: 12px 8px; text-align: center; background: ${getRetentionColor(100)};">
+                <span style="color: var(--text-primary); font-weight: 500;">100%</span>
+            </td>
+        `;
+
+        // Retention for weeks 1-8
+        for (let week = 1; week <= maxWeeks; week++) {
+            const retentionWeek = cohort.retention.find(r => r.week === week);
+            if (retentionWeek) {
+                const rate = retentionWeek.retentionRate;
+                const activeUsers = retentionWeek.activeUsers;
+                tableHTML += `
+                    <td style="padding: 12px 8px; text-align: center; background: ${getRetentionColor(rate)};" title="${activeUsers} активних користувачів">
+                        <span style="color: var(--text-primary); font-weight: ${rate >= 40 ? '600' : '400'};">${rate}%</span>
+                    </td>
+                `;
+            } else {
+                tableHTML += `
+                    <td style="padding: 12px 8px; text-align: center; background: transparent;">
+                        <span style="color: var(--text-tertiary);">—</span>
+                    </td>
+                `;
+            }
+        }
+
+        tableHTML += '</tr>';
+    });
+
+    tableHTML += `
+            </tbody>
+        </table>
+    `;
+
+    // Add legend
+    tableHTML += `
+        <div style="display: flex; gap: 16px; margin-top: 16px; padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 16px; height: 16px; background: rgba(16, 185, 129, 0.6); border-radius: 3px;"></div>
+                <span style="color: var(--text-secondary);">Добре (≥40%)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 16px; height: 16px; background: rgba(245, 158, 11, 0.6); border-radius: 3px;"></div>
+                <span style="color: var(--text-secondary);">Середнє (20-39%)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 16px; height: 16px; background: rgba(239, 68, 68, 0.6); border-radius: 3px;"></div>
+                <span style="color: var(--text-secondary);">Низьке (<20%)</span>
+            </div>
+        </div>
+    `;
+
+    // Add summary stats for 7-day and 30-day retention
+    if (cohorts.length > 0) {
+        // Calculate average 7-day retention (week 1)
+        const week1Retentions = cohorts
+            .map(c => c.retention.find(r => r.week === 1))
+            .filter(r => r !== undefined)
+            .map(r => r.retentionRate);
+        const avg7day = week1Retentions.length > 0
+            ? Math.round(week1Retentions.reduce((a, b) => a + b, 0) / week1Retentions.length)
+            : 0;
+
+        // Calculate average 30-day retention (week 4)
+        const week4Retentions = cohorts
+            .map(c => c.retention.find(r => r.week === 4))
+            .filter(r => r !== undefined)
+            .map(r => r.retentionRate);
+        const avg30day = week4Retentions.length > 0
+            ? Math.round(week4Retentions.reduce((a, b) => a + b, 0) / week4Retentions.length)
+            : 0;
+
+        tableHTML += `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+                <div style="padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 4px;">Середнє утримання (7 днів)</div>
+                    <div style="color: ${avg7day >= 40 ? 'rgb(16, 185, 129)' : avg7day >= 20 ? 'rgb(245, 158, 11)' : 'rgb(239, 68, 68)'}; font-size: 20px; font-weight: 600;">${avg7day}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 4px;">Середнє утримання (30 днів)</div>
+                    <div style="color: ${avg30day >= 40 ? 'rgb(16, 185, 129)' : avg30day >= 20 ? 'rgb(245, 158, 11)' : 'rgb(239, 68, 68)'}; font-size: 20px; font-weight: 600;">${avg30day}%</div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = tableHTML;
 }
 
 // Initialize on DOM load
