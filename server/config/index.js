@@ -2,16 +2,22 @@
 const path = require('path');
 const fs   = require('fs');
 
+// Load .env from project root (two levels up from server/config/)
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
+
 const PORT       = process.env.PORT       || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const HOST       = process.env.HOST       || '0.0.0.0';
+const NODE_ENV   = process.env.NODE_ENV   || 'development';
 
-const ADMIN_EMAIL   = 'gerbera.uh@gmail.com';
-const DB_PATH       = path.join(__dirname, '..', 'database.sqlite');
-const SESSIONS_PATH = path.join(__dirname, '..', 'sessions.json');
-const SETTINGS_PATH = path.join(__dirname, '..', 'settings.json');
-const SSL_KEY_PATH  = path.join(__dirname, '..', 'ssl', 'key.pem');
-const SSL_CERT_PATH = path.join(__dirname, '..', 'ssl', 'cert.pem');
+const ADMIN_EMAIL      = process.env.ADMIN_EMAIL      || 'gerbera.uh@gmail.com';
+const SESSION_SECRET   = process.env.SESSION_SECRET    || 'yamato-dev-secret-change-me';
+const BCRYPT_ROUNDS    = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
+const DB_PATH          = process.env.DB_PATH       || path.join(__dirname, '..', 'database.sqlite');
+const SESSIONS_PATH    = process.env.SESSIONS_PATH || path.join(__dirname, '..', 'sessions.json');
+const SETTINGS_PATH    = process.env.SETTINGS_PATH || path.join(__dirname, '..', 'settings.json');
+const SSL_KEY_PATH     = process.env.SSL_KEY_PATH  || path.join(__dirname, '..', 'ssl', 'key.pem');
+const SSL_CERT_PATH    = process.env.SSL_CERT_PATH || path.join(__dirname, '..', 'ssl', 'cert.pem');
 
 // Mutable reference — all modules share the same object
 const siteSettings = {
@@ -49,8 +55,8 @@ function saveSettings() {
 }
 
 module.exports = {
-    PORT, HTTPS_PORT, HOST,
-    ADMIN_EMAIL,
+    PORT, HTTPS_PORT, HOST, NODE_ENV,
+    ADMIN_EMAIL, SESSION_SECRET, BCRYPT_ROUNDS,
     DB_PATH, SESSIONS_PATH, SETTINGS_PATH, SSL_KEY_PATH, SSL_CERT_PATH,
     siteSettings,
     loadSettings,
