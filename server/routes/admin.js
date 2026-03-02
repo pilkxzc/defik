@@ -1320,4 +1320,78 @@ router.get('/api/admin/analytics/retention', requireAuth, requireRole('admin', '
     }
 });
 
+// System Health Metrics
+router.get('/api/admin/analytics/system/health', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        // Get database statistics
+        const userCount = dbGet('SELECT COUNT(*) as count FROM users');
+        const botCount = dbGet('SELECT COUNT(*) as count FROM bots');
+        const tradeCount = dbGet('SELECT COUNT(*) as count FROM bot_trades');
+        const transactionCount = dbGet('SELECT COUNT(*) as count FROM transactions');
+
+        // Get active bots count
+        const activeBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE is_active = 1');
+
+        // Get recent activity (last hour)
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const recentLogins = dbGet('SELECT COUNT(*) as count FROM users WHERE last_login > ?', [oneHourAgo]);
+        const recentTrades = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE created_at > ?', [oneHourAgo]);
+
+        // Get bot health metrics
+        const activeBotsList = dbAll('SELECT id, name, is_active, mode FROM bots WHERE is_active = 1');
+        const totalActiveBots = activeBotsList.length;
+        const demoBots = activeBotsList.filter(b => b.mode === 'demo').length;
+        const liveBots = activeBotsList.filter(b => b.mode === 'live').length;
+
+        // Calculate error rates (checking for bots with issues)
+        const recentErrorTrades = dbGet(`
+            SELECT COUNT(*) as count
+            FROM bot_trades
+            WHERE created_at > ?
+            AND (status = 'failed' OR status = 'error')
+        `, [oneHourAgo]);
+
+        const totalRecentTrades = recentTrades?.count || 0;
+        const errorTrades = recentErrorTrades?.count || 0;
+        const errorRate = totalRecentTrades > 0
+            ? ((errorTrades / totalRecentTrades) * 100).toFixed(2)
+            : 0;
+
+        // System uptime (process uptime in hours)
+        const uptimeHours = (process.uptime() / 3600).toFixed(1);
+
+        // Overall health status
+        const healthScore = errorRate < 5 ? 'healthy' : errorRate < 15 ? 'degraded' : 'unhealthy';
+
+        res.json({
+            database: {
+                users: userCount?.count || 0,
+                bots: botCount?.count || 0,
+                trades: tradeCount?.count || 0,
+                transactions: transactionCount?.count || 0
+            },
+            bots: {
+                total: totalActiveBots,
+                demo: demoBots,
+                live: liveBots,
+                healthStatus: totalActiveBots > 0 ? 'active' : 'inactive'
+            },
+            activity: {
+                recentLogins: recentLogins?.count || 0,
+                recentTrades: totalRecentTrades,
+                errorRate: parseFloat(errorRate),
+                errorCount: errorTrades
+            },
+            system: {
+                uptime: uptimeHours,
+                status: healthScore,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('System health analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch system health metrics' });
+    }
+});
+
 module.exports = router;

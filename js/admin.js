@@ -1979,6 +1979,12 @@ async function loadAnalytics() {
             renderRetentionCohortTable(retentionData);
         }
 
+        const healthResponse = await fetch('/api/admin/analytics/system/health');
+        if (healthResponse.ok) {
+            const healthData = await healthResponse.json();
+            renderSystemHealth(healthData);
+        }
+
     } catch (error) {
         console.error('Load analytics error:', error);
     }
@@ -2593,6 +2599,86 @@ function renderRetentionCohortTable(data) {
     }
 
     container.innerHTML = tableHTML;
+}
+
+function renderSystemHealth(data) {
+    // System uptime and status
+    const uptimeEl = document.getElementById('healthSystemUptime');
+    const statusEl = document.getElementById('healthSystemStatus');
+    if (uptimeEl && data.system) {
+        uptimeEl.textContent = `${data.system.uptime}h`;
+
+        // Update status with color coding
+        if (statusEl) {
+            const status = data.system.status;
+            let statusText = '';
+            let statusColor = '';
+
+            if (status === 'healthy') {
+                statusText = 'Система працює нормально';
+                statusColor = 'var(--accent-primary)';
+            } else if (status === 'degraded') {
+                statusText = 'Система працює з помилками';
+                statusColor = 'var(--color-warning)';
+            } else {
+                statusText = 'Система має критичні помилки';
+                statusColor = 'var(--color-down)';
+            }
+
+            statusEl.textContent = statusText;
+            statusEl.style.color = statusColor;
+        }
+    }
+
+    // Bot health metrics
+    const activeBotsEl = document.getElementById('healthActiveBots');
+    const demoBotsEl = document.getElementById('healthDemoBots');
+    const liveBotsEl = document.getElementById('healthLiveBots');
+    if (activeBotsEl && data.bots) {
+        activeBotsEl.textContent = data.bots.total || 0;
+
+        // Color code based on bot health status
+        if (data.bots.healthStatus === 'active') {
+            activeBotsEl.style.color = 'var(--accent-primary)';
+        } else {
+            activeBotsEl.style.color = 'var(--text-tertiary)';
+        }
+
+        if (demoBotsEl) demoBotsEl.textContent = data.bots.demo || 0;
+        if (liveBotsEl) liveBotsEl.textContent = data.bots.live || 0;
+    }
+
+    // Error rate metrics
+    const errorRateEl = document.getElementById('healthErrorRate');
+    const errorCountEl = document.getElementById('healthErrorCount');
+    if (errorRateEl && data.activity) {
+        const errorRate = data.activity.errorRate || 0;
+        errorRateEl.textContent = `${errorRate}%`;
+
+        // Color code based on error rate
+        if (errorRate < 5) {
+            errorRateEl.style.color = 'var(--accent-primary)';
+        } else if (errorRate < 15) {
+            errorRateEl.style.color = 'var(--color-warning)';
+        } else {
+            errorRateEl.style.color = 'var(--color-down)';
+        }
+
+        if (errorCountEl) {
+            errorCountEl.textContent = data.activity.errorCount || 0;
+        }
+    }
+
+    // Recent activity metrics
+    const recentTradesEl = document.getElementById('healthRecentTrades');
+    const recentLoginsEl = document.getElementById('healthRecentLogins');
+    if (recentTradesEl && data.activity) {
+        recentTradesEl.textContent = data.activity.recentTrades || 0;
+
+        if (recentLoginsEl) {
+            recentLoginsEl.textContent = data.activity.recentLogins || 0;
+        }
+    }
 }
 
 // Initialize on DOM load

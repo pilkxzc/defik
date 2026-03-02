@@ -1406,6 +1406,70 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- System Health Metrics -->
+                    <div style="margin-top: var(--gap-md);">
+                        <div class="stat-label" style="margin-bottom: 16px; font-size: 16px; font-weight: 600;">Стан системи</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--gap-md);">
+                            <!-- System Status Card -->
+                            <div class="stat-card" style="padding: 20px;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <path d="M12 6v6l4 2"></path>
+                                    </svg>
+                                    <span style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">Час роботи системи</span>
+                                </div>
+                                <div style="font-size: 24px; font-weight: 700; color: var(--accent-primary);" id="healthSystemUptime">--</div>
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;" id="healthSystemStatus">Завантаження...</div>
+                            </div>
+
+                            <!-- Bot Health Card -->
+                            <div class="stat-card" style="padding: 20px;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                    <span style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">Активні боти</span>
+                                </div>
+                                <div style="font-size: 24px; font-weight: 700;" id="healthActiveBots">0</div>
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">
+                                    <span id="healthDemoBots">0</span> демо / <span id="healthLiveBots">0</span> реальні
+                                </div>
+                            </div>
+
+                            <!-- Error Rate Card -->
+                            <div class="stat-card" style="padding: 20px;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                    </svg>
+                                    <span style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">Частота помилок</span>
+                                </div>
+                                <div style="font-size: 24px; font-weight: 700;" id="healthErrorRate">0%</div>
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">
+                                    <span id="healthErrorCount">0</span> помилок за останню годину
+                                </div>
+                            </div>
+
+                            <!-- Recent Activity Card -->
+                            <div class="stat-card" style="padding: 20px;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                    </svg>
+                                    <span style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">Остання активність</span>
+                                </div>
+                                <div style="font-size: 24px; font-weight: 700;" id="healthRecentTrades">0</div>
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">
+                                    <span id="healthRecentLogins">0</span> входів за останню годину
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
