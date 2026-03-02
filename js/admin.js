@@ -2845,5 +2845,195 @@ function renderSystemHealth(data) {
     }
 }
 
+// ==================== BACKUP TAB ====================
+
+async function loadBackupTab() {
+    await Promise.all([loadGoogleSettings(), loadBackupSettings(), loadBackupHistory()]);
+}
+
+async function loadGoogleSettings() {
+    try {
+        const res = await fetch('/api/admin/google-settings');
+        const data = await res.json();
+        document.getElementById('googleClientId').value = data.googleClientId || '';
+        document.getElementById('googleClientSecret').value = data.googleClientSecret || '';
+        document.getElementById('googleOAuthEnabled').checked = data.googleOAuthEnabled || false;
+
+        // Update Drive status
+        const dot = document.getElementById('driveStatusDot');
+        const text = document.getElementById('driveStatusText');
+        const connectBtn = document.getElementById('driveConnectBtn');
+        const disconnectBtn = document.getElementById('driveDisconnectBtn');
+
+        if (data.googleDriveConnected) {
+            dot.style.background = '#10B981';
+            text.textContent = 'Підключено';
+            text.style.color = '#10B981';
+            connectBtn.style.display = 'none';
+            disconnectBtn.style.display = 'block';
+        } else {
+            dot.style.background = '#636363';
+            text.textContent = 'Не підключено';
+            text.style.color = '';
+            connectBtn.style.display = 'block';
+            disconnectBtn.style.display = 'none';
+        }
+    } catch (e) {
+        console.error('Failed to load Google settings:', e);
+    }
+}
+
+async function saveGoogleSettings() {
+    try {
+        const res = await fetch('/api/admin/google-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                googleClientId: document.getElementById('googleClientId').value,
+                googleClientSecret: document.getElementById('googleClientSecret').value,
+                googleOAuthEnabled: document.getElementById('googleOAuthEnabled').checked
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Збережено', 'Google налаштування збережено');
+        } else {
+            showToast('error', 'Помилка', 'Не вдалося зберегти налаштування');
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося зберегти налаштування');
+    }
+}
+
+function connectGoogleDrive() {
+    window.location.href = '/api/admin/backup/google/auth';
+}
+
+async function disconnectDrive() {
+    if (!confirm('Відключити Google Drive? Автоматичні бекапи будуть зупинені.')) return;
+    try {
+        const res = await fetch('/api/admin/backup/disconnect', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Відключено', 'Google Drive відключено');
+            loadGoogleSettings();
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', 'Щось пішло не так');
+    }
+}
+
+async function loadBackupSettings() {
+    try {
+        const res = await fetch('/api/admin/backup/settings');
+        const data = await res.json();
+        document.getElementById('backupEnabled').checked = data.enabled || false;
+        document.getElementById('backupTime').value = data.time || '03:00';
+        document.getElementById('backupFolderId').value = data.folderId || '';
+    } catch (e) {
+        console.error('Failed to load backup settings:', e);
+    }
+}
+
+async function saveBackupSettings() {
+    try {
+        const res = await fetch('/api/admin/backup/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                enabled: document.getElementById('backupEnabled').checked,
+                time: document.getElementById('backupTime').value,
+                folderId: document.getElementById('backupFolderId').value
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Збережено', 'Налаштування бекапів збережено');
+        } else {
+            showToast('error', 'Помилка', 'Не вдалося зберегти налаштування');
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося зберегти налаштування');
+    }
+}
+
+async function triggerBackup() {
+    const btn = document.getElementById('triggerBackupBtn');
+    btn.disabled = true;
+    btn.textContent = 'Створення бекапу...';
+    try {
+        const res = await fetch('/api/admin/backup/trigger', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Бекап створено', data.filename);
+            loadBackupHistory();
+        } else {
+            showToast('error', 'Помилка бекапу', data.error || 'Не вдалося створити бекап');
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося створити бекап');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Зробити бекап зараз';
+    }
+}
+
+async function loadBackupHistory() {
+    try {
+        const res = await fetch('/api/admin/backup/history');
+        const history = await res.json();
+        const container = document.getElementById('backupHistoryList');
+
+        if (!history.length) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: 20px;">Немає бекапів</div>';
+            return;
+        }
+
+        container.innerHTML = history.map(b => {
+            const status = b.status === 'success'
+                ? '<span style="color: #10B981; font-weight: 600;">Успіх</span>'
+                : b.status === 'failed'
+                    ? '<span style="color: #EF4444; font-weight: 600;">Помилка</span>'
+                    : '<span style="color: #F59E0B; font-weight: 600;">В процесі</span>';
+
+            const size = b.size_bytes ? (b.size_bytes / 1024).toFixed(1) + ' KB' : '—';
+            const date = b.created_at ? new Date(b.created_at).toLocaleString('uk-UA') : '—';
+
+            return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;">
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 2px;">${b.filename || '—'}</div>
+                    <div style="color: var(--text-tertiary); font-size: 11px;">${date} · ${b.triggered_by}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div>${status}</div>
+                    <div style="color: var(--text-tertiary); font-size: 11px;">${size}</div>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load backup history:', e);
+    }
+}
+
+// Handle URL params for backup tab
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'backup') {
+        // Will be handled after init
+        const origInit = initAdminPanel;
+        initAdminPanel = async function() {
+            await origInit();
+            switchTab('backup');
+            if (params.get('drive') === 'connected') {
+                showToast('success', 'Підключено', 'Google Drive підключено успішно!');
+            } else if (params.get('drive') === 'error') {
+                showToast('Помилка підключення Google Drive', 'error');
+            }
+            // Clean URL
+            window.history.replaceState({}, '', '/admin');
+        };
+    }
+})();
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', initAdminPanel);
