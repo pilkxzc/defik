@@ -1814,6 +1814,219 @@ function setupNavigation() {
     initUserPillContextMenu();
 }
 
+// ==================== USER PILL CONTEXT MENU ====================
+
+function initUserPillContextMenu() {
+    const pill = document.querySelector('.user-pill');
+    if (!pill) return;
+
+    // Remove old menu if exists
+    let menu = document.getElementById('userPillCtxMenu');
+    if (menu) menu.remove();
+
+    // Build menu
+    menu = document.createElement('div');
+    menu.id = 'userPillCtxMenu';
+
+    const currentPath = window.location.pathname;
+    const isAdmin = window.currentUser && (window.currentUser.role === 'admin' || window.currentUser.role === 'moderator');
+
+    const items = [
+        { href: '/dashboard',     icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', label: 'Дашборд' },
+        { href: '/portfolio',     icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>', label: 'Портфоліо' },
+        { href: '/bots',          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 2v4"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><path d="M9 16h6"/></svg>', label: 'Боти' },
+        { divider: true },
+        { href: '/news',          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><line x1="10" y1="6" x2="18" y2="6"/><line x1="10" y1="10" x2="18" y2="10"/></svg>', label: 'Новини' },
+        { href: '/subscriptions', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', label: 'Підписки' },
+        { href: '/community',     icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', label: 'Спільнота' },
+        { divider: true },
+        { href: '/profile',       icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>', label: 'Профіль' },
+    ];
+
+    if (isAdmin) {
+        items.push(
+            { href: '/admin', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', label: 'Адмін панель', admin: true }
+        );
+    }
+
+    items.push(
+        { divider: true },
+        { action: 'logout', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>', label: 'Вийти', danger: true }
+    );
+
+    // Inject styles once
+    if (!document.getElementById('ctxMenuStyles')) {
+        const style = document.createElement('style');
+        style.id = 'ctxMenuStyles';
+        style.textContent = `
+            #userPillCtxMenu {
+                position: fixed;
+                z-index: 10000;
+                min-width: 200px;
+                background: #1a1a1a;
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 16px;
+                padding: 6px;
+                box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+                backdrop-filter: blur(20px);
+                display: none;
+                opacity: 0;
+                transform: scale(0.95) translateY(-4px);
+                transform-origin: top right;
+                transition: opacity 0.15s ease, transform 0.15s ease;
+                font-family: inherit;
+            }
+            #userPillCtxMenu.visible {
+                display: block;
+            }
+            #userPillCtxMenu.open {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+            #userPillCtxMenu .ctx-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 9px 14px;
+                border-radius: 10px;
+                color: #e0e0e0;
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                text-decoration: none;
+                transition: background 0.15s;
+                border: none;
+                background: none;
+                width: 100%;
+                text-align: left;
+            }
+            #userPillCtxMenu .ctx-item:hover {
+                background: rgba(255,255,255,0.06);
+                color: #fff;
+            }
+            #userPillCtxMenu .ctx-item.active {
+                background: rgba(16,185,129,0.12);
+                color: #10B981;
+            }
+            #userPillCtxMenu .ctx-item.active svg {
+                stroke: #10B981;
+            }
+            #userPillCtxMenu .ctx-item.admin-item {
+                color: #8B5CF6;
+            }
+            #userPillCtxMenu .ctx-item.admin-item svg {
+                stroke: #8B5CF6;
+            }
+            #userPillCtxMenu .ctx-item.admin-item:hover {
+                background: rgba(139,92,246,0.1);
+            }
+            #userPillCtxMenu .ctx-item.danger {
+                color: #EF4444;
+            }
+            #userPillCtxMenu .ctx-item.danger svg {
+                stroke: #EF4444;
+            }
+            #userPillCtxMenu .ctx-item.danger:hover {
+                background: rgba(239,68,68,0.1);
+            }
+            #userPillCtxMenu .ctx-item svg {
+                flex-shrink: 0;
+                opacity: 0.7;
+            }
+            #userPillCtxMenu .ctx-divider {
+                height: 1px;
+                background: rgba(255,255,255,0.06);
+                margin: 4px 8px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Build items
+    items.forEach(item => {
+        if (item.divider) {
+            const div = document.createElement('div');
+            div.className = 'ctx-divider';
+            menu.appendChild(div);
+            return;
+        }
+
+        const el = document.createElement(item.href ? 'a' : 'button');
+        let cls = 'ctx-item';
+        if (item.href && item.href === currentPath) cls += ' active';
+        if (item.admin) cls += ' admin-item';
+        if (item.danger) cls += ' danger';
+        el.className = cls;
+        if (item.href) el.href = item.href;
+        el.innerHTML = item.icon + '<span>' + item.label + '</span>';
+
+        if (item.action === 'logout') {
+            el.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                } catch (_) {}
+                window.location.href = '/login';
+            });
+        }
+
+        menu.appendChild(el);
+    });
+
+    document.body.appendChild(menu);
+
+    function showMenu(x, y) {
+        menu.classList.add('visible');
+        // Position: align to right of pill, below it
+        const mw = menu.offsetWidth;
+        const mh = menu.offsetHeight;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        // Keep in viewport
+        if (x + mw > vw - 8) x = vw - mw - 8;
+        if (x < 8) x = 8;
+        if (y + mh > vh - 8) y = vh - mh - 8;
+        if (y < 8) y = 8;
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+    }
+
+    function hideMenu() {
+        menu.classList.remove('open');
+        setTimeout(() => menu.classList.remove('visible'), 150);
+    }
+
+    // Right-click on user-pill
+    pill.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showMenu(e.clientX, e.clientY);
+    });
+
+    // Also show on three-dot icon click
+    const dotsIcon = pill.querySelector('svg:last-child');
+    if (dotsIcon) {
+        dotsIcon.style.cursor = 'pointer';
+        dotsIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const rect = pill.getBoundingClientRect();
+            showMenu(rect.right - 200, rect.bottom + 8);
+        });
+    }
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target)) hideMenu();
+    });
+    document.addEventListener('contextmenu', (e) => {
+        if (!pill.contains(e.target)) hideMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideMenu();
+    });
+}
+
 // ==================== SETUP BUTTONS ====================
 
 function setupButtons() {
