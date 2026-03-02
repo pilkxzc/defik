@@ -1809,6 +1809,9 @@ function setupNavigation() {
             window.location.href = '/profile';
         });
     });
+
+    // User pill right-click context menu
+    initUserPillContextMenu();
 }
 
 // ==================== SETUP BUTTONS ====================
