@@ -1706,6 +1706,56 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Server Management & Restore -->
+                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr; margin-top: 20px;">
+                        <!-- Server Control -->
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+                                <span style="font-size: 16px; font-weight: 700;">Сервер</span>
+                            </div>
+                            <div id="serverInfo" style="padding: 12px; background: var(--surface-secondary); border-radius: 12px; margin-bottom: 16px; font-size: 13px; color: var(--text-secondary);">
+                                Завантаження...
+                            </div>
+                            <button onclick="restartServer()" id="restartServerBtn" class="action-btn primary" style="width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);">
+                                Перезавантажити сервер
+                            </button>
+                        </div>
+
+                        <!-- Restore from Drive -->
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                <span style="font-size: 16px; font-weight: 700;">Відновити з бекапу</span>
+                            </div>
+                            <div id="driveFilesList" style="max-height: 250px; overflow-y: auto; margin-bottom: 12px;">
+                                <div style="text-align: center; color: var(--text-tertiary); padding: 16px; font-size: 13px;">Натисніть кнопку для завантаження списку</div>
+                            </div>
+                            <button onclick="loadDriveFiles()" class="action-btn secondary" style="width: 100%; padding: 10px; border-radius: 12px; font-size: 13px; font-weight: 600;">
+                                Завантажити список бекапів
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Logs -->
+                    <div style="margin-top: 20px;">
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                                    <span style="font-size: 16px; font-weight: 700;">Live логи</span>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button onclick="toggleLogs()" id="logsToggleBtn" class="action-btn primary" style="padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600;">Підключити</button>
+                                    <button onclick="clearLogsDisplay()" class="action-btn secondary" style="padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600;">Очистити</button>
+                                </div>
+                            </div>
+                            <div id="logsContainer" style="background: #0a0a0a; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px; height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; color: #a0a0a0;">
+                                <div style="color: var(--text-tertiary);">Натисніть "Підключити" для перегляду логів...</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </div>

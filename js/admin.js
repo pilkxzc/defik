@@ -3015,6 +3015,178 @@ async function loadBackupHistory() {
     }
 }
 
+// ==================== SERVER MANAGEMENT ====================
+
+async function loadServerInfo() {
+    try {
+        const res = await fetch('/api/admin/server/info');
+        const data = await res.json();
+        const el = document.getElementById('serverInfo');
+        if (el) {
+            el.innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div><span style="color: var(--text-tertiary);">Uptime:</span> <strong>${data.uptime}</strong></div>
+                    <div><span style="color: var(--text-tertiary);">PID:</span> <strong>${data.pid}</strong></div>
+                    <div><span style="color: var(--text-tertiary);">RAM:</span> <strong>${data.memory.rss}</strong></div>
+                    <div><span style="color: var(--text-tertiary);">Heap:</span> <strong>${data.memory.heapUsed} / ${data.memory.heapTotal}</strong></div>
+                    <div><span style="color: var(--text-tertiary);">Node:</span> <strong>${data.nodeVersion}</strong></div>
+                    <div><span style="color: var(--text-tertiary);">Platform:</span> <strong>${data.platform}</strong></div>
+                </div>`;
+        }
+    } catch (e) {
+        console.error('Failed to load server info:', e);
+    }
+}
+
+async function restartServer() {
+    if (!confirm('Перезавантажити сервер? Сайт буде недоступний кілька секунд.')) return;
+    const btn = document.getElementById('restartServerBtn');
+    btn.disabled = true;
+    btn.textContent = 'Перезавантаження...';
+    try {
+        await fetch('/api/admin/server/restart', { method: 'POST' });
+        showToast('success', 'Сервер', 'Перезавантаження ініційовано');
+        setTimeout(() => { window.location.reload(); }, 5000);
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося перезавантажити');
+        btn.disabled = false;
+        btn.textContent = 'Перезавантажити сервер';
+    }
+}
+
+// ==================== LIVE LOGS ====================
+
+let logsEventSource = null;
+
+function toggleLogs() {
+    const btn = document.getElementById('logsToggleBtn');
+    if (logsEventSource) {
+        logsEventSource.close();
+        logsEventSource = null;
+        btn.textContent = 'Підключити';
+        btn.style.background = '';
+        return;
+    }
+
+    const container = document.getElementById('logsContainer');
+    container.innerHTML = '<div style="color: #10B981;">Підключення...</div>';
+
+    logsEventSource = new EventSource('/api/admin/server/logs?lines=50');
+
+    logsEventSource.onmessage = function(event) {
+        const line = event.data;
+        const div = document.createElement('div');
+        div.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+        div.style.padding = '2px 0';
+
+        // Color code log lines
+        if (line.includes('error') || line.includes('Error') || line.includes('ERR')) {
+            div.style.color = '#EF4444';
+        } else if (line.includes('warn') || line.includes('WARN')) {
+            div.style.color = '#F59E0B';
+        } else if (line.includes('[Connected')) {
+            div.style.color = '#10B981';
+        }
+
+        div.textContent = line;
+        container.appendChild(div);
+
+        // Auto-scroll
+        container.scrollTop = container.scrollHeight;
+
+        // Limit lines in DOM
+        while (container.children.length > 500) {
+            container.removeChild(container.firstChild);
+        }
+    };
+
+    logsEventSource.onerror = function() {
+        const div = document.createElement('div');
+        div.style.color = '#EF4444';
+        div.textContent = '[Disconnected]';
+        container.appendChild(div);
+        logsEventSource.close();
+        logsEventSource = null;
+        btn.textContent = 'Підключити';
+        btn.style.background = '';
+    };
+
+    btn.textContent = 'Відключити';
+    btn.style.background = '#EF4444';
+}
+
+function clearLogsDisplay() {
+    const container = document.getElementById('logsContainer');
+    container.innerHTML = '<div style="color: var(--text-tertiary);">Очищено</div>';
+}
+
+// ==================== RESTORE FROM DRIVE ====================
+
+async function loadDriveFiles() {
+    const container = document.getElementById('driveFilesList');
+    container.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: 16px; font-size: 13px;">Завантаження...</div>';
+    try {
+        const res = await fetch('/api/admin/backup/drive-files');
+        if (!res.ok) {
+            const err = await res.json();
+            container.innerHTML = `<div style="text-align: center; color: #EF4444; padding: 16px; font-size: 13px;">${err.error || 'Помилка'}</div>`;
+            return;
+        }
+        const files = await res.json();
+
+        if (!files.length) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: 16px; font-size: 13px;">Бекапів не знайдено</div>';
+            return;
+        }
+
+        container.innerHTML = files.map(f => {
+            const size = f.size ? (parseInt(f.size) / 1024).toFixed(1) + ' KB' : '—';
+            const date = f.createdTime ? new Date(f.createdTime).toLocaleString('uk-UA') : '—';
+            return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;">
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 2px;">${f.name}</div>
+                    <div style="color: var(--text-tertiary); font-size: 11px;">${date} · ${size}</div>
+                </div>
+                <button onclick="restoreFromDrive('${f.id}', '${f.name}')" style="padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #F59E0B; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Відновити</button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<div style="text-align: center; color: #EF4444; padding: 16px; font-size: 13px;">Помилка завантаження</div>';
+    }
+}
+
+async function restoreFromDrive(fileId, fileName) {
+    if (!confirm(`Відновити базу даних з бекапу "${fileName}"?\n\nПоточна база буде збережена як .pre-restore.\nПісля відновлення потрібен перезапуск сервера.`)) return;
+
+    showToast('info', 'Відновлення', 'Завантаження бекапу з Google Drive...');
+
+    try {
+        const res = await fetch('/api/admin/backup/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileId, fileName })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Відновлено', data.message);
+            if (confirm('Базу даних відновлено. Перезавантажити сервер зараз?')) {
+                restartServer();
+            }
+        } else {
+            showToast('error', 'Помилка', data.error || 'Не вдалося відновити');
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося відновити бекап');
+    }
+}
+
+// Load server info when backup tab opens
+const origLoadBackupTab = loadBackupTab;
+loadBackupTab = async function() {
+    await origLoadBackupTab();
+    loadServerInfo();
+};
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async function() {
     await initAdminPanel();

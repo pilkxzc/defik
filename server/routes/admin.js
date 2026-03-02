@@ -1714,4 +1714,196 @@ router.get('/api/admin/backup/history', requireAuth, requireRole('admin'), (req,
     res.json(history);
 });
 
+// ==================== SERVER MANAGEMENT ====================
+
+const { exec, spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+// Restart server via PM2
+router.post('/api/admin/server/restart', requireAuth, requireRole('admin'), (req, res) => {
+    logAdminAction(req.session.userId, 'server_restart', 'server', null, 'Initiated server restart', getClientIP(req));
+    res.json({ success: true, message: 'Server restarting...' });
+
+    // Delay restart slightly so the response gets sent
+    setTimeout(() => {
+        exec('pm2 restart all', (error) => {
+            if (error) console.error('PM2 restart failed:', error);
+        });
+    }, 500);
+});
+
+// Get server info
+router.get('/api/admin/server/info', requireAuth, requireRole('admin'), (req, res) => {
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const memUsage = process.memoryUsage();
+
+    res.json({
+        uptime: `${hours}г ${minutes}хв`,
+        uptimeSeconds: uptime,
+        memory: {
+            rss: (memUsage.rss / 1024 / 1024).toFixed(1) + ' MB',
+            heapUsed: (memUsage.heapUsed / 1024 / 1024).toFixed(1) + ' MB',
+            heapTotal: (memUsage.heapTotal / 1024 / 1024).toFixed(1) + ' MB'
+        },
+        nodeVersion: process.version,
+        pid: process.pid,
+        platform: process.platform
+    });
+});
+
+// Live logs — stream PM2 logs via SSE
+router.get('/api/admin/server/logs', requireAuth, requireRole('admin'), (req, res) => {
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    });
+
+    res.write('data: [Connected to log stream]\n\n');
+
+    const lines = parseInt(req.query.lines) || 100;
+    const logProcess = spawn('pm2', ['logs', '--raw', '--lines', String(lines), '--nostream'], {
+        shell: true
+    });
+
+    let initialSent = false;
+    logProcess.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(l => l.trim());
+        lines.forEach(line => {
+            res.write(`data: ${line}\n\n`);
+        });
+        initialSent = true;
+    });
+
+    logProcess.stderr.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(l => l.trim());
+        lines.forEach(line => {
+            res.write(`data: ${line}\n\n`);
+        });
+    });
+
+    logProcess.on('close', () => {
+        // After initial logs, start streaming live
+        const liveProcess = spawn('pm2', ['logs', '--raw'], { shell: true });
+
+        liveProcess.stdout.on('data', (data) => {
+            const lines = data.toString().split('\n').filter(l => l.trim());
+            lines.forEach(line => {
+                res.write(`data: ${line}\n\n`);
+            });
+        });
+
+        liveProcess.stderr.on('data', (data) => {
+            const lines = data.toString().split('\n').filter(l => l.trim());
+            lines.forEach(line => {
+                res.write(`data: ${line}\n\n`);
+            });
+        });
+
+        req.on('close', () => {
+            liveProcess.kill();
+        });
+    });
+
+    req.on('close', () => {
+        logProcess.kill();
+    });
+});
+
+// List backups from Google Drive
+router.get('/api/admin/backup/drive-files', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        if (!siteSettings.googleDriveTokens) {
+            return res.status(400).json({ error: 'Google Drive not connected' });
+        }
+
+        const auth = getOAuth2Client();
+        const drive = google.drive({ version: 'v3', auth });
+
+        const query = "name contains 'yamato-backup' and mimeType = 'application/gzip' and trashed = false";
+        const params = { q: query, fields: 'files(id, name, size, createdTime)', orderBy: 'createdTime desc', pageSize: 30 };
+
+        if (siteSettings.googleDriveBackupFolderId) {
+            params.q += ` and '${siteSettings.googleDriveBackupFolderId}' in parents`;
+        }
+
+        const result = await drive.files.list(params);
+        res.json(result.data.files || []);
+    } catch (error) {
+        console.error('Drive files list error:', error);
+        res.status(500).json({ error: error.message || 'Failed to list Drive files' });
+    }
+});
+
+// Restore database from Google Drive backup
+router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { fileId, fileName } = req.body;
+        if (!fileId) return res.status(400).json({ error: 'File ID required' });
+
+        if (!siteSettings.googleDriveTokens) {
+            return res.status(400).json({ error: 'Google Drive not connected' });
+        }
+
+        const auth = getOAuth2Client();
+        const drive = google.drive({ version: 'v3', auth });
+
+        // Download file
+        const tmpDir = path.join(__dirname, '..', 'tmp');
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+        const tmpFile = path.join(tmpDir, `restore-${Date.now()}.tar.gz`);
+        const dest = fs.createWriteStream(tmpFile);
+
+        const response = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+
+        await new Promise((resolve, reject) => {
+            response.data.pipe(dest);
+            dest.on('finish', resolve);
+            dest.on('error', reject);
+        });
+
+        // Extract archive
+        const extractDir = path.join(tmpDir, `restore-${Date.now()}`);
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        await new Promise((resolve, reject) => {
+            exec(`tar -xzf "${tmpFile}" -C "${extractDir}"`, (error) => {
+                if (error) reject(error);
+                else resolve();
+            });
+        });
+
+        // Find database.sqlite in extracted files
+        const extractedDb = path.join(extractDir, 'database.sqlite');
+        if (!fs.existsSync(extractedDb)) {
+            // Cleanup
+            try { fs.unlinkSync(tmpFile); } catch(e) {}
+            try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+            return res.status(400).json({ error: 'Backup archive does not contain database.sqlite' });
+        }
+
+        // Replace current database
+        const { DB_PATH } = require('../config');
+        const backupOfCurrent = DB_PATH + '.pre-restore.' + Date.now();
+        fs.copyFileSync(DB_PATH, backupOfCurrent);
+        fs.copyFileSync(extractedDb, DB_PATH);
+
+        // Cleanup temp files
+        try { fs.unlinkSync(tmpFile); } catch(e) {}
+        try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+
+        logAdminAction(req.session.userId, 'restore_backup', 'backup', null, `Restored from: ${fileName || fileId}`, getClientIP(req));
+
+        res.json({ success: true, message: 'Database restored. Server restart required.', backupOfPrevious: backupOfCurrent });
+    } catch (error) {
+        console.error('Restore backup error:', error);
+        res.status(500).json({ error: error.message || 'Restore failed' });
+    }
+});
+
 module.exports = router;
