@@ -167,6 +167,67 @@ router.delete('/api/profile/avatar', requireAuth, (req, res) => {
     }
 });
 
+router.post('/api/profile/avatar/from-telegram', requireAuth, async (req, res) => {
+    try {
+        const user = dbGet('SELECT telegram_id, telegram_verified FROM users WHERE id = ?', [req.session.userId]);
+        if (!user?.telegram_id || !user.telegram_verified) {
+            return res.status(400).json({ error: 'Telegram not linked' });
+        }
+
+        const { getTelegramBot } = require('../services/telegram');
+        const bot = getTelegramBot();
+        if (!bot) return res.status(400).json({ error: 'Telegram bot not available' });
+
+        const photos = await bot.getUserProfilePhotos(user.telegram_id, { limit: 1 });
+        if (!photos.total_count) return res.status(404).json({ error: 'No Telegram profile photo' });
+
+        const fileId = photos.photos[0][photos.photos[0].length - 1].file_id;
+        const file = await bot.getFile(fileId);
+        const photoUrl = `https://api.telegram.org/file/bot${siteSettings.telegramBotToken}/${file.file_path}`;
+
+        const response = await fetch(photoUrl);
+        if (!response.ok) throw new Error('Failed to download Telegram photo');
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const base64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+
+        if (base64.length > 2800000) return res.status(400).json({ error: 'Image too large' });
+
+        const { getDb } = require('../db');
+        getDb().run('UPDATE users SET avatar = ? WHERE id = ?', [base64, req.session.userId]);
+        saveDatabase();
+
+        res.json({ success: true, avatar: base64 });
+    } catch (error) {
+        console.error('Telegram avatar error:', error);
+        res.status(500).json({ error: 'Failed to set Telegram avatar' });
+    }
+});
+
+router.post('/api/profile/avatar/from-google', requireAuth, async (req, res) => {
+    try {
+        const user = dbGet('SELECT google_id, google_avatar FROM users WHERE id = ?', [req.session.userId]);
+        if (!user?.google_id) return res.status(400).json({ error: 'Google not linked' });
+        if (!user.google_avatar) return res.status(404).json({ error: 'No Google avatar available' });
+
+        const response = await fetch(user.google_avatar);
+        if (!response.ok) throw new Error('Failed to download Google avatar');
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const contentType = response.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+        const base64 = `data:${contentType};base64,${buffer.toString('base64')}`;
+
+        if (base64.length > 2800000) return res.status(400).json({ error: 'Image too large' });
+
+        const { getDb } = require('../db');
+        getDb().run('UPDATE users SET avatar = ? WHERE id = ?', [base64, req.session.userId]);
+        saveDatabase();
+
+        res.json({ success: true, avatar: base64 });
+    } catch (error) {
+        console.error('Google avatar error:', error);
+        res.status(500).json({ error: 'Failed to set Google avatar' });
+    }
+});
+
 // ==================== TELEGRAM INTEGRATION ====================
 
 router.get('/api/telegram/status', requireAuth, async (req, res) => {
