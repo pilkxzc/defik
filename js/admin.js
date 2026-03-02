@@ -3015,25 +3015,19 @@ async function loadBackupHistory() {
     }
 }
 
-// Handle URL params for backup tab
-(function() {
+// Initialize on DOM load
+document.addEventListener('DOMContentLoaded', async function() {
+    await initAdminPanel();
+
+    // Handle URL params for backup tab
     const params = new URLSearchParams(window.location.search);
     if (params.get('tab') === 'backup') {
-        // Will be handled after init
-        const origInit = initAdminPanel;
-        initAdminPanel = async function() {
-            await origInit();
-            switchTab('backup');
-            if (params.get('drive') === 'connected') {
-                showToast('success', 'Підключено', 'Google Drive підключено успішно!');
-            } else if (params.get('drive') === 'error') {
-                showToast('error', 'Помилка', 'Не вдалося підключити Google Drive');
-            }
-            // Clean URL
-            window.history.replaceState({}, '', '/admin');
-        };
+        switchTab('backup');
+        if (params.get('drive') === 'connected') {
+            showToast('success', 'Підключено', 'Google Drive підключено успішно!');
+        } else if (params.get('drive') === 'error') {
+            showToast('error', 'Помилка', 'Не вдалося підключити Google Drive');
+        }
+        window.history.replaceState({}, '', '/admin');
     }
-})();
-
-// Initialize on DOM load
-document.addEventListener('DOMContentLoaded', initAdminPanel);
+});
