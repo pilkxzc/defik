@@ -60,135 +60,11 @@
         }
         .btn-create:hover { opacity: 0.9; transform: translateY(-1px); }
 
-        .bots-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-            gap: var(--gap-md);
-        }
-
-        .bot-card {
-            background: var(--surface);
-            border-radius: var(--radius-xl);
-            padding: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .bots-accordion {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 8px;
         }
-
-        .bot-top-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .bot-info {
-            display: flex;
-            gap: 16px;
-            align-items: center;
-        }
-
-        .bot-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 14px;
-            background: var(--surface-secondary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .bot-name { font-size: 18px; font-weight: 700; }
-        .bot-type { font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
-
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #333;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider { background-color: var(--color-up); }
-        input:checked + .slider:before { transform: translateX(20px); }
-
-        .bot-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            background: var(--surface-secondary);
-            border-radius: var(--radius-md);
-            padding: 16px;
-        }
-
-        .stat-item { display: flex; flex-direction: column; gap: 4px; }
-        .stat-label { font-size: 11px; color: var(--text-tertiary); font-weight: 600; }
-        .stat-value { font-size: 16px; font-weight: 700; }
-        .stat-value.up { color: var(--color-up); }
-        .stat-value.down { color: var(--color-down); }
-
-        .bot-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: auto;
-        }
-
-        .config-link {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .config-link:hover { color: var(--text-primary); }
-        .bot-footer-links {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .clickable-item {
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .clickable-item:hover {
-            opacity: 0.8;
-        }
-
-        .status-badge {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: var(--radius-full);
-            text-transform: uppercase;
-        }
-        .status-active { background: rgba(16, 185, 129, 0.1); color: var(--color-up); }
-        .status-inactive { background: rgba(255, 255, 255, 0.05); color: var(--text-tertiary); }
 
         svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -386,13 +262,28 @@
                 align-items: flex-start;
                 gap: 12px;
             }
-            .bots-grid {
-                grid-template-columns: 1fr !important;
-                gap: 12px;
+            .bots-accordion {
+                gap: 6px !important;
             }
             .bot-card {
-                padding: 20px;
-                border-radius: 20px;
+                border-radius: 16px;
+                margin-bottom: 6px;
+            }
+            .bot-card-header {
+                padding: 12px 16px;
+            }
+            .bot-card-body {
+                padding: 0 16px 16px 16px;
+            }
+            .bot-card-details {
+                grid-template-columns: 1fr !important;
+            }
+            .bot-card-footer {
+                flex-direction: column;
+            }
+            .card-action-btn {
+                flex: 1;
+                width: 100%;
             }
             .page-title {
                 font-size: 22px;
@@ -431,162 +322,189 @@
             .modal-card { padding: 20px 16px !important; }
         }
 
-        /* ==================== TREE VIEW ==================== */
-        .bots-tree { display: flex; flex-direction: column; gap: 16px; }
-
-        .cat-section { --cc: #10B981; }
-
-        /* ── Category block — single rounded container ── */
-        .cat-block {
+        /* ==================== ACCORDION CARDS ==================== */
+        .bot-card {
             background: var(--surface);
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 18px;
-            overflow: hidden;
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-soft);
         }
 
-        /* Category header row — clickable */
-        .cat-header {
-            display: flex; align-items: center; gap: 10px;
-            padding: 14px 18px;
+        .bot-card.expanded {
+            box-shadow: var(--shadow-card);
+        }
+
+        .bot-card-header {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 16px;
+            align-items: center;
+            padding: 16px 24px;
             cursor: pointer;
             user-select: none;
-            background: rgba(255,255,255,0.02);
-            transition: background .12s;
-        }
-        .cat-header:hover { background: rgba(255,255,255,0.04); }
-        .cat-block.open .cat-header {
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            transition: background 0.2s ease;
+            min-height: 44px;
         }
 
-        /* Chevron */
-        .cat-chevron {
-            width: 16px; height: 16px; flex-shrink: 0;
-            color: var(--text-tertiary);
-            transition: transform .2s ease;
-        }
-        .cat-block.open .cat-chevron { transform: rotate(180deg); }
-
-        /* Collapsible body */
-        .cat-body {
-            display: none;
-        }
-        .cat-block.open .cat-body {
-            display: block;
-        }
-        .cat-accent-bar {
-            width: 3px; height: 18px; border-radius: 2px;
-            background: var(--cc); flex-shrink: 0;
-        }
-        .cat-icon-wrap {
-            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
-            background: color-mix(in srgb, var(--cc) 13%, transparent);
-            border: 1px solid color-mix(in srgb, var(--cc) 24%, transparent);
-            display: flex; align-items: center; justify-content: center;
-        }
-        .cat-icon-wrap svg { stroke: var(--cc); }
-        .cat-name {
-            font-size: 12px; font-weight: 800; color: #fff;
-            text-transform: uppercase; letter-spacing: 0.8px; flex: 1;
-        }
-        .cat-badge {
-            font-size: 10px; font-weight: 700;
-            color: var(--text-tertiary);
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
-            padding: 2px 9px; border-radius: 20px;
+        .bot-card-header:hover {
+            background: rgba(255, 255, 255, 0.02);
         }
 
-        /* Bot rows */
-        .cat-empty {
-            font-size: 12px; color: var(--text-tertiary);
-            padding: 20px 18px; text-align: center;
-        }
-        .bot-row {
-            display: grid;
-            grid-template-columns: 10px 1fr auto auto auto;
+        .bot-card-header-left {
+            display: flex;
+            gap: 12px;
             align-items: center;
-            gap: 16px;
-            padding: 13px 18px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            transition: background .12s;
-            text-decoration: none;
-            cursor: default;
-        }
-        .bot-row:last-child { border-bottom: none; }
-        .bot-row:hover { background: rgba(255,255,255,0.025); }
-
-        /* Col 1 — status line */
-        .br-indicator {
-            width: 3px; height: 32px; border-radius: 2px; flex-shrink: 0;
-            background: #2a2a2a;
-        }
-        .br-indicator.on { background: #10B981; box-shadow: 0 0 6px rgba(16,185,129,.4); }
-
-        /* Col 2 — name + tickers */
-        .br-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-        .br-top  { display: flex; align-items: center; gap: 8px; }
-        .br-name { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .br-mode {
-            font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
-            padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
-            background: rgba(255,255,255,.05); color: var(--text-tertiary);
-        }
-        .br-mode.live { background: rgba(16,185,129,.12); color: #10B981; }
-        .br-tickers { display: flex; flex-wrap: wrap; gap: 3px; }
-        .ticker-chip {
-            font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
-            background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
-            color: var(--text-tertiary); font-family: monospace; letter-spacing: 0.3px;
+            min-width: 0;
         }
 
-        /* Col 3–4 — stats, Col 5 — actions */
-        .br-pnl { text-align: right; }
-        .br-pnl-val { font-size: 14px; font-weight: 800; }
-        .br-pnl-val.up   { color: #10B981; }
-        .br-pnl-val.down { color: #EF4444; }
-        .br-pnl-val.neutral { color: var(--text-secondary); }
-        .br-pnl-lbl { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+        .bot-card-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
 
-        /* Col 4 — Win Rate */
-        .br-win { text-align: right; }
-        .br-win-val { font-size: 14px; font-weight: 800; color: var(--text-secondary); }
-        .br-win-lbl { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+        .bot-card-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-        /* Col 5 — Buttons */
-        .br-actions { display: flex; gap: 6px; }
-        .br-btn {
-            display: flex; align-items: center; justify-content: center; gap: 5px;
-            padding: 7px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;
-            text-decoration: none; white-space: nowrap;
-            background: rgba(255,255,255,.05);
-            border: 1px solid rgba(255,255,255,.08);
+        .bot-card-meta {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .bot-card-metric {
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+            text-align: right;
+            min-width: 80px;
+        }
+
+        .bot-card-metric.up {
+            color: var(--color-up);
+        }
+
+        .bot-card-metric.down {
+            color: var(--color-down);
+        }
+
+        .bot-card-metric.neutral {
             color: var(--text-secondary);
-            transition: all .13s;
         }
-        .br-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
-        .br-btn.admin {
-            background: color-mix(in srgb, var(--cc) 10%, transparent);
-            border-color: color-mix(in srgb, var(--cc) 28%, transparent);
-            color: var(--cc);
-        }
-        .br-btn.admin:hover { background: color-mix(in srgb, var(--cc) 18%, transparent); color: #fff; }
-        .br-btn.dash {
-            background: rgba(140,168,255,.08);
-            border-color: rgba(140,168,255,.2);
-            color: #8CA8FF;
-        }
-        .br-btn.dash:hover { background: rgba(140,168,255,.16); color: #fff; }
 
-        @media (max-width: 768px) {
-            .bot-row { grid-template-columns: 10px 1fr auto auto; }
-            .br-win  { display: none; }
+        .bot-card-toggle {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transform: rotate(0deg);
+            transition: transform 0.3s ease;
+            color: var(--text-secondary);
         }
-        @media (max-width: 540px) {
-            .bot-row { grid-template-columns: 10px 1fr auto; gap: 10px; padding: 11px 14px; }
-            .br-pnl  { display: none; }
-            .br-btn  { font-size: 10px; padding: 7px 8px; }
-            .br-btn.dash { display: none; }
+
+        .bot-card.expanded .bot-card-toggle {
+            transform: rotate(180deg);
         }
+
+        .bot-card-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .bot-card.expanded .bot-card-content {
+            max-height: 600px;
+        }
+
+        .bot-card-body {
+            padding: 0 24px 24px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .bot-card-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .bot-card-footer {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .card-action-btn {
+            padding: 10px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .card-action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .card-action-btn.primary {
+            background: color-mix(in srgb, var(--color-up) 10%, transparent);
+            border-color: color-mix(in srgb, var(--color-up) 28%, transparent);
+            color: var(--color-up);
+        }
+
+        .card-action-btn.primary:hover {
+            background: color-mix(in srgb, var(--color-up) 18%, transparent);
+            color: white;
+        }
+
     </style>
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
@@ -652,7 +570,7 @@
                 </button>
             </div>
 
-            <div class="bots-tree" id="botsTree">
+            <div class="bots-accordion" id="botsTree">
                 <div style="text-align:center; padding:60px 20px; color:var(--text-tertiary);">
                     <div class="spinner" style="margin:0 auto 16px;"></div>
                     Завантаження ботів...
@@ -1236,36 +1154,33 @@
                 const user = authRes.ok ? await authRes.json() : null;
                 _isAdmin = user?.role === 'admin' || user?.role === 'moderator';
 
-                const html = tree.map((cat, idx) => {
-                    const bots    = cat.bots || [];
-                    const openCls = idx === 0 ? ' open' : '';   // first category open by default
-                    return `
-                        <div class="cat-section cat-block${openCls}" style="--cc:${cat.color}" onclick="toggleCat(this)">
-                            <div class="cat-header">
-                                <div class="cat-accent-bar"></div>
-                                <div class="cat-icon-wrap">${getCatIcon(cat.icon)}</div>
-                                <span class="cat-name">${cat.name}</span>
-                                <span class="cat-badge">${bots.length}</span>
-                                <svg class="cat-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <polyline points="6 9 12 15 18 9"/>
-                                </svg>
-                            </div>
-                            <div class="cat-body">
-                                ${bots.length === 0
-                                    ? '<div class="cat-empty">Немає ботів у цій категорії</div>'
-                                    : bots.map(b => renderBotRow(b)).join('')}
-                            </div>
-                        </div>`;
-                }).join('');
-                document.getElementById('botsTree').innerHTML = html ||
-                    '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає категорій</div>';
+                // Flatten all bots from categories into a single list
+                const allBots = [];
+                tree.forEach(cat => {
+                    if (cat.bots && Array.isArray(cat.bots)) {
+                        allBots.push(...cat.bots);
+                    }
+                });
+
+                if (allBots.length === 0) {
+                    document.getElementById('botsTree').innerHTML =
+                        '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає ботів</div>';
+                    return;
+                }
+
+                // Render flat accordion list of bot cards
+                const html = allBots.map(b => renderBotAccordionCard(b)).join('');
+                document.getElementById('botsTree').innerHTML = html;
+
+                // Attach event listeners for accordion toggle
+                attachAccordionListeners();
             } catch (err) {
                 document.getElementById('botsTree').innerHTML =
                     '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Не вдалося завантажити ботів</div>';
             }
         }
 
-        function renderBotRow(b) {
+        function renderBotAccordionCard(b) {
             const pnl       = b.profit || 0;
             const pnlClass  = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
             const pnlStr    = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
@@ -1279,35 +1194,146 @@
                 : `<span class="ticker-chip" style="opacity:.3">—</span>`;
 
             const mainHref  = _isAdmin ? `/bot/${b.id}` : `/bot-stats/${b.id}`;
-            const mainClass = _isAdmin ? 'br-btn admin' : 'br-btn';
             const mainSvg   = _isAdmin
                 ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>`
                 : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
             const mainText  = _isAdmin ? 'Деталі' : 'Статистика';
+            const statusBadge = b.is_active
+                ? '<span class="status-badge status-active">АКТИВНИЙ</span>'
+                : '<span class="status-badge status-inactive">НЕАКТИВНИЙ</span>';
 
             return `
-                <div class="bot-row">
-                    <div class="br-indicator ${b.is_active ? 'on' : ''}"></div>
-                    <div class="br-info">
-                        <div class="br-top">
-                            <span class="br-name">${b.name}</span>
-                            <span class="br-mode ${isLive ? 'live' : ''}">${modeLabel}</span>
+                <div class="bot-card" data-bot-id="${b.id}">
+                    <div class="bot-card-header">
+                        <div class="bot-card-header-left">
+                            <div class="bot-card-title">
+                                <div class="bot-card-name">${b.name}</div>
+                                <div class="bot-card-meta">${modeLabel}</div>
+                            </div>
                         </div>
-                        <div class="br-tickers">${tickers}</div>
+                        <div class="bot-card-metric ${pnlClass}">${pnlStr}</div>
+                        <svg class="bot-card-toggle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
                     </div>
-                    <div class="br-pnl">
-                        <div class="br-pnl-lbl">PnL</div>
-                        <div class="br-pnl-val ${pnlClass}">${pnlStr}</div>
-                    </div>
-                    <div class="br-win">
-                        <div class="br-win-lbl">Win</div>
-                        <div class="br-win-val">${win}</div>
-                    </div>
-                    <div class="br-actions">
-                        ${_isAdmin ? `<a class="br-btn dash" href="/bot-stats/${b.id}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></a>` : ''}
-                        <a class="${mainClass}" href="${mainHref}">${mainSvg} ${mainText}</a>
+                    <div class="bot-card-content">
+                        <div class="bot-card-body">
+                            <div class="bot-card-details">
+                                <div class="detail-item">
+                                    <div class="detail-label">Торгові пари</div>
+                                    <div class="detail-value">${b.symbol || '—'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Інвестиція</div>
+                                    <div class="detail-value">$${(b.investment || 0).toFixed(2)}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Прибуток</div>
+                                    <div class="detail-value">${pnlStr}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Режим</div>
+                                    <div class="detail-value">${modeLabel}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Тип</div>
+                                    <div class="detail-value">${b.type || '—'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Акаунт</div>
+                                    <div class="detail-value">${b.account_type || '—'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Статус</div>
+                                    <div class="detail-value">${b.is_active ? 'Активний' : 'Неактивний'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Win Rate</div>
+                                    <div class="detail-value">${win}</div>
+                                </div>
+                            </div>
+                            <div class="bot-card-footer">
+                                <a class="card-action-btn" href="/bot/${b.id}" onclick="event.stopPropagation();">Редагувати</a>
+                                <button class="card-action-btn" onclick="if(confirm('Видалити бота?')) { deleteBot(${b.id}); event.stopPropagation(); }">Видалити</button>
+                                <a class="card-action-btn" href="${mainHref}" onclick="event.stopPropagation();">${mainText}</a>
+                                <button class="card-action-btn" onclick="cloneBot(${b.id}); event.stopPropagation();">Дублювати</button>
+                                <button class="card-action-btn" onclick="toggleBotActive(${b.id}, ${b.is_active ? 'false' : 'true'}); event.stopPropagation();" style="${b.is_active ? 'border-color: rgba(239,68,68,.2); background: rgba(239,68,68,.08); color: #EF4444;' : 'border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.08); color: #10B981;'}">${b.is_active ? 'Деактивувати' : 'Активувати'}</button>
+                                ${_isAdmin ? `<a class="card-action-btn" href="/bot-stats/${b.id}" onclick="event.stopPropagation();" style="border-color: rgba(140,168,255,.2); background: rgba(140,168,255,.08); color: #8CA8FF;">Дашборд</a>` : ''}
+                            </div>
+                        </div>
                     </div>
                 </div>`;
+        }
+
+        function attachAccordionListeners() {
+            const botsAccordion = document.querySelector('.bots-accordion');
+            if (!botsAccordion) return;
+
+            botsAccordion.addEventListener('click', function(e) {
+                const header = e.target.closest('.bot-card-header');
+                if (!header) return;
+
+                const card = header.closest('.bot-card');
+                if (!card) return;
+
+                card.classList.toggle('expanded');
+                e.stopPropagation();
+            });
+        }
+
+        async function deleteBot(botId) {
+            try {
+                const response = await fetch(`/api/bots/${botId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const card = document.querySelector(`[data-bot-id="${botId}"]`);
+                    if (card) card.remove();
+                    loadBotsTree();
+                } else {
+                    alert('Помилка при видаленні бота');
+                }
+            } catch (error) {
+                console.error('Error deleting bot:', error);
+                alert('Помилка при видаленні бота');
+            }
+        }
+
+        async function cloneBot(botId) {
+            try {
+                const response = await fetch(`/api/bots/${botId}/clone`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    loadBotsTree();
+                } else {
+                    alert('Помилка при дублюванні бота');
+                }
+            } catch (error) {
+                console.error('Error cloning bot:', error);
+                alert('Помилка при дублюванні бота');
+            }
+        }
+
+        async function toggleBotActive(botId, isActive) {
+            try {
+                const response = await fetch(`/api/bots/${botId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                if (response.ok) {
+                    loadBotsTree();
+                } else {
+                    alert('Помилка при оновленні статусу бота');
+                }
+            } catch (error) {
+                console.error('Error toggling bot active status:', error);
+                alert('Помилка при оновленні статусу бота');
+            }
         }
 
         // Add click handlers
