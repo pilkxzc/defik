@@ -295,6 +295,101 @@ router.get('/api/admin/analytics/retention', requireAuth, requireRole('admin', '
     }
 });
 
+router.get('/api/admin/analytics/system/health', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+
+        // Database statistics
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+        const totalBots = dbGet('SELECT COUNT(*) as count FROM bots');
+        const totalTransactions = dbGet('SELECT COUNT(*) as count FROM transactions');
+        const totalTrades = dbGet('SELECT COUNT(*) as count FROM bot_trades');
+
+        // Database size
+        let databaseSize = 0;
+        try {
+            const dbPath = path.join(__dirname, '../database.sqlite');
+            const stats = fs.statSync(dbPath);
+            databaseSize = stats.size;
+        } catch (err) {
+            // Database file might not exist or be in a different location
+        }
+
+        // Session count
+        let activeSessions = 0;
+        try {
+            const sessionsPath = path.join(__dirname, '../sessions.json');
+            if (fs.existsSync(sessionsPath)) {
+                const sessionsData = JSON.parse(fs.readFileSync(sessionsPath, 'utf8'));
+                activeSessions = Object.keys(sessionsData).length;
+            }
+        } catch (err) {
+            // Sessions file might not exist
+        }
+
+        // Recent activity (last hour)
+        const oneHourAgo = getLocalTimeDaysAgo(1 / 24);
+        const recentLogins = dbGet('SELECT COUNT(*) as count FROM users WHERE last_login > ?', [oneHourAgo]);
+        const recentTransactions = dbGet('SELECT COUNT(*) as count FROM transactions WHERE created_at > ?', [oneHourAgo]);
+        const recentTrades = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE created_at > ?', [oneHourAgo]);
+
+        // Active bots
+        const activeBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE is_active = 1');
+
+        // System uptime (process uptime in seconds)
+        const uptime = process.uptime();
+
+        res.json({
+            database: {
+                totalRecords: {
+                    users: totalUsers?.count || 0,
+                    bots: totalBots?.count || 0,
+                    transactions: totalTransactions?.count || 0,
+                    trades: totalTrades?.count || 0
+                },
+                sizeBytes: databaseSize,
+                sizeMB: (databaseSize / (1024 * 1024)).toFixed(2)
+            },
+            sessions: {
+                active: activeSessions
+            },
+            activity: {
+                lastHour: {
+                    logins: recentLogins?.count || 0,
+                    transactions: recentTransactions?.count || 0,
+                    trades: recentTrades?.count || 0
+                },
+                activeBots: activeBots?.count || 0
+            },
+            system: {
+                uptimeSeconds: Math.floor(uptime),
+                uptimeFormatted: formatUptime(uptime)
+            },
+            status: 'healthy',
+            timestamp: getLocalTime()
+        });
+    } catch (error) {
+        console.error('System health analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch system health metrics' });
+    }
+});
+
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+
+    return parts.join(' ');
+}
+
 // ==================== MAINTENANCE ====================
 
 router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
