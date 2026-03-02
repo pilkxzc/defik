@@ -122,7 +122,7 @@
             padding: 6px;
             border-radius: var(--radius-md);
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             margin-bottom: 40px;
         }
 
@@ -395,6 +395,7 @@
             <div class="tab-switcher">
                 <div class="tab-btn active" id="tabLogin">Увійти</div>
                 <div class="tab-btn" id="tabRegister">Реєстрація</div>
+                <div class="tab-btn" id="tabCode">Вхід з кодом</div>
             </div>
 
             <form class="form-container" id="authForm">
@@ -435,6 +436,27 @@
                 <div class="form-group" id="phoneGroup" style="display: none;">
                     <label class="form-label">Телефон (необов'язково)</label>
                     <input type="tel" class="form-input" placeholder="+380 XX XXX XX XX" id="phone">
+                </div>
+
+                <!-- Code Login Form (hidden by default) -->
+                <div id="codeLoginGroup" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Email адреса</label>
+                        <input type="email" class="form-input" placeholder="name@email.com" id="codeEmail" required>
+                    </div>
+                    <button type="button" class="btn-submit" id="codeRequestBtn" style="margin-bottom: 12px;">Надіслати код</button>
+                    <div id="codeRequestSuccess" style="color: #10B981; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
+                    <div id="codeRequestError" style="color: #EF4444; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
+
+                    <div class="form-group" id="codeInputGroup" style="display: none;">
+                        <label class="form-label">Код з Telegram</label>
+                        <input type="text" class="form-input" placeholder="Введіть 6-значний код" id="codeInput" maxlength="6" style="text-align: center; letter-spacing: 4px; font-size: 18px; font-weight: 700;" required>
+                        <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 8px; text-align: center;">
+                            Введіть код, який ви отримали у Telegram
+                        </div>
+                    </div>
+                    <button type="button" class="btn-submit" id="codeVerifyBtn" style="display: none; margin-bottom: 12px;">Перевірити код</button>
+                    <div id="codeVerifyError" style="color: #EF4444; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
                 </div>
 
                 <button type="submit" class="btn-submit" id="authSubmit">Увійти</button>
