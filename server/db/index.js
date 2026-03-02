@@ -403,6 +403,18 @@ async function initDatabase() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS login_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE,
+            code TEXT NOT NULL UNIQUE,
+            expires_at INTEGER NOT NULL,
+            used_at INTEGER,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    `);
+
     const defaultPermissions = [
         ['users.view', 'View users list'],
         ['users.edit', 'Edit user details'],
