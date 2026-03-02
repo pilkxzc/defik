@@ -120,6 +120,46 @@ router.get('/api/admin/analytics/bots/funnel', requireAuth, requireRole('admin',
     }
 });
 
+router.get('/api/admin/analytics/subscriptions/funnel', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        // Total users (top of funnel)
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+
+        // Users with free plan
+        const freeUsers = dbGet("SELECT COUNT(*) as count FROM users WHERE subscription_plan IS NULL OR subscription_plan = 'free'");
+
+        // Users with paid plans
+        const paidUsers = dbGet("SELECT COUNT(*) as count FROM users WHERE subscription_plan IS NOT NULL AND subscription_plan != 'free'");
+
+        // Breakdown by plan type
+        const planBreakdown = dbAll(`
+            SELECT subscription_plan, COUNT(*) as count
+            FROM users
+            WHERE subscription_plan IS NOT NULL
+            GROUP BY subscription_plan
+            ORDER BY count DESC
+        `);
+
+        const total = totalUsers?.count || 0;
+        const free = freeUsers?.count || 0;
+        const paid = paidUsers?.count || 0;
+
+        res.json({
+            totalUsers: total,
+            freeUsers: free,
+            paidUsers: paid,
+            conversionToPaid: total > 0 ? Math.round((paid / total) * 100) : 0,
+            planBreakdown: planBreakdown.map(p => ({
+                plan: p.subscription_plan,
+                count: p.count
+            }))
+        });
+    } catch (error) {
+        console.error('Subscription funnel analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch subscription funnel analytics' });
+    }
+});
+
 // ==================== MAINTENANCE ====================
 
 router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
