@@ -759,11 +759,17 @@ function verifyTelegramAuth(data, botToken) {
 
     const secretKey = crypto.createHash('sha256').update(botToken).digest();
     const checkString = Object.keys(rest)
+        .filter(k => rest[k] !== undefined && rest[k] !== null && rest[k] !== '')
         .sort()
         .map(k => `${k}=${rest[k]}`)
         .join('\n');
     const hmac = crypto.createHmac('sha256', secretKey).update(checkString).digest('hex');
-    return hmac === hash;
+
+    // Use timing-safe comparison to prevent timing attacks
+    const hashBuf = Buffer.from(hash, 'hex');
+    const hmacBuf = Buffer.from(hmac, 'hex');
+    if (hashBuf.length !== hmacBuf.length) return false;
+    return crypto.timingSafeEqual(hashBuf, hmacBuf);
 }
 
 router.post('/api/auth/telegram', (req, res) => {
