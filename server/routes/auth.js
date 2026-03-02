@@ -894,4 +894,96 @@ router.post('/api/auth/telegram-login-request', async (req, res) => {
     }
 });
 
+router.post('/api/auth/telegram-login-verify', async (req, res) => {
+    try {
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({ error: 'Code is required' });
+        }
+
+        // Find the login code
+        const loginCode = dbGet(
+            'SELECT lc.id, lc.user_id, lc.expires_at, lc.used_at FROM login_codes lc WHERE lc.code = ?',
+            [code.toString()]
+        );
+
+        if (!loginCode) {
+            return res.status(400).json({ error: 'Invalid code' });
+        }
+
+        // Check if code is already used
+        if (loginCode.used_at !== null) {
+            return res.status(400).json({ error: 'Code already used' });
+        }
+
+        // Check if code is expired (current Unix timestamp > expires_at)
+        const nowUnix = Math.floor(Date.now() / 1000);
+        if (nowUnix > loginCode.expires_at) {
+            return res.status(400).json({ error: 'Code expired, please request a new one' });
+        }
+
+        // Get user information
+        const user = dbGet(
+            'SELECT id, email, full_name, demo_balance, real_balance, active_account, is_verified, verification_level FROM users WHERE id = ?',
+            [loginCode.user_id]
+        );
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (user.is_banned) {
+            return res.status(403).json({ error: 'Account banned', reason: user.ban_reason || 'Your account has been banned', banned: true });
+        }
+
+        // Mark code as used (current Unix timestamp)
+        dbRun(
+            'UPDATE login_codes SET used_at = ? WHERE id = ?',
+            [nowUnix, loginCode.id]
+        );
+
+        // Update last login
+        dbRun('UPDATE users SET last_login = ? WHERE id = ?', [getLocalTime(), user.id]);
+
+        // Log activity
+        const clientIP = getClientIP(req);
+        dbRun(
+            'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
+            [user.id, 'Telegram Code Login', 'User logged in via Telegram code', clientIP]
+        );
+
+        // Create notification
+        createNotification(user.id, 'login', 'New account login', `Telegram code login from IP: ${clientIP}`);
+
+        // Create session
+        req.session.userId = user.id;
+        req.session.betaAccess = true;
+
+        req.session.save((err) => {
+            if (err) {
+                console.error('Session save error:', err);
+                return res.status(500).json({ error: 'Session error' });
+            }
+            res.json({
+                success: true,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    fullName: user.full_name,
+                    balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
+                    demoBalance: user.demo_balance || 0,
+                    realBalance: user.real_balance || 0,
+                    activeAccount: user.active_account || 'demo',
+                    isVerified: user.is_verified,
+                    verificationLevel: user.verification_level
+                }
+            });
+        });
+    } catch (error) {
+        console.error('Telegram login verify error:', error);
+        res.status(500).json({ error: 'Verification failed' });
+    }
+});
+
 module.exports = router;
