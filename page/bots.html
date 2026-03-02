@@ -1533,8 +1533,12 @@
                                 </div>
                             </div>
                             <div class="bot-card-footer">
-                                ${_isAdmin ? `<a class="card-action-btn" href="/bot-stats/${b.id}" style="border-color: rgba(140,168,255,.2); background: rgba(140,168,255,.08); color: #8CA8FF;">Дашборд</a>` : ''}
-                                <a class="card-action-btn primary" href="${mainHref}">${mainText}</a>
+                                <a class="card-action-btn" href="/bot/${b.id}" onclick="event.stopPropagation();">Редагувати</a>
+                                <button class="card-action-btn" onclick="if(confirm('Видалити бота?')) { deleteBot(${b.id}); event.stopPropagation(); }">Видалити</button>
+                                <a class="card-action-btn" href="${mainHref}" onclick="event.stopPropagation();">${mainText}</a>
+                                <button class="card-action-btn" onclick="cloneBot(${b.id}); event.stopPropagation();">Дублювати</button>
+                                <button class="card-action-btn" onclick="toggleBotActive(${b.id}, ${b.is_active ? 'false' : 'true'}); event.stopPropagation();" style="${b.is_active ? 'border-color: rgba(239,68,68,.2); background: rgba(239,68,68,.08); color: #EF4444;' : 'border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.08); color: #10B981;'}">${b.is_active ? 'Деактивувати' : 'Активувати'}</button>
+                                ${_isAdmin ? `<a class="card-action-btn" href="/bot-stats/${b.id}" onclick="event.stopPropagation();" style="border-color: rgba(140,168,255,.2); background: rgba(140,168,255,.08); color: #8CA8FF;">Дашборд</a>` : ''}
                             </div>
                         </div>
                     </div>
@@ -1555,6 +1559,61 @@
                 card.classList.toggle('expanded');
                 e.stopPropagation();
             });
+        }
+
+        async function deleteBot(botId) {
+            try {
+                const response = await fetch(`/api/bots/${botId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const card = document.querySelector(`[data-bot-id="${botId}"]`);
+                    if (card) card.remove();
+                    loadBotsTree();
+                } else {
+                    alert('Помилка при видаленні бота');
+                }
+            } catch (error) {
+                console.error('Error deleting bot:', error);
+                alert('Помилка при видаленні бота');
+            }
+        }
+
+        async function cloneBot(botId) {
+            try {
+                const response = await fetch(`/api/bots/${botId}/clone`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    loadBotsTree();
+                } else {
+                    alert('Помилка при дублюванні бота');
+                }
+            } catch (error) {
+                console.error('Error cloning bot:', error);
+                alert('Помилка при дублюванні бота');
+            }
+        }
+
+        async function toggleBotActive(botId, isActive) {
+            try {
+                const response = await fetch(`/api/bots/${botId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                if (response.ok) {
+                    loadBotsTree();
+                } else {
+                    alert('Помилка при оновленні статусу бота');
+                }
+            } catch (error) {
+                console.error('Error toggling bot active status:', error);
+                alert('Помилка при оновленні статусу бота');
+            }
         }
 
         // Add click handlers
