@@ -932,6 +932,11 @@
             // Track if 2FA is required
             let requires2FA = false;
 
+            // Safe element helpers
+            function setDisplay(id, val) { var el = document.getElementById(id); if (el) el.style.display = val; }
+            function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
+            function setProp(id, prop, val) { var el = document.getElementById(id); if (el) el[prop] = val; }
+
             // Tab switching
             tabLogin.addEventListener('click', function() {
                 isLoginMode = true;
@@ -940,15 +945,15 @@
                 tabRegister.classList.remove('active');
                 fullNameGroup.style.display = 'none';
                 phoneGroup.style.display = 'none';
-                document.getElementById('totpGroup').style.display = 'none';
-                document.getElementById('totpCode').value = '';
+                setDisplay('totpGroup', 'none');
+                setVal('totpCode', '');
                 // Show login-specific elements
-                document.getElementById('passkeyLoginBtn').style.display = 'flex';
-                document.getElementById('loginDivider').style.display = 'block';
-                document.getElementById('telegramLoginBtn').style.display = 'flex';
-                document.getElementById('telegramDivider').style.display = 'flex';
-                document.getElementById('telegramRegForm').style.display = 'none';
-                document.getElementById('authForm').style.display = 'block';
+                setDisplay('passkeyLoginBtn', 'flex');
+                setDisplay('loginDivider', 'block');
+                setDisplay('telegramLoginBtn', 'flex');
+                setDisplay('telegramDivider', 'flex');
+                setDisplay('telegramRegForm', 'none');
+                setDisplay('authForm', 'block');
                 authSubmit.textContent = 'Увійти';
                 authError.style.display = 'none';
             });
@@ -960,15 +965,15 @@
                 tabLogin.classList.remove('active');
                 fullNameGroup.style.display = 'block';
                 phoneGroup.style.display = 'block';
-                document.getElementById('totpGroup').style.display = 'none';
-                document.getElementById('fullName').required = true;
+                setDisplay('totpGroup', 'none');
+                setProp('fullName', 'required', true);
                 // Hide login-specific elements
-                document.getElementById('passkeyLoginBtn').style.display = 'none';
-                document.getElementById('loginDivider').style.display = 'none';
-                document.getElementById('telegramLoginBtn').style.display = 'flex';
-                document.getElementById('telegramDivider').style.display = 'flex';
-                document.getElementById('telegramRegForm').style.display = 'none';
-                document.getElementById('authForm').style.display = 'block';
+                setDisplay('passkeyLoginBtn', 'none');
+                setDisplay('loginDivider', 'none');
+                setDisplay('telegramLoginBtn', 'flex');
+                setDisplay('telegramDivider', 'flex');
+                setDisplay('telegramRegForm', 'none');
+                setDisplay('authForm', 'block');
                 authSubmit.textContent = 'Sign Up';
                 authError.style.display = 'none';
             });
@@ -979,22 +984,22 @@
                 tabCode.classList.add('active');
                 tabLogin.classList.remove('active');
                 tabRegister.classList.remove('active');
-                document.getElementById('authForm').style.display = 'none';
-                document.getElementById('passkeyLoginBtn').style.display = 'none';
-                document.getElementById('loginDivider').style.display = 'none';
-                document.getElementById('telegramLoginBtn').style.display = 'none';
-                document.getElementById('telegramDivider').style.display = 'none';
-                document.getElementById('telegramRegForm').style.display = 'none';
-                document.getElementById('codeLoginGroup').style.display = 'block';
+                setDisplay('authForm', 'none');
+                setDisplay('passkeyLoginBtn', 'none');
+                setDisplay('loginDivider', 'none');
+                setDisplay('telegramLoginBtn', 'none');
+                setDisplay('telegramDivider', 'none');
+                setDisplay('telegramRegForm', 'none');
+                setDisplay('codeLoginGroup', 'block');
                 authError.style.display = 'none';
                 // Reset code login form
-                document.getElementById('codeEmail').value = '';
-                document.getElementById('codeInput').value = '';
-                document.getElementById('codeInputGroup').style.display = 'none';
-                document.getElementById('codeVerifyBtn').style.display = 'none';
-                document.getElementById('codeRequestError').style.display = 'none';
-                document.getElementById('codeRequestSuccess').style.display = 'none';
-                document.getElementById('codeVerifyError').style.display = 'none';
+                setVal('codeEmail', '');
+                setVal('codeInput', '');
+                setDisplay('codeInputGroup', 'none');
+                setDisplay('codeVerifyBtn', 'none');
+                setDisplay('codeRequestError', 'none');
+                setDisplay('codeRequestSuccess', 'none');
+                setDisplay('codeVerifyError', 'none');
             });
 
             // Code login request button
