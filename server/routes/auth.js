@@ -291,7 +291,29 @@ router.post('/api/auth/forgot-password', async (req, res) => {
         const { email } = req.body;
         if (!email) return res.status(400).json({ error: 'Email is required' });
 
-        const user = dbGet('SELECT id, email FROM users WHERE email = ?', [email]);
+        const clientIP = getClientIP(req);
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Check if IP is locked due to too many reset requests
+        const locked = await isAccountLocked(clientIP);
+        if (locked) {
+            return res.status(429).json({
+                error: 'Забагато спроб відновлення пароля. Спробуйте через 15 хвилин.',
+                locked: true
+            });
+        }
+
+        // Get failed attempts for progressive delay
+        const failedCount = await getFailedAttempts(clientIP);
+
+        // Apply progressive delay to prevent enumeration
+        await getProgressiveDelay(failedCount);
+
+        const user = dbGet('SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
+
+        // Record attempt (by IP to prevent enumeration attacks)
+        await recordLoginAttempt(clientIP, clientIP, !!user);
+
         // Always return success to prevent email enumeration
         if (!user) return res.json({ success: true, message: 'If this email exists, a reset link has been sent' });
 
@@ -300,6 +322,9 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
         dbRun('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
             [user.id, token, expiresAt]);
+
+        dbRun('INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
+            [user.id, 'Password Reset Requested', 'Password reset email requested', clientIP]);
 
         // Try to send email
         try {
@@ -323,18 +348,44 @@ router.post('/api/auth/reset-password', async (req, res) => {
         if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
         if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
+        const clientIP = getClientIP(req);
+
+        // Check if IP is locked due to too many failed reset attempts
+        const locked = await isAccountLocked(clientIP);
+        if (locked) {
+            return res.status(429).json({
+                error: 'Забагато невдалих спроб. Спробуйте через 15 хвилин.',
+                locked: true
+            });
+        }
+
+        // Get failed attempts for progressive delay
+        const failedCount = await getFailedAttempts(clientIP);
+
         const resetToken = dbGet(
             'SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0 AND expires_at > datetime("now")',
             [token]
         );
-        if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
+
+        if (!resetToken) {
+            // Apply progressive delay before responding
+            await getProgressiveDelay(failedCount);
+
+            // Record failed attempt (by IP to prevent token brute-forcing)
+            await recordLoginAttempt(clientIP, clientIP, false);
+
+            return res.status(400).json({ error: 'Invalid or expired reset token' });
+        }
+
+        // Record successful attempt (clear previous failures)
+        await recordLoginAttempt(clientIP, clientIP, true);
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         dbRun('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, resetToken.user_id]);
         dbRun('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', [resetToken.id]);
 
         dbRun('INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-            [resetToken.user_id, 'Password Reset', 'Password was reset via email link', getClientIP(req)]);
+            [resetToken.user_id, 'Password Reset', 'Password was reset via email link', clientIP]);
 
         createNotification(resetToken.user_id, 'security', 'Password Changed', 'Your password was successfully reset');
 
