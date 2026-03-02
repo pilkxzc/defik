@@ -63,3 +63,68 @@
 - `getIo()` exported for use by other modules
 - **Note:** No authentication enforcement — unauthenticated sockets can connect (just won't join a user room)
 - **Note:** `priceInterval` is set but never cleared except implicitly on process exit — no `stopSocket()` function
+
+## server/middleware/session.js — Session Store & Middleware
+
+**Status:** Functional, has performance concerns
+
+- Custom `FileSessionStore` extends `express-session.Store`, backed by `server/sessions.json`
+- All sessions kept in-memory (`this.sessions` object) with file persistence
+- `load()` — reads sessions from disk on startup, runs `cleanExpired()` to purge stale sessions
+- `save()` — writes entire sessions object to disk synchronously via `fs.writeFileSync`
+- `get(sid, cb)` — checks in-memory first, falls back to re-reading file from disk (race condition recovery)
+- `set(sid, sess, cb)` — stores in memory + saves to disk immediately
+- `destroy(sid, cb)` — deletes from memory + saves to disk
+- `touch(sid, sess, cb)` — updates cookie expiry + saves to disk
+- `cleanExpired()` — iterates all sessions, deletes expired ones, saves if changed
+- `createSessionMiddleware()` — returns `express-session` configured with FileSessionStore
+- Cookie config: `secure: false`, `httpOnly: true`, `sameSite: 'lax'`, `maxAge: 7 days`
+- **Concern:** Session secret is hardcoded: `'yamato-secret-key-2024'` — should be an env var for production
+- **Concern:** `save()` writes entire file on every `set`, `destroy`, and `touch` — high I/O under concurrent requests
+- **Concern:** `get()` re-reads file from disk as fallback — could cause inconsistency in multi-process scenarios
+- **Concern:** `load()` silently swallows parse errors — same issue as config's `loadSettings`
+
+## server/middleware/auth.js — Authentication & Authorization
+
+**Status:** Functional, clean design
+
+- `requireAuth(req, res, next)` — checks `req.session.userId` exists, then verifies user is not banned via DB lookup
+  - Returns 401 if no session or user not found (destroys orphaned session)
+  - Returns 403 with `{ banned: true, reason }` if user is banned (destroys session)
+- `requireRole(...roles)` — middleware factory, checks user's DB role against allowed roles list
+  - Returns 403 "Access denied" if role doesn't match
+- `requirePermission(permissionName)` — middleware factory, checks granular permissions
+  - Admin role bypasses all permission checks
+  - Looks up `user_permissions` joined with `permissions` table for non-admins
+  - Returns 403 with specific missing permission name
+- **Note:** `requireRole` and `requirePermission` assume `req.session.userId` is already validated — should be chained after `requireAuth`
+- **Note:** `dbGet` is synchronous (sql.js) so no async/await needed — works correctly but unusual for Express middleware
+
+## server/middleware/beta.js — Beta Access Gate
+
+**Status:** Functional, complete
+
+- Hardcoded beta code: `'401483'` — stored in plaintext in source
+- `betaMiddleware(req, res, next)` — gate that checks `req.session.betaAccess`
+  - Skips check for static asset extensions (js, css, png, jpg, svg, woff2, etc.)
+  - Skips check for whitelisted path prefixes: `/beta`, `/logo.svg`, `/css/`, `/fonts/`, `/login`, `/register`, `/verify-email`, `/reset-password`, `/api/auth/login`, `/api/auth/register`, `/api/auth/logout`, `/api/auth/me`
+  - API calls get JSON 403 response; browser requests get full HTML beta gate page
+- `betaSubmit(req, res)` — POST handler for `/beta` form submission
+  - Validates code, sets `req.session.betaAccess = true` on success, redirects to `req.body.next` or `/`
+  - On failure, redirects to `/beta?error=1`
+- Beta gate page: self-contained HTML with inline CSS (~190 lines), styled card with code input
+- **Note:** Beta code is hardcoded in source — not configurable via settings or env var
+- **Note:** `betaSubmit` accepts `req.body.next` for redirect — potential open redirect if not validated (no validation present)
+
+## server/middleware/maintenance.js — Maintenance Mode
+
+**Status:** Functional, complete
+
+- `maintenanceMiddleware(req, res, next)` — checks `siteSettings.maintenanceMode` flag
+- Always allows through: `/api/auth/me`, `/api/admin/*` routes, and static asset extensions
+- Admin/moderator users bypass maintenance mode (checked via DB role lookup)
+- API requests get JSON 503 with `siteSettings.maintenanceMessage`
+- Browser requests get full HTML maintenance page with inline CSS (~60 lines)
+- Maintenance page includes dynamic message from `siteSettings.maintenanceMessage` via template literal
+- **Note:** `siteSettings.maintenanceMessage` is injected directly into HTML template literal — potential XSS if message contains HTML (admin-controlled, low risk)
+- **Note:** Maintenance page icon background uses `rgba(255, 59, 48, 0.1)` (red) which contradicts the brand guideline of green accent, though the SVG stroke is correctly `#10B981`
