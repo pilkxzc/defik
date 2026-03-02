@@ -32,7 +32,16 @@ async function createApp() {
 
     // Security headers
     app.use(helmet({
-        contentSecurityPolicy: false,
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'"],
+                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                fontSrc: ["'self'", "https://fonts.gstatic.com"],
+                connectSrc: ["'self'", "wss://stream.binance.com:*", "wss://fstream.binance.com", "https://api.binance.com", "https://fapi.binance.com"],
+                imgSrc: ["'self'", "data:"]
+            }
+        },
         crossOriginEmbedderPolicy: false
     }));
 

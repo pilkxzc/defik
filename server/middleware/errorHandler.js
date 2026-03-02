@@ -29,7 +29,18 @@ const errorHandler = (err, req, res, _next) => {
         response.stack = err.stack;
     }
 
-    res.status(statusCode).json(response);
+    // API routes get JSON, page routes get HTML
+    if (req.path.startsWith('/api/') || req.path.startsWith('/api')) {
+        res.status(statusCode).json(response);
+    } else {
+        const path = require('path');
+        const errorPage = path.join(__dirname, '..', '..', 'page', '500.html');
+        res.status(statusCode).sendFile(errorPage, (sendErr) => {
+            if (sendErr) {
+                res.status(statusCode).send('Internal Server Error');
+            }
+        });
+    }
 };
 
 const notFoundHandler = (req, res, _next) => {
