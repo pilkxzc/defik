@@ -257,13 +257,14 @@ function createNotificationPanel() {
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
             <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
+            <span class="nav-label">Сповіщення</span>
         `;
         notifBtn.onclick = toggleNotificationPanel;
 
-        // Insert before user avatar (last item)
-        const spacer = navSidebar.querySelector('.mt-auto');
-        if (spacer) {
-            spacer.before(notifBtn);
+        // Insert before profile link (last nav-item with margin-top:auto)
+        const profileLink = navSidebar.querySelector('[href="/profile"]') || navSidebar.querySelector('[style*="margin-top"]');
+        if (profileLink) {
+            profileLink.before(notifBtn);
         } else {
             navSidebar.appendChild(notifBtn);
         }
