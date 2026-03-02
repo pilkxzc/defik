@@ -1527,4 +1527,369 @@ router.delete('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), 
     }
 });
 
+// ==================== ANALYTICS ====================
+
+router.get('/api/admin/analytics/users', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        const newUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE created_at > ?', [cutoffDate]);
+
+        const dau = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM activity_log WHERE DATE(timestamp) = DATE("now", "localtime")');
+        const wau = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM activity_log WHERE timestamp > ?', [getLocalTimeDaysAgo(7)]);
+        const mau = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM activity_log WHERE timestamp > ?', [getLocalTimeDaysAgo(30)]);
+
+        const registrationTrends = dbAll(`
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM users
+            WHERE created_at > ?
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `, [cutoffDate]);
+
+        res.json({
+            summary: {
+                newUsers: newUsers?.count || 0,
+                dau: dau?.count || 0,
+                wau: wau?.count || 0,
+                mau: mau?.count || 0
+            },
+            registrationTrends: registrationTrends.map(row => ({
+                date: row.date,
+                count: row.count
+            }))
+        });
+    } catch (error) {
+        console.error('User analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch user analytics' });
+    }
+});
+
+router.get('/api/admin/analytics/bots/funnel', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+        const usersWithBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots');
+        const usersWithDemoBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots WHERE mode = "demo" AND is_active = 1');
+        const usersWithLiveBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots WHERE mode = "live" AND is_active = 1');
+
+        const totalBotsCount = dbGet('SELECT COUNT(*) as count FROM bots');
+        const configuredBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE binance_api_key IS NOT NULL AND binance_api_key != ""');
+        const demoActiveBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE mode = "demo" AND is_active = 1');
+        const liveActiveBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE mode = "live" AND is_active = 1');
+
+        const total = totalUsers?.count || 0;
+        const created = usersWithBots?.count || 0;
+        const configured = usersWithDemoBots?.count || usersWithLiveBots?.count || 0;
+        const demoActive = usersWithDemoBots?.count || 0;
+        const liveActive = usersWithLiveBots?.count || 0;
+
+        res.json({
+            stages: [
+                {
+                    name: 'Створено ботів',
+                    count: created,
+                    percentage: total > 0 ? ((created / total) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Налаштовано',
+                    count: configured,
+                    percentage: created > 0 ? ((configured / created) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Активні (Demo)',
+                    count: demoActive,
+                    percentage: configured > 0 ? ((demoActive / configured) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Активні (Live)',
+                    count: liveActive,
+                    percentage: demoActive > 0 ? ((liveActive / demoActive) * 100).toFixed(1) : '0.0'
+                }
+            ],
+            summary: {
+                totalUsers: total,
+                usersWithBots: created,
+                totalBots: totalBotsCount?.count || 0,
+                configuredBots: configuredBots?.count || 0,
+                demoActiveBots: demoActiveBots?.count || 0,
+                liveActiveBots: liveActiveBots?.count || 0,
+                overallConversion: total > 0 ? ((liveActive / total) * 100).toFixed(1) : '0.0'
+            }
+        });
+    } catch (error) {
+        console.error('Bot funnel analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch bot funnel analytics' });
+    }
+});
+
+router.get('/api/admin/analytics/subscriptions/funnel', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+        const freeUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "free" OR subscription_plan IS NULL');
+        const trialUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "trial"');
+        const proUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "pro"');
+        const enterpriseUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "enterprise"');
+
+        const total = totalUsers?.count || 0;
+        const free = freeUsers?.count || 0;
+        const trial = trialUsers?.count || 0;
+        const pro = proUsers?.count || 0;
+        const enterprise = enterpriseUsers?.count || 0;
+
+        const paidUsers = trial + pro + enterprise;
+
+        res.json({
+            stages: [
+                {
+                    name: 'Free',
+                    count: free,
+                    percentage: total > 0 ? ((free / total) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Trial',
+                    count: trial,
+                    percentage: total > 0 ? ((trial / total) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Pro',
+                    count: pro,
+                    percentage: trial > 0 ? ((pro / trial) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Enterprise',
+                    count: enterprise,
+                    percentage: pro > 0 ? ((enterprise / pro) * 100).toFixed(1) : '0.0'
+                }
+            ],
+            summary: {
+                totalUsers: total,
+                freeUsers: free,
+                trialUsers: trial,
+                proUsers: pro,
+                enterpriseUsers: enterprise,
+                paidUsers: paidUsers,
+                conversionRate: total > 0 ? ((paidUsers / total) * 100).toFixed(1) : '0.0'
+            }
+        });
+    } catch (error) {
+        console.error('Subscription funnel analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch subscription funnel analytics' });
+    }
+});
+
+// Trading Volume Analytics
+router.get('/api/admin/analytics/trading/volume', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        // Get total trades and volume
+        const totalTrades = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE opened_at > ?', [cutoffDate]);
+        const totalVolume = dbGet('SELECT SUM(quantity * price) as volume FROM bot_trades WHERE opened_at > ?', [cutoffDate]);
+
+        // Get demo vs live volume
+        const demoVolume = dbGet(`
+            SELECT SUM(bt.quantity * bt.price) as volume
+            FROM bot_trades bt
+            JOIN bots b ON bt.bot_id = b.id
+            WHERE bt.opened_at > ? AND (b.mode = 'test' OR b.mode = 'demo')
+        `, [cutoffDate]);
+
+        const liveVolume = dbGet(`
+            SELECT SUM(bt.quantity * bt.price) as volume
+            FROM bot_trades bt
+            JOIN bots b ON bt.bot_id = b.id
+            WHERE bt.opened_at > ? AND b.mode = 'live'
+        `, [cutoffDate]);
+
+        // Get daily volume trends with demo/live split
+        const volumeTrends = dbAll(`
+            SELECT
+                DATE(bt.opened_at) as date,
+                SUM(CASE WHEN b.mode = 'live' THEN bt.quantity * bt.price ELSE 0 END) as liveVolume,
+                SUM(CASE WHEN b.mode = 'test' OR b.mode = 'demo' THEN bt.quantity * bt.price ELSE 0 END) as demoVolume,
+                SUM(bt.quantity * bt.price) as totalVolume
+            FROM bot_trades bt
+            JOIN bots b ON bt.bot_id = b.id
+            WHERE bt.opened_at > ?
+            GROUP BY DATE(bt.opened_at)
+            ORDER BY date ASC
+        `, [cutoffDate]);
+
+        const avgTradeSize = totalTrades?.count > 0 ? (totalVolume?.volume || 0) / totalTrades.count : 0;
+
+        res.json({
+            summary: {
+                totalTrades: totalTrades?.count || 0,
+                totalVolume: totalVolume?.volume || 0,
+                demoVolume: demoVolume?.volume || 0,
+                liveVolume: liveVolume?.volume || 0,
+                avgTradeSize: avgTradeSize
+            },
+            volumeTrends: volumeTrends.map(row => ({
+                date: row.date,
+                liveVolume: row.liveVolume || 0,
+                demoVolume: row.demoVolume || 0,
+                totalVolume: row.totalVolume || 0
+            }))
+        });
+    } catch (error) {
+        console.error('Trading volume analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch trading volume analytics' });
+    }
+});
+
+// Retention Cohort Analytics
+router.get('/api/admin/analytics/retention', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const weeks = parseInt(req.query.weeks) || 12;
+
+        // Get all users with their registration and last login dates
+        const allUsers = dbAll(`
+            SELECT
+                id,
+                strftime('%Y-%W', created_at) as cohort_week,
+                created_at,
+                last_login
+            FROM users
+            WHERE created_at > ?
+        `, [getLocalTimeDaysAgo(weeks * 7)]);
+
+        // Build cohort data structure
+        const cohortMap = {};
+        allUsers.forEach(user => {
+            if (!cohortMap[user.cohort_week]) {
+                cohortMap[user.cohort_week] = {
+                    cohortWeek: user.cohort_week,
+                    cohortSize: 0,
+                    users: []
+                };
+            }
+            cohortMap[user.cohort_week].cohortSize++;
+            cohortMap[user.cohort_week].users.push(user);
+        });
+
+        // Calculate retention for each cohort
+        const cohortData = Object.values(cohortMap).map(cohort => {
+            const retention = [];
+
+            // Calculate retention for each week (0-11)
+            for (let weekOffset = 0; weekOffset < weeks; weekOffset++) {
+                const cohortStartDate = new Date(cohort.users[0].created_at);
+                const weekStartDate = new Date(cohortStartDate.getTime() + (weekOffset * 7 * 24 * 60 * 60 * 1000));
+                const weekEndDate = new Date(weekStartDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+
+                const activeUsers = cohort.users.filter(user => {
+                    if (!user.last_login) return false;
+                    const lastLogin = new Date(user.last_login);
+                    return lastLogin >= weekStartDate && lastLogin < weekEndDate;
+                }).length;
+
+                const retentionRate = cohort.cohortSize > 0
+                    ? Math.round((activeUsers / cohort.cohortSize) * 100)
+                    : 0;
+
+                retention.push({
+                    week: weekOffset,
+                    activeUsers: activeUsers,
+                    retentionRate: retentionRate
+                });
+            }
+
+            return {
+                cohortWeek: cohort.cohortWeek,
+                cohortSize: cohort.cohortSize,
+                retention: retention
+            };
+        });
+
+        // Sort by cohort week (most recent first)
+        cohortData.sort((a, b) => b.cohortWeek.localeCompare(a.cohortWeek));
+
+        res.json({
+            cohorts: cohortData,
+            totalCohorts: cohortData.length,
+            weeksAnalyzed: weeks
+        });
+    } catch (error) {
+        console.error('Retention cohort analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch retention cohort analytics' });
+    }
+});
+
+// System Health Metrics
+router.get('/api/admin/analytics/system/health', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        // Get database statistics
+        const userCount = dbGet('SELECT COUNT(*) as count FROM users');
+        const botCount = dbGet('SELECT COUNT(*) as count FROM bots');
+        const tradeCount = dbGet('SELECT COUNT(*) as count FROM bot_trades');
+        const transactionCount = dbGet('SELECT COUNT(*) as count FROM transactions');
+
+        // Get active bots count
+        const activeBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE is_active = 1');
+
+        // Get recent activity (last hour)
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const recentLogins = dbGet('SELECT COUNT(*) as count FROM users WHERE last_login > ?', [oneHourAgo]);
+        const recentTrades = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE created_at > ?', [oneHourAgo]);
+
+        // Get bot health metrics
+        const activeBotsList = dbAll('SELECT id, name, is_active, mode FROM bots WHERE is_active = 1');
+        const totalActiveBots = activeBotsList.length;
+        const demoBots = activeBotsList.filter(b => b.mode === 'demo').length;
+        const liveBots = activeBotsList.filter(b => b.mode === 'live').length;
+
+        // Calculate error rates (checking for bots with issues)
+        const recentErrorTrades = dbGet(`
+            SELECT COUNT(*) as count
+            FROM bot_trades
+            WHERE created_at > ?
+            AND (status = 'failed' OR status = 'error')
+        `, [oneHourAgo]);
+
+        const totalRecentTrades = recentTrades?.count || 0;
+        const errorTrades = recentErrorTrades?.count || 0;
+        const errorRate = totalRecentTrades > 0
+            ? ((errorTrades / totalRecentTrades) * 100).toFixed(2)
+            : 0;
+
+        // System uptime (process uptime in hours)
+        const uptimeHours = (process.uptime() / 3600).toFixed(1);
+
+        // Overall health status
+        const healthScore = errorRate < 5 ? 'healthy' : errorRate < 15 ? 'degraded' : 'unhealthy';
+
+        res.json({
+            database: {
+                users: userCount?.count || 0,
+                bots: botCount?.count || 0,
+                trades: tradeCount?.count || 0,
+                transactions: transactionCount?.count || 0
+            },
+            bots: {
+                total: totalActiveBots,
+                demo: demoBots,
+                live: liveBots,
+                healthStatus: totalActiveBots > 0 ? 'active' : 'inactive'
+            },
+            activity: {
+                recentLogins: recentLogins?.count || 0,
+                recentTrades: totalRecentTrades,
+                errorRate: parseFloat(errorRate),
+                errorCount: errorTrades
+            },
+            system: {
+                uptime: uptimeHours,
+                status: healthScore,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('System health analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch system health metrics' });
+    }
+});
+
 module.exports = router;

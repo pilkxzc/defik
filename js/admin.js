@@ -6,6 +6,7 @@ let transactionsPage = 1;
 let auditPage = 1;
 let newsPage = 1;
 let subscriptionsPage = 1;
+let analyticsData = null; // Store current analytics data for export
 
 // Initialize admin panel
 async function initAdminPanel() {
@@ -112,6 +113,41 @@ function setupEventListeners() {
             daysGroup.style.display = e.target.value === 'free' ? 'none' : 'block';
         });
     }
+
+    // Analytics date range filter
+    const analyticsApplyFilter = document.getElementById('analyticsApplyFilter');
+    const analyticsResetFilter = document.getElementById('analyticsResetFilter');
+    const analyticsExportCSV = document.getElementById('analyticsExportCSV');
+
+    if (analyticsApplyFilter) {
+        analyticsApplyFilter.addEventListener('click', () => {
+            loadAnalytics();
+        });
+    }
+
+    if (analyticsResetFilter) {
+        analyticsResetFilter.addEventListener('click', () => {
+            document.getElementById('analyticsDateFrom').value = '';
+            document.getElementById('analyticsDateTo').value = '';
+            loadAnalytics();
+        });
+    }
+
+    if (analyticsExportCSV) {
+        analyticsExportCSV.addEventListener('click', exportAnalyticsCSV);
+    }
+
+    // Initialize default date range (last 30 days)
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const dateFrom = document.getElementById('analyticsDateFrom');
+    const dateTo = document.getElementById('analyticsDateTo');
+    if (dateFrom && dateTo) {
+        dateFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
+        dateTo.value = today.toISOString().split('T')[0];
+    }
 }
 
 function switchTab(tabName) {
@@ -151,6 +187,9 @@ function switchTab(tabName) {
             break;
         case 'database':
             loadDatabaseTables();
+            break;
+        case 'analytics':
+            loadAnalytics();
             break;
     }
 }
@@ -1927,6 +1966,881 @@ setupEventListeners = function() {
     originalSetupEventListeners();
     initDatabaseBrowser();
 };
+
+// ==================== ANALYTICS ====================
+
+let userRegistrationsChartInstance = null;
+let userActivityChartInstance = null;
+let botFunnelChartInstance = null;
+let subscriptionFunnelChartInstance = null;
+let tradingVolumeChartInstance = null;
+
+async function loadAnalytics() {
+    try {
+        // Get date range from inputs
+        const dateFrom = document.getElementById('analyticsDateFrom').value;
+        const dateTo = document.getElementById('analyticsDateTo').value;
+
+        // Calculate days or use date range
+        let queryParams = 'days=30';
+        if (dateFrom && dateTo) {
+            queryParams = `from=${dateFrom}&to=${dateTo}`;
+        } else if (dateFrom) {
+            queryParams = `from=${dateFrom}`;
+        } else if (dateTo) {
+            queryParams = `to=${dateTo}`;
+        }
+
+        const response = await fetch(`/api/admin/analytics/users?${queryParams}`);
+        if (!response.ok) throw new Error('Failed to fetch analytics');
+
+        const data = await response.json();
+
+        // Store data for export
+        analyticsData = { users: data };
+
+        document.getElementById('analyticsNewUsers7d').textContent = data.summary.newUsers;
+        document.getElementById('analyticsActiveUsers7d').textContent = data.summary.dau;
+
+        renderUserRegistrationsChart(data.registrationTrends);
+        renderUserActivityChart(data.summary);
+
+        const botFunnelResponse = await fetch('/api/admin/analytics/bots/funnel');
+        if (botFunnelResponse.ok) {
+            const botFunnelData = await botFunnelResponse.json();
+            document.getElementById('analyticsBotActivity7d').textContent = botFunnelData.summary.liveActiveBots;
+            renderBotFunnelChart(botFunnelData);
+            analyticsData.bots = botFunnelData;
+        }
+
+        const subscriptionFunnelResponse = await fetch('/api/admin/analytics/subscriptions/funnel');
+        if (subscriptionFunnelResponse.ok) {
+            const subscriptionFunnelData = await subscriptionFunnelResponse.json();
+            renderSubscriptionFunnelChart(subscriptionFunnelData);
+            analyticsData.subscriptions = subscriptionFunnelData;
+        }
+
+        const volumeResponse = await fetch(`/api/admin/analytics/trading/volume?${queryParams}`);
+        if (volumeResponse.ok) {
+            const volumeData = await volumeResponse.json();
+            document.getElementById('analyticsVolume7d').textContent = formatCurrency(volumeData.summary.totalVolume);
+            renderTradingVolumeChart(volumeData.volumeTrends);
+            analyticsData.volume = volumeData;
+        }
+
+        const retentionResponse = await fetch('/api/admin/analytics/retention?weeks=8');
+        if (retentionResponse.ok) {
+            const retentionData = await retentionResponse.json();
+            renderRetentionCohortTable(retentionData);
+            analyticsData.retention = retentionData;
+        }
+
+        const healthResponse = await fetch('/api/admin/analytics/system/health');
+        if (healthResponse.ok) {
+            const healthData = await healthResponse.json();
+            renderSystemHealth(healthData);
+            analyticsData.health = healthData;
+        }
+
+    } catch (error) {
+        console.error('Load analytics error:', error);
+    }
+}
+
+function exportAnalyticsCSV() {
+    if (!analyticsData) {
+        alert('Немає даних для експорту. Будь ласка, завантажте аналітику спочатку.');
+        return;
+    }
+
+    const dateFrom = document.getElementById('analyticsDateFrom').value || 'all';
+    const dateTo = document.getElementById('analyticsDateTo').value || 'today';
+
+    // Create CSV content
+    let csv = 'Yamato Analytics Export\n';
+    csv += `Період: ${dateFrom} - ${dateTo}\n`;
+    csv += `Експортовано: ${new Date().toLocaleString('uk-UA')}\n\n`;
+
+    // User Analytics
+    if (analyticsData.users) {
+        csv += 'АНАЛІТИКА КОРИСТУВАЧІВ\n';
+        csv += 'Показник,Значення\n';
+        csv += `Нові користувачі,${analyticsData.users.summary.newUsers}\n`;
+        csv += `Активні користувачі (DAU),${analyticsData.users.summary.dau}\n`;
+        csv += `Активні користувачі (WAU),${analyticsData.users.summary.wau}\n`;
+        csv += `Активні користувачі (MAU),${analyticsData.users.summary.mau}\n\n`;
+
+        if (analyticsData.users.registrationTrends && analyticsData.users.registrationTrends.length > 0) {
+            csv += 'Реєстрації користувачів по днях\n';
+            csv += 'Дата,Кількість\n';
+            analyticsData.users.registrationTrends.forEach(trend => {
+                csv += `${trend.date},${trend.count}\n`;
+            });
+            csv += '\n';
+        }
+    }
+
+    // Bot Analytics
+    if (analyticsData.bots) {
+        csv += 'АНАЛІТИКА БОТІВ\n';
+        csv += 'Показник,Значення\n';
+        if (analyticsData.bots.summary) {
+            csv += `Всього ботів,${analyticsData.bots.summary.totalBots || 0}\n`;
+            csv += `Демо ботів,${analyticsData.bots.summary.demoBots || 0}\n`;
+            csv += `Реальних ботів,${analyticsData.bots.summary.liveBots || 0}\n`;
+            csv += `Активних реальних ботів,${analyticsData.bots.summary.liveActiveBots || 0}\n`;
+        }
+        csv += '\n';
+    }
+
+    // Subscription Analytics
+    if (analyticsData.subscriptions) {
+        csv += 'АНАЛІТИКА ПІДПИСОК\n';
+        csv += 'Показник,Значення\n';
+        if (analyticsData.subscriptions.summary) {
+            csv += `Безкоштовні користувачі,${analyticsData.subscriptions.summary.freeUsers || 0}\n`;
+            csv += `Starter підписок,${analyticsData.subscriptions.summary.starterUsers || 0}\n`;
+            csv += `Pro підписок,${analyticsData.subscriptions.summary.proUsers || 0}\n`;
+            csv += `Premium підписок,${analyticsData.subscriptions.summary.premiumUsers || 0}\n`;
+        }
+        csv += '\n';
+    }
+
+    // Volume Analytics
+    if (analyticsData.volume) {
+        csv += 'ОБСЯГ ТРАНЗАКЦІЙ\n';
+        csv += 'Показник,Значення\n';
+        if (analyticsData.volume.summary) {
+            csv += `Загальний обсяг,${analyticsData.volume.summary.totalVolume || 0}\n`;
+            csv += `Кількість транзакцій,${analyticsData.volume.summary.totalTransactions || 0}\n`;
+        }
+
+        if (analyticsData.volume.volumeTrends && analyticsData.volume.volumeTrends.length > 0) {
+            csv += '\nОбсяг транзакцій по днях\n';
+            csv += 'Дата,Обсяг,Кількість\n';
+            analyticsData.volume.volumeTrends.forEach(trend => {
+                csv += `${trend.date},${trend.volume},${trend.count}\n`;
+            });
+        }
+        csv += '\n';
+    }
+
+    // System Health
+    if (analyticsData.health) {
+        csv += 'СТАН СИСТЕМИ\n';
+        csv += 'Показник,Значення\n';
+        csv += `Час роботи,${analyticsData.health.uptime || 'N/A'}\n`;
+        csv += `Статус,${analyticsData.health.status || 'N/A'}\n`;
+        csv += `Активні боти,${analyticsData.health.activeBots || 0}\n`;
+        csv += `Демо боти,${analyticsData.health.demoBots || 0}\n`;
+        csv += `Реальні боти,${analyticsData.health.liveBots || 0}\n`;
+        csv += '\n';
+    }
+
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `yamato-analytics-${dateFrom}-${dateTo}.csv`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function renderUserRegistrationsChart(trends) {
+    const canvas = document.getElementById('userRegistrationsChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (userRegistrationsChartInstance) {
+        userRegistrationsChartInstance.destroy();
+    }
+
+    const labels = trends.map(t => {
+        const date = new Date(t.date);
+        return date.toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' });
+    });
+    const counts = trends.map(t => t.count);
+
+    userRegistrationsChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Реєстрації',
+                data: counts,
+                borderColor: 'rgb(16, 185, 129)',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                pointBackgroundColor: 'rgb(16, 185, 129)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Користувачів: ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#A1A1A1',
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderUserActivityChart(summary) {
+    const canvas = document.getElementById('userActivityChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (userActivityChartInstance) {
+        userActivityChartInstance.destroy();
+    }
+
+    userActivityChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['DAU', 'WAU', 'MAU'],
+            datasets: [{
+                label: 'Активні користувачі',
+                data: [summary.dau, summary.wau, summary.mau],
+                backgroundColor: [
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(140, 168, 255, 0.8)',
+                    'rgba(245, 158, 11, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(16, 185, 129)',
+                    'rgb(140, 168, 255)',
+                    'rgb(245, 158, 11)'
+                ],
+                borderWidth: 2,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Користувачів: ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#A1A1A1'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderBotFunnelChart(funnelData) {
+    const canvas = document.getElementById('botActivityChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (botFunnelChartInstance) {
+        botFunnelChartInstance.destroy();
+    }
+
+    const labels = funnelData.stages.map(s => s.name);
+    const counts = funnelData.stages.map(s => s.count);
+    const percentages = funnelData.stages.map(s => s.percentage);
+
+    botFunnelChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Користувачів',
+                data: counts,
+                backgroundColor: [
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(140, 168, 255, 0.8)',
+                    'rgba(245, 158, 11, 0.8)',
+                    'rgba(239, 68, 68, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(16, 185, 129)',
+                    'rgb(140, 168, 255)',
+                    'rgb(245, 158, 11)',
+                    'rgb(239, 68, 68)'
+                ],
+                borderWidth: 2,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const count = counts[index];
+                            const percentage = percentages[index];
+                            return [
+                                'Користувачів: ' + count,
+                                'Конверсія: ' + percentage + '%'
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: '#A1A1A1'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderSubscriptionFunnelChart(funnelData) {
+    const canvas = document.getElementById('subscriptionFunnelChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (subscriptionFunnelChartInstance) {
+        subscriptionFunnelChartInstance.destroy();
+    }
+
+    const labels = funnelData.stages.map(s => s.name);
+    const counts = funnelData.stages.map(s => s.count);
+    const percentages = funnelData.stages.map(s => s.percentage);
+
+    subscriptionFunnelChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Користувачів',
+                data: counts,
+                backgroundColor: [
+                    'rgba(161, 161, 161, 0.8)',
+                    'rgba(140, 168, 255, 0.8)',
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(245, 158, 11, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(161, 161, 161)',
+                    'rgb(140, 168, 255)',
+                    'rgb(16, 185, 129)',
+                    'rgb(245, 158, 11)'
+                ],
+                borderWidth: 2,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const count = counts[index];
+                            const percentage = percentages[index];
+                            return [
+                                'Користувачів: ' + count,
+                                'Конверсія: ' + percentage + '%'
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: '#A1A1A1'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderTradingVolumeChart(trends) {
+    const canvas = document.getElementById('transactionVolumeChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (tradingVolumeChartInstance) {
+        tradingVolumeChartInstance.destroy();
+    }
+
+    const labels = trends.map(t => {
+        const date = new Date(t.date);
+        return date.toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' });
+    });
+    const demoVolumes = trends.map(t => t.demoVolume);
+    const liveVolumes = trends.map(t => t.liveVolume);
+
+    tradingVolumeChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Демо',
+                    data: demoVolumes,
+                    borderColor: 'rgba(140, 168, 255, 0.8)',
+                    backgroundColor: 'rgba(140, 168, 255, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgb(140, 168, 255)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                },
+                {
+                    label: 'Лайв',
+                    data: liveVolumes,
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgb(16, 185, 129)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#A1A1A1',
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stacked: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#A1A1A1',
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderRetentionCohortTable(data) {
+    const container = document.getElementById('retentionCohortTable');
+    if (!container) return;
+
+    const cohorts = data.cohorts || [];
+    if (cohorts.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #A1A1A1;">Недостатньо даних для відображення когорт</div>';
+        return;
+    }
+
+    // Helper function to get color based on retention rate
+    function getRetentionColor(rate) {
+        if (rate >= 40) {
+            // Good retention - green
+            return `rgba(16, 185, 129, ${0.2 + (rate / 100) * 0.6})`;
+        } else if (rate >= 20) {
+            // Moderate retention - orange
+            return `rgba(245, 158, 11, ${0.2 + (rate / 100) * 0.6})`;
+        } else if (rate > 0) {
+            // Poor retention - red
+            return `rgba(239, 68, 68, ${0.2 + (rate / 100) * 0.6})`;
+        } else {
+            // No retention
+            return 'transparent';
+        }
+    }
+
+    // Get max weeks to display (up to 8)
+    const maxWeeks = Math.min(8, data.weeksAnalyzed || 8);
+
+    // Build table HTML
+    let tableHTML = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: var(--text-primary);">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <th style="padding: 12px 8px; text-align: left; color: var(--text-secondary); font-weight: 500;">Когорта</th>
+                    <th style="padding: 12px 8px; text-align: center; color: var(--text-secondary); font-weight: 500;">Розмір</th>
+                    <th style="padding: 12px 8px; text-align: center; color: var(--text-secondary); font-weight: 500;">Тиждень 0</th>
+    `;
+
+    for (let i = 1; i <= maxWeeks; i++) {
+        tableHTML += `<th style="padding: 12px 8px; text-align: center; color: var(--text-secondary); font-weight: 500;">Тиждень ${i}</th>`;
+    }
+
+    tableHTML += `
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    // Add rows for each cohort
+    cohorts.forEach((cohort, index) => {
+        const cohortDate = new Date(cohort.retention[0]?.week === 0 ? cohort.cohortWeek : cohort.cohortWeek);
+        const cohortLabel = cohortDate instanceof Date && !isNaN(cohortDate)
+            ? `Тиждень ${cohort.cohortWeek}`
+            : cohort.cohortWeek;
+
+        tableHTML += `
+            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                <td style="padding: 12px 8px; color: var(--text-primary); font-weight: 500;">${cohortLabel}</td>
+                <td style="padding: 12px 8px; text-align: center; color: var(--text-secondary);">${cohort.cohortSize}</td>
+        `;
+
+        // Week 0 (always 100%)
+        tableHTML += `
+            <td style="padding: 12px 8px; text-align: center; background: ${getRetentionColor(100)};">
+                <span style="color: var(--text-primary); font-weight: 500;">100%</span>
+            </td>
+        `;
+
+        // Retention for weeks 1-8
+        for (let week = 1; week <= maxWeeks; week++) {
+            const retentionWeek = cohort.retention.find(r => r.week === week);
+            if (retentionWeek) {
+                const rate = retentionWeek.retentionRate;
+                const activeUsers = retentionWeek.activeUsers;
+                tableHTML += `
+                    <td style="padding: 12px 8px; text-align: center; background: ${getRetentionColor(rate)};" title="${activeUsers} активних користувачів">
+                        <span style="color: var(--text-primary); font-weight: ${rate >= 40 ? '600' : '400'};">${rate}%</span>
+                    </td>
+                `;
+            } else {
+                tableHTML += `
+                    <td style="padding: 12px 8px; text-align: center; background: transparent;">
+                        <span style="color: var(--text-tertiary);">—</span>
+                    </td>
+                `;
+            }
+        }
+
+        tableHTML += '</tr>';
+    });
+
+    tableHTML += `
+            </tbody>
+        </table>
+    `;
+
+    // Add legend
+    tableHTML += `
+        <div style="display: flex; gap: 16px; margin-top: 16px; padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 8px; font-size: 11px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 16px; height: 16px; background: rgba(16, 185, 129, 0.6); border-radius: 3px;"></div>
+                <span style="color: var(--text-secondary);">Добре (≥40%)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 16px; height: 16px; background: rgba(245, 158, 11, 0.6); border-radius: 3px;"></div>
+                <span style="color: var(--text-secondary);">Середнє (20-39%)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 16px; height: 16px; background: rgba(239, 68, 68, 0.6); border-radius: 3px;"></div>
+                <span style="color: var(--text-secondary);">Низьке (<20%)</span>
+            </div>
+        </div>
+    `;
+
+    // Add summary stats for 7-day and 30-day retention
+    if (cohorts.length > 0) {
+        // Calculate average 7-day retention (week 1)
+        const week1Retentions = cohorts
+            .map(c => c.retention.find(r => r.week === 1))
+            .filter(r => r !== undefined)
+            .map(r => r.retentionRate);
+        const avg7day = week1Retentions.length > 0
+            ? Math.round(week1Retentions.reduce((a, b) => a + b, 0) / week1Retentions.length)
+            : 0;
+
+        // Calculate average 30-day retention (week 4)
+        const week4Retentions = cohorts
+            .map(c => c.retention.find(r => r.week === 4))
+            .filter(r => r !== undefined)
+            .map(r => r.retentionRate);
+        const avg30day = week4Retentions.length > 0
+            ? Math.round(week4Retentions.reduce((a, b) => a + b, 0) / week4Retentions.length)
+            : 0;
+
+        tableHTML += `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+                <div style="padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 4px;">Середнє утримання (7 днів)</div>
+                    <div style="color: ${avg7day >= 40 ? 'rgb(16, 185, 129)' : avg7day >= 20 ? 'rgb(245, 158, 11)' : 'rgb(239, 68, 68)'}; font-size: 20px; font-weight: 600;">${avg7day}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 4px;">Середнє утримання (30 днів)</div>
+                    <div style="color: ${avg30day >= 40 ? 'rgb(16, 185, 129)' : avg30day >= 20 ? 'rgb(245, 158, 11)' : 'rgb(239, 68, 68)'}; font-size: 20px; font-weight: 600;">${avg30day}%</div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = tableHTML;
+}
+
+function renderSystemHealth(data) {
+    // System uptime and status
+    const uptimeEl = document.getElementById('healthSystemUptime');
+    const statusEl = document.getElementById('healthSystemStatus');
+    if (uptimeEl && data.system) {
+        uptimeEl.textContent = `${data.system.uptime}h`;
+
+        // Update status with color coding
+        if (statusEl) {
+            const status = data.system.status;
+            let statusText = '';
+            let statusColor = '';
+
+            if (status === 'healthy') {
+                statusText = 'Система працює нормально';
+                statusColor = 'var(--accent-primary)';
+            } else if (status === 'degraded') {
+                statusText = 'Система працює з помилками';
+                statusColor = 'var(--color-warning)';
+            } else {
+                statusText = 'Система має критичні помилки';
+                statusColor = 'var(--color-down)';
+            }
+
+            statusEl.textContent = statusText;
+            statusEl.style.color = statusColor;
+        }
+    }
+
+    // Bot health metrics
+    const activeBotsEl = document.getElementById('healthActiveBots');
+    const demoBotsEl = document.getElementById('healthDemoBots');
+    const liveBotsEl = document.getElementById('healthLiveBots');
+    if (activeBotsEl && data.bots) {
+        activeBotsEl.textContent = data.bots.total || 0;
+
+        // Color code based on bot health status
+        if (data.bots.healthStatus === 'active') {
+            activeBotsEl.style.color = 'var(--accent-primary)';
+        } else {
+            activeBotsEl.style.color = 'var(--text-tertiary)';
+        }
+
+        if (demoBotsEl) demoBotsEl.textContent = data.bots.demo || 0;
+        if (liveBotsEl) liveBotsEl.textContent = data.bots.live || 0;
+    }
+
+    // Error rate metrics
+    const errorRateEl = document.getElementById('healthErrorRate');
+    const errorCountEl = document.getElementById('healthErrorCount');
+    if (errorRateEl && data.activity) {
+        const errorRate = data.activity.errorRate || 0;
+        errorRateEl.textContent = `${errorRate}%`;
+
+        // Color code based on error rate
+        if (errorRate < 5) {
+            errorRateEl.style.color = 'var(--accent-primary)';
+        } else if (errorRate < 15) {
+            errorRateEl.style.color = 'var(--color-warning)';
+        } else {
+            errorRateEl.style.color = 'var(--color-down)';
+        }
+
+        if (errorCountEl) {
+            errorCountEl.textContent = data.activity.errorCount || 0;
+        }
+    }
+
+    // Recent activity metrics
+    const recentTradesEl = document.getElementById('healthRecentTrades');
+    const recentLoginsEl = document.getElementById('healthRecentLogins');
+    if (recentTradesEl && data.activity) {
+        recentTradesEl.textContent = data.activity.recentTrades || 0;
+
+        if (recentLoginsEl) {
+            recentLoginsEl.textContent = data.activity.recentLogins || 0;
+        }
+    }
+}
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', initAdminPanel);
