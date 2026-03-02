@@ -203,6 +203,98 @@ router.get('/api/admin/analytics/trading/volume', requireAuth, requireRole('admi
     }
 });
 
+router.get('/api/admin/analytics/retention', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const weeks = parseInt(req.query.weeks) || 12;
+
+        // Get all users grouped by their registration week
+        const cohorts = dbAll(`
+            SELECT
+                strftime('%Y-%W', created_at) as cohort_week,
+                DATE(created_at, 'weekday 0', '-6 days') as cohort_start,
+                COUNT(*) as cohort_size,
+                id as user_id,
+                created_at
+            FROM users
+            WHERE created_at > ?
+            GROUP BY cohort_week
+            ORDER BY cohort_week DESC
+            LIMIT ?
+        `, [getLocalTimeDaysAgo(weeks * 7), weeks]);
+
+        // Get all users with their registration and last login dates
+        const allUsers = dbAll(`
+            SELECT
+                id,
+                strftime('%Y-%W', created_at) as cohort_week,
+                created_at,
+                last_login
+            FROM users
+            WHERE created_at > ?
+        `, [getLocalTimeDaysAgo(weeks * 7)]);
+
+        // Build cohort data structure
+        const cohortMap = {};
+        allUsers.forEach(user => {
+            if (!cohortMap[user.cohort_week]) {
+                cohortMap[user.cohort_week] = {
+                    cohortWeek: user.cohort_week,
+                    cohortSize: 0,
+                    users: []
+                };
+            }
+            cohortMap[user.cohort_week].cohortSize++;
+            cohortMap[user.cohort_week].users.push(user);
+        });
+
+        // Calculate retention for each cohort
+        const cohortData = Object.values(cohortMap).map(cohort => {
+            const retention = [];
+
+            // Calculate retention for each week (0-11)
+            for (let weekOffset = 0; weekOffset < weeks; weekOffset++) {
+                const cohortStartDate = new Date(cohort.users[0].created_at);
+                const weekStartDate = new Date(cohortStartDate.getTime() + (weekOffset * 7 * 24 * 60 * 60 * 1000));
+                const weekEndDate = new Date(weekStartDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+
+                const activeUsers = cohort.users.filter(user => {
+                    if (!user.last_login) return false;
+                    const lastLogin = new Date(user.last_login);
+                    return lastLogin >= weekStartDate && lastLogin < weekEndDate;
+                }).length;
+
+                const retentionRate = cohort.cohortSize > 0
+                    ? Math.round((activeUsers / cohort.cohortSize) * 100)
+                    : 0;
+
+                retention.push({
+                    week: weekOffset,
+                    activeUsers: activeUsers,
+                    retentionRate: retentionRate
+                });
+            }
+
+            return {
+                cohortWeek: cohort.cohortWeek,
+                cohortSize: cohort.cohortSize,
+                retention: retention
+            };
+        });
+
+        // Sort by cohort week (most recent first)
+        cohortData.sort((a, b) => b.cohortWeek.localeCompare(a.cohortWeek));
+
+        res.json({
+            cohorts: cohortData,
+            totalCohorts: cohortData.length,
+            weeksAnalyzed: weeks
+        });
+    } catch (error) {
+        console.error('Retention cohort analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch retention cohort analytics' });
+    }
+});
+
 // ==================== MAINTENANCE ====================
 
 router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
