@@ -1810,8 +1810,6 @@ function setupNavigation() {
         });
     });
 
-    // User pill right-click context menu
-    initUserPillContextMenu();
 }
 
 // ==================== USER PILL CONTEXT MENU ====================
@@ -2156,6 +2154,9 @@ async function initializePage() {
                     adminNavLink.classList.add('admin-hidden');
                 }
             }
+
+            // Init context menu after user data is loaded
+            initUserPillContextMenu();
         } catch (error) {
             console.log('User not logged in');
         }
