@@ -2611,14 +2611,20 @@ window.openBotDetails = window.openBotDetails || function(botId) {
             '/bots': 'Торгові боти',
             '/news': 'Новини ринку',
             '/subscriptions': 'Преміум',
+            '/community': 'Спільнота',
+            '/docs': 'Документація',
             '/admin': 'Адмін панель',
             '/profile': 'Налаштування'
+        };
+
+        const idLabelsMap = {
+            'notificationBtn': 'Сповіщення'
         };
 
         sidebar.querySelectorAll('.nav-item').forEach(item => {
             if (item.id === 'sidebar-toggle') return;
             const href = item.getAttribute('href');
-            const labelText = labelsMap[href] || item.getAttribute('title') || '';
+            const labelText = labelsMap[href] || idLabelsMap[item.id] || item.getAttribute('title') || '';
             if (labelText && !item.querySelector('span.nav-label')) {
                 const span = document.createElement('span');
                 span.className = 'nav-label';
