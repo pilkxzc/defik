@@ -2071,8 +2071,7 @@ async function initializePage() {
             console.error('Failed to load ticker:', error);
         }
     } else if (path.includes('reglogin') || path === '/login' || path === '/register') {
-        // Auth page
-        setupAuthForms();
+        // Auth page — login/register logic is handled inline in reglogin.html
     } else if (path.includes('datedos') || path === '/dashboard') {
         // Trading dashboard — datedos.html has its own market list + chart switching logic
         // Do NOT call initDashboard() here as it overwrites the inline handlers
