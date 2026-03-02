@@ -210,6 +210,7 @@ const SKIP_PREFIXES = [
     '/api/auth/telegram',
     '/api/auth/telegram-register',
     '/api/auth/google',
+    '/api/auth/google/callback',
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
     '/api/passkeys/',

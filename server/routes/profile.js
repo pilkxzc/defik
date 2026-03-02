@@ -19,7 +19,7 @@ function sendTelegramNotification(...args) {
 
 router.get('/api/profile', requireAuth, (req, res) => {
     const user = dbGet(
-        'SELECT id, email, full_name, phone, demo_balance, real_balance, active_account, created_at, is_verified, verification_level, role, avatar, telegram_id, telegram_username, telegram_verified FROM users WHERE id = ?',
+        'SELECT id, email, full_name, phone, demo_balance, real_balance, active_account, created_at, is_verified, verification_level, role, avatar, telegram_id, telegram_username, telegram_verified, google_id, google_avatar FROM users WHERE id = ?',
         [req.session.userId]
     );
 
@@ -47,7 +47,9 @@ router.get('/api/profile', requireAuth, (req, res) => {
             role: user.role || 'user',
             avatar: user.avatar || null,
             telegramLinked: !!user.telegram_id && user.telegram_verified === 1,
-            telegramUsername: user.telegram_username || null
+            telegramUsername: user.telegram_username || null,
+            googleLinked: !!user.google_id,
+            googleAvatar: user.google_avatar || null
         },
         paymentMethods,
         activityLog

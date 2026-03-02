@@ -1150,6 +1150,17 @@ router.get('/api/auth/google/callback', async (req, res) => {
             return res.redirect('/login?error=google_no_email');
         }
 
+        // Handle "link" mode — user is linking Google from profile page
+        if (req.query.state === 'link' && req.session.userId) {
+            // Check if this google_id is already used by another user
+            const existing = dbGet('SELECT id FROM users WHERE google_id = ?', [googleId]);
+            if (existing && existing.id !== req.session.userId) {
+                return res.redirect('/profile?google=already_used');
+            }
+            dbRun('UPDATE users SET google_id = ?, google_avatar = ? WHERE id = ?', [googleId, avatar, req.session.userId]);
+            return res.redirect('/profile?google=linked');
+        }
+
         const clientIP = getClientIP(req);
 
         // 1. Check if user exists by google_id
@@ -1213,6 +1224,48 @@ router.get('/api/auth/google/callback', async (req, res) => {
     } catch (error) {
         console.error('Google OAuth callback error:', error);
         res.redirect('/login?error=google_failed');
+    }
+});
+
+// ==================== GOOGLE LINK / UNLINK (Profile) ====================
+
+// Initiate Google link from profile page
+router.get('/api/auth/google/link', requireAuth, (req, res) => {
+    const oauth2Client = getGoogleOAuth2Client();
+    if (!oauth2Client) {
+        return res.status(500).json({ error: 'Google OAuth not configured' });
+    }
+
+    const url = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: ['openid', 'email', 'profile'],
+        prompt: 'select_account',
+        state: 'link'
+    });
+
+    res.redirect(url);
+});
+
+// Google link status
+router.get('/api/auth/google/status', requireAuth, (req, res) => {
+    const user = dbGet('SELECT google_id, google_avatar FROM users WHERE id = ?', [req.session.userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+        linked: !!user.google_id,
+        avatar: user.google_avatar || null,
+        enabled: !!(siteSettings.googleOAuthEnabled && siteSettings.googleClientId && siteSettings.googleClientSecret)
+    });
+});
+
+// Unlink Google
+router.post('/api/auth/google/unlink', requireAuth, (req, res) => {
+    try {
+        dbRun('UPDATE users SET google_id = NULL, google_avatar = NULL WHERE id = ?', [req.session.userId]);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Google unlink error:', error);
+        res.status(500).json({ error: 'Failed to unlink' });
     }
 });
 
