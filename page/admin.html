@@ -1350,6 +1350,32 @@
 
                 <!-- Analytics Tab -->
                 <div class="tab-content" id="tab-analytics">
+                    <!-- Analytics Controls -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--gap-md); gap: var(--gap-md); flex-wrap: wrap;">
+                        <div style="display: flex; gap: 12px; align-items: center; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label style="font-size: 13px; color: var(--text-secondary); white-space: nowrap;">Період:</label>
+                                <input type="date" id="analyticsDateFrom" style="padding: 8px 12px; background: var(--surface); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); font-size: 13px;">
+                                <span style="color: var(--text-tertiary);">—</span>
+                                <input type="date" id="analyticsDateTo" style="padding: 8px 12px; background: var(--surface); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); font-size: 13px;">
+                            </div>
+                            <button id="analyticsApplyFilter" style="padding: 8px 16px; background: var(--accent-primary); color: white; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                                Застосувати
+                            </button>
+                            <button id="analyticsResetFilter" style="padding: 8px 16px; background: var(--surface-secondary); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                                Скинути
+                            </button>
+                        </div>
+                        <button id="analyticsExportCSV" style="padding: 8px 16px; background: var(--accent-blue); color: white; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Експорт CSV
+                        </button>
+                    </div>
+
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-label">Нові користувачі (7 днів)</div>

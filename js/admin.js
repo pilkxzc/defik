@@ -6,6 +6,7 @@ let transactionsPage = 1;
 let auditPage = 1;
 let newsPage = 1;
 let subscriptionsPage = 1;
+let analyticsData = null; // Store current analytics data for export
 
 // Initialize admin panel
 async function initAdminPanel() {
@@ -111,6 +112,41 @@ function setupEventListeners() {
             const daysGroup = document.getElementById('subscriptionDaysGroup');
             daysGroup.style.display = e.target.value === 'free' ? 'none' : 'block';
         });
+    }
+
+    // Analytics date range filter
+    const analyticsApplyFilter = document.getElementById('analyticsApplyFilter');
+    const analyticsResetFilter = document.getElementById('analyticsResetFilter');
+    const analyticsExportCSV = document.getElementById('analyticsExportCSV');
+
+    if (analyticsApplyFilter) {
+        analyticsApplyFilter.addEventListener('click', () => {
+            loadAnalytics();
+        });
+    }
+
+    if (analyticsResetFilter) {
+        analyticsResetFilter.addEventListener('click', () => {
+            document.getElementById('analyticsDateFrom').value = '';
+            document.getElementById('analyticsDateTo').value = '';
+            loadAnalytics();
+        });
+    }
+
+    if (analyticsExportCSV) {
+        analyticsExportCSV.addEventListener('click', exportAnalyticsCSV);
+    }
+
+    // Initialize default date range (last 30 days)
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const dateFrom = document.getElementById('analyticsDateFrom');
+    const dateTo = document.getElementById('analyticsDateTo');
+    if (dateFrom && dateTo) {
+        dateFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
+        dateTo.value = today.toISOString().split('T')[0];
     }
 }
 
@@ -1941,11 +1977,27 @@ let tradingVolumeChartInstance = null;
 
 async function loadAnalytics() {
     try {
-        const days = 30;
-        const response = await fetch(`/api/admin/analytics/users?days=${days}`);
+        // Get date range from inputs
+        const dateFrom = document.getElementById('analyticsDateFrom').value;
+        const dateTo = document.getElementById('analyticsDateTo').value;
+
+        // Calculate days or use date range
+        let queryParams = 'days=30';
+        if (dateFrom && dateTo) {
+            queryParams = `from=${dateFrom}&to=${dateTo}`;
+        } else if (dateFrom) {
+            queryParams = `from=${dateFrom}`;
+        } else if (dateTo) {
+            queryParams = `to=${dateTo}`;
+        }
+
+        const response = await fetch(`/api/admin/analytics/users?${queryParams}`);
         if (!response.ok) throw new Error('Failed to fetch analytics');
 
         const data = await response.json();
+
+        // Store data for export
+        analyticsData = { users: data };
 
         document.getElementById('analyticsNewUsers7d').textContent = data.summary.newUsers;
         document.getElementById('analyticsActiveUsers7d').textContent = data.summary.dau;
@@ -1958,36 +2010,145 @@ async function loadAnalytics() {
             const botFunnelData = await botFunnelResponse.json();
             document.getElementById('analyticsBotActivity7d').textContent = botFunnelData.summary.liveActiveBots;
             renderBotFunnelChart(botFunnelData);
+            analyticsData.bots = botFunnelData;
         }
 
         const subscriptionFunnelResponse = await fetch('/api/admin/analytics/subscriptions/funnel');
         if (subscriptionFunnelResponse.ok) {
             const subscriptionFunnelData = await subscriptionFunnelResponse.json();
             renderSubscriptionFunnelChart(subscriptionFunnelData);
+            analyticsData.subscriptions = subscriptionFunnelData;
         }
 
-        const volumeResponse = await fetch(`/api/admin/analytics/trading/volume?days=${days}`);
+        const volumeResponse = await fetch(`/api/admin/analytics/trading/volume?${queryParams}`);
         if (volumeResponse.ok) {
             const volumeData = await volumeResponse.json();
             document.getElementById('analyticsVolume7d').textContent = formatCurrency(volumeData.summary.totalVolume);
             renderTradingVolumeChart(volumeData.volumeTrends);
+            analyticsData.volume = volumeData;
         }
 
         const retentionResponse = await fetch('/api/admin/analytics/retention?weeks=8');
         if (retentionResponse.ok) {
             const retentionData = await retentionResponse.json();
             renderRetentionCohortTable(retentionData);
+            analyticsData.retention = retentionData;
         }
 
         const healthResponse = await fetch('/api/admin/analytics/system/health');
         if (healthResponse.ok) {
             const healthData = await healthResponse.json();
             renderSystemHealth(healthData);
+            analyticsData.health = healthData;
         }
 
     } catch (error) {
         console.error('Load analytics error:', error);
     }
+}
+
+function exportAnalyticsCSV() {
+    if (!analyticsData) {
+        alert('Немає даних для експорту. Будь ласка, завантажте аналітику спочатку.');
+        return;
+    }
+
+    const dateFrom = document.getElementById('analyticsDateFrom').value || 'all';
+    const dateTo = document.getElementById('analyticsDateTo').value || 'today';
+
+    // Create CSV content
+    let csv = 'Yamato Analytics Export\n';
+    csv += `Період: ${dateFrom} - ${dateTo}\n`;
+    csv += `Експортовано: ${new Date().toLocaleString('uk-UA')}\n\n`;
+
+    // User Analytics
+    if (analyticsData.users) {
+        csv += 'АНАЛІТИКА КОРИСТУВАЧІВ\n';
+        csv += 'Показник,Значення\n';
+        csv += `Нові користувачі,${analyticsData.users.summary.newUsers}\n`;
+        csv += `Активні користувачі (DAU),${analyticsData.users.summary.dau}\n`;
+        csv += `Активні користувачі (WAU),${analyticsData.users.summary.wau}\n`;
+        csv += `Активні користувачі (MAU),${analyticsData.users.summary.mau}\n\n`;
+
+        if (analyticsData.users.registrationTrends && analyticsData.users.registrationTrends.length > 0) {
+            csv += 'Реєстрації користувачів по днях\n';
+            csv += 'Дата,Кількість\n';
+            analyticsData.users.registrationTrends.forEach(trend => {
+                csv += `${trend.date},${trend.count}\n`;
+            });
+            csv += '\n';
+        }
+    }
+
+    // Bot Analytics
+    if (analyticsData.bots) {
+        csv += 'АНАЛІТИКА БОТІВ\n';
+        csv += 'Показник,Значення\n';
+        if (analyticsData.bots.summary) {
+            csv += `Всього ботів,${analyticsData.bots.summary.totalBots || 0}\n`;
+            csv += `Демо ботів,${analyticsData.bots.summary.demoBots || 0}\n`;
+            csv += `Реальних ботів,${analyticsData.bots.summary.liveBots || 0}\n`;
+            csv += `Активних реальних ботів,${analyticsData.bots.summary.liveActiveBots || 0}\n`;
+        }
+        csv += '\n';
+    }
+
+    // Subscription Analytics
+    if (analyticsData.subscriptions) {
+        csv += 'АНАЛІТИКА ПІДПИСОК\n';
+        csv += 'Показник,Значення\n';
+        if (analyticsData.subscriptions.summary) {
+            csv += `Безкоштовні користувачі,${analyticsData.subscriptions.summary.freeUsers || 0}\n`;
+            csv += `Starter підписок,${analyticsData.subscriptions.summary.starterUsers || 0}\n`;
+            csv += `Pro підписок,${analyticsData.subscriptions.summary.proUsers || 0}\n`;
+            csv += `Premium підписок,${analyticsData.subscriptions.summary.premiumUsers || 0}\n`;
+        }
+        csv += '\n';
+    }
+
+    // Volume Analytics
+    if (analyticsData.volume) {
+        csv += 'ОБСЯГ ТРАНЗАКЦІЙ\n';
+        csv += 'Показник,Значення\n';
+        if (analyticsData.volume.summary) {
+            csv += `Загальний обсяг,${analyticsData.volume.summary.totalVolume || 0}\n`;
+            csv += `Кількість транзакцій,${analyticsData.volume.summary.totalTransactions || 0}\n`;
+        }
+
+        if (analyticsData.volume.volumeTrends && analyticsData.volume.volumeTrends.length > 0) {
+            csv += '\nОбсяг транзакцій по днях\n';
+            csv += 'Дата,Обсяг,Кількість\n';
+            analyticsData.volume.volumeTrends.forEach(trend => {
+                csv += `${trend.date},${trend.volume},${trend.count}\n`;
+            });
+        }
+        csv += '\n';
+    }
+
+    // System Health
+    if (analyticsData.health) {
+        csv += 'СТАН СИСТЕМИ\n';
+        csv += 'Показник,Значення\n';
+        csv += `Час роботи,${analyticsData.health.uptime || 'N/A'}\n`;
+        csv += `Статус,${analyticsData.health.status || 'N/A'}\n`;
+        csv += `Активні боти,${analyticsData.health.activeBots || 0}\n`;
+        csv += `Демо боти,${analyticsData.health.demoBots || 0}\n`;
+        csv += `Реальні боти,${analyticsData.health.liveBots || 0}\n`;
+        csv += '\n';
+    }
+
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `yamato-analytics-${dateFrom}-${dateTo}.csv`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function renderUserRegistrationsChart(trends) {
