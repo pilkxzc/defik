@@ -2,11 +2,44 @@
 const axios  = require('axios');
 const crypto = require('crypto');
 
+// Retry config
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY   = 1000; // ms
+const RETRYABLE_CODES    = new Set([408, 429, 500, 502, 503, 504]);
+
+/**
+ * Retry wrapper with exponential backoff + jitter.
+ * Only retries on network errors and retryable HTTP status codes.
+ * Auth errors (4xx except 408/429) are never retried.
+ */
+async function withRetry(fn, { maxAttempts = RETRY_MAX_ATTEMPTS, baseDelay = RETRY_BASE_DELAY } = {}) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            const status = error.response?.status;
+
+            // Don't retry client errors (except timeout/rate-limit/server errors)
+            if (status && !RETRYABLE_CODES.has(status)) {
+                throw error;
+            }
+
+            if (attempt === maxAttempts) break;
+
+            const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 500;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    throw lastError;
+}
+
 async function getBinanceServerTime(accountType = 'futures') {
     try {
         const baseUrl  = accountType === 'futures' ? 'https://fapi.binance.com' : 'https://api.binance.com';
         const endpoint = accountType === 'futures' ? '/fapi/v1/time' : '/api/v3/time';
-        const response = await axios.get(`${baseUrl}${endpoint}`, { timeout: 5000 });
+        const response = await withRetry(() => axios.get(`${baseUrl}${endpoint}`, { timeout: 5000 }));
         return response.data.serverTime;
     } catch (error) {
         console.error('Failed to get Binance server time, using local time:', error.message);
@@ -22,9 +55,9 @@ async function testBinanceCredentials(apiKey, apiSecret, accountType = 'futures'
         const signature   = crypto.createHmac('sha256', apiSecret).update(queryString).digest('hex');
         const endpoint    = accountType === 'futures' ? '/fapi/v2/account' : '/api/v3/account';
 
-        const response = await axios.get(`${baseUrl}${endpoint}?${queryString}&signature=${signature}`, {
+        const response = await withRetry(() => axios.get(`${baseUrl}${endpoint}?${queryString}&signature=${signature}`, {
             headers: { 'X-MBX-APIKEY': apiKey }
-        });
+        }));
 
         return { success: true, data: response.data };
     } catch (error) {
@@ -44,10 +77,10 @@ async function fetchBinanceFuturesData(apiKey, apiSecret) {
         const makeRequest = async (endpoint, params = {}) => {
             const queryString = new URLSearchParams({ ...params, timestamp }).toString();
             const signature   = createSignature(queryString);
-            const response    = await axios.get(`${baseUrl}${endpoint}?${queryString}&signature=${signature}`, {
+            const response    = await withRetry(() => axios.get(`${baseUrl}${endpoint}?${queryString}&signature=${signature}`, {
                 headers: { 'X-MBX-APIKEY': apiKey },
                 timeout: 10000
-            });
+            }));
             return response.data;
         };
 
