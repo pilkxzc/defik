@@ -1412,6 +1412,20 @@
                 const html = allBots.map(b => renderBotAccordionCard(b)).join('');
                 document.getElementById('botsTree').innerHTML = html;
 
+                // Update summary card totals
+                const activeBots = allBots.filter(b => b.is_active);
+                const totalPL = activeBots.reduce((sum, b) => sum + (b.profit || 0), 0);
+                const totalInvestment = activeBots.reduce((sum, b) => sum + (b.investment || 0), 0);
+                const plEl = document.querySelector('[data-total-pl]');
+                const allocEl = document.querySelector('[data-active-allocation]');
+                if (plEl) {
+                    plEl.textContent = (totalPL >= 0 ? '+' : '') + '$' + Math.abs(totalPL).toFixed(2);
+                    plEl.style.color = totalPL >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+                }
+                if (allocEl) {
+                    allocEl.textContent = '$' + totalInvestment.toFixed(2);
+                }
+
                 // Attach event listeners for accordion toggle
                 attachAccordionListeners();
             } catch (err) {
