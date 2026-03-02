@@ -19,8 +19,8 @@ const rateLimitHandler = (req, res) => {
 const authRateLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 5, // 5 requests per window per IP
-    standardHeaders: true, // Return rate limit info in RateLimit-* headers
-    legacyHeaders: false, // Disable X-RateLimit-* headers
+    standardHeaders: true, // Return rate limit info in RateLimit-* headers (RFC draft)
+    legacyHeaders: true, // Also send X-RateLimit-* headers for backwards compatibility
     handler: rateLimitHandler,
     skip: (req) => {
         // Skip rate limiting for health checks or specific routes if needed
@@ -42,8 +42,8 @@ const authRateLimiter = rateLimit({
 const apiRateLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 100, // 100 requests per window
-    standardHeaders: true, // Return rate limit info in RateLimit-* headers
-    legacyHeaders: false, // Disable X-RateLimit-* headers
+    standardHeaders: true, // Return rate limit info in RateLimit-* headers (RFC draft)
+    legacyHeaders: true, // Also send X-RateLimit-* headers for backwards compatibility
     handler: rateLimitHandler,
     skip: (req) => {
         // Skip rate limiting for health checks or specific routes if needed
