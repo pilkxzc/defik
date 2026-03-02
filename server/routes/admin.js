@@ -1029,4 +1029,43 @@ router.delete('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), 
     }
 });
 
+// ==================== ANALYTICS ====================
+
+router.get('/api/admin/analytics/users', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        const newUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE created_at > ?', [cutoffDate]);
+
+        const dau = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM activity_log WHERE DATE(timestamp) = DATE("now", "localtime")');
+        const wau = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM activity_log WHERE timestamp > ?', [getLocalTimeDaysAgo(7)]);
+        const mau = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM activity_log WHERE timestamp > ?', [getLocalTimeDaysAgo(30)]);
+
+        const registrationTrends = dbAll(`
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM users
+            WHERE created_at > ?
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `, [cutoffDate]);
+
+        res.json({
+            summary: {
+                newUsers: newUsers?.count || 0,
+                dau: dau?.count || 0,
+                wau: wau?.count || 0,
+                mau: mau?.count || 0
+            },
+            registrationTrends: registrationTrends.map(row => ({
+                date: row.date,
+                count: row.count
+            }))
+        });
+    } catch (error) {
+        console.error('User analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch user analytics' });
+    }
+});
+
 module.exports = router;

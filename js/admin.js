@@ -152,6 +152,9 @@ function switchTab(tabName) {
         case 'database':
             loadDatabaseTables();
             break;
+        case 'analytics':
+            loadAnalytics();
+            break;
     }
 }
 
@@ -1927,6 +1930,194 @@ setupEventListeners = function() {
     originalSetupEventListeners();
     initDatabaseBrowser();
 };
+
+// ==================== ANALYTICS ====================
+
+let userRegistrationsChartInstance = null;
+let userActivityChartInstance = null;
+
+async function loadAnalytics() {
+    try {
+        const days = 30;
+        const response = await fetch(`/api/admin/analytics/users?days=${days}`);
+        if (!response.ok) throw new Error('Failed to fetch analytics');
+
+        const data = await response.json();
+
+        document.getElementById('analyticsNewUsers7d').textContent = data.summary.newUsers;
+        document.getElementById('analyticsActiveUsers7d').textContent = data.summary.dau;
+        document.getElementById('analyticsVolume7d').textContent = formatCurrency(0);
+        document.getElementById('analyticsBotActivity7d').textContent = '0';
+
+        renderUserRegistrationsChart(data.registrationTrends);
+        renderUserActivityChart(data.summary);
+
+    } catch (error) {
+        console.error('Load analytics error:', error);
+    }
+}
+
+function renderUserRegistrationsChart(trends) {
+    const canvas = document.getElementById('userRegistrationsChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (userRegistrationsChartInstance) {
+        userRegistrationsChartInstance.destroy();
+    }
+
+    const labels = trends.map(t => {
+        const date = new Date(t.date);
+        return date.toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' });
+    });
+    const counts = trends.map(t => t.count);
+
+    userRegistrationsChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Реєстрації',
+                data: counts,
+                borderColor: 'rgb(16, 185, 129)',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                pointBackgroundColor: 'rgb(16, 185, 129)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Користувачів: ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#A1A1A1',
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderUserActivityChart(summary) {
+    const canvas = document.getElementById('userActivityChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (userActivityChartInstance) {
+        userActivityChartInstance.destroy();
+    }
+
+    userActivityChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['DAU', 'WAU', 'MAU'],
+            datasets: [{
+                label: 'Активні користувачі',
+                data: [summary.dau, summary.wau, summary.mau],
+                backgroundColor: [
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(140, 168, 255, 0.8)',
+                    'rgba(245, 158, 11, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(16, 185, 129)',
+                    'rgb(140, 168, 255)',
+                    'rgb(245, 158, 11)'
+                ],
+                borderWidth: 2,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Користувачів: ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#A1A1A1'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', initAdminPanel);
