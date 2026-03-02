@@ -50,8 +50,8 @@ async function createApp() {
     }));
 
     app.use(cors({ origin: '*' }));
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
+    app.use(express.json({ limit: '20mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '20mb' }));
     app.use(maintenanceMiddleware);
     app.use(express.static(path.join(__dirname, '..'), {
         setHeaders: (res, filePath) => {

@@ -39,7 +39,9 @@ const siteSettings = {
     googleDriveTokens:     null,
     googleDriveBackupEnabled: false,
     googleDriveBackupTime: '03:00',
-    googleDriveBackupFolderId: ''
+    googleDriveBackupFolderId: '',
+    bugReportingEnabled: false,
+    bugReportingAdminChatId: ''
 };
 
 function loadSettings() {

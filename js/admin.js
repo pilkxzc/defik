@@ -194,6 +194,9 @@ function switchTab(tabName) {
         case 'backup':
             loadBackupTab();
             break;
+        case 'bug-reports':
+            loadBugReports();
+            break;
     }
 }
 
@@ -220,6 +223,9 @@ async function loadDashboardStats() {
         // Load Telegram status and users
         await loadTelegramStatus();
         await loadTelegramUsers();
+
+        // Load bug reporting status
+        await loadBugReportingStatus();
 
     } catch (error) {
         console.error('Load stats error:', error);
@@ -3178,6 +3184,277 @@ async function restoreFromDrive(fileId, fileName) {
     } catch (e) {
         showToast('error', 'Помилка', 'Не вдалося відновити бекап');
     }
+}
+
+// ==================== BUG REPORTS ====================
+
+async function loadBugReportingStatus() {
+    try {
+        const resp = await fetch('/api/admin/bug-reporting-enabled');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const toggle = document.getElementById('bugReportingToggle');
+        const status = document.getElementById('bugReportingStatus');
+        if (toggle) toggle.checked = !!data.enabled;
+        if (status) {
+            status.textContent = data.enabled
+                ? 'Увімкнено — кнопка репорту (Alt+G) активна для всіх користувачів'
+                : 'Вимкнено — користувачі не бачать кнопку репорту';
+        }
+    } catch (e) {
+        console.error('loadBugReportingStatus error:', e);
+    }
+}
+
+async function toggleBugReporting() {
+    const toggle = document.getElementById('bugReportingToggle');
+    const enabled = toggle.checked;
+    try {
+        const resp = await fetch('/api/admin/bug-reporting-toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+        if (!resp.ok) throw new Error('Failed');
+        const status = document.getElementById('bugReportingStatus');
+        if (status) {
+            status.textContent = enabled
+                ? 'Увімкнено — кнопка репорту (Alt+G) активна для всіх користувачів'
+                : 'Вимкнено — користувачі не бачать кнопку репорту';
+        }
+        showToast(enabled ? 'success' : 'info', 'Bug Reporter', enabled ? 'Систему звітів увімкнено' : 'Систему звітів вимкнено');
+    } catch (e) {
+        toggle.checked = !enabled;
+        showToast('error', 'Помилка', 'Не вдалося змінити налаштування');
+    }
+}
+
+const BR_STATUS_LABELS = {
+    new:         { label: 'Новий',      color: '#8CA8FF' },
+    in_progress: { label: 'В роботі',   color: '#F59E0B' },
+    resolved:    { label: 'Вирішено',   color: '#10B981' },
+    closed:      { label: 'Закрито',    color: '#636363' }
+};
+
+async function loadBugReports() {
+    const container = document.getElementById('bugReportsList');
+    if (!container) return;
+
+    const filterVal = document.getElementById('brStatusFilter')?.value || '';
+
+    container.innerHTML = '<div class="loading"><div class="spinner"></div><span>Завантаження...</span></div>';
+    try {
+        const resp = await fetch('/api/admin/bug-reports');
+        if (!resp.ok) throw new Error('Failed');
+        let reports = await resp.json();
+
+        if (filterVal) reports = reports.filter(r => r.status === filterVal);
+
+        // Update badge on tab
+        const badge = document.getElementById('bugReportsBadge');
+        const newCount = reports.filter(r => r.status === 'new').length;
+        if (badge) {
+            if (newCount > 0) {
+                badge.textContent = newCount > 9 ? '9+' : newCount;
+                badge.style.display = 'inline';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        if (!reports.length) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <div class="empty-state-text">Звітів немає</div>
+                </div>`;
+            return;
+        }
+
+        const headerRow = `
+            <div class="table-row header" style="grid-template-columns:60px 1fr 1fr 120px 100px 80px 80px 100px;">
+                <div>ID</div><div>Користувач</div><div>Сторінка</div>
+                <div>Статус</div><div>Дата</div>
+                <div style="text-align:center;">Фото</div>
+                <div style="text-align:center;">Відео</div>
+                <div>Дії</div>
+            </div>`;
+
+        const rows = reports.map(r => {
+            const st = BR_STATUS_LABELS[r.status] || { label: r.status, color: '#A1A1A1' };
+            const dateStr = r.created_at ? r.created_at.substring(0, 16) : '—';
+            const pageShort = r.page_url ? r.page_url.replace(/^https?:\/\/[^/]+/, '').substring(0, 40) : '—';
+            return `
+                <div class="table-row" style="grid-template-columns:60px 1fr 1fr 120px 100px 80px 80px 100px;cursor:pointer;" onclick="viewBugReport(${r.id})">
+                    <div style="color:var(--text-tertiary);">#${r.id}</div>
+                    <div>
+                        <div style="font-weight:600;font-size:13px;">${escAdminHtml(r.user_name || 'Невідомо')}</div>
+                        <div style="font-size:11px;color:var(--text-tertiary);">${escAdminHtml(r.user_email || '')}</div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-secondary);word-break:break-all;">${escAdminHtml(pageShort)}</div>
+                    <div>
+                        <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${st.color}22;color:${st.color};">
+                            ${st.label}
+                        </span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-secondary);">${dateStr}</div>
+                    <div style="text-align:center;">
+                        ${r.has_screenshot ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' : '—'}
+                    </div>
+                    <div style="text-align:center;">
+                        ${r.has_video ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8CA8FF" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>' : '—'}
+                    </div>
+                    <div class="actions-cell" onclick="event.stopPropagation()">
+                        <button class="action-btn secondary" style="padding:4px 10px;font-size:11px;" onclick="viewBugReport(${r.id})">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button class="action-btn danger" style="padding:4px 10px;font-size:11px;" onclick="deleteBugReport(${r.id})">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                        </button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        container.innerHTML = `<div class="table-body">${headerRow}${rows}</div>`;
+    } catch (e) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-text">Помилка завантаження</div></div>';
+    }
+}
+
+async function viewBugReport(id) {
+    const modal = document.getElementById('bugReportModal');
+    const body  = document.getElementById('bugReportModalBody');
+    const title = document.getElementById('bugReportModalTitle');
+    if (!modal || !body) return;
+
+    body.innerHTML = '<div class="loading"><div class="spinner"></div><span>Завантаження...</span></div>';
+    modal.classList.add('active');
+    title.textContent = `Звіт #${id}`;
+
+    try {
+        const resp = await fetch(`/api/admin/bug-reports/${id}`);
+        if (!resp.ok) throw new Error('Not found');
+        const r = await resp.json();
+        let logs = [];
+        try { logs = JSON.parse(r.logs || '[]'); } catch(e) {}
+
+        const st = BR_STATUS_LABELS[r.status] || { label: r.status, color: '#A1A1A1' };
+
+        body.innerHTML = `
+            <!-- Meta row -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">
+                <div style="background:var(--surface-secondary);border-radius:12px;padding:14px 16px;">
+                    <div style="color:var(--text-tertiary);font-size:11px;margin-bottom:4px;">КОРИСТУВАЧ</div>
+                    <div style="font-weight:600;">${escAdminHtml(r.user_name || 'Невідомо')}</div>
+                    <div style="color:var(--text-secondary);font-size:12px;">${escAdminHtml(r.user_email || '')}</div>
+                </div>
+                <div style="background:var(--surface-secondary);border-radius:12px;padding:14px 16px;">
+                    <div style="color:var(--text-tertiary);font-size:11px;margin-bottom:4px;">СТОРІНКА</div>
+                    <div style="font-size:12px;word-break:break-all;color:var(--text-secondary);">${escAdminHtml(r.page_url || '—')}</div>
+                    <div style="color:var(--text-tertiary);font-size:11px;margin-top:6px;">${r.created_at || ''}</div>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-size:12px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;">Статус:</span>
+                <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${st.color}22;color:${st.color};">${st.label}</span>
+                <select id="brStatusSelect_${id}" onchange="updateBugReportStatus(${id})"
+                    style="padding:6px 12px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text-primary);font-size:12px;margin-left:auto;">
+                    <option value="new"         ${r.status==='new'?'selected':''}>Новий</option>
+                    <option value="in_progress" ${r.status==='in_progress'?'selected':''}>В роботі</option>
+                    <option value="resolved"    ${r.status==='resolved'?'selected':''}>Вирішено</option>
+                    <option value="closed"      ${r.status==='closed'?'selected':''}>Закрито</option>
+                </select>
+            </div>
+
+            <!-- Description -->
+            ${r.description ? `
+            <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:6px;">ОПИС ПРОБЛЕМИ</div>
+                <div style="background:var(--surface-secondary);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.6;white-space:pre-wrap;">${escAdminHtml(r.description)}</div>
+            </div>` : ''}
+
+            <!-- Screenshot -->
+            ${r.screenshot_path ? `
+            <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:6px;">СКРІНШОТ</div>
+                <div style="border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+                    <img src="/${r.screenshot_path}" style="width:100%;display:block;" loading="lazy" alt="screenshot">
+                </div>
+            </div>` : ''}
+
+            <!-- Video -->
+            ${r.video_path ? `
+            <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:6px;">ЗАПИС ЕКРАНУ</div>
+                <video src="/${r.video_path}" controls style="width:100%;border-radius:12px;background:#000;border:1px solid rgba(255,255,255,0.08);" preload="metadata"></video>
+            </div>` : ''}
+
+            <!-- Logs -->
+            ${logs.length ? `
+            <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:6px;">КОНСОЛЬНІ ЛОГИ (${logs.length})</div>
+                <div style="background:#0a0a0a;border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px;max-height:200px;overflow-y:auto;font-family:'Courier New',monospace;font-size:11px;line-height:1.6;">
+                    ${logs.map(l => {
+                        const c = l.level==='error'?'#EF4444':l.level==='warn'?'#F59E0B':l.level==='info'?'#8CA8FF':'#636363';
+                        return `<div style="color:${c};margin:0 0 2px;white-space:pre-wrap;word-break:break-all;">[${(l.level||'log').toUpperCase()}] ${l.time?l.time.substring(11,19):''} ${escAdminHtml(l.message||'')}</div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- User Agent -->
+            ${r.user_agent ? `
+            <div style="font-size:11px;color:var(--text-tertiary);padding:8px 12px;background:var(--surface-secondary);border-radius:8px;word-break:break-all;">
+                ${escAdminHtml(r.user_agent)}
+            </div>` : ''}
+
+            <!-- Actions -->
+            <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px;">
+                <button class="action-btn danger" onclick="deleteBugReport(${id},true)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                    Видалити
+                </button>
+            </div>
+        `;
+    } catch (e) {
+        body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);">Не вдалося завантажити звіт</div>';
+    }
+}
+
+async function updateBugReportStatus(id) {
+    const sel = document.getElementById(`brStatusSelect_${id}`);
+    if (!sel) return;
+    try {
+        await fetch(`/api/admin/bug-reports/${id}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: sel.value })
+        });
+        showToast('success', 'Статус оновлено', '');
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося оновити статус');
+    }
+}
+
+async function deleteBugReport(id, fromModal = false) {
+    if (!confirm(`Видалити звіт #${id}?`)) return;
+    try {
+        const resp = await fetch(`/api/admin/bug-reports/${id}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('Failed');
+        if (fromModal) closeModal('bugReportModal');
+        showToast('success', 'Видалено', `Звіт #${id} видалено`);
+        loadBugReports();
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося видалити звіт');
+    }
+}
+
+function escAdminHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // Initialize on DOM load

@@ -2827,3 +2827,14 @@ window.openBotDetails = window.openBotDetails || function(botId) {
         setTimeout(initOnboarding, 500);
     }
 })();
+
+// Bug Reporter — load on all authenticated pages
+(function() {
+    const skip = ['/login', '/register', '/verify-email', '/reset-password', '/beta'];
+    if (skip.some(p => window.location.pathname.startsWith(p))) return;
+
+    const script = document.createElement('script');
+    script.src = '/js/bug-reporter.js';
+    script.defer = true;
+    document.head.appendChild(script);
+})();

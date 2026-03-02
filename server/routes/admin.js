@@ -1906,4 +1906,212 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
     }
 });
 
+// ==================== BUG REPORTS ====================
+
+const BUG_REPORTS_DIR = path.join(__dirname, '..', 'uploads', 'bug-reports');
+
+function ensureBugReportsDir() {
+    if (!fs.existsSync(BUG_REPORTS_DIR)) {
+        fs.mkdirSync(BUG_REPORTS_DIR, { recursive: true });
+    }
+}
+
+async function notifyAdminsNewBugReport(reportId, reporter, pageUrl, description) {
+    try {
+        const { getTelegramBot } = require('../services/telegram');
+        const bot = getTelegramBot();
+        if (!bot) return;
+
+        const admins = dbAll(
+            "SELECT telegram_id FROM users WHERE role = 'admin' AND telegram_id IS NOT NULL AND telegram_verified = 1"
+        );
+        if (!admins.length) return;
+
+        const shortDesc = description ? description.substring(0, 300) : 'No description';
+        const message =
+            `[Bug Report #${reportId}]\n\n` +
+            `Reporter: ${reporter?.full_name || 'Unknown'} (${reporter?.email || 'anonymous'})\n` +
+            `Page: ${pageUrl || 'N/A'}\n\n` +
+            `Description:\n${shortDesc}\n\n` +
+            `View in Admin Panel -> Bug Reports tab`;
+
+        for (const admin of admins) {
+            try {
+                await bot.sendMessage(admin.telegram_id, message);
+            } catch (err) {
+                console.error('[BugReport] Telegram notify error:', err.message);
+            }
+        }
+    } catch (err) {
+        console.error('[BugReport] notifyAdmins error:', err.message);
+    }
+}
+
+// Public: check if bug reporting is enabled (requires auth)
+router.get('/api/admin/bug-reporting-enabled', requireAuth, (req, res) => {
+    res.json({ enabled: !!siteSettings.bugReportingEnabled });
+});
+
+// Admin: toggle bug reporting
+router.post('/api/admin/bug-reporting-toggle', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const { enabled } = req.body;
+        siteSettings.bugReportingEnabled = !!enabled;
+        saveSettings();
+        logAdminAction(
+            req.session.userId, 'bug_reporting_toggle', 'settings', null,
+            `Bug reporting ${enabled ? 'enabled' : 'disabled'}`, getClientIP(req)
+        );
+        res.json({ success: true, enabled: siteSettings.bugReportingEnabled });
+    } catch (error) {
+        console.error('Bug reporting toggle error:', error);
+        res.status(500).json({ error: 'Failed to toggle bug reporting' });
+    }
+});
+
+// Submit bug report (any authenticated user)
+router.post('/api/bug-report', requireAuth, express.json({ limit: '20mb' }), async (req, res) => {
+    try {
+        if (!siteSettings.bugReportingEnabled) {
+            return res.status(403).json({ error: 'Bug reporting is disabled' });
+        }
+
+        const { description, logs, screenshot, page_url, user_agent } = req.body;
+        const user = dbGet('SELECT id, email, full_name FROM users WHERE id = ?', [req.session.userId]);
+
+        ensureBugReportsDir();
+
+        let screenshotPath = null;
+        if (screenshot && screenshot.startsWith('data:image/')) {
+            const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            const filename = `screenshot-${Date.now()}-${req.session.userId}.png`;
+            screenshotPath = `uploads/bug-reports/${filename}`;
+            fs.writeFileSync(path.join(BUG_REPORTS_DIR, filename), buffer);
+        }
+
+        const result = dbRun(
+            `INSERT INTO bug_reports (user_id, user_email, user_name, description, logs, screenshot_path, page_url, user_agent)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                user?.id || null,
+                user?.email || null,
+                user?.full_name || null,
+                description || null,
+                logs ? JSON.stringify(logs) : null,
+                screenshotPath,
+                page_url || null,
+                user_agent || null
+            ]
+        );
+
+        const reportId = result.lastInsertRowid;
+        await notifyAdminsNewBugReport(reportId, user, page_url, description);
+
+        res.json({ success: true, reportId });
+    } catch (error) {
+        console.error('Bug report submit error:', error);
+        res.status(500).json({ error: 'Failed to submit bug report' });
+    }
+});
+
+// Upload video for a bug report
+router.post('/api/bug-report/:id/video',
+    requireAuth,
+    express.raw({ type: ['video/webm', 'video/mp4', 'application/octet-stream'], limit: '200mb' }),
+    (req, res) => {
+        try {
+            const reportId = parseInt(req.params.id);
+            if (!reportId) return res.status(400).json({ error: 'Invalid report ID' });
+
+            const report = dbGet(
+                'SELECT id FROM bug_reports WHERE id = ? AND user_id = ?',
+                [reportId, req.session.userId]
+            );
+            if (!report) return res.status(404).json({ error: 'Report not found' });
+
+            ensureBugReportsDir();
+
+            const filename = `video-${reportId}-${Date.now()}.webm`;
+            const filePath = path.join(BUG_REPORTS_DIR, filename);
+            fs.writeFileSync(filePath, req.body);
+
+            dbRun('UPDATE bug_reports SET video_path = ? WHERE id = ?',
+                [`uploads/bug-reports/${filename}`, reportId]);
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Bug report video upload error:', error);
+            res.status(500).json({ error: 'Failed to upload video' });
+        }
+    }
+);
+
+// Admin: list all bug reports
+router.get('/api/admin/bug-reports', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const reports = dbAll(`
+            SELECT id, user_email, user_name, description, page_url, status, created_at,
+                   CASE WHEN screenshot_path IS NOT NULL THEN 1 ELSE 0 END AS has_screenshot,
+                   CASE WHEN video_path IS NOT NULL THEN 1 ELSE 0 END AS has_video
+            FROM bug_reports
+            ORDER BY created_at DESC
+            LIMIT 200
+        `);
+        res.json(reports);
+    } catch (error) {
+        console.error('Bug reports list error:', error);
+        res.status(500).json({ error: 'Failed to fetch bug reports' });
+    }
+});
+
+// Admin: get single bug report detail
+router.get('/api/admin/bug-reports/:id', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const report = dbGet('SELECT * FROM bug_reports WHERE id = ?', [req.params.id]);
+        if (!report) return res.status(404).json({ error: 'Report not found' });
+        res.json(report);
+    } catch (error) {
+        console.error('Bug report detail error:', error);
+        res.status(500).json({ error: 'Failed to fetch report' });
+    }
+});
+
+// Admin: update report status
+router.put('/api/admin/bug-reports/:id/status', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const { status } = req.body;
+        const allowed = ['new', 'in_progress', 'resolved', 'closed'];
+        if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+        dbRun('UPDATE bug_reports SET status = ? WHERE id = ?', [status, req.params.id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update status' });
+    }
+});
+
+// Admin: delete bug report
+router.delete('/api/admin/bug-reports/:id', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const report = dbGet('SELECT * FROM bug_reports WHERE id = ?', [req.params.id]);
+        if (!report) return res.status(404).json({ error: 'Report not found' });
+
+        if (report.screenshot_path) {
+            try { fs.unlinkSync(path.join(__dirname, '..', report.screenshot_path)); } catch (e) {}
+        }
+        if (report.video_path) {
+            try { fs.unlinkSync(path.join(__dirname, '..', report.video_path)); } catch (e) {}
+        }
+
+        dbRun('DELETE FROM bug_reports WHERE id = ?', [req.params.id]);
+        logAdminAction(req.session.userId, 'delete_bug_report', 'bug_reports', report.id,
+            `Deleted report from ${report.user_email}`, getClientIP(req));
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Bug report delete error:', error);
+        res.status(500).json({ error: 'Failed to delete report' });
+    }
+});
+
 module.exports = router;

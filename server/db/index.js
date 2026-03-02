@@ -455,6 +455,23 @@ async function initDatabase() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bug_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            user_email TEXT,
+            user_name TEXT,
+            description TEXT,
+            logs TEXT,
+            screenshot_path TEXT,
+            video_path TEXT,
+            page_url TEXT,
+            user_agent TEXT,
+            status TEXT DEFAULT 'new',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    `);
+
     const defaultPermissions = [
         ['users.view', 'View users list'],
         ['users.edit', 'Edit user details'],
