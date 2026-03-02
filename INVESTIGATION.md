@@ -921,6 +921,534 @@ CREATE TABLE bot_order_history (
 
 ---
 
-**Investigation completed:** 2026-03-02
+**Investigation completed (Backend):** 2026-03-02
 **Analyst:** Auto-Claude Agent
 **Subtask ID:** subtask-1-1
+
+---
+
+# Frontend Architecture Analysis - Subtask 1-2 Investigation Results
+
+## Overview
+
+The Yamato Trading Platform has a **vanilla HTML/CSS/JavaScript frontend** (in `/page`, `/css`, `/js`) combined with a **React/Vite charting widget** (in `/_src/` building to `/js/chart/chart.js`). The frontend consists of ~20 HTML pages across desktop and mobile, with a sophisticated real-time trading interface powered by Socket.IO and Binance market data.
+
+---
+
+## 1. HTML Pages Inventory (`page/` directory)
+
+### Total: 22 HTML files, ~32,000 lines
+
+#### Landing & Authentication Pages
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **index.html** | Landing page / home | 973 lines | Marketing content, CTA buttons, animated 3D cube background, navigation to login/register, project overview |
+| **reglogin.html** | Login & Register | 1252 lines | Dual-tab form (login/signup), email/password fields, client-side validation, OAuth hints, forgot password link, responsive auth modal |
+| **reset-password.html** | Password reset flow | 173 lines | Token-based password reset form, new password input confirmation |
+| **verify-email.html** | Email verification | 175 lines | Email verification prompt, resend verification link button |
+
+#### Main Trading/Dashboard Pages
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **datedos.html** | Primary Trading Terminal | 1947 lines | **Main dashboard** — real-time chart (KlineCharts), market list sidebar (price tickers), trading panel (buy/sell forms), holdings display, order history, Socket.IO price streaming, responsive grid layout with collapsible sidebars |
+| **dashboards-bot.html** | Bot Dashboard | 1496 lines | Bot trading terminal with bot-specific positions, trades, statistics, charting for bot performance |
+
+#### Bot Management
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **bots.html** | Bot List & Management | 1407 lines | List of user's trading bots, create bot modal, edit bot forms, bot status indicators (active/inactive), Binance API key configuration, bot mode selection (demo/real), delete functionality, modal-heavy |
+| **bot-detail.html** | Bot Detail View (Admin/Desktop) | 10,698 lines | **Largest page in codebase** — comprehensive bot detail: settings, terminal/console output, live trade execution log, bot statistics, performance graphs, Telegram config, strategy settings, complex UI with tabs/expandable sections |
+| **bot-stats.html** | Bot Statistics & Performance | 527 lines | Bot performance charts, trade statistics, PnL metrics, win rate, visual performance indicators |
+
+#### User Account Pages
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **profile.html** | User Profile & Settings | 2430 lines | **Large page** — account settings tabs: personal info, security (2FA/TOTP), email settings, wallet management, API key management, password change, theme preferences, account deletion, Telegram integration, subscription info |
+| **portfolio.html** | Portfolio Overview | 880 lines | Holdings summary, asset allocation, balance display, transaction history, quick stats (total value, 24h change), market overview |
+
+#### Admin Panel
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **admin.html** | Admin Control Panel | 1796 lines | Admin-only interface: user management, transaction monitoring, audit logs, news management, subscription tier management, analytics dashboard, pagination, export functionality |
+
+#### Informational Pages
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **news.html** | Crypto News Feed | 510 lines | News article list, filtering/search, article details, real-time news streaming |
+| **community.html** | Community & Social Links | 437 lines | Links to Telegram, Instagram, YouTube, TikTok; community engagement CTA |
+| **subscriptions.html** | Subscription Plans | 1309 lines | Pricing tiers, feature comparison table, plan selection, upgrade/downgrade functionality |
+
+#### Loading & Error Pages
+
+| File | Purpose | Size | Key Features |
+|------|---------|------|--------------|
+| **loading.html** | Loading Overlay | 316 lines | Generic loading screen (splash/transition state) |
+| **loading grafik.html** | Chart Loading | 364 lines | Chart-specific loading overlay |
+| **loadingdachbot.html** | Bot Dashboard Loading | 653 lines | Bot terminal loading screen with spinner |
+| **403.html** | Access Denied | 305 lines | 403 Forbidden error page (no auth/permission) |
+| **404erors.html** | Not Found | 306 lines | 404 Page Not Found error page |
+| **500.html** | Server Error | 305 lines | 500 Internal Server Error page |
+| **502.html** | Service Unavailable | 291 lines | 502 Bad Gateway / maintenance page ("Yamato — Оновлення") |
+
+---
+
+## 2. CSS Architecture (`css/` directory)
+
+### Total: 8 files, ~2,800 lines
+
+#### Design System (`variables.css`, 46 lines)
+- Single source of truth for design tokens loaded FIRST
+- Color palette: Dark theme (#080808 bg, #10B981 green accent)
+- Text colors, radii, shadows, spacing gaps
+- Never hardcoded colors; always uses `var(--css-token)`
+
+**Key Tokens:**
+```
+--bg-app: #080808              (main background)
+--surface: #141414             (card background)
+--accent-primary: #10B981      (green — main brand color)
+--color-up: #10B981            (price increase)
+--color-down: #EF4444          (price decrease)
+--text-primary: #FFFFFF
+--text-secondary: #A1A1A1
+--radius-xl: 32px              (max roundness)
+--shadow-soft: 0 12px 32px rgba(0,0,0,0.4)
+```
+
+#### Shared Layout (`shared-layout.css`, 408 lines)
+- Consistent layout across all dashboard pages
+- 70px left sidebar with icon-only nav items
+- 60px top header (brand pill + user menu + balance)
+- Grid-based app container: `grid-template-columns: auto 1fr; grid-template-rows: 60px 1fr`
+- `.card` component for consistent panel styling
+- `.scroll-y` for scrollable areas with custom scrollbars
+
+#### Mobile Responsive (`mobile.css`, 628 lines)
+- Breakpoint: ≤768px
+- Key changes:
+  - Hide sidebar: `.nav-sidebar { display: none !important; }`
+  - Single column: `grid-template-columns: 1fr`
+  - Bottom navigation bar (replaces sidebar)
+  - Sticky header at top with safe-area padding
+  - Full-height scrollable content: `overflow: auto !important;`
+  - Responsive font sizes, padding adjustments
+
+#### Responsive Utilities (`responsive.css`, 264 lines)
+- Desktop overflow lock: `html, body { overflow: hidden; }` (prevents bounce scroll)
+- Mobile scrolling enabled via media query
+- Scrollbar styling: Thin 4px scrollbar with custom colors
+- Container rules and viewport constraints
+
+#### Custom Scrollbar (`scrollbar.css`, 84 lines)
+- Candlestick-themed scrollbar design
+- **Vertical thumb:** Green (#26a69a) with thin wick + thick body (mimics candlestick)
+- **Hover state:** Becomes red (#EF5350)
+- **Active state:** Bright orange-red (#FF8A80)
+- Firefox (`scrollbar-width: thin`) + WebKit support (Chrome/Safari/Edge)
+
+#### Bot Terminal Styles (`bot-terminal.css`, 670 lines)
+- Terminal display with monospace font
+- Color-coded severity levels (error, warning, info, success)
+- Log entry styling with timestamps
+- Trade log visualization
+- Tabs system for different views (chart, logs, settings, stats)
+- Resizable panels, controls bar (symbol/timeframe selection)
+
+#### Bot Terminal Mobile (`bot-terminal-mobile.css`, 347 lines)
+- Mobile adaptations: shrink panels, stack vertically
+- Hide non-essential panels on small screens
+- Reduce font sizes, collapse accordions
+- Optimized touch interactions
+
+#### Navigation Fixes (`nav-fix.css`, 19 lines)
+- Minor tweaks for navigation items
+- Z-index adjustments, hover state refinements
+
+---
+
+## 3. JavaScript Architecture (`js/` directory)
+
+### Total: 8 files, ~6,900 lines
+
+#### Global App Initialization (`app.js`, 2594 lines)
+
+**Purpose:** Global initialization, authentication, utilities
+
+**Key Functions:**
+1. **Authentication (`checkAuth()`):**
+   - Verifies user login status on page load
+   - Redirects to `/login` if not authenticated
+   - Loads current user data from `/api/auth/me`
+
+2. **Toast Notification System:**
+   - `showToast(type, title, message)` — Creates styled notifications
+   - Types: success, error, warning, info, login, security, transaction
+   - Auto-dismiss after 4s, manual close button, 380px max width
+   - Positioned top-right, z-index 99999, backdrop-blurred
+
+3. **API Utilities:**
+   - Fetch wrapper with error handling
+   - Auto-redirect on 401 Unauthorized
+   - JSON parsing, error message extraction
+   - API_BASE = '/api'
+
+4. **Format Utilities:**
+   - `formatCurrency(value)` — USD with 2 decimals ($X,XXX.XX)
+   - `formatNumber(value)` — Thousand separators
+   - `formatPriceDash(price)` — Dashboard price formatting
+   - `formatPercent(value)` — Percentage with ± prefix
+
+5. **Socket.IO Initialization:**
+   - `initSocket()` — Connects to real-time event stream
+   - Handles reconnection with exponential backoff
+   - Configures transports: WebSocket + polling fallback
+
+6. **Navigation & UI:**
+   - Highlight active nav item
+   - Setup click handlers for nav items
+   - Mobile detection and responsive behavior
+
+7. **Global Variables:**
+   - `currentUser` — Logged-in user object
+   - `dashboardSocket` — Socket.IO connection
+   - `sessionId` — Session identifier
+
+#### Dashboard Real-Time (`dashboard.js`, 385 lines)
+
+**Purpose:** Dashboard page logic — real-time updates, holdings, trades
+
+**Key Functions:**
+1. **Socket.IO Event Listeners:**
+   - `priceUpdate` — Updates market ticker prices in real-time
+   - `orderFilled` — Notifies when order executes
+   - `holdingsUpdate` — Updates asset holdings display
+   - `balanceUpdate` — Updates wallet balance display
+
+2. **Holdings Management:**
+   - `loadHoldings()` — Fetch and render user holdings
+   - `updateHoldingsPrices(prices)` — Update prices without refetching
+   - `renderHoldingsFromRaw(data)` — Render from API data
+
+3. **Recent Trades:**
+   - `loadRecentTrades()` — Fetch last N trades
+
+4. **Order Management:**
+   - Market vs. Limit order selection
+   - Quick amount buttons (10%, 25%, 50%, 100%)
+   - Order total calculation
+
+5. **Chart Integration:**
+   - Loads React KlineCharts from `/js/chart/chart.js`
+   - Symbol & timeframe selection (1m, 5m, 1h, 1d)
+   - Real-time candle updates
+
+#### Admin Panel Controller (`admin.js`, 2846 lines)
+
+**Purpose:** Admin-only functionality
+
+**Key Sections:**
+1. **Authentication:** Check admin/moderator role, display "Access Denied" if insufficient
+2. **User Management:** List users, search, ban/unban, edit details
+3. **Transaction Monitoring:** Display deposits/withdrawals, filter, approve/reject
+4. **News Management:** Create, edit, delete crypto news articles
+5. **Audit Logs:** Track admin actions, user login history, account changes
+6. **Analytics Dashboard:** User growth, trading volume, revenue metrics, CSV export
+7. **Subscription Management:** View/edit/delete tiers, manage feature availability
+8. **Moderation Tools:** Report management, user warnings, suspensions
+
+#### Dashboard Customization (`dashboard-customizer.js`, 679 lines)
+
+**Purpose:** Dashboard panel customization (resize, drag, show/hide, persistence)
+
+**Features:**
+1. **Edit Mode:**
+   - Toggle "Edit Layout" button in header
+   - Visual outline of panels (dashed border)
+   - Indicates customizable panels
+
+2. **Column Resizing:**
+   - Draggable gutter between market panel and chart
+   - Draggable gutter between chart and trade panel
+   - Snap to min (180px) and max (450px) widths
+
+3. **Panel Visibility:**
+   - Eye toggle button per trade card
+   - Hide/show market panel, trade panel
+   - Persists in localStorage
+
+4. **Card Reordering:**
+   - Drag handle (⋮) on trade cards
+   - Drag-to-reorder functionality
+   - Visual feedback on drag-over
+
+5. **State Persistence:**
+   - localStorage key: `yamato_dashboard_layout`
+   - Saves panel widths, visibility states
+   - Loads on page reload
+
+#### Bot Terminal Modules (4 parts)
+
+The `bot-detail.html` (10,698 lines) imports from `js/terminal/`:
+
+**`terminal/init.js` (Initialization & Bootstrap):**
+- `init()` — Main bootstrap: syncs trades, fetches data, initializes chart, binds listeners
+- `fadeIn()` — Smooth loading screen fade (3s minimum)
+- `getSymbol()` — Detect trading symbol from positions
+- Event listeners for: symbol selection, timeframe, export CSV, tab switches
+
+**`terminal/data.js` (Data Fetching & Management):**
+- `fetchBotDetails()` — Load bot configuration
+- `fetchTrades()` — Load trade history with pagination
+- `fetchCurrentUser()` — Load user info
+- `fetchLiveData()` — Real-time bot position updates
+- `fetchKlines(symbol, timeframe)` — Load candlestick data from Binance
+- `fetchBotStats(period)` — Aggregated bot statistics
+- `fetchTradeMarkers()` — Entry/exit markers for chart
+- `fetchTelegramStatus()`, `fetchNotificationSettings()`
+- `syncTrades()` — Sync trade log with server
+
+**`terminal/controls.js` (UI Controls & Interactions):**
+- `toggleSymbolDropdown()` — Show/hide symbol selector
+- `selectSymbol(symbol)` — Change trading symbol
+- `setPeriod(days)` — Switch chart timeframe (1/7/30/365 days)
+- `applyPeriod()` — Apply period and reload chart
+- `exportCSV()` — Export trade history as CSV
+- Event bindings for period pills, symbol buttons, modals
+
+**`terminal/renderers.js` (Rendering & Display):**
+- `renderTrades()` — Render trade history table
+- `renderStats()` — Display bot statistics
+- `renderChart()` — Initialize KlineCharts
+- `renderLiveData()` — Update live position display
+- `updateTradeMarkers()` — Add entry/exit markers to chart
+- Color coding: green for profit, red for loss
+
+---
+
+## 4. CSS Loading Order (Critical for Precedence)
+
+Every app page loads CSS in this order:
+
+1. **`css/variables.css`** — Design tokens, `:root` variables, `* { box-sizing... }`
+2. **`css/shared-layout.css`** — Sidebar, header, grid layout
+3. **`css/scrollbar.css`** — Custom scrollbar styles
+4. **`css/mobile.css`** (media="(max-width: 768px)") — Mobile breakpoint
+5. **`css/responsive.css`** — Overflow/scroll logic
+6. **`css/bot-terminal.css`** (if bot-detail page) — Bot terminal styles
+7. **Page-specific `<style>` block** — Inline in HTML
+
+---
+
+## 5. Key UI Components & Patterns
+
+### Navigation Pattern
+- **Desktop:** 70px sidebar with icon-only nav items (70px wide, 40x40px buttons)
+- **Mobile:** Bottom nav bar with 5 main items, sticky header
+- **Active state:** Green (#10B981) background + white text
+- **Hover state:** Surface-secondary background
+
+### Card Component
+- Class: `.card`
+- Background: `var(--surface)`
+- Border-radius: `var(--radius-lg)` (24px)
+- Padding: 16px
+- Shadow: `var(--shadow-card)`
+- Border: 1px solid rgba(255,255,255,0.05)
+
+### Grid Layout (Dashboard)
+- Dynamic columns: sidebar | market panel | chart | trade panel
+- Gap: 12px
+- Header: 60px fixed height
+- Responsive: Grid columns collapse at smaller breakpoints
+
+### Form Pattern
+- Text inputs: border 1px solid rgba(255,255,255,0.1), border-radius 8px
+- Buttons: green background (#10B981) for primary, outlined for secondary
+- Error states: red border, error message below field
+- Validation: client-side via JS, server-side via API
+
+### Modal Pattern
+- Overlay with semi-transparent backdrop
+- Centered card with max-width (e.g., 600px)
+- Close button (×) in top-right
+- Dismiss on backdrop click or Escape key
+- Animated in/out: opacity 0→1, scale 0.9→1
+
+---
+
+## 6. Responsive Breakpoints
+
+| Device | Breakpoint | Layout | Navigation |
+|--------|-----------|--------|------------|
+| Desktop | ≥769px | Sidebar visible, multi-column grid | Left sidebar (70px) |
+| Tablet/Mobile | ≤768px | Single column, full-width content | Bottom nav bar (60px) |
+
+**Key Mobile Changes:**
+- Sidebar hidden entirely
+- Grid switches to single-column
+- Bottom nav replaces left sidebar
+- Header becomes sticky (top: 0)
+- Content scrollable: `overflow: auto !important;`
+- Safe-area padding for notches/home indicators
+
+---
+
+## 7. Real-Time Communication
+
+### Socket.IO Events (from `app.js`)
+- **`priceUpdate`** — Market price updates (every 1-2s)
+- **`orderFilled`** — Order execution notification
+- **`holdingsUpdate`** — Asset holdings update
+- **`balanceUpdate`** — Wallet balance update
+- **`botStatusUpdate`** — Bot state change (started/stopped)
+- **`tradeUpdate`** — New trade executed by bot
+
+### Direct Binance WebSocket (from chart widget)
+- Real-time candlestick data (1m, 5m, 1h, 1d)
+- Order book updates (for advanced charts)
+- Direct connection from browser (not proxied)
+- Intentional: Performance over centralized control
+
+---
+
+## 8. Interactive Features
+
+### Dashboard Customization (`dashboard-customizer.js`)
+- **Edit mode toggle:** Button in header
+- **Column resizing:** Drag gutter between panels
+- **Panel visibility:** Eye toggle on cards
+- **Card reordering:** Drag handle to reorder
+- **State persistence:** localStorage saves layout
+
+### Bot Terminal (bot-detail.html + terminal/*.js)
+- **Symbol selection:** Dropdown to select trading pair
+- **Timeframe selection:** Pills for 1m, 5m, 1h, 1d
+- **Trade log:** Real-time trade execution display
+- **Chart interaction:** Zoom, pan, crosshair
+- **Export CSV:** Download trade history
+
+### Admin Panel (admin.js)
+- **Pagination:** Navigate large result sets
+- **Search/filter:** Find users, transactions, news
+- **Bulk actions:** Select multiple, apply action
+- **Data export:** Download analytics to CSV
+
+---
+
+## 9. Performance Optimizations
+
+### CSS
+- **Variables.css first:** Single source of truth (fast lookups)
+- **Shared-layout.css:** Reused across pages (DRY)
+- **Media query in link:** Mobile CSS only loaded on small screens
+- **No critical rendering blocker:** CSS in `<head>` but non-blocking
+
+### JavaScript
+- **Vanilla JS (no heavy framework):** Fast parsing
+- **Module imports:** Code split across files
+- **Event delegation:** Reduces listener count
+- **localStorage:** Instant layout restore without API call
+
+### HTML
+- **Large files split into sections:** Easy to parse
+- **Inline styles for dynamic content:** Reduced CSS overhead
+- **Lazy-loaded images:** Deferred loading in some pages
+
+---
+
+## 10. Accessibility & Internationalization
+
+### Language
+- All pages: `lang="uk"` (Ukrainian)
+- All content: Fully in Ukrainian
+- RTL support: Not implemented (future consideration)
+
+### Accessibility
+- ARIA labels: Limited (could be enhanced)
+- Semantic HTML: Some use of `<button>`, `<nav>`, `<header>`
+- Keyboard navigation: Partial support
+- Color contrast: Good (light text on dark backgrounds)
+
+---
+
+## 11. Mobile Optimizations
+
+### Touch Interactions
+- Button tap targets: ≥40x40px
+- Modal scaling: Fits screen width
+- Chart responsiveness: Adjusts to viewport
+- Bottom nav safe area: Padding for notches/home indicators
+
+### Responsive Design
+- Fluid typography: em/rem-based sizing
+- Flexible layouts: Flexbox + CSS Grid
+- Viewport meta tag: `width=device-width, initial-scale=1.0`
+- Touch-friendly: Larger buttons, spacing
+
+---
+
+## 12. Key Observations & Notes
+
+1. **bot-detail.html Size:** 10,698 lines makes it one of the largest files in the codebase. Could benefit from further componentization.
+
+2. **Mobile Bot Terminal:** Currently desktop-only. Mobile users cannot access full bot management (bot-detail.html is not mobile-optimized).
+
+3. **Monolithic vs. Component:** Vanilla HTML/CSS/JS approach is lightweight but less scalable than a component framework. Each feature adds lines to existing files.
+
+4. **Accessibility:** While visually polished, some a11y features (ARIA labels, semantic HTML) could be enhanced for screen readers.
+
+5. **Code Duplication:** Some UI patterns (modals, tables, filters) repeated across pages rather than as reusable components.
+
+6. **Direct Binance WebSocket:** Browser connects directly to Binance (not proxied). Intentional for performance; API key security is frontend-managed.
+
+7. **CSS-in-JS:** `dashboard-customizer.js` injects styles dynamically for edit-mode UI. Works but could use a CSS-in-JS library for cleaner code.
+
+---
+
+## 13. Integration Points
+
+### With Backend (server/)
+- All API calls to `/api/*` endpoints
+- Authentication via `connect.sid` cookie
+- Socket.IO namespace for real-time events
+- File uploads for avatars/documents
+
+### With External Services
+- **Binance:** Direct WebSocket for market data
+- **Google Fonts:** Plus Jakarta Sans, Material Symbols fonts
+- **Socket.IO:** Real-time bidirectional communication
+
+### With React Charting Widget (_src/)
+- Compiled output: `/js/chart/chart.js`
+- Loaded via `<script src="/js/chart/chart.js"></script>`
+- KlineCharts library + custom Binance datafeed
+- Communication via `window.chartInstance` or custom events
+
+---
+
+## File Reference Summary
+
+| Category | File | Lines | Purpose |
+|----------|------|-------|---------|
+| **Design System** | `css/variables.css` | 46 | CSS design tokens |
+| **Layout** | `css/shared-layout.css` | 408 | Sidebar + grid layout |
+| **Responsive** | `css/mobile.css` | 628 | Mobile breakpoint styles |
+| **Auth/Global** | `js/app.js` | 2,594 | Global init, toast, auth |
+| **Admin** | `js/admin.js` | 2,846 | Admin panel controller |
+| **Trading** | `js/dashboard.js` | 385 | Real-time dashboard |
+| **Customization** | `js/dashboard-customizer.js` | 679 | Layout customization |
+| **Main Terminal** | `page/bot-detail.html` | 10,698 | Bot trading terminal (LARGEST!) |
+| **Profile** | `page/profile.html` | 2,430 | User settings (2nd largest) |
+| **Login** | `page/reglogin.html` | 1,252 | Auth forms |
+
+---
+
+**Investigation completed (Frontend):** 2026-03-02
+**Analyst:** Auto-Claude Agent
+**Subtask ID:** subtask-1-2
