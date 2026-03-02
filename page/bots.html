@@ -66,6 +66,14 @@
             gap: 8px;
         }
 
+        .bots-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-tertiary);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
         svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
         /* Bot Activity Log Styles */
@@ -464,6 +472,7 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            min-width: 0;
         }
 
         .bot-card-name {
@@ -1390,7 +1399,7 @@
 
                 if (allBots.length === 0) {
                     document.getElementById('botsTree').innerHTML =
-                        '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає ботів</div>';
+                        '<div class="bots-empty-state">Немає ботів</div>';
                     return;
                 }
 
@@ -1402,7 +1411,7 @@
                 attachAccordionListeners();
             } catch (err) {
                 document.getElementById('botsTree').innerHTML =
-                    '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Не вдалося завантажити ботів</div>';
+                    '<div class="bots-empty-state">Не вдалося завантажити ботів</div>';
             }
         }
 
@@ -1410,7 +1419,7 @@
             const pnl       = b.profit || 0;
             const pnlClass  = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
             const pnlStr    = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
-            const win       = b.winRate !== null ? b.winRate + '%' : '—';
+            const win       = b.winRate != null ? b.winRate + '%' : '—';
             const isLive    = b.mode === 'bot';
             const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
