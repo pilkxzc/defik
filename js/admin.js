@@ -191,6 +191,9 @@ function switchTab(tabName) {
         case 'analytics':
             loadAnalytics();
             break;
+        case 'backup':
+            loadBackupTab();
+            break;
     }
 }
 
