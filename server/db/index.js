@@ -46,6 +46,7 @@ async function initDatabase() {
     try { db.run('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN subscription_plan TEXT DEFAULT "free"'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN subscription_expires_at TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE users ADD COLUMN last_ip TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN telegram_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN telegram_code TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN telegram_verified INTEGER DEFAULT 0'); } catch(e) {}
@@ -282,6 +283,16 @@ async function initDatabase() {
             ip_address TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT NOT NULL,
+            user_email TEXT,
+            success INTEGER DEFAULT 0,
+            attempt_time TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
