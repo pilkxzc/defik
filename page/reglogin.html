@@ -399,11 +399,11 @@
             </div>
 
             <form class="form-container" id="authForm">
-                <div class="form-group">
+                <div class="form-group" id="emailGroup">
                     <label class="form-label">Email адреса</label>
                     <input type="email" class="form-input" placeholder="name@email.com" id="email" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="passwordGroup">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <label class="form-label" style="margin-bottom: 0;">Пароль</label>
                         <a href="#" style="color: var(--accent-primary); font-size: 12px; font-weight: 600; text-decoration: none;" onclick="showForgotPasswordModal(); return false;">Забули?</a>
@@ -937,12 +937,22 @@
             function setVal(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
             function setProp(id, prop, val) { var el = document.getElementById(id); if (el) el[prop] = val; }
 
+            function deactivateAllTabs() {
+                tabLogin.classList.remove('active');
+                tabRegister.classList.remove('active');
+                var tc = document.getElementById('tabCode');
+                if (tc) tc.classList.remove('active');
+            }
+
             // Tab switching
             tabLogin.addEventListener('click', function() {
                 isLoginMode = true;
                 requires2FA = false;
+                deactivateAllTabs();
                 tabLogin.classList.add('active');
-                tabRegister.classList.remove('active');
+                // Show login fields
+                setDisplay('emailGroup', 'block');
+                setDisplay('passwordGroup', 'block');
                 fullNameGroup.style.display = 'none';
                 phoneGroup.style.display = 'none';
                 setDisplay('totpGroup', 'none');
@@ -953,16 +963,20 @@
                 setDisplay('telegramLoginBtn', 'flex');
                 setDisplay('telegramDivider', 'flex');
                 setDisplay('telegramRegForm', 'none');
-                setDisplay('authForm', 'block');
-                authSubmit.textContent = 'Увійти';
+                setDisplay('codeLoginGroup', 'none');
+                if (authSubmit) authSubmit.style.display = '';
+                if (authSubmit) authSubmit.textContent = 'Увійти';
                 authError.style.display = 'none';
             });
 
             tabRegister.addEventListener('click', function() {
                 isLoginMode = false;
                 requires2FA = false;
+                deactivateAllTabs();
                 tabRegister.classList.add('active');
-                tabLogin.classList.remove('active');
+                // Show register fields
+                setDisplay('emailGroup', 'block');
+                setDisplay('passwordGroup', 'block');
                 fullNameGroup.style.display = 'block';
                 phoneGroup.style.display = 'block';
                 setDisplay('totpGroup', 'none');
@@ -973,23 +987,30 @@
                 setDisplay('telegramLoginBtn', 'flex');
                 setDisplay('telegramDivider', 'flex');
                 setDisplay('telegramRegForm', 'none');
-                setDisplay('authForm', 'block');
-                authSubmit.textContent = 'Sign Up';
+                setDisplay('codeLoginGroup', 'none');
+                if (authSubmit) authSubmit.style.display = '';
+                if (authSubmit) authSubmit.textContent = 'Зареєструватися';
                 authError.style.display = 'none';
             });
 
             // Code login tab
             const tabCode = document.getElementById('tabCode');
             tabCode.addEventListener('click', function() {
+                deactivateAllTabs();
                 tabCode.classList.add('active');
-                tabLogin.classList.remove('active');
-                tabRegister.classList.remove('active');
-                setDisplay('authForm', 'none');
+                // Hide login/register fields but keep form visible
+                setDisplay('emailGroup', 'none');
+                setDisplay('passwordGroup', 'none');
+                fullNameGroup.style.display = 'none';
+                phoneGroup.style.display = 'none';
+                setDisplay('totpGroup', 'none');
+                if (authSubmit) authSubmit.style.display = 'none';
                 setDisplay('passkeyLoginBtn', 'none');
                 setDisplay('loginDivider', 'none');
                 setDisplay('telegramLoginBtn', 'none');
                 setDisplay('telegramDivider', 'none');
                 setDisplay('telegramRegForm', 'none');
+                // Show code login
                 setDisplay('codeLoginGroup', 'block');
                 authError.style.display = 'none';
                 // Reset code login form
