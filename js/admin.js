@@ -2848,7 +2848,7 @@ function renderSystemHealth(data) {
 // ==================== BACKUP TAB ====================
 
 async function loadBackupTab() {
-    await Promise.all([loadGoogleSettings(), loadBackupSettings(), loadBackupHistory()]);
+    await Promise.all([loadGoogleSettings(), loadBackupSettings(), loadBackupHistory(), loadServerInfo()]);
 }
 
 async function loadGoogleSettings() {
@@ -3179,13 +3179,6 @@ async function restoreFromDrive(fileId, fileName) {
         showToast('error', 'Помилка', 'Не вдалося відновити бекап');
     }
 }
-
-// Load server info when backup tab opens
-const origLoadBackupTab = loadBackupTab;
-loadBackupTab = async function() {
-    await origLoadBackupTab();
-    loadServerInfo();
-};
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async function() {
