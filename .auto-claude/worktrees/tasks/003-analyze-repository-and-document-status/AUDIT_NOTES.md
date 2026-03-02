@@ -688,3 +688,36 @@
 
 **Concern:** The build output exists and is usable, but the project cannot be rebuilt from source without fixing the `node_modules` symlink or running `npm install` directly in `_src/`
 **Concern:** Both `main.ts` and `main.tsx` exist in `src/` — the Vite config uses `main.ts`, so `main.tsx` may be a leftover from a React-based approach that was refactored to vanilla TS
+
+---
+
+# Infrastructure Audit
+
+## Checklist
+
+| # | Item | Status | Details |
+|---|------|--------|---------|
+| 1 | PM2 config (`ecosystem.config.js`) | ✅ Present | Fork mode, single instance, log rotation to `/var/log/defisit/`, auto-restart (max 10), production env vars, hardcoded `cwd: /var/www/defisit` |
+| 2 | CI/CD pipeline (`.github/workflows/`) | ❌ Missing | No GitHub Actions workflows found — deployment is manual via `deploy.sh` |
+| 3 | Test suite | ❌ Missing | No test files (`*.test.*`, `*.spec.*`), no test configs (jest, vitest, mocha), no test dependencies in project |
+| 4 | Docker files | ❌ Missing | No `Dockerfile`, no `docker-compose.yml` — deployment targets bare-metal VPS via PM2 |
+| 5 | CORS config | ⚠️ Wide open | `cors({ origin: '*' })` in `server.js` — acceptable for beta, must be tightened for production |
+| 6 | Security headers (helmet, CSP) | ✅ Present | `helmet()` with custom CSP directives: `defaultSrc: 'self'`, script/style/font/connect/img sources whitelisted for CDNs and Binance APIs, `crossOriginEmbedderPolicy: false` |
+| 7 | Rate limiting middleware | ✅ Present | `express-rate-limit` with 3 limiters: login (5/15min), register (3/1hr), orders (30/1min) — all configurable via env vars |
+| 8 | `.env.example` | ✅ Present | Documents `PORT`, `HTTPS_PORT`, and other env vars for onboarding |
+| 9 | Structured logging | ❌ Missing | Uses raw `console.log`/`console.error` throughout — no structured logger (winston/pino), no log levels, no request correlation IDs. PM2 captures stdout/stderr to files |
+| 10 | Deploy/setup scripts | ✅ Present | `deploy.sh` (build + rsync to VPS), `server-setup.sh` (one-time server prep), `vps-setup.sh` (one-time git setup on VPS) |
+
+## Infrastructure Summary
+
+**Production-ready items:** PM2 process management, helmet+CSP security headers, rate limiting, deploy scripts, env example
+**Missing for production:** CI/CD pipeline, test suite, Docker containerization, structured logging
+**Needs hardening:** CORS origin restriction, session secret (hardcoded `'yamato-secret-key-2024'`), beta code (hardcoded `'401483'`)
+
+## Additional Notes
+
+- **Error handling middleware:** `server/middleware/errorHandler.js` provides `AppError` class and centralized error handler with operational vs programmer error distinction
+- **Graceful shutdown:** Implemented in `server.js` — stops candle collector, saves DB, closes HTTP server, 5s force-exit timeout
+- **SSL/HTTPS:** Optional HTTPS server using SSL creds from `utils/ssl`, wrapped in try/catch
+- **Process management:** PM2 fork mode (single instance) — no cluster mode, no load balancing
+- **Monitoring:** No APM (Application Performance Monitoring) integration — relies on PM2 status + log files
