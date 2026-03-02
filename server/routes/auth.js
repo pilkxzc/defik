@@ -27,21 +27,22 @@ router.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ error: 'Email, password and full name are required' });
         }
 
-        const existingUser = dbGet('SELECT id FROM users WHERE email = ?', [email]);
+        const normalizedEmail = email.toLowerCase().trim();
+        const existingUser = dbGet('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
         if (existingUser) {
             return res.status(400).json({ error: 'Email already registered' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const role = email === ADMIN_EMAIL ? 'admin' : 'user';
+        const role = normalizedEmail === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user';
 
         const result = dbRun(
             'INSERT INTO users (email, password, full_name, phone, balance, demo_balance, real_balance, active_account, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [email, hashedPassword, fullName, phone || null, 0, 10000, 0, 'demo', role]
+            [normalizedEmail, hashedPassword, fullName, phone || null, 0, 10000, 0, 'demo', role]
         );
 
         const userId = result.lastInsertRowid;
-        console.log(`[register] New user inserted, userId=${userId} (type=${typeof userId}), email=${email}`);
+        console.log(`[register] New user inserted, userId=${userId} (type=${typeof userId}), email=${normalizedEmail}`);
 
         if (!userId) {
             console.error('[register] dbRun returned null/undefined userId — INSERT failed silently');
@@ -63,7 +64,7 @@ router.post('/api/auth/register', async (req, res) => {
                 [userId, verToken, verExpires]);
             const { sendVerificationEmail } = require('../services/email');
             const verifyUrl = `${req.protocol}://${req.get('host')}/verify-email?token=${verToken}`;
-            sendVerificationEmail(email, verifyUrl);
+            sendVerificationEmail(normalizedEmail, verifyUrl);
         } catch (emailErr) {
             console.log('[Auth] Verification email not sent:', emailErr.message);
         }
@@ -81,7 +82,7 @@ router.post('/api/auth/register', async (req, res) => {
             res.json({
                 success: true,
                 message: 'Registration successful',
-                user: { id: userId, email, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+                user: { id: userId, email: normalizedEmail, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
             });
         });
     } catch (error) {
