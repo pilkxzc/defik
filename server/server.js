@@ -11,8 +11,12 @@ const { initDatabase, saveDatabase, dbGet }    = require('./db');
 const { createSessionMiddleware }              = require('./middleware/session');
 const { maintenanceMiddleware }                = require('./middleware/maintenance');
 const { betaMiddleware, betaSubmit }           = require('./middleware/beta');
+<<<<<<< HEAD
 const { errorHandler }                         = require('./middleware/errorHandler');
 const { loginLimiter, registerLimiter, ordersLimiter, telegramCodeLimiter } = require('./middleware/rateLimiter');
+=======
+const { authRateLimiter, apiRateLimiter }      = require('./middleware/rateLimit');
+>>>>>>> auto-claude/004-api-rate-limiting-brute-force-protection
 const { initSocket }                           = require('./socket');
 const { initTelegramBot }                      = require('./services/telegram');
 const { getSSLCredentials }                    = require('./utils/ssl');
@@ -59,12 +63,26 @@ async function createApp() {
     app.post('/beta', betaSubmit);
     app.use(betaMiddleware);
 
+<<<<<<< HEAD
     // 4. API routers with rate limiters
     const authRouter = require('./routes/auth');
     app.use('/api/auth/login', loginLimiter);
     app.use('/api/auth/register', registerLimiter);
     app.use('/api/auth/telegram-login-request', telegramCodeLimiter);
     app.use('/api/orders', ordersLimiter);
+=======
+    // Rate limiting — applied after session and beta, before routes
+    // Auth endpoints (strict): 5 requests/minute per IP for sensitive operations
+    app.use('/api/auth/login', authRateLimiter);
+    app.use('/api/auth/register', authRateLimiter);
+    app.use('/api/auth/forgot-password', authRateLimiter);
+    app.use('/api/auth/reset-password', authRateLimiter);
+    // General API endpoints: 100 requests/minute per user/IP
+    app.use('/api', apiRateLimiter);
+
+    // 4. HTTP server
+    const server = http.createServer(app);
+>>>>>>> auto-claude/004-api-rate-limiting-brute-force-protection
 
     app.use(authRouter);
     app.use(require('./routes/market'));
