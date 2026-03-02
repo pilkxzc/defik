@@ -667,7 +667,27 @@ svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
                 script.async = true;
                 document.getElementById('tgWidgetContainer').appendChild(script);
 
-                // Fallback: reset button after 60s
+                // Detect popup closed without auth (domain not set in BotFather)
+                var tgAuthDone = false;
+                var origOnTgAuth = window.onTelegramAuth;
+                window.onTelegramAuth = async function(user) {
+                    tgAuthDone = true;
+                    return origOnTgAuth(user);
+                };
+                setTimeout(function() {
+                    if (!tgAuthDone && btn.disabled) {
+                        var ol = document.getElementById('tgWidgetOverlay');
+                        if (ol) ol.remove();
+                        var authErr = document.getElementById('authError');
+                        if (authErr) {
+                            authErr.textContent = 'Telegram не відповів. Можливо домен бота не налаштований або спробуйте ще раз.';
+                            authErr.style.display = 'block';
+                            authErr.style.color = '#EF4444';
+                        }
+                        resetTelegramBtn();
+                    }
+                }, 8000);
+                // Hard fallback after 60s
                 setTimeout(function() { if (btn.disabled) resetTelegramBtn(); }, 60000);
 
             } catch (err) {
