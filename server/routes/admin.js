@@ -160,6 +160,49 @@ router.get('/api/admin/analytics/subscriptions/funnel', requireAuth, requireRole
     }
 });
 
+router.get('/api/admin/analytics/trading/volume', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        // Total trading volume and trades
+        const volumeStats = dbGet(`
+            SELECT
+                COUNT(*) as totalTrades,
+                COALESCE(SUM(amount * price), 0) as totalVolume,
+                COALESCE(AVG(amount * price), 0) as avgTradeSize
+            FROM bot_trades
+            WHERE created_at > ?
+        `, [cutoffDate]);
+
+        // Daily volume trends
+        const volumeTrends = dbAll(`
+            SELECT
+                DATE(created_at) as date,
+                COUNT(*) as trades,
+                COALESCE(SUM(amount * price), 0) as volume
+            FROM bot_trades
+            WHERE created_at > ?
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `, [cutoffDate]);
+
+        res.json({
+            totalTrades: volumeStats?.totalTrades || 0,
+            totalVolume: volumeStats?.totalVolume || 0,
+            avgTradeSize: volumeStats?.avgTradeSize || 0,
+            volumeTrends: volumeTrends.map(v => ({
+                date: v.date,
+                trades: v.trades,
+                volume: v.volume
+            }))
+        });
+    } catch (error) {
+        console.error('Trading volume analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch trading volume analytics' });
+    }
+});
+
 // ==================== MAINTENANCE ====================
 
 router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
