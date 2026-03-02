@@ -386,6 +386,19 @@ async function initDatabase() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT NOT NULL,
+            user_email TEXT NOT NULL,
+            success INTEGER DEFAULT 0,
+            attempt_time TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip_address, attempt_time)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_login_attempts_email_time ON login_attempts(user_email, attempt_time)'); } catch(e) {}
+
     try { db.run('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch(e) {}
 
     db.run(`
