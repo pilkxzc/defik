@@ -849,7 +849,7 @@
                 </button>
             </div>
 
-            <div class="bots-tree" id="botsTree">
+            <div class="bots-accordion" id="botsTree">
                 <div style="text-align:center; padding:60px 20px; color:var(--text-tertiary);">
                     <div class="spinner" style="margin:0 auto 16px;"></div>
                     Завантаження ботів...
@@ -1449,11 +1449,7 @@
 
                 // Render flat accordion list of bot cards
                 const html = allBots.map(b => renderBotAccordionCard(b)).join('');
-                const accordionDiv = document.createElement('div');
-                accordionDiv.className = 'bots-accordion';
-                accordionDiv.innerHTML = html;
-                document.getElementById('botsTree').innerHTML = '';
-                document.getElementById('botsTree').appendChild(accordionDiv);
+                document.getElementById('botsTree').innerHTML = html;
 
                 // Attach event listeners for accordion toggle
                 attachAccordionListeners();
