@@ -98,7 +98,7 @@ router.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        const user = dbGet('SELECT * FROM users WHERE email = ?', [email]);
+        const user = dbGet('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email.trim()]);
         if (!user) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
