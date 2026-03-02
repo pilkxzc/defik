@@ -10,6 +10,7 @@ const { initDatabase, saveDatabase, dbGet }    = require('./db');
 const { createSessionMiddleware }              = require('./middleware/session');
 const { maintenanceMiddleware }                = require('./middleware/maintenance');
 const { betaMiddleware, betaSubmit }           = require('./middleware/beta');
+const { authRateLimiter, apiRateLimiter }      = require('./middleware/rateLimit');
 const { initSocket }                           = require('./socket');
 const { initTelegramBot }                      = require('./services/telegram');
 const { getSSLCredentials }                    = require('./utils/ssl');
@@ -38,6 +39,12 @@ async function startServer() {
     // Beta gate — runs after session so req.session is available
     app.post('/beta', betaSubmit);
     app.use(betaMiddleware);
+
+    // Rate limiting — applied after session and beta, before routes
+    // Auth endpoints: 5 requests/minute per IP (strict)
+    app.use('/api/auth', authRateLimiter);
+    // General API endpoints: 100 requests/minute per user/IP
+    app.use('/api', apiRateLimiter);
 
     // 4. HTTP server
     const server = http.createServer(app);
