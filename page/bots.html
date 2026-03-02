@@ -1587,8 +1587,11 @@
                     credentials: 'include'
                 });
                 if (response.ok) {
-                    const card = document.querySelector(`[data-bot-id="${botId}"]`);
-                    if (card) card.remove();
+                    if (_selectedBotId === botId) {
+                        _selectedBotId = null;
+                        document.getElementById('botsDetail').innerHTML = '<div class="detail-empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/></svg>Оберіть бота зі списку</div>';
+                        closeMobileDetail();
+                    }
                     loadBotsTree();
                 } else {
                     alert('Помилка при видаленні бота');
