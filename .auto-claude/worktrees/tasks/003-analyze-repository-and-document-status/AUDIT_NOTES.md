@@ -624,3 +624,67 @@
 | CSS Files | 8 | 2,466 |
 | JS Modules | 8 | 7,202 |
 | **Total Frontend** | **38 files** | **~36,348** |
+
+---
+
+# Vite/React Chart Widget Build Pipeline
+
+## _src/ — Chart Widget Source (KlineCharts Pro)
+
+**Status:** Build pipeline configured, build output exists, but node_modules symlink is broken
+
+### Vite Configuration (`_src/vite.config.ts`)
+
+- **Build target:** IIFE library bundle → `../js/chart/chart.js`
+- **Library name:** `YamatoChart`
+- **Entry point:** `src/main.ts`
+- **Format:** IIFE (single self-executing bundle for `<script>` tag inclusion)
+- **Plugins:** `vite-plugin-css-injected-by-js` — inlines CSS into the JS bundle (no separate CSS file)
+- **Minification:** esbuild
+- **Defines:** `process.env.NODE_ENV` → `'production'`, `global` → `globalThis` (Node.js polyfill for browser)
+- **Rollup options:** no externals, `inlineDynamicImports: true` — fully self-contained bundle
+- `emptyOutDir: true` — cleans `js/chart/` before each build
+
+### Package (`_src/package.json`)
+
+- **Name:** `yamato-chart` v2.0.0
+- **Dependencies:** `klinecharts` ^9.8.12, `@klinecharts/pro` ^0.1.1 — professional candlestick charting library
+- **Dev dependencies:** TypeScript ^5.5.0, Vite ^5.4.0, vite-plugin-css-injected-by-js ^3.5.0
+- **Scripts:** `dev`, `build` (`vite build`), `preview`
+
+### Source Components (`_src/src/`)
+
+- `main.ts` — entry point (8,896 bytes)
+- `main.tsx` — alternate React entry (6,241 bytes) — **Note:** both `.ts` and `.tsx` entry exist, vite config points to `main.ts`
+- `klpro-datafeed.ts` — KlineCharts Pro data feed adapter (6,736 bytes)
+- `overlays.ts` — chart overlay definitions (2,289 bytes)
+- `components/` — UI components directory
+- `datafeed/` — data feed implementations
+- `hooks/` — React hooks
+- `types/` — TypeScript type definitions
+
+### Build Output (`js/chart/chart.js`)
+
+- **Exists:** ✅ Yes
+- **Size:** 418,226 bytes (~408 KB) — reasonable for a charting library bundle with KlineCharts
+- **Last modified:** 2025-03-01
+
+### node_modules Symlink
+
+- `_src/node_modules` is a **symlink** → `../../../../../_src/node_modules`
+- **Symlink target is BROKEN** — the target path resolves outside the project and does not exist
+- **Impact:** `npm run build` and `npm run dev` will fail until dependencies are installed locally or the symlink is fixed
+- **Likely cause:** The symlink was created for a different directory structure (possibly a monorepo or shared node_modules setup) that no longer matches the current project layout
+
+### Build Pipeline Summary
+
+| Aspect | Status |
+|--------|--------|
+| Vite config | ✅ Valid, well-configured |
+| Source files | ✅ Present and complete |
+| Build output | ✅ Exists, 408 KB |
+| node_modules | ❌ Broken symlink |
+| Rebuild capability | ❌ Blocked by broken symlink |
+
+**Concern:** The build output exists and is usable, but the project cannot be rebuilt from source without fixing the `node_modules` symlink or running `npm install` directly in `_src/`
+**Concern:** Both `main.ts` and `main.tsx` exist in `src/` — the Vite config uses `main.ts`, so `main.tsx` may be a leftover from a React-based approach that was refactored to vanilla TS
