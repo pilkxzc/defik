@@ -270,13 +270,13 @@ router.get('/api/auth/sessions', requireAuth, (req, res) => {
     const sessions = sessionStore.getByUserId(req.session.userId);
     const requestIP = getClientIP(req);
     const requestUA = req.headers['user-agent'] || '';
+    const user = dbGet('SELECT last_login, last_ip FROM users WHERE id = ?', [req.session.userId]);
 
-    // Backfill metadata for current session if missing
-    const currentSession = sessions.find(s => s.sid === currentSid);
-    if (currentSession && !currentSession._ip) {
+    // Backfill current session metadata and persist it
+    if (!req.session._ip) {
         req.session._ip = requestIP;
         req.session._ua = requestUA;
-        req.session._createdAt = req.session._createdAt || new Date().toISOString();
+        req.session._createdAt = req.session._createdAt || (user?.last_login || new Date().toISOString());
         req.session._loginMethod = req.session._loginMethod || 'password';
         req.session.save(() => {});
     }
@@ -285,11 +285,10 @@ router.get('/api/auth/sessions', requireAuth, (req, res) => {
         const isCurrent = s.sid === currentSid;
         return {
             id: s.sid.substring(0, 8),
-            _sid: s.sid,
-            ip: s._ip || (isCurrent ? requestIP : 'Unknown'),
-            userAgent: s._ua || (isCurrent ? requestUA : ''),
-            createdAt: s._createdAt || null,
-            loginMethod: s._loginMethod || 'unknown',
+            ip: isCurrent ? requestIP : (s._ip || (s.cookie?._ip) || 'Unknown'),
+            userAgent: isCurrent ? requestUA : (s._ua || ''),
+            createdAt: s._createdAt || (isCurrent ? (user?.last_login || null) : null),
+            loginMethod: s._loginMethod || (isCurrent ? 'password' : 'unknown'),
             isCurrent,
             expiresAt: s.cookie?.expires || null
         };
