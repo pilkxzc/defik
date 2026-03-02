@@ -1512,8 +1512,8 @@
                                     <div class="detail-value">${pnlStr}</div>
                                 </div>
                                 <div class="detail-item">
-                                    <div class="detail-label">Win Rate</div>
-                                    <div class="detail-value">${win}</div>
+                                    <div class="detail-label">Режим</div>
+                                    <div class="detail-value">${modeLabel}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">Тип</div>
@@ -1522,6 +1522,14 @@
                                 <div class="detail-item">
                                     <div class="detail-label">Акаунт</div>
                                     <div class="detail-value">${b.account_type || '—'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Статус</div>
+                                    <div class="detail-value">${b.is_active ? 'Активний' : 'Неактивний'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Win Rate</div>
+                                    <div class="detail-value">${win}</div>
                                 </div>
                             </div>
                             <div class="bot-card-footer">
