@@ -655,6 +655,12 @@ router.post('/api/passkeys/check', (req, res) => {
     }
 });
 
+// ==================== HELPERS ====================
+
+function generateLoginCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 // ==================== TELEGRAM AUTH ====================
 
 function verifyTelegramAuth(data, botToken) {
@@ -813,6 +819,79 @@ router.post('/api/auth/telegram-register', async (req, res) => {
 router.get('/api/auth/telegram-bot-username', (req, res) => {
     const { siteSettings } = require('../config');
     res.json({ username: siteSettings.telegramBotUsername || '' });
+});
+
+// ==================== TELEGRAM CODE LOGIN ====================
+
+router.post('/api/auth/telegram-login-request', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = dbGet('SELECT id, telegram_id FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (!user.telegram_id) {
+            return res.status(400).json({ error: 'Telegram account not linked' });
+        }
+
+        // Generate unique code
+        let code = generateLoginCode();
+        let existingCode = dbGet('SELECT id FROM login_codes WHERE code = ?', [code]);
+        // Retry if code collision (extremely rare)
+        let retries = 0;
+        while (existingCode && retries < 5) {
+            code = generateLoginCode();
+            existingCode = dbGet('SELECT id FROM login_codes WHERE code = ?', [code]);
+            retries++;
+        }
+
+        if (existingCode) {
+            return res.status(500).json({ error: 'Failed to generate code, please try again' });
+        }
+
+        // Calculate expiry: 10 minutes from now (as Unix timestamp)
+        const expiresAtUnix = Math.floor(Date.now() / 1000) + 600; // 600 seconds = 10 minutes
+
+        // Delete any existing codes for this user
+        dbRun('DELETE FROM login_codes WHERE user_id = ?', [user.id]);
+
+        // Insert new code
+        dbRun(
+            'INSERT INTO login_codes (user_id, code, expires_at) VALUES (?, ?, ?)',
+            [user.id, code, expiresAtUnix]
+        );
+
+        // Try to send code via Telegram
+        const { sendTelegramNotification } = require('../services/telegram');
+        const sent = await sendTelegramNotification(user.id, 'Login Code', `Your login code is:\n\n${code}\n\nValid for 10 minutes.`, '🔐');
+
+        if (!sent) {
+            // Code was generated and stored, but Telegram delivery failed
+            return res.status(200).json({
+                success: false,
+                message: 'Code generated but Telegram delivery failed. Please ensure Telegram bot is linked.'
+            });
+        }
+
+        // Log activity
+        dbRun(
+            'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
+            [user.id, 'Telegram Code Request', 'Login code requested', getClientIP(req)]
+        );
+
+        res.json({ success: true, message: 'Code sent to Telegram' });
+    } catch (error) {
+        console.error('Telegram login request error:', error);
+        res.status(500).json({ error: 'Failed to process request' });
+    }
 });
 
 module.exports = router;

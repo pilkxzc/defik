@@ -25,4 +25,12 @@ const ordersLimiter = rateLimit({
     legacyHeaders: false
 });
 
-module.exports = { loginLimiter, registerLimiter, ordersLimiter };
+const telegramCodeLimiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_TELEGRAM_CODE_WINDOW, 10) || 60 * 60 * 1000,
+    limit: parseInt(process.env.RATE_LIMIT_TELEGRAM_CODE_MAX, 10) || 5,
+    message: { error: 'Too many code requests. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+module.exports = { loginLimiter, registerLimiter, ordersLimiter, telegramCodeLimiter };
