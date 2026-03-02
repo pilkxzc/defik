@@ -41,7 +41,8 @@ async function createApp() {
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
                 connectSrc: ["'self'", "wss://stream.binance.com:*", "wss://fstream.binance.com", "https://api.binance.com", "https://fapi.binance.com"],
-                imgSrc: ["'self'", "data:", "https://cdn.jsdelivr.net"]
+                imgSrc: ["'self'", "data:", "https://cdn.jsdelivr.net"],
+                frameSrc: ["'self'", "https://oauth.telegram.org"]
             }
         },
         crossOriginEmbedderPolicy: false
