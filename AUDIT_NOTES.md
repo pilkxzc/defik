@@ -369,3 +369,133 @@
 | routes/admin.js | admin | 1032 | 35 | All requireAuth | All role-gated | Complete |
 | routes/history.js | history | 85 | 2 | None (public) | No | Complete |
 | **Totals** | | **4589** | **135** | | | |
+
+---
+
+# Services Audit
+
+## server/services/binance.js — Binance API Client
+
+**Status:** Functional, focused (143 lines)
+
+**Exports:** `getBinanceServerTime`, `testBinanceCredentials`, `fetchBinanceFuturesData`
+
+- `getBinanceServerTime(accountType)` — fetches server time from Binance (futures or spot), falls back to `Date.now()` on error
+- `testBinanceCredentials(apiKey, apiSecret, accountType)` — validates user-provided Binance API keys by hitting account endpoint with HMAC signature
+- `fetchBinanceFuturesData(apiKey, apiSecret)` — comprehensive futures account fetch: positions, open orders (limit/stop/take-profit), recent trades, income history
+- All requests use HMAC-SHA256 signing with user-provided credentials
+- **Dependencies:** axios, crypto (Node built-in)
+- **Environment variables required:** None — uses per-user API keys stored in DB (bot records)
+- **Note:** Silently swallows errors on `userTrades` and `income` fetches (empty catch blocks)
+- **Note:** Single timestamp used for all requests in `fetchBinanceFuturesData` — could drift if requests take long
+
+## server/services/candleCollector.js — Candle Data Collector
+
+**Status:** Functional, well-architected (272 lines)
+
+**Exports:** `startCollector`, `stopCollector`, `getCandleHistory`, `aggregateCandles`, `getCandleInfo`
+
+- Maintains its own separate SQLite database (`candles.sqlite`) via sql.js
+- Tracks 6 symbols: BTCUSDT, ETHUSDT, SOLUSDT, ADAUSDT, DOGEUSDT, DOTUSDT
+- **Backfill:** On startup, fetches last 1000 1-second candles per symbol from Binance REST API
+- **Live data:** Connects to Binance WebSocket (`wss://stream.binance.com:9443/stream`) for real-time 1s klines
+- Only inserts closed candles (`k.x === true`)
+- Periodic save every 30 seconds (dirty flag pattern avoids unnecessary writes)
+- `aggregateCandles()` — aggregates 1s candles to any timeframe (5s, 15s, 60s, etc.)
+- `getCandleHistory()` — query helper with from/to/limit params
+- Clean lifecycle: `startCollector()` / `stopCollector()` with proper cleanup
+- **Dependencies:** sql.js, ws (optional, graceful fallback if not installed), fetch (Node built-in)
+- **Environment variables required:** None — uses public Binance endpoints
+- **Note:** WebSocket auto-reconnects on close (5s delay) but no exponential backoff
+- **Note:** `ws` module is require'd inside function — graceful degradation if not installed
+
+## server/services/market.js — Market Data Helpers
+
+**Status:** Functional, lightweight (75 lines)
+
+**Exports:** `getMarketPrices`, `getOrderBook`, `BINANCE_API`
+
+- `getMarketPrices()` — fetches prices + 24hr stats for 25 symbols from Binance, with 10-second in-memory cache
+- `getOrderBook(symbol, limit)` — fetches order book with 2-second cache per symbol
+- Both functions gracefully fall back to cached data on API errors
+- **Dependencies:** axios
+- **Environment variables required:** None — uses public Binance API
+- **Note:** Cache is purely in-memory — lost on restart, but refills quickly
+
+## server/services/email.js — Email Service
+
+**Status:** Functional, graceful degradation (112 lines)
+
+**Exports:** `initEmail`, `sendEmail`, `sendPasswordResetEmail`, `sendVerificationEmail`
+
+- `initEmail()` — creates nodemailer transport from `siteSettings` SMTP config; logs to console if not configured
+- `sendEmail(to, subject, html)` — sends email or logs to console as fallback
+- `sendPasswordResetEmail()` — branded HTML email template (Ukrainian language)
+- `sendVerificationEmail()` — branded HTML email template (Ukrainian language)
+- **Dependencies:** nodemailer (lazy require inside `initEmail`)
+- **Environment variables required:** Requires SMTP config via `siteSettings` (smtpHost, smtpPort, smtpUser, smtpPass) — stored in `settings.json`, not env vars
+- **Note:** Falls back cleanly to console logging when SMTP is not configured — good for dev
+- **Note:** Email templates have inline CSS, hardcoded brand color #10B981
+- **Note:** `smtpFrom` defaults to `smtpUser` or `noreply@yamato.com`
+
+## server/services/telegram.js — Telegram Bot
+
+**Status:** Functional, feature-rich (220 lines)
+
+**Exports:** `initTelegramBot`, `sendTelegramNotification`, `getTelegramBot`
+
+- `initTelegramBot()` — initializes bot with polling mode if token is configured and enabled in `siteSettings`
+- Bot commands: `/start` (link account via code), `/status` (balance/plan), `/unlink`, `/verify` (phone via contact share), `/help`
+- Account linking: user generates code on website, sends to bot via `/start <code>`
+- Phone verification: uses Telegram's native contact sharing
+- Emits Socket.IO events on link/unlink/verify for real-time UI updates
+- Suppresses Telegram 409 polling errors (race condition on restart)
+- Saves bot username to `siteSettings` after successful init
+- **Dependencies:** node-telegram-bot-api (lazy require), db, socket, notifications (lazy requires to avoid circular deps)
+- **Environment variables required:** Requires `siteSettings.telegramBotToken` and `siteSettings.telegramBotEnabled` — stored in `settings.json`
+- **Note:** Uses polling mode (not webhooks) — simpler but less efficient for production
+- **Note:** Multiple lazy requires to break circular dependency chains
+
+## server/services/notifications.js — In-App Notifications
+
+**Status:** Functional, minimal (39 lines)
+
+**Exports:** `createNotification`, `logAdminAction`
+
+- `createNotification(userId, type, title, message, icon)` — inserts notification to DB, pushes via Socket.IO, and sends Telegram notification
+- `logAdminAction(adminId, action, targetType, targetId, details, ipAddress)` — audit trail for admin actions
+- Acts as a notification hub — coordinates DB, WebSocket, and Telegram delivery in one call
+- **Dependencies:** db, socket (lazy require), telegram (lazy require)
+- **Environment variables required:** None — uses DB and other services
+- **Note:** Lazy requires for socket and telegram to avoid circular dependencies
+- **Note:** No error handling around Socket.IO or Telegram calls — if either fails, the notification is still created in DB but the error propagates
+
+## server/services/blockchain.js — Blockchain Utilities
+
+**Status:** Functional, focused (93 lines)
+
+**Exports:** `getBlockchainBalance`, `validateWalletAddress`, `WALLET_CACHE_TTL`
+
+- Supports 3 chains: ETH (via Cloudflare RPC), BTC (via blockchain.info), SOL (via Solana mainnet RPC)
+- `getBlockchainBalance(address, currency)` — dispatches to chain-specific balance fetcher
+- `validateWalletAddress(address, currency)` — regex validation for ETH (0x), BTC (legacy + bech32), SOL (base58)
+- All balance fetches have 5-minute in-memory cache with stale-on-error fallback
+- 10-second timeout on all external requests
+- **Dependencies:** axios
+- **Environment variables required:** None — uses public blockchain endpoints
+- **Note:** Uses free public RPC endpoints — may hit rate limits under heavy use
+- **Note:** Unknown currencies return 0 balance and pass validation (permissive default)
+
+---
+
+## Services Summary Table
+
+| Service | File | Lines | Env Vars Required | External APIs | Status |
+|---------|------|-------|-------------------|---------------|--------|
+| services/binance.js | Binance API client | 143 | None (per-user keys in DB) | Binance REST (signed) | Functional |
+| services/candleCollector.js | Candle data collector | 272 | None | Binance REST + WebSocket | Functional |
+| services/market.js | Market data helpers | 75 | None | Binance REST (public) | Functional |
+| services/email.js | Email sending | 112 | SMTP config in settings.json | SMTP server | Functional (degrades gracefully) |
+| services/telegram.js | Telegram bot | 220 | Bot token in settings.json | Telegram Bot API | Functional (optional) |
+| services/notifications.js | In-app notifications | 39 | None | None (internal) | Functional |
+| services/blockchain.js | Blockchain balance/validation | 93 | None | ETH/BTC/SOL public RPCs | Functional |
