@@ -173,6 +173,7 @@ async function createApp() {
     app.get('/news',         (req, res) => res.sendFile(path.join(pages, 'news.html')));
     app.get('/subscriptions',(req, res) => res.sendFile(path.join(pages, 'subscriptions.html')));
     app.get('/community',    (req, res) => res.sendFile(path.join(pages, 'community.html')));
+    app.get('/docs',         (req, res) => res.sendFile(path.join(pages, 'docs.html')));
     app.get('/reset-password', (req, res) => res.sendFile(path.join(pages, 'reset-password.html')));
     app.get('/verify-email',   (req, res) => res.sendFile(path.join(pages, 'verify-email.html')));
     app.get('/bot-stats/:id', (req, res) => res.sendFile(path.join(pages, 'bot-stats.html')));
