@@ -1068,4 +1068,61 @@ router.get('/api/admin/analytics/users', requireAuth, requireRole('admin', 'mode
     }
 });
 
+router.get('/api/admin/analytics/bots/funnel', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+        const usersWithBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots');
+        const usersWithDemoBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots WHERE mode = "demo" AND is_active = 1');
+        const usersWithLiveBots = dbGet('SELECT COUNT(DISTINCT user_id) as count FROM bots WHERE mode = "live" AND is_active = 1');
+
+        const totalBotsCount = dbGet('SELECT COUNT(*) as count FROM bots');
+        const configuredBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE binance_api_key IS NOT NULL AND binance_api_key != ""');
+        const demoActiveBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE mode = "demo" AND is_active = 1');
+        const liveActiveBots = dbGet('SELECT COUNT(*) as count FROM bots WHERE mode = "live" AND is_active = 1');
+
+        const total = totalUsers?.count || 0;
+        const created = usersWithBots?.count || 0;
+        const configured = usersWithDemoBots?.count || usersWithLiveBots?.count || 0;
+        const demoActive = usersWithDemoBots?.count || 0;
+        const liveActive = usersWithLiveBots?.count || 0;
+
+        res.json({
+            stages: [
+                {
+                    name: 'Створено ботів',
+                    count: created,
+                    percentage: total > 0 ? ((created / total) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Налаштовано',
+                    count: configured,
+                    percentage: created > 0 ? ((configured / created) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Активні (Demo)',
+                    count: demoActive,
+                    percentage: configured > 0 ? ((demoActive / configured) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Активні (Live)',
+                    count: liveActive,
+                    percentage: demoActive > 0 ? ((liveActive / demoActive) * 100).toFixed(1) : '0.0'
+                }
+            ],
+            summary: {
+                totalUsers: total,
+                usersWithBots: created,
+                totalBots: totalBotsCount?.count || 0,
+                configuredBots: configuredBots?.count || 0,
+                demoActiveBots: demoActiveBots?.count || 0,
+                liveActiveBots: liveActiveBots?.count || 0,
+                overallConversion: total > 0 ? ((liveActive / total) * 100).toFixed(1) : '0.0'
+            }
+        });
+    } catch (error) {
+        console.error('Bot funnel analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch bot funnel analytics' });
+    }
+});
+
 module.exports = router;
