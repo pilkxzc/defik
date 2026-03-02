@@ -66,6 +66,14 @@
             gap: 8px;
         }
 
+        .bots-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-tertiary);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
         svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
         /* Bot Activity Log Styles */
@@ -262,22 +270,48 @@
                 align-items: flex-start;
                 gap: 12px;
             }
+            .page-title {
+                font-size: 22px;
+            }
+
+            /* Folder-panel accordion */
             .bots-accordion {
                 gap: 6px !important;
             }
             .bot-card {
-                border-radius: 16px;
-                margin-bottom: 6px;
+                border-radius: 12px;
+                border-left: 4px solid var(--text-tertiary);
+            }
+            .bot-card.active {
+                border-left-color: var(--accent-primary);
             }
             .bot-card-header {
-                padding: 12px 16px;
+                padding: 12px 14px;
+                gap: 10px;
+                grid-template-columns: 1fr auto auto;
+            }
+            .bot-card-name {
+                font-size: 13px;
+            }
+            .bot-card-meta {
+                font-size: 11px;
+            }
+            .bot-card-metric {
+                font-size: 13px;
+                min-width: 60px;
             }
             .bot-card-body {
-                padding: 0 16px 16px 16px;
+                padding: 0 14px 14px 14px;
             }
+            /* Detail tiles: single column on mobile */
             .bot-card-details {
                 grid-template-columns: 1fr !important;
             }
+            .detail-item {
+                padding: 8px 10px;
+                border-radius: 10px;
+            }
+            /* Stacked action buttons */
             .bot-card-footer {
                 flex-direction: column;
             }
@@ -285,9 +319,8 @@
                 flex: 1;
                 width: 100%;
             }
-            .page-title {
-                font-size: 22px;
-            }
+
+            /* Bottom-sheet modal */
             .modal-overlay {
                 padding: 0;
                 align-items: flex-end;
@@ -317,23 +350,84 @@
                 grid-template-columns: 1fr 1fr !important;
             }
         }
+
+        /* ── 480px: tighter padding ── */
         @media (max-width: 480px) {
-            .bot-card { padding: 16px; border-radius: 16px; }
-            .modal-card { padding: 20px 16px !important; }
+            .main-content {
+                padding: 8px;
+            }
+            .bot-card {
+                border-radius: 10px;
+            }
+            .bot-card-header {
+                padding: 10px 12px;
+                gap: 8px;
+            }
+            .bot-card-body {
+                padding: 0 12px 12px 12px;
+            }
+            .detail-item {
+                padding: 6px 8px;
+                border-radius: 8px;
+            }
+            .detail-label {
+                font-size: 9px;
+            }
+            .detail-value {
+                font-size: 13px;
+            }
+            .modal-card {
+                padding: 20px 16px !important;
+            }
+            .btn-create {
+                padding: 10px 20px;
+                font-size: 13px;
+            }
         }
 
-        /* ==================== ACCORDION CARDS ==================== */
+        /* ── 320px: minimum viable viewport ── */
+        @media (max-width: 375px) {
+            .bot-card-header {
+                padding: 8px 10px;
+                gap: 6px;
+            }
+            .bot-card-name {
+                font-size: 12px;
+            }
+            .bot-card-metric {
+                font-size: 12px;
+                min-width: 50px;
+            }
+            .bot-card-body {
+                padding: 0 10px 10px 10px;
+                gap: 10px;
+            }
+            .card-action-btn {
+                padding: 8px 12px;
+                font-size: 11px;
+                min-height: 38px;
+            }
+            .page-title {
+                font-size: 20px;
+            }
+        }
+
+        /* ==================== FOLDER-PANEL CARDS ==================== */
         .bot-card {
             background: var(--surface);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-md);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            margin-bottom: 8px;
-            transition: all 0.3s ease;
-            box-shadow: var(--shadow-soft);
+            border-left: 4px solid var(--text-tertiary);
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
+            box-shadow: var(--shadow-card);
+        }
+
+        .bot-card.active {
+            border-left-color: var(--accent-primary);
         }
 
         .bot-card.expanded {
-            box-shadow: var(--shadow-card);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(16, 185, 129, 0.08);
         }
 
         .bot-card-header {
@@ -341,15 +435,28 @@
             grid-template-columns: 1fr auto auto;
             gap: 16px;
             align-items: center;
-            padding: 16px 24px;
+            padding: 14px 24px;
             cursor: pointer;
             user-select: none;
             transition: background 0.2s ease;
             min-height: 44px;
+            background: rgba(255, 255, 255, 0.015);
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+            position: relative;
+        }
+
+        .bot-card-header::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .bot-card-header:hover {
-            background: rgba(255, 255, 255, 0.02);
+            background: rgba(255, 255, 255, 0.035);
         }
 
         .bot-card-header-left {
@@ -363,6 +470,7 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            min-width: 0;
         }
 
         .bot-card-name {
@@ -438,17 +546,21 @@
         .bot-card-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 8px;
         }
 
         .detail-item {
             display: flex;
             flex-direction: column;
             gap: 4px;
+            background: var(--surface-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-md);
+            padding: 10px 12px;
         }
 
         .detail-label {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-tertiary);
             font-weight: 600;
             text-transform: uppercase;
@@ -459,6 +571,89 @@
             font-size: 14px;
             font-weight: 700;
             color: var(--text-primary);
+        }
+
+        .bot-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            flex-shrink: 0;
+        }
+
+        .bot-status-dot.active {
+            background: var(--color-up);
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+            animation: pulse 1.5s infinite;
+        }
+
+        .bot-mode-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            width: fit-content;
+        }
+
+        .bot-mode-pill.mode-live {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--color-up);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .bot-mode-pill.mode-paper {
+            background: rgba(140, 168, 255, 0.12);
+            color: var(--accent-blue);
+            border: 1px solid rgba(140, 168, 255, 0.2);
+        }
+
+        .bot-card-tickers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding-bottom: 4px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .status-badge.status-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--color-up);
+        }
+
+        .status-badge.status-inactive {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-tertiary);
+        }
+
+        .detail-value.up { color: var(--color-up); }
+        .detail-value.down { color: var(--color-down); }
+        .detail-value.neutral { color: var(--text-secondary); }
+
+        .ticker-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-primary);
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            margin: 1px 2px;
         }
 
         .bot-card-footer {
@@ -484,6 +679,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 6px;
             text-decoration: none;
             flex: 1;
             min-width: 100px;
@@ -503,6 +699,44 @@
         .card-action-btn.primary:hover {
             background: color-mix(in srgb, var(--color-up) 18%, transparent);
             color: white;
+        }
+
+        .card-action-btn.btn-success {
+            background: color-mix(in srgb, var(--color-up) 10%, transparent);
+            border-color: color-mix(in srgb, var(--color-up) 28%, transparent);
+            color: var(--color-up);
+        }
+        .card-action-btn.btn-success:hover {
+            background: color-mix(in srgb, var(--color-up) 18%, transparent);
+            color: white;
+        }
+
+        .card-action-btn.btn-danger {
+            background: color-mix(in srgb, var(--color-down) 10%, transparent);
+            border-color: color-mix(in srgb, var(--color-down) 28%, transparent);
+            color: var(--color-down);
+        }
+        .card-action-btn.btn-danger:hover {
+            background: color-mix(in srgb, var(--color-down) 18%, transparent);
+            color: white;
+        }
+
+        .card-action-btn.btn-blue {
+            background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+            border-color: color-mix(in srgb, var(--accent-blue) 28%, transparent);
+            color: var(--accent-blue);
+        }
+        .card-action-btn.btn-blue:hover {
+            background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+            color: white;
+        }
+
+        .card-action-btn svg {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            stroke: currentColor;
+            fill: none;
         }
 
     </style>
@@ -1154,6 +1388,12 @@
                 const user = authRes.ok ? await authRes.json() : null;
                 _isAdmin = user?.role === 'admin' || user?.role === 'moderator';
 
+                // Show create button for admins
+                if (_isAdmin) {
+                    const createBtn = document.getElementById('createBotBtn');
+                    if (createBtn) createBtn.style.display = 'flex';
+                }
+
                 // Flatten all bots from categories into a single list
                 const allBots = [];
                 tree.forEach(cat => {
@@ -1164,7 +1404,7 @@
 
                 if (allBots.length === 0) {
                     document.getElementById('botsTree').innerHTML =
-                        '<div style="text-align:center;padding:60px 20px;color:var(--text-tertiary);">Немає ботів</div>';
+                        '<div class="bots-empty-state">Немає ботів</div>';
                     return;
                 }
 
@@ -1172,11 +1412,25 @@
                 const html = allBots.map(b => renderBotAccordionCard(b)).join('');
                 document.getElementById('botsTree').innerHTML = html;
 
+                // Update summary card totals
+                const activeBots = allBots.filter(b => b.is_active);
+                const totalPL = activeBots.reduce((sum, b) => sum + (b.profit || 0), 0);
+                const totalInvestment = activeBots.reduce((sum, b) => sum + (b.investment || 0), 0);
+                const plEl = document.querySelector('[data-total-pl]');
+                const allocEl = document.querySelector('[data-active-allocation]');
+                if (plEl) {
+                    plEl.textContent = (totalPL >= 0 ? '+' : '') + '$' + Math.abs(totalPL).toFixed(2);
+                    plEl.style.color = totalPL >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+                }
+                if (allocEl) {
+                    allocEl.textContent = '$' + totalInvestment.toFixed(2);
+                }
+
                 // Attach event listeners for accordion toggle
                 attachAccordionListeners();
             } catch (err) {
                 document.getElementById('botsTree').innerHTML =
-                    '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Не вдалося завантажити ботів</div>';
+                    '<div class="bots-empty-state">Не вдалося завантажити ботів</div>';
             }
         }
 
@@ -1184,31 +1438,34 @@
             const pnl       = b.profit || 0;
             const pnlClass  = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
             const pnlStr    = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
-            const win       = b.winRate !== null ? b.winRate + '%' : '—';
+            const win       = b.winRate != null ? b.winRate + '%' : '—';
             const isLive    = b.mode === 'bot';
             const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
+            const modePillClass = isLive ? 'mode-live' : 'mode-paper';
 
             const tickers = b.symbol
                 ? b.symbol.split(',').slice(0, 5).map(s =>
-                    `<span class="ticker-chip">${s.replace(/USDT|BUSD/gi,'')}</span>`).join('')
+                    `<span class="ticker-chip">${s.trim().replace(/USDT|BUSD/gi,'')}</span>`).join('')
                 : `<span class="ticker-chip" style="opacity:.3">—</span>`;
 
             const mainHref  = _isAdmin ? `/bot/${b.id}` : `/bot-stats/${b.id}`;
-            const mainSvg   = _isAdmin
-                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>`
-                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
             const mainText  = _isAdmin ? 'Деталі' : 'Статистика';
             const statusBadge = b.is_active
                 ? '<span class="status-badge status-active">АКТИВНИЙ</span>'
                 : '<span class="status-badge status-inactive">НЕАКТИВНИЙ</span>';
 
+            const statusDot = b.is_active
+                ? '<span class="bot-status-dot active"></span>'
+                : '';
+
             return `
-                <div class="bot-card" data-bot-id="${b.id}">
+                <div class="bot-card${b.is_active ? ' active' : ''}" data-bot-id="${b.id}">
                     <div class="bot-card-header">
                         <div class="bot-card-header-left">
+                            ${statusDot}
                             <div class="bot-card-title">
                                 <div class="bot-card-name">${b.name}</div>
-                                <div class="bot-card-meta">${modeLabel}</div>
+                                <span class="bot-mode-pill ${modePillClass}">${modeLabel}</span>
                             </div>
                         </div>
                         <div class="bot-card-metric ${pnlClass}">${pnlStr}</div>
@@ -1218,18 +1475,15 @@
                     </div>
                     <div class="bot-card-content">
                         <div class="bot-card-body">
+                            <div class="bot-card-tickers">${tickers}</div>
                             <div class="bot-card-details">
-                                <div class="detail-item">
-                                    <div class="detail-label">Торгові пари</div>
-                                    <div class="detail-value">${b.symbol || '—'}</div>
-                                </div>
                                 <div class="detail-item">
                                     <div class="detail-label">Інвестиція</div>
                                     <div class="detail-value">$${(b.investment || 0).toFixed(2)}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">Прибуток</div>
-                                    <div class="detail-value">${pnlStr}</div>
+                                    <div class="detail-value ${pnlClass}">${pnlStr}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">Режим</div>
@@ -1245,20 +1499,24 @@
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">Статус</div>
-                                    <div class="detail-value">${b.is_active ? 'Активний' : 'Неактивний'}</div>
+                                    <div class="detail-value">${statusBadge}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">Win Rate</div>
                                     <div class="detail-value">${win}</div>
                                 </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Угоди</div>
+                                    <div class="detail-value">${b.totalTrades || 0}</div>
+                                </div>
                             </div>
                             <div class="bot-card-footer">
                                 <a class="card-action-btn" href="/bot/${b.id}" onclick="event.stopPropagation();">Редагувати</a>
-                                <button class="card-action-btn" onclick="if(confirm('Видалити бота?')) { deleteBot(${b.id}); event.stopPropagation(); }">Видалити</button>
+                                <button class="card-action-btn btn-danger" onclick="if(confirm('Видалити бота?')) { deleteBot(${b.id}); event.stopPropagation(); }">Видалити</button>
                                 <a class="card-action-btn" href="${mainHref}" onclick="event.stopPropagation();">${mainText}</a>
                                 <button class="card-action-btn" onclick="cloneBot(${b.id}); event.stopPropagation();">Дублювати</button>
-                                <button class="card-action-btn" onclick="toggleBotActive(${b.id}, ${b.is_active ? 'false' : 'true'}); event.stopPropagation();" style="${b.is_active ? 'border-color: rgba(239,68,68,.2); background: rgba(239,68,68,.08); color: #EF4444;' : 'border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.08); color: #10B981;'}">${b.is_active ? 'Деактивувати' : 'Активувати'}</button>
-                                ${_isAdmin ? `<a class="card-action-btn" href="/bot-stats/${b.id}" onclick="event.stopPropagation();" style="border-color: rgba(140,168,255,.2); background: rgba(140,168,255,.08); color: #8CA8FF;">Дашборд</a>` : ''}
+                                <button class="card-action-btn ${b.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleBotActive(${b.id}, ${b.is_active ? 'false' : 'true'}); event.stopPropagation();">${b.is_active ? 'Деактивувати' : 'Активувати'}</button>
+                                ${_isAdmin ? `<a class="card-action-btn btn-blue" href="/bot-stats/${b.id}" onclick="event.stopPropagation();">Дашборд</a>` : ''}
                             </div>
                         </div>
                     </div>
