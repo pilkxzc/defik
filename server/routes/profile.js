@@ -169,14 +169,31 @@ router.delete('/api/profile/avatar', requireAuth, (req, res) => {
 
 // ==================== TELEGRAM INTEGRATION ====================
 
-router.get('/api/telegram/status', requireAuth, (req, res) => {
+router.get('/api/telegram/status', requireAuth, async (req, res) => {
     try {
-        const user = dbGet('SELECT telegram_id, telegram_verified FROM users WHERE id = ?', [req.session.userId]);
+        const user = dbGet('SELECT telegram_id, telegram_verified, telegram_username FROM users WHERE id = ?', [req.session.userId]);
         const { getTelegramBot } = require('../services/telegram');
+        const bot = getTelegramBot();
+        const linked = !!user.telegram_id && user.telegram_verified === 1;
+
+        let photoUrl = null;
+        if (linked && bot && user.telegram_id) {
+            try {
+                const photos = await bot.getUserProfilePhotos(user.telegram_id, { limit: 1 });
+                if (photos.total_count > 0) {
+                    const fileId = photos.photos[0][photos.photos[0].length - 1].file_id;
+                    const file = await bot.getFile(fileId);
+                    photoUrl = `https://api.telegram.org/file/bot${siteSettings.telegramBotToken}/${file.file_path}`;
+                }
+            } catch(e) {}
+        }
+
         res.json({
-            linked: !!user.telegram_id && user.telegram_verified === 1,
+            linked,
             botUsername: siteSettings.telegramBotUsername || '',
-            botEnabled: siteSettings.telegramBotEnabled && !!getTelegramBot()
+            botEnabled: siteSettings.telegramBotEnabled && !!bot,
+            username: user.telegram_username || null,
+            photoUrl
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to get Telegram status' });

@@ -698,14 +698,14 @@
                     <div id="telegramLinkedSection" style="display: none; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <div style="width: 40px; height: 40px; background: #0088cc; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <div id="telegramAvatarWrap" style="width: 40px; height: 40px; background: #0088cc; border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                                         <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.248-.024c-.106.024-1.793 1.139-5.062 3.345-.479.329-.913.489-1.302.481-.428-.008-1.252-.241-1.865-.44-.751-.244-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.333-1.386 4.025-1.627 4.477-1.635.099-.002.321.023.465.141.12.1.153.232.168.326.015.094.034.31.019.476z"/>
                                     </svg>
                                 </div>
                                 <div>
                                     <div style="font-weight: 600; color: #10B981;">Telegram прив'язано</div>
-                                    <div style="font-size: 12px; color: var(--text-tertiary);">Сповіщення надсилатимуться у Telegram</div>
+                                    <div style="font-size: 12px; color: var(--text-tertiary);" id="telegramLinkedUsername">Сповіщення надсилатимуться у Telegram</div>
                                 </div>
                             </div>
                             <div style="display: flex; gap: 8px;">
@@ -2341,6 +2341,17 @@
                     btnEl.style.border = '1px solid rgba(255,255,255,0.1)';
                     linkSection.style.display = 'none';
                     linkedSection.style.display = 'block';
+
+                    // Show Telegram avatar
+                    if (data.photoUrl) {
+                        const wrap = document.getElementById('telegramAvatarWrap');
+                        if (wrap) wrap.innerHTML = '<img src="' + data.photoUrl + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" alt="Telegram">';
+                    }
+                    // Show username
+                    if (data.username) {
+                        const uEl = document.getElementById('telegramLinkedUsername');
+                        if (uEl) uEl.textContent = '@' + data.username;
+                    }
                 } else if (!data.botEnabled) {
                     statusEl.textContent = 'Telegram-бот недоступний';
                     statusEl.style.color = 'var(--text-tertiary)';
@@ -2436,6 +2447,127 @@
             }
         }
 
+        // ==================== ACTIVE SESSIONS ====================
+
+        function parseUA(ua) {
+            if (!ua) return { device: 'Невідомо', browser: '' };
+            let device = 'Комп\'ютер';
+            if (/iPhone|iPad|iPod/i.test(ua)) device = 'iPhone';
+            else if (/Android/i.test(ua)) device = 'Android';
+            else if (/Mac/i.test(ua)) device = 'Mac';
+            else if (/Windows/i.test(ua)) device = 'Windows';
+            else if (/Linux/i.test(ua)) device = 'Linux';
+
+            let browser = '';
+            if (/Edg\//i.test(ua)) browser = 'Edge';
+            else if (/Chrome\//i.test(ua)) browser = 'Chrome';
+            else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+            else if (/Safari\//i.test(ua)) browser = 'Safari';
+
+            return { device, browser };
+        }
+
+        function loginMethodLabel(method) {
+            const map = {
+                'password': 'Пароль',
+                'google': 'Google',
+                'telegram': 'Telegram',
+                'telegram-code': 'Telegram код',
+                'telegram-register': 'Telegram',
+                'passkey': 'Passkey',
+                'register': 'Реєстрація'
+            };
+            return map[method] || method || '—';
+        }
+
+        async function loadSessions() {
+            try {
+                const response = await fetch('/api/auth/sessions', { credentials: 'include' });
+                if (!response.ok) throw new Error('Failed');
+                const sessions = await response.json();
+
+                const countEl = document.getElementById('sessionsCount');
+                const listEl = document.getElementById('sessionsList');
+                const revokeAllBtn = document.getElementById('revokeAllBtn');
+
+                countEl.textContent = sessions.length + ' активн' + (sessions.length === 1 ? 'а' : sessions.length < 5 ? 'і' : 'их') + ' сесі' + (sessions.length === 1 ? 'я' : sessions.length < 5 ? 'ї' : 'й');
+
+                if (sessions.length > 1) {
+                    revokeAllBtn.style.display = 'block';
+                } else {
+                    revokeAllBtn.style.display = 'none';
+                }
+
+                listEl.innerHTML = sessions.map(s => {
+                    const ua = parseUA(s.userAgent);
+                    const date = s.createdAt ? new Date(s.createdAt).toLocaleString('uk-UA') : '—';
+                    const method = loginMethodLabel(s.loginMethod);
+
+                    const deviceIcon = /iPhone|Android/i.test(ua.device)
+                        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>'
+                        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+
+                    return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: ${s.isCurrent ? 'rgba(16,185,129,0.06)' : 'var(--surface-secondary)'}; border: 1px solid ${s.isCurrent ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'}; border-radius: 12px; margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 36px; height: 36px; background: ${s.isCurrent ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)'}; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: ${s.isCurrent ? '#10B981' : 'var(--text-tertiary)'};">
+                                ${deviceIcon}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                                    ${ua.device}${ua.browser ? ' · ' + ua.browser : ''}
+                                    ${s.isCurrent ? '<span style="font-size: 10px; background: #10B981; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">ПОТОЧНА</span>' : ''}
+                                </div>
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 2px;">
+                                    ${s.ip} · ${method} · ${date}
+                                </div>
+                            </div>
+                        </div>
+                        ${!s.isCurrent ? '<button onclick="revokeSession(\'' + s.id + '\')" style="padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #EF4444; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Завершити</button>' : ''}
+                    </div>`;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load sessions:', error);
+            }
+        }
+
+        async function revokeSession(sessionId) {
+            if (!confirm('Завершити цю сесію? Пристрій буде розлогінений.')) return;
+            try {
+                const res = await fetch('/api/auth/sessions/revoke', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ sessionId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof showToast === 'function') showToast('success', 'Сесію завершено', 'Пристрій розлогінений');
+                    loadSessions();
+                } else {
+                    if (typeof showToast === 'function') showToast('error', 'Помилка', data.error || 'Не вдалося завершити сесію');
+                }
+            } catch (e) {
+                alert('Помилка');
+            }
+        }
+
+        async function revokeAllSessions() {
+            if (!confirm('Завершити всі інші сесії? Всі інші пристрої будуть розлогінені.')) return;
+            try {
+                const res = await fetch('/api/auth/sessions/revoke-all', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (typeof showToast === 'function') showToast('success', 'Готово', `Завершено ${data.revoked} сесі${data.revoked === 1 ? 'ю' : 'й'}`);
+                    loadSessions();
+                }
+            } catch (e) {
+                alert('Помилка');
+            }
+        }
+
         // ==================== GOOGLE LINK ====================
 
         let googleLinked = false;
@@ -2509,6 +2641,7 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             load2FAStatus();
+            loadSessions();
             loadTelegramStatus();
             loadGoogleStatus();
 
