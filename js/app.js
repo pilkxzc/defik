@@ -261,10 +261,10 @@ function createNotificationPanel() {
         `;
         notifBtn.onclick = toggleNotificationPanel;
 
-        // Insert before profile link (last nav-item with margin-top:auto)
-        const profileLink = navSidebar.querySelector('[href="/profile"]') || navSidebar.querySelector('[style*="margin-top"]');
+        // Insert after profile link (settings)
+        const profileLink = navSidebar.querySelector('[href="/profile"]');
         if (profileLink) {
-            profileLink.before(notifBtn);
+            profileLink.after(notifBtn);
         } else {
             navSidebar.appendChild(notifBtn);
         }

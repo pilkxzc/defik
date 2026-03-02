@@ -1566,4 +1566,152 @@ router.get('/api/admin/analytics/system/health', requireAuth, requireRole('admin
     }
 });
 
+// ==================== GOOGLE & BACKUP SETTINGS ====================
+
+const { google } = require('googleapis');
+const { getOAuth2Client, getBaseUrl, performBackup, startBackupSchedule, stopBackupSchedule } = require('../services/backup');
+
+// Get Google settings
+router.get('/api/admin/google-settings', requireAuth, requireRole('admin'), (req, res) => {
+    res.json({
+        googleClientId: siteSettings.googleClientId || '',
+        googleClientSecret: siteSettings.googleClientSecret ? '••••••••' : '',
+        googleOAuthEnabled: siteSettings.googleOAuthEnabled || false,
+        googleDriveConnected: !!siteSettings.googleDriveTokens
+    });
+});
+
+// Save Google settings
+router.post('/api/admin/google-settings', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const { googleClientId, googleClientSecret, googleOAuthEnabled } = req.body;
+
+        if (googleClientId !== undefined) siteSettings.googleClientId = googleClientId;
+        if (googleClientSecret !== undefined && googleClientSecret !== '••••••••') {
+            siteSettings.googleClientSecret = googleClientSecret;
+        }
+        if (googleOAuthEnabled !== undefined) siteSettings.googleOAuthEnabled = googleOAuthEnabled;
+
+        saveSettings();
+        logAdminAction(req.session.userId, 'update_google_settings', 'settings', null, 'Updated Google OAuth settings', getClientIP(req));
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Save Google settings error:', error);
+        res.status(500).json({ error: 'Failed to save settings' });
+    }
+});
+
+// Initiate Google Drive OAuth
+router.get('/api/admin/backup/google/auth', requireAuth, requireRole('admin'), (req, res) => {
+    const { googleClientId, googleClientSecret } = siteSettings;
+    if (!googleClientId || !googleClientSecret) {
+        return res.status(400).json({ error: 'Google Client ID and Secret are required' });
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+        googleClientId,
+        googleClientSecret,
+        `${getBaseUrl()}/api/admin/backup/google/callback`
+    );
+
+    const url = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: ['https://www.googleapis.com/auth/drive.file'],
+        prompt: 'consent'
+    });
+
+    res.redirect(url);
+});
+
+// Google Drive OAuth callback
+router.get('/api/admin/backup/google/callback', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            return res.redirect('/admin?tab=backup&drive=error');
+        }
+
+        const oauth2Client = new google.auth.OAuth2(
+            siteSettings.googleClientId,
+            siteSettings.googleClientSecret,
+            `${getBaseUrl()}/api/admin/backup/google/callback`
+        );
+
+        const { tokens } = await oauth2Client.getToken(code);
+        siteSettings.googleDriveTokens = tokens;
+        saveSettings();
+
+        logAdminAction(req.session.userId, 'connect_google_drive', 'settings', null, 'Connected Google Drive for backups', getClientIP(req));
+
+        res.redirect('/admin?tab=backup&drive=connected');
+    } catch (error) {
+        console.error('Google Drive callback error:', error);
+        res.redirect('/admin?tab=backup&drive=error');
+    }
+});
+
+// Disconnect Google Drive
+router.post('/api/admin/backup/disconnect', requireAuth, requireRole('admin'), (req, res) => {
+    siteSettings.googleDriveTokens = null;
+    siteSettings.googleDriveBackupEnabled = false;
+    stopBackupSchedule();
+    saveSettings();
+    logAdminAction(req.session.userId, 'disconnect_google_drive', 'settings', null, 'Disconnected Google Drive', getClientIP(req));
+    res.json({ success: true });
+});
+
+// Get backup settings
+router.get('/api/admin/backup/settings', requireAuth, requireRole('admin'), (req, res) => {
+    res.json({
+        enabled: siteSettings.googleDriveBackupEnabled || false,
+        time: siteSettings.googleDriveBackupTime || '03:00',
+        folderId: siteSettings.googleDriveBackupFolderId || '',
+        driveConnected: !!siteSettings.googleDriveTokens
+    });
+});
+
+// Save backup settings
+router.post('/api/admin/backup/settings', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const { enabled, time, folderId } = req.body;
+
+        if (enabled !== undefined) siteSettings.googleDriveBackupEnabled = enabled;
+        if (time !== undefined) siteSettings.googleDriveBackupTime = time;
+        if (folderId !== undefined) siteSettings.googleDriveBackupFolderId = folderId;
+
+        saveSettings();
+
+        // Restart schedule
+        if (siteSettings.googleDriveBackupEnabled) {
+            startBackupSchedule();
+        } else {
+            stopBackupSchedule();
+        }
+
+        logAdminAction(req.session.userId, 'update_backup_settings', 'settings', null, `Backup ${enabled ? 'enabled' : 'disabled'}, time: ${time}`, getClientIP(req));
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Save backup settings error:', error);
+        res.status(500).json({ error: 'Failed to save settings' });
+    }
+});
+
+// Trigger manual backup
+router.post('/api/admin/backup/trigger', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const result = await performBackup('manual');
+        logAdminAction(req.session.userId, 'manual_backup', 'backup', null, `Manual backup: ${result.filename}`, getClientIP(req));
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('Manual backup error:', error);
+        res.status(500).json({ error: error.message || 'Backup failed' });
+    }
+});
+
+// Get backup history
+router.get('/api/admin/backup/history', requireAuth, requireRole('admin'), (req, res) => {
+    const history = dbAll('SELECT * FROM backup_history ORDER BY created_at DESC LIMIT 50');
+    res.json(history);
+});
+
 module.exports = router;

@@ -51,6 +51,22 @@ async function initDatabase() {
     try { db.run('ALTER TABLE users ADD COLUMN telegram_code TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN telegram_verified INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN telegram_username TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE users ADD COLUMN google_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE users ADD COLUMN google_avatar TEXT'); } catch(e) {}
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS backup_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            size_bytes INTEGER DEFAULT 0,
+            drive_file_id TEXT,
+            status TEXT DEFAULT 'pending',
+            error_message TEXT,
+            triggered_by TEXT DEFAULT 'manual',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT
+        )
+    `);
     try { db.run('ALTER TABLE bots ADD COLUMN binance_api_key TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN binance_api_secret TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN mode TEXT DEFAULT "test"'); } catch(e) {}

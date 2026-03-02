@@ -18,6 +18,7 @@ const { initSocket }                           = require('./socket');
 const { initTelegramBot }                      = require('./services/telegram');
 const { getSSLCredentials }                    = require('./utils/ssl');
 const { startCollector, stopCollector }        = require('./services/candleCollector');
+const { startBackupSchedule, stopBackupSchedule } = require('./services/backup');
 
 async function createApp() {
     // 1. Load persisted settings
@@ -40,9 +41,9 @@ async function createApp() {
                 scriptSrcAttr: ["'unsafe-inline'"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-                connectSrc: ["'self'", "wss://stream.binance.com:*", "wss://fstream.binance.com", "https://api.binance.com", "https://fapi.binance.com", "https://telegram.org", "https://oauth.telegram.org", "https://cdn.jsdelivr.net", "https://cdn.socket.io"],
-                imgSrc: ["'self'", "data:", "https://cdn.jsdelivr.net", "https://t.me", "https://*.telegram.org"],
-                frameSrc: ["'self'", "https://oauth.telegram.org"]
+                connectSrc: ["'self'", "wss://stream.binance.com:*", "wss://fstream.binance.com", "https://api.binance.com", "https://fapi.binance.com", "https://telegram.org", "https://oauth.telegram.org", "https://cdn.jsdelivr.net", "https://cdn.socket.io", "https://accounts.google.com", "https://oauth2.googleapis.com"],
+                imgSrc: ["'self'", "data:", "https://cdn.jsdelivr.net", "https://t.me", "https://*.telegram.org", "https://lh3.googleusercontent.com"],
+                frameSrc: ["'self'", "https://oauth.telegram.org", "https://accounts.google.com"]
             }
         },
         crossOriginEmbedderPolicy: false
@@ -203,6 +204,9 @@ async function startServer() {
     // Start candle collector
     startCollector().catch(err => console.error('[Server] Candle collector failed:', err));
 
+    // Start backup schedule
+    startBackupSchedule();
+
     // Start HTTP server
     server.listen(PORT, HOST, () => {
         console.log(`HTTP  server listening on http://${HOST}:${PORT}`);
@@ -223,6 +227,7 @@ async function startServer() {
     function shutdown(signal) {
         console.log(`\n${signal} received — shutting down gracefully`);
         stopCollector();
+        stopBackupSchedule();
         saveDatabase();
         server.close(() => process.exit(0));
         setTimeout(() => process.exit(1), 5000);

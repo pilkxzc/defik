@@ -1150,6 +1150,7 @@
                     <button class="tab-btn" data-tab="news">Новини</button>
                     <button class="tab-btn" data-tab="audit">Журнал аудиту</button>
                     <button class="tab-btn" data-tab="analytics">Аналітика</button>
+                    <button class="tab-btn" data-tab="backup" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%);">Бекапи</button>
                 </div>
 
                 <!-- Dashboard Tab -->
@@ -1628,6 +1629,85 @@
                         </div>
                     </div>
                 </div>
+                <!-- Backup Tab -->
+                <div class="tab-content" id="tab-backup">
+                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                        <!-- Google OAuth Settings -->
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                <span style="font-size: 16px; font-weight: 700;">Google OAuth налаштування</span>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label class="form-label" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">Client ID</label>
+                                <input type="text" class="form-input" id="googleClientId" placeholder="xxxx.apps.googleusercontent.com" style="background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 16px; color: var(--text-primary); font-size: 13px; width: 100%;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label class="form-label" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">Client Secret</label>
+                                <input type="password" class="form-input" id="googleClientSecret" placeholder="GOCSPX-xxxx" style="background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 16px; color: var(--text-primary); font-size: 13px; width: 100%;">
+                            </div>
+                            <label style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; cursor: pointer;">
+                                <input type="checkbox" id="googleOAuthEnabled" style="width: 18px; height: 18px;">
+                                <span style="font-size: 14px; font-weight: 600;">Увімкнути Google Login</span>
+                            </label>
+                            <button onclick="saveGoogleSettings()" class="action-btn primary" style="width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600;">Зберегти</button>
+                        </div>
+
+                        <!-- Google Drive Connection -->
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                <span style="font-size: 16px; font-weight: 700;">Google Drive</span>
+                            </div>
+                            <div id="driveStatus" style="padding: 16px; background: var(--surface-secondary); border-radius: 12px; margin-bottom: 20px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div id="driveStatusDot" style="width: 10px; height: 10px; border-radius: 50%; background: #636363;"></div>
+                                    <span id="driveStatusText" style="font-size: 14px; font-weight: 600;">Не підключено</span>
+                                </div>
+                            </div>
+                            <button id="driveConnectBtn" onclick="connectGoogleDrive()" class="action-btn primary" style="width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600; margin-bottom: 12px;">Підключити Google Drive</button>
+                            <button id="driveDisconnectBtn" onclick="disconnectDrive()" class="action-btn secondary" style="width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600; display: none;">Відключити</button>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr; margin-top: 20px;">
+                        <!-- Backup Schedule -->
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <span style="font-size: 16px; font-weight: 700;">Розклад бекапів</span>
+                            </div>
+                            <label style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; cursor: pointer;">
+                                <input type="checkbox" id="backupEnabled" style="width: 18px; height: 18px;">
+                                <span style="font-size: 14px; font-weight: 600;">Автоматичний бекап</span>
+                            </label>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label class="form-label" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">Час бекапу (щоденно)</label>
+                                <input type="time" id="backupTime" value="03:00" style="background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 16px; color: var(--text-primary); font-size: 13px; width: 100%;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label class="form-label" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">Google Drive Folder ID (опціонально)</label>
+                                <input type="text" id="backupFolderId" placeholder="Залишити порожнім для кореневої папки" style="background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 16px; color: var(--text-primary); font-size: 13px; width: 100%;">
+                            </div>
+                            <div style="display: flex; gap: 12px;">
+                                <button onclick="saveBackupSettings()" class="action-btn primary" style="flex: 1; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600;">Зберегти</button>
+                                <button onclick="triggerBackup()" id="triggerBackupBtn" class="action-btn secondary" style="flex: 1; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 600;">Зробити бекап зараз</button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Backup Trigger -->
+                        <div class="stat-card" style="padding: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                <span style="font-size: 16px; font-weight: 700;">Історія бекапів</span>
+                            </div>
+                            <div id="backupHistoryList" style="max-height: 300px; overflow-y: auto;">
+                                <div style="text-align: center; color: var(--text-tertiary); padding: 20px;">Завантаження...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>

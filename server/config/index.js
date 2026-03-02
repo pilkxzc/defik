@@ -32,7 +32,14 @@ const siteSettings = {
     smtpPort:              587,
     smtpUser:              '',
     smtpPass:              '',
-    smtpFrom:              'noreply@yamato.com'
+    smtpFrom:              'noreply@yamato.com',
+    googleClientId:        '',
+    googleClientSecret:    '',
+    googleOAuthEnabled:    false,
+    googleDriveTokens:     null,
+    googleDriveBackupEnabled: false,
+    googleDriveBackupTime: '03:00',
+    googleDriveBackupFolderId: ''
 };
 
 function loadSettings() {

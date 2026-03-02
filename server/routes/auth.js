@@ -1084,4 +1084,136 @@ router.post('/api/auth/telegram-login-verify', async (req, res) => {
     }
 });
 
+// ==================== GOOGLE OAUTH ====================
+
+const { google } = require('googleapis');
+const { siteSettings } = require('../config');
+
+function getGoogleOAuth2Client() {
+    const { googleClientId, googleClientSecret } = siteSettings;
+    if (!googleClientId || !googleClientSecret) return null;
+    const baseUrl = process.env.BASE_URL || 'https://tradingarena.space';
+    return new google.auth.OAuth2(googleClientId, googleClientSecret, `${baseUrl}/api/auth/google/callback`);
+}
+
+// Check if Google Login is enabled
+router.get('/api/auth/google/enabled', (req, res) => {
+    res.json({ enabled: !!(siteSettings.googleOAuthEnabled && siteSettings.googleClientId && siteSettings.googleClientSecret) });
+});
+
+// Initiate Google OAuth
+router.get('/api/auth/google', (req, res) => {
+    if (!siteSettings.googleOAuthEnabled) {
+        return res.status(400).json({ error: 'Google login is not enabled' });
+    }
+
+    const oauth2Client = getGoogleOAuth2Client();
+    if (!oauth2Client) {
+        return res.status(500).json({ error: 'Google OAuth not configured' });
+    }
+
+    const url = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: ['openid', 'email', 'profile'],
+        prompt: 'select_account'
+    });
+
+    res.redirect(url);
+});
+
+// Google OAuth callback
+router.get('/api/auth/google/callback', async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            return res.redirect('/login?error=google_failed');
+        }
+
+        const oauth2Client = getGoogleOAuth2Client();
+        if (!oauth2Client) {
+            return res.redirect('/login?error=google_failed');
+        }
+
+        const { tokens } = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+
+        // Get user info
+        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+        const { data: googleUser } = await oauth2.userinfo.get();
+
+        const googleId = googleUser.id;
+        const email = (googleUser.email || '').toLowerCase().trim();
+        const fullName = googleUser.name || email.split('@')[0];
+        const avatar = googleUser.picture || null;
+
+        if (!email) {
+            return res.redirect('/login?error=google_no_email');
+        }
+
+        const clientIP = getClientIP(req);
+
+        // 1. Check if user exists by google_id
+        let user = dbGet('SELECT * FROM users WHERE google_id = ?', [googleId]);
+
+        // 2. If not found by google_id, check by email
+        if (!user) {
+            user = dbGet('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email]);
+            if (user) {
+                // Link google_id to existing user
+                dbRun('UPDATE users SET google_id = ?, google_avatar = ? WHERE id = ?', [googleId, avatar, user.id]);
+            }
+        }
+
+        // 3. If still no user — auto-register
+        if (!user) {
+            const randomPassword = crypto.randomBytes(32).toString('hex');
+            const hashedPassword = await bcrypt.hash(randomPassword, 10);
+            const role = email === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user';
+
+            const result = dbRun(
+                'INSERT INTO users (email, password, full_name, balance, demo_balance, real_balance, active_account, role, google_id, google_avatar, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [email, hashedPassword, fullName, 0, 10000, 0, 'demo', role, googleId, avatar, 1]
+            );
+
+            user = dbGet('SELECT * FROM users WHERE id = ?', [result.lastInsertRowid]);
+            if (!user) {
+                return res.redirect('/login?error=google_failed');
+            }
+
+            createNotification(user.id, 'welcome', 'Welcome to Yamato!', 'Your account was created via Google');
+        } else {
+            // Update avatar if changed
+            if (avatar && avatar !== user.google_avatar) {
+                dbRun('UPDATE users SET google_avatar = ? WHERE id = ?', [avatar, user.id]);
+            }
+        }
+
+        if (user.is_banned) {
+            return res.redirect('/login?error=banned');
+        }
+
+        // Update last login
+        dbRun('UPDATE users SET last_login = ? WHERE id = ?', [getLocalTime(), user.id]);
+        dbRun(
+            'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
+            [user.id, 'Google Login', 'User logged in via Google OAuth', clientIP]
+        );
+        createNotification(user.id, 'login', 'New account login', `Login via Google from IP: ${clientIP}`);
+
+        req.session.userId = user.id;
+        req.session.betaAccess = true;
+
+        req.session.save((err) => {
+            if (err) {
+                console.error('Session save error (Google):', err);
+                return res.redirect('/login?error=session');
+            }
+            res.redirect('/dashboard');
+        });
+    } catch (error) {
+        console.error('Google OAuth callback error:', error);
+        res.redirect('/login?error=google_failed');
+    }
+});
+
 module.exports = router;
