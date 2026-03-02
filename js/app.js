@@ -1919,7 +1919,8 @@ async function initializePage() {
                                  path.includes('news') || path === '/news' ||
                                  path.includes('bot-detail') || path.startsWith('/bot/') ||
                                  path.includes('community') || path === '/community' ||
-                                 path.includes('admin') || path === '/admin';
+                                 path.includes('admin') || path === '/admin' ||
+                                 path === '/docs';
 
     if (isAuthenticatedPage) {
         try {
