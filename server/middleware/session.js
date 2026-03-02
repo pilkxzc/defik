@@ -109,11 +109,39 @@ class FileSessionStore extends session.Store {
         }
         callback && callback(null);
     }
+
+    // Get all sessions for a specific userId
+    getByUserId(userId) {
+        const results = [];
+        for (const sid in this.sessions) {
+            const sess = this.sessions[sid];
+            if (sess.userId === userId) {
+                // Check expiry
+                if (sess.cookie && sess.cookie.expires) {
+                    if (new Date(sess.cookie.expires).getTime() <= Date.now()) continue;
+                }
+                results.push({ sid, ...sess });
+            }
+        }
+        return results;
+    }
+
+    // Destroy a specific session by sid (direct access)
+    destroyById(sid) {
+        if (this.sessions[sid]) {
+            delete this.sessions[sid];
+            this.save();
+            return true;
+        }
+        return false;
+    }
 }
+
+const sessionStore = new FileSessionStore();
 
 function createSessionMiddleware() {
     return session({
-        store: new FileSessionStore(),
+        store: sessionStore,
         secret: SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
@@ -126,4 +154,4 @@ function createSessionMiddleware() {
     });
 }
 
-module.exports = { FileSessionStore, createSessionMiddleware };
+module.exports = { FileSessionStore, createSessionMiddleware, sessionStore };
