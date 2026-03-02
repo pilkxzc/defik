@@ -11,6 +11,7 @@ const { ADMIN_EMAIL }         = require('../config');
 const { getClientIP }         = require('../utils/ip');
 const { getLocalTime }        = require('../utils/time');
 const { requireAuth }         = require('../middleware/auth');
+const { recordLoginAttempt, getFailedAttempts, isAccountLocked, getProgressiveDelay } = require('../utils/bruteForce');
 
 // Lazy to avoid circular dep
 function createNotification(...args) {
@@ -99,8 +100,29 @@ router.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        const user = dbGet('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email.trim()]);
+        const normalizedEmail = email.trim().toLowerCase();
+        const clientIP = getClientIP(req);
+
+        // Check if account is locked due to too many failed attempts
+        const locked = await isAccountLocked(normalizedEmail);
+        if (locked) {
+            return res.status(403).json({
+                error: 'Акаунт тимчасово заблоковано через надто багато невдалих спроб входу. Спробуйте через 15 хвилин.',
+                locked: true
+            });
+        }
+
+        const user = dbGet('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
         if (!user) {
+            // Get failed attempts for progressive delay
+            const failedCount = await getFailedAttempts(normalizedEmail);
+
+            // Apply progressive delay
+            await getProgressiveDelay(failedCount);
+
+            // Record failed attempt
+            await recordLoginAttempt(clientIP, normalizedEmail, false);
+
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -108,8 +130,17 @@ router.post('/api/auth/login', async (req, res) => {
             return res.status(403).json({ error: 'Account banned', reason: user.ban_reason || 'Your account has been banned', banned: true });
         }
 
+        // Get failed attempts before password validation
+        const failedCount = await getFailedAttempts(normalizedEmail);
+
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) {
+            // Apply progressive delay before responding
+            await getProgressiveDelay(failedCount);
+
+            // Record failed attempt
+            await recordLoginAttempt(clientIP, normalizedEmail, false);
+
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -133,13 +164,21 @@ router.post('/api/auth/login', async (req, res) => {
             }
 
             if (!verified) {
+                // Apply progressive delay for failed 2FA
+                await getProgressiveDelay(failedCount);
+
+                // Record failed attempt
+                await recordLoginAttempt(clientIP, normalizedEmail, false);
+
                 return res.status(401).json({ error: 'Invalid 2FA code' });
             }
         }
 
+        // Record successful login attempt
+        await recordLoginAttempt(clientIP, normalizedEmail, true);
+
         dbRun('UPDATE users SET last_login = ? WHERE id = ?', [getLocalTime(), user.id]);
 
-        const clientIP = getClientIP(req);
         dbRun(
             'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
             [user.id, 'Successful Login', 'User logged in' + (user.totp_enabled ? ' (2FA verified)' : ''), clientIP]
