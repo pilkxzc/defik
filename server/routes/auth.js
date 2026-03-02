@@ -72,6 +72,10 @@ router.post('/api/auth/register', async (req, res) => {
 
         req.session.userId = userId;
         req.session.betaAccess = true;
+        req.session._ip = getClientIP(req);
+        req.session._ua = req.headers['user-agent'] || '';
+        req.session._createdAt = new Date().toISOString();
+        req.session._loginMethod = 'register';
         console.log(`[register] Session ${req.session.id?.substring(0,8)}... userId set to ${req.session.userId}, saving...`);
 
         req.session.save((err) => {
@@ -188,6 +192,10 @@ router.post('/api/auth/login', async (req, res) => {
 
         req.session.userId = user.id;
         req.session.betaAccess = true;
+        req.session._ip = clientIP;
+        req.session._ua = req.headers['user-agent'] || '';
+        req.session._createdAt = new Date().toISOString();
+        req.session._loginMethod = 'password';
 
         req.session.save((err) => {
             if (err) {
@@ -253,6 +261,70 @@ router.get('/api/auth/session', requireAuth, (req, res) => {
         [req.session.userId]
     );
     res.json({ currentIP: getClientIP(req), lastLogin: user?.last_login, recentActivity });
+});
+
+// List all active sessions for current user
+router.get('/api/auth/sessions', requireAuth, (req, res) => {
+    const { sessionStore } = require('../middleware/session');
+    const currentSid = req.sessionID;
+    const sessions = sessionStore.getByUserId(req.session.userId);
+
+    const result = sessions.map(s => ({
+        id: s.sid.substring(0, 8),
+        _sid: s.sid,
+        ip: s._ip || 'Unknown',
+        userAgent: s._ua || '',
+        createdAt: s._createdAt || null,
+        loginMethod: s._loginMethod || 'unknown',
+        isCurrent: s.sid === currentSid,
+        expiresAt: s.cookie?.expires || null
+    }));
+
+    // Sort: current session first, then by creation date desc
+    result.sort((a, b) => {
+        if (a.isCurrent) return -1;
+        if (b.isCurrent) return 1;
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
+
+    res.json(result);
+});
+
+// Kill a specific session
+router.post('/api/auth/sessions/revoke', requireAuth, (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: 'Session ID required' });
+
+    const { sessionStore } = require('../middleware/session');
+    const sessions = sessionStore.getByUserId(req.session.userId);
+
+    // Find the session matching the short id
+    const target = sessions.find(s => s.sid.substring(0, 8) === sessionId);
+    if (!target) return res.status(404).json({ error: 'Session not found' });
+
+    // Don't allow killing current session (use logout instead)
+    if (target.sid === req.sessionID) {
+        return res.status(400).json({ error: 'Cannot revoke current session. Use logout instead.' });
+    }
+
+    sessionStore.destroyById(target.sid);
+    res.json({ success: true });
+});
+
+// Kill all other sessions
+router.post('/api/auth/sessions/revoke-all', requireAuth, (req, res) => {
+    const { sessionStore } = require('../middleware/session');
+    const sessions = sessionStore.getByUserId(req.session.userId);
+    let count = 0;
+
+    sessions.forEach(s => {
+        if (s.sid !== req.sessionID) {
+            sessionStore.destroyById(s.sid);
+            count++;
+        }
+    });
+
+    res.json({ success: true, revoked: count });
 });
 
 router.post('/api/account/switch', requireAuth, (req, res) => {
@@ -715,6 +787,11 @@ router.post('/api/passkeys/auth-verify', (req, res) => {
         req.session.userId = user.id;
         req.session.userEmail = user.email;
         req.session.userRole = user.role || 'user';
+        req.session.betaAccess = true;
+        req.session._ip = getClientIP(req);
+        req.session._ua = req.headers['user-agent'] || '';
+        req.session._createdAt = new Date().toISOString();
+        req.session._loginMethod = 'passkey';
 
         dbRun('INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
             [user.id, 'Passkey Login', `Logged in using passkey: ${passkey.name}`, getClientIP(req)]);
@@ -817,6 +894,10 @@ router.post('/api/auth/telegram', (req, res) => {
 
             req.session.userId = existingUser.id;
             req.session.betaAccess = true;
+            req.session._ip = getClientIP(req);
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'telegram';
             return req.session.save((err) => {
                 if (err) return res.status(500).json({ error: 'Session error' });
                 res.json({ success: true, user: {
@@ -901,6 +982,10 @@ router.post('/api/auth/telegram-register', async (req, res) => {
 
         req.session.userId = userId;
         req.session.betaAccess = true;
+        req.session._ip = getClientIP(req);
+        req.session._ua = req.headers['user-agent'] || '';
+        req.session._createdAt = new Date().toISOString();
+        req.session._loginMethod = 'telegram-register';
         req.session.save((err) => {
             if (err) return res.status(500).json({ error: 'Session error' });
             res.json({
@@ -1057,6 +1142,10 @@ router.post('/api/auth/telegram-login-verify', async (req, res) => {
         // Create session
         req.session.userId = user.id;
         req.session.betaAccess = true;
+        req.session._ip = clientIP;
+        req.session._ua = req.headers['user-agent'] || '';
+        req.session._createdAt = new Date().toISOString();
+        req.session._loginMethod = 'telegram-code';
 
         req.session.save((err) => {
             if (err) {
@@ -1213,6 +1302,10 @@ router.get('/api/auth/google/callback', async (req, res) => {
 
         req.session.userId = user.id;
         req.session.betaAccess = true;
+        req.session._ip = clientIP;
+        req.session._ua = req.headers['user-agent'] || '';
+        req.session._createdAt = new Date().toISOString();
+        req.session._loginMethod = 'google';
 
         req.session.save((err) => {
             if (err) {
