@@ -41,7 +41,7 @@ async function createApp() {
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
                 connectSrc: ["'self'", "wss://stream.binance.com:*", "wss://fstream.binance.com", "https://api.binance.com", "https://fapi.binance.com", "https://telegram.org", "https://oauth.telegram.org", "https://cdn.jsdelivr.net", "https://cdn.socket.io"],
-                imgSrc: ["'self'", "data:", "https://cdn.jsdelivr.net"],
+                imgSrc: ["'self'", "data:", "https://cdn.jsdelivr.net", "https://t.me", "https://*.telegram.org"],
                 frameSrc: ["'self'", "https://oauth.telegram.org"]
             }
         },
