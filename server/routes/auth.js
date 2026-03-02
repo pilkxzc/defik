@@ -1015,7 +1015,7 @@ router.post('/api/auth/telegram-login-verify', async (req, res) => {
 
         // Get user information
         const user = dbGet(
-            'SELECT id, email, full_name, demo_balance, real_balance, active_account, is_verified, verification_level FROM users WHERE id = ?',
+            'SELECT id, email, full_name, demo_balance, real_balance, active_account, is_verified, verification_level, is_banned, ban_reason FROM users WHERE id = ?',
             [loginCode.user_id]
         );
 
