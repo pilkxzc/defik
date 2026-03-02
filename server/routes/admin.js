@@ -1180,4 +1180,66 @@ router.get('/api/admin/analytics/subscriptions/funnel', requireAuth, requireRole
     }
 });
 
+// Trading Volume Analytics
+router.get('/api/admin/analytics/trading/volume', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = getLocalTimeDaysAgo(days);
+
+        // Get total trades and volume
+        const totalTrades = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE opened_at > ?', [cutoffDate]);
+        const totalVolume = dbGet('SELECT SUM(quantity * price) as volume FROM bot_trades WHERE opened_at > ?', [cutoffDate]);
+
+        // Get demo vs live volume
+        const demoVolume = dbGet(`
+            SELECT SUM(bt.quantity * bt.price) as volume
+            FROM bot_trades bt
+            JOIN bots b ON bt.bot_id = b.id
+            WHERE bt.opened_at > ? AND (b.mode = 'test' OR b.mode = 'demo')
+        `, [cutoffDate]);
+
+        const liveVolume = dbGet(`
+            SELECT SUM(bt.quantity * bt.price) as volume
+            FROM bot_trades bt
+            JOIN bots b ON bt.bot_id = b.id
+            WHERE bt.opened_at > ? AND b.mode = 'live'
+        `, [cutoffDate]);
+
+        // Get daily volume trends with demo/live split
+        const volumeTrends = dbAll(`
+            SELECT
+                DATE(bt.opened_at) as date,
+                SUM(CASE WHEN b.mode = 'live' THEN bt.quantity * bt.price ELSE 0 END) as liveVolume,
+                SUM(CASE WHEN b.mode = 'test' OR b.mode = 'demo' THEN bt.quantity * bt.price ELSE 0 END) as demoVolume,
+                SUM(bt.quantity * bt.price) as totalVolume
+            FROM bot_trades bt
+            JOIN bots b ON bt.bot_id = b.id
+            WHERE bt.opened_at > ?
+            GROUP BY DATE(bt.opened_at)
+            ORDER BY date ASC
+        `, [cutoffDate]);
+
+        const avgTradeSize = totalTrades?.count > 0 ? (totalVolume?.volume || 0) / totalTrades.count : 0;
+
+        res.json({
+            summary: {
+                totalTrades: totalTrades?.count || 0,
+                totalVolume: totalVolume?.volume || 0,
+                demoVolume: demoVolume?.volume || 0,
+                liveVolume: liveVolume?.volume || 0,
+                avgTradeSize: avgTradeSize
+            },
+            volumeTrends: volumeTrends.map(row => ({
+                date: row.date,
+                liveVolume: row.liveVolume || 0,
+                demoVolume: row.demoVolume || 0,
+                totalVolume: row.totalVolume || 0
+            }))
+        });
+    } catch (error) {
+        console.error('Trading volume analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch trading volume analytics' });
+    }
+});
+
 module.exports = router;

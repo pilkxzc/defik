@@ -1937,6 +1937,7 @@ let userRegistrationsChartInstance = null;
 let userActivityChartInstance = null;
 let botFunnelChartInstance = null;
 let subscriptionFunnelChartInstance = null;
+let tradingVolumeChartInstance = null;
 
 async function loadAnalytics() {
     try {
@@ -1948,7 +1949,6 @@ async function loadAnalytics() {
 
         document.getElementById('analyticsNewUsers7d').textContent = data.summary.newUsers;
         document.getElementById('analyticsActiveUsers7d').textContent = data.summary.dau;
-        document.getElementById('analyticsVolume7d').textContent = formatCurrency(0);
 
         renderUserRegistrationsChart(data.registrationTrends);
         renderUserActivityChart(data.summary);
@@ -1964,6 +1964,13 @@ async function loadAnalytics() {
         if (subscriptionFunnelResponse.ok) {
             const subscriptionFunnelData = await subscriptionFunnelResponse.json();
             renderSubscriptionFunnelChart(subscriptionFunnelData);
+        }
+
+        const volumeResponse = await fetch(`/api/admin/analytics/trading/volume?days=${days}`);
+        if (volumeResponse.ok) {
+            const volumeData = await volumeResponse.json();
+            document.getElementById('analyticsVolume7d').textContent = formatCurrency(volumeData.summary.totalVolume);
+            renderTradingVolumeChart(volumeData.volumeTrends);
         }
 
     } catch (error) {
@@ -2305,6 +2312,120 @@ function renderSubscriptionFunnelChart(funnelData) {
                 y: {
                     ticks: {
                         color: '#A1A1A1'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderTradingVolumeChart(trends) {
+    const canvas = document.getElementById('transactionVolumeChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (tradingVolumeChartInstance) {
+        tradingVolumeChartInstance.destroy();
+    }
+
+    const labels = trends.map(t => {
+        const date = new Date(t.date);
+        return date.toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' });
+    });
+    const demoVolumes = trends.map(t => t.demoVolume);
+    const liveVolumes = trends.map(t => t.liveVolume);
+
+    tradingVolumeChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Демо',
+                    data: demoVolumes,
+                    borderColor: 'rgba(140, 168, 255, 0.8)',
+                    backgroundColor: 'rgba(140, 168, 255, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgb(140, 168, 255)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                },
+                {
+                    label: 'Лайв',
+                    data: liveVolumes,
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgb(16, 185, 129)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#A1A1A1',
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stacked: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#A1A1A1',
+                        maxRotation: 45,
+                        minRotation: 45
                     },
                     grid: {
                         display: false
