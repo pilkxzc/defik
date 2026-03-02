@@ -100,6 +100,7 @@
         .docs-content {
             overflow-y: auto;
             padding: 32px 40px 80px;
+            max-width: 860px;
             scrollbar-width: thin;
             scrollbar-color: rgba(255,255,255,0.08) transparent;
         }
@@ -220,10 +221,12 @@
             color: var(--text-primary);
         }
 
-        .docs-tip {
+        /* Tip & Warning — SVG icon based */
+        .docs-tip, .docs-warning {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
             padding: 14px 16px;
-            background: rgba(16,185,129,0.08);
-            border: 1px solid rgba(16,185,129,0.2);
             border-radius: 12px;
             font-size: 13px;
             line-height: 1.6;
@@ -231,28 +234,31 @@
             margin: 16px 0;
         }
 
-        .docs-tip::before {
-            content: '💡 Порада: ';
-            font-weight: 700;
-            color: #10B981;
+        .docs-tip {
+            background: rgba(16,185,129,0.08);
+            border: 1px solid rgba(16,185,129,0.2);
         }
 
         .docs-warning {
-            padding: 14px 16px;
             background: rgba(239,68,68,0.08);
             border: 1px solid rgba(239,68,68,0.2);
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.6;
-            color: var(--text-secondary);
-            margin: 16px 0;
         }
 
-        .docs-warning::before {
-            content: '⚠️ Увага: ';
-            font-weight: 700;
-            color: #EF4444;
+        .docs-tip-icon, .docs-warning-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            margin-top: 1px;
         }
+
+        .docs-tip-icon { color: #10B981; }
+        .docs-warning-icon { color: #EF4444; }
+
+        .docs-tip-label, .docs-warning-label {
+            font-weight: 700;
+        }
+        .docs-tip-label { color: #10B981; }
+        .docs-warning-label { color: #EF4444; }
 
         .docs-kbd {
             display: inline-block;
@@ -269,6 +275,47 @@
             border: none;
             border-top: 1px solid rgba(255,255,255,0.06);
             margin: 32px 0;
+        }
+
+        /* Feature cards */
+        .docs-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .docs-feature {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .docs-feature-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(16,185,129,0.12);
+            color: #10B981;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .docs-feature-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .docs-feature-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-secondary);
         }
 
         /* FAQ */
@@ -398,6 +445,7 @@
             .docs-h1 { font-size: 22px; }
             .docs-h2 { font-size: 18px; }
             .docs-step { padding: 12px; }
+            .docs-features { grid-template-columns: 1fr; }
         }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
@@ -432,7 +480,7 @@
             <a href="/docs" class="nav-item active" title="Документація">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
             </a>
-            <a href="/admin" class="nav-item admin-nav-item" id="adminNavLink" style="display: none;" title="Адмін панель">
+            <a href="/admin" class="nav-item admin-nav-item admin-hidden" id="adminNavLink" title="Адмін панель">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
             </a>
             <a href="/profile" class="nav-item" style="margin-top: auto">
@@ -482,249 +530,619 @@
                 <!-- Content -->
                 <div class="docs-content" id="docsContent">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 1. Вступ -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="intro">
                         <h1 class="docs-h1">Документація Yamato</h1>
-                        <p class="docs-text">Yamato — це сучасна торгова платформа для криптовалют, що об'єднує в собі моніторинг ринку в реальному часі, автоматизовану торгівлю через ботів та зручне управління портфелем.</p>
-                        <p class="docs-text">Платформа створена для трейдерів будь-якого рівня — від початківців до професіоналів. Основні можливості:</p>
-                        <ul class="docs-list">
-                            <li>Графіки в реальному часі з інтеграцією TradingView</li>
-                            <li>Автоматичні торгові боти з підключенням до Binance</li>
-                            <li>Демо-режим для безпечного навчання без ризику</li>
-                            <li>Управління портфелем з детальною аналітикою</li>
-                            <li>Лімітні та ринкові ордери</li>
-                            <li>Двофакторна автентифікація та Passkeys для безпеки</li>
-                        </ul>
-                    </section>
+                        <p class="docs-text">Ласкаво просимо до офіційної документації <strong>Yamato</strong> — сучасної торгової платформи для криптовалют. Ця інструкція допоможе вам швидко розібратися з усіма можливостями системи та почати ефективно торгувати.</p>
 
-                    <hr class="docs-divider">
+                        <p class="docs-text">Yamato об'єднує в собі професійні інструменти для аналізу ринку, автоматизовану торгівлю через ботів, управління портфелем та систему безпеки на рівні фінансових додатків. Платформа розроблена як для початківців, що роблять перші кроки у криптотрейдингу, так і для досвідчених трейдерів, яким потрібен надійний та зручний інструмент.</p>
 
-                    <!-- 2. Початок роботи -->
-                    <section class="docs-section" id="getting-started">
-                        <h2 class="docs-h2">Початок роботи</h2>
-                        <p class="docs-text">Щоб почати користуватись Yamato, виконайте кілька простих кроків:</p>
+                        <h3 class="docs-h3">Основні можливості платформи</h3>
 
-                        <h3 class="docs-h3">Реєстрація</h3>
-                        <div class="docs-steps">
-                            <div class="docs-step">
-                                <div class="docs-step-num">1</div>
-                                <div class="docs-step-text">Перейдіть на сторінку <strong>/register</strong> та заповніть форму: ім'я, email, пароль.</div>
+                        <div class="docs-features">
+                            <div class="docs-feature">
+                                <div class="docs-feature-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                </div>
+                                <div class="docs-feature-title">Графіки реального часу</div>
+                                <div class="docs-feature-desc">Інтерактивний TradingView графік з десятками індикаторів та інструментами технічного аналізу. Дані надходять безпосередньо з Binance без затримок.</div>
                             </div>
-                            <div class="docs-step">
-                                <div class="docs-step-num">2</div>
-                                <div class="docs-step-text">Підтвердіть email — на вашу пошту прийде лист з посиланням для верифікації.</div>
+                            <div class="docs-feature">
+                                <div class="docs-feature-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                                </div>
+                                <div class="docs-feature-title">Торгові боти</div>
+                                <div class="docs-feature-desc">Автоматизована торгівля 24/7 через Binance API. Створюйте ботів з різними стратегіями, тестуйте їх у Paper-режимі перед запуском на реальні кошти.</div>
                             </div>
-                            <div class="docs-step">
-                                <div class="docs-step-num">3</div>
-                                <div class="docs-step-text">Після підтвердження увійдіть у свій акаунт на сторінці <strong>/login</strong>.</div>
+                            <div class="docs-feature">
+                                <div class="docs-feature-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                                </div>
+                                <div class="docs-feature-title">Управління портфелем</div>
+                                <div class="docs-feature-desc">Повний огляд активів з візуалізацією розподілу, відстеження PnL по кожній позиції та історія всіх транзакцій.</div>
+                            </div>
+                            <div class="docs-feature">
+                                <div class="docs-feature-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                </div>
+                                <div class="docs-feature-title">Безпека</div>
+                                <div class="docs-feature-desc">Двофакторна автентифікація (TOTP), Passkeys (WebAuthn), шифрування API ключів та захищені сесії з cookie httpOnly.</div>
+                            </div>
+                            <div class="docs-feature">
+                                <div class="docs-feature-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                </div>
+                                <div class="docs-feature-title">Демо-режим</div>
+                                <div class="docs-feature-desc">Віртуальний баланс для безпечного навчання. Всі функції платформи доступні без ризику втрати реальних коштів.</div>
+                            </div>
+                            <div class="docs-feature">
+                                <div class="docs-feature-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"></path></svg>
+                                </div>
+                                <div class="docs-feature-title">Сповіщення</div>
+                                <div class="docs-feature-desc">Миттєві сповіщення в додатку та через Telegram: спрацювання ботів, виконання ордерів, зміни на ринку.</div>
                             </div>
                         </div>
 
-                        <h3 class="docs-h3">Демо та реальний рахунок</h3>
-                        <p class="docs-text">Yamato пропонує два типи рахунків:</p>
+                        <h3 class="docs-h3">Для кого Yamato?</h3>
                         <ul class="docs-list">
-                            <li><strong>Демо-рахунок</strong> — віртуальні кошти для тренування. Ви можете торгувати без ризику та вивчати платформу.</li>
-                            <li><strong>Реальний рахунок</strong> — для торгівлі реальними криптовалютами через підключення до Binance.</li>
+                            <li><strong>Початківці</strong> — демо-рахунок з віртуальними коштами дозволяє навчитися торгувати без фінансового ризику. Інтуїтивний інтерфейс та ця документація допоможуть швидко освоїтись.</li>
+                            <li><strong>Активні трейдери</strong> — професійний TradingView графік, швидке виконання ордерів та детальна аналітика портфелю для щоденної торгівлі.</li>
+                            <li><strong>Алготрейдери</strong> — автоматичні торгові боти з підключенням до Binance API, Paper-торгівля для тестування стратегій та детальна статистика по кожному боту.</li>
+                            <li><strong>Інвестори</strong> — зручне відстеження портфелю, розподіл активів, історія транзакцій та моніторинг ринкових цін у реальному часі.</li>
                         </ul>
-                        <p class="docs-text">Переключення між рахунками відбувається у профілі або на дашборді.</p>
-                        <div class="docs-tip">Рекомендуємо спочатку попрацювати на демо-рахунку, щоб освоїтись з інтерфейсом та протестувати стратегії.</div>
+
+                        <h3 class="docs-h3">Як користуватись цією документацією</h3>
+                        <p class="docs-text">Зліва розташований зміст з усіма розділами. Натисніть на будь-який пункт для швидкого переходу. Розділи організовані від базових (реєстрація, вхід) до просунутих (боти, ордери, безпека). Якщо ви новачок — читайте по порядку. Якщо шукаєте конкретну інформацію — використовуйте зміст для навігації.</p>
                     </section>
 
                     <hr class="docs-divider">
 
-                    <!-- 3. Дашборд -->
-                    <section class="docs-section" id="dashboard">
-                        <h2 class="docs-h2">Дашборд</h2>
-                        <p class="docs-text">Дашборд — це головна робоча панель трейдера. Тут зібрано все необхідне для моніторингу ринку та прийняття торгових рішень.</p>
+                    <!-- ═══════════════════════════════════════ -->
+                    <!-- 2. Початок роботи -->
+                    <!-- ═══════════════════════════════════════ -->
+                    <section class="docs-section" id="getting-started">
+                        <h2 class="docs-h2">Початок роботи</h2>
+                        <p class="docs-text">Цей розділ описує перші кроки на платформі: від створення акаунту до першого входу в дашборд.</p>
 
-                        <h3 class="docs-h3">TradingView графік</h3>
-                        <p class="docs-text">Інтерактивний графік з підтримкою всіх основних індикаторів та інструментів технічного аналізу. Дані оновлюються в реальному часі безпосередньо від Binance.</p>
-                        <ul class="docs-list">
-                            <li>Зміна таймфрейму (1m, 5m, 15m, 1h, 4h, 1d тощо)</li>
-                            <li>Додавання індикаторів (MA, RSI, MACD та інші)</li>
-                            <li>Інструменти малювання (лінії тренду, рівні)</li>
-                            <li>Перемикання між торговими парами</li>
-                        </ul>
-
-                        <h3 class="docs-h3">Віджети та кастомізація</h3>
-                        <p class="docs-text">Дашборд складається з віджетів, які можна налаштувати під свої потреби:</p>
-                        <ul class="docs-list">
-                            <li><strong>Перетягування (drag)</strong> — змінюйте порядок віджетів перетягуванням</li>
-                            <li><strong>Зміна розміру (resize)</strong> — налаштуйте розмір кожного віджета</li>
-                            <li>Налаштування зберігаються автоматично</li>
-                        </ul>
-
-                        <h3 class="docs-h3">Ринкові дані</h3>
-                        <p class="docs-text">На дашборді відображаються актуальні ціни криптовалют, зміна за 24 години, обсяг торгів та інші ключові метрики.</p>
-                    </section>
-
-                    <hr class="docs-divider">
-
-                    <!-- 4. Портфель -->
-                    <section class="docs-section" id="portfolio">
-                        <h2 class="docs-h2">Портфель</h2>
-                        <p class="docs-text">Сторінка портфелю надає повний огляд ваших активів та фінансового стану на платформі.</p>
-                        <ul class="docs-list">
-                            <li><strong>Загальний баланс</strong> — сума всіх ваших активів у доларовому еквіваленті</li>
-                            <li><strong>Розподіл активів</strong> — графічна візуалізація структури портфелю</li>
-                            <li><strong>Список холдингів</strong> — детальна інформація по кожному активу: кількість, поточна ціна, прибуток/збиток</li>
-                            <li><strong>Історія транзакцій</strong> — повний лог всіх операцій: покупки, продажі, перекази</li>
-                        </ul>
-                        <div class="docs-tip">Регулярно перевіряйте портфель для контролю диверсифікації та оцінки ефективності ваших торгових стратегій.</div>
-                    </section>
-
-                    <hr class="docs-divider">
-
-                    <!-- 5. Торгові боти -->
-                    <section class="docs-section" id="bots">
-                        <h2 class="docs-h2">Торгові боти</h2>
-                        <p class="docs-text">Торгові боти — потужний інструмент автоматизації торгівлі. Бот виконує угоди за заданими параметрами 24/7 без вашої участі.</p>
-
-                        <h3 class="docs-h3">Створення бота</h3>
+                        <h3 class="docs-h3">Реєстрація</h3>
+                        <p class="docs-text">Для створення акаунту перейдіть на сторінку реєстрації:</p>
                         <div class="docs-steps">
                             <div class="docs-step">
                                 <div class="docs-step-num">1</div>
-                                <div class="docs-step-text">Перейдіть на сторінку <strong>/bots</strong> та натисніть кнопку створення нового бота.</div>
+                                <div class="docs-step-text">Відкрийте сторінку <strong>/register</strong>. Ви побачите форму реєстрації з полями для заповнення.</div>
                             </div>
                             <div class="docs-step">
                                 <div class="docs-step-num">2</div>
-                                <div class="docs-step-text">Оберіть тип бота, торгову пару та налаштуйте параметри стратегії.</div>
+                                <div class="docs-step-text">Введіть <strong>повне ім'я</strong> (буде відображатись у профілі), <strong>email</strong> (використовується для входу та відновлення паролю) та <strong>пароль</strong> (мінімум 8 символів, рекомендуємо використовувати літери, цифри та спецсимволи).</div>
                             </div>
                             <div class="docs-step">
                                 <div class="docs-step-num">3</div>
-                                <div class="docs-step-text">Для реальної торгівлі вкажіть <strong>API ключ Binance</strong> (API Key та Secret). Ключ повинен мати дозвіл на торгівлю.</div>
+                                <div class="docs-step-text">Натисніть кнопку реєстрації. На вказаний email буде відправлено лист з посиланням для <strong>верифікації</strong>. Перевірте також папку "Спам", якщо лист не прийшов протягом кількох хвилин.</div>
                             </div>
                             <div class="docs-step">
                                 <div class="docs-step-num">4</div>
-                                <div class="docs-step-text">Вкажіть суму інвестиції та активуйте бота.</div>
+                                <div class="docs-step-text">Перейдіть за посиланням з листа. Після успішної верифікації ваш акаунт буде активовано, і ви зможете увійти в систему.</div>
                             </div>
                         </div>
 
-                        <div class="docs-warning">Ніколи не передавайте API ключі третім особам. Використовуйте ключі з обмеженими дозволами (тільки торгівля, без виведення коштів).</div>
+                        <h3 class="docs-h3">Вхід в акаунт</h3>
+                        <p class="docs-text">Для входу відкрийте сторінку <strong>/login</strong> та введіть email і пароль, які ви використали при реєстрації. Якщо у вас увімкнена двофакторна автентифікація (2FA), система додатково попросить ввести 6-значний код з вашого додатку-автентифікатора.</p>
+                        <p class="docs-text">Після успішного входу ви будете автоматично перенаправлені на дашборд. Сесія зберігається протягом 7 днів — вам не потрібно входити повторно при кожному відвідуванні.</p>
 
-                        <h3 class="docs-h3">Режими роботи</h3>
+                        <h3 class="docs-h3">Відновлення паролю</h3>
+                        <p class="docs-text">Якщо ви забули пароль:</p>
+                        <div class="docs-steps">
+                            <div class="docs-step">
+                                <div class="docs-step-num">1</div>
+                                <div class="docs-step-text">На сторінці входу натисніть <strong>"Забули пароль?"</strong>.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">2</div>
+                                <div class="docs-step-text">Введіть email вашого акаунту. На пошту прийде лист з одноразовим посиланням для скидання паролю.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">3</div>
+                                <div class="docs-step-text">Перейдіть за посиланням та задайте новий пароль. Посилання має обмежений термін дії — використайте його якнайшвидше.</div>
+                            </div>
+                        </div>
+
+                        <h3 class="docs-h3">Демо-рахунок та реальний рахунок</h3>
+                        <p class="docs-text">Yamato надає кожному користувачу два окремих рахунки:</p>
                         <ul class="docs-list">
-                            <li><strong>Paper (паперова торгівля)</strong> — бот імітує угоди без реальних операцій. Ідеально для тестування стратегій.</li>
-                            <li><strong>Live (жива торгівля)</strong> — бот виконує реальні операції через Binance API.</li>
+                            <li><strong>Демо-рахунок (Demo)</strong> — при реєстрації вам автоматично нараховується віртуальний баланс. Ви можете торгувати, створювати ботів, розміщувати ордери — все працює так само як на реальному рахунку, але без фінансового ризику. Ідеально для навчання та тестування стратегій.</li>
+                            <li><strong>Реальний рахунок (Real)</strong> — для торгівлі справжніми криптовалютами. Вимагає підключення до Binance через API ключі. Операції виконуються безпосередньо на вашому рахунку Binance.</li>
+                        </ul>
+                        <p class="docs-text">Переключення між рахунками відбувається у верхній частині дашборду або в налаштуваннях профілю. Баланси демо та реального рахунків повністю незалежні один від одного.</p>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Рекомендуємо спочатку освоїти всі функції на демо-рахунку. Тестуйте стратегії, створіть кілька ботів у Paper-режимі та переконайтесь, що розумієте механіку платформи, перш ніж переходити до реальної торгівлі.</div>
+                        </div>
+
+                        <h3 class="docs-h3">Faucet — поповнення демо-балансу</h3>
+                        <p class="docs-text">Якщо ваш демо-баланс вичерпався, скористайтесь функцією <strong>Faucet</strong> для отримання додаткових віртуальних коштів. Це дозволить продовжити тестування без обмежень. Faucet доступний на сторінці дашборду.</p>
+                    </section>
+
+                    <hr class="docs-divider">
+
+                    <!-- ═══════════════════════════════════════ -->
+                    <!-- 3. Дашборд -->
+                    <!-- ═══════════════════════════════════════ -->
+                    <section class="docs-section" id="dashboard">
+                        <h2 class="docs-h2">Дашборд</h2>
+                        <p class="docs-text">Дашборд (<strong>/dashboard</strong>) — це головна робоча панель трейдера. Тут зібрані всі ключові інструменти для моніторингу ринку, аналізу графіків та прийняття торгових рішень. Дашборд є першою сторінкою, яку ви бачите після входу в систему.</p>
+
+                        <h3 class="docs-h3">TradingView графік</h3>
+                        <p class="docs-text">Центральний елемент дашборду — інтерактивний графік на базі бібліотеки TradingView. Графік отримує дані безпосередньо від Binance в реальному часі через WebSocket-з'єднання, що забезпечує мінімальну затримку.</p>
+                        <p class="docs-text">Можливості графіку:</p>
+                        <ul class="docs-list">
+                            <li><strong>Таймфрейми</strong> — переключайте між різними часовими інтервалами: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M. Кожен таймфрейм показує свічки відповідного масштабу.</li>
+                            <li><strong>Індикатори</strong> — додавайте технічні індикатори прямо на графік: Moving Average (MA), Exponential MA (EMA), RSI, MACD, Bollinger Bands, Volume Profile, Stochastic, Ichimoku Cloud та десятки інших.</li>
+                            <li><strong>Інструменти малювання</strong> — лінії тренду, горизонтальні рівні підтримки/опору, канали, фібоначчі-рівні, прямокутники, стрілки та інші графічні елементи для розмітки графіку.</li>
+                            <li><strong>Торгові пари</strong> — переключайтесь між будь-якими парами, доступними на Binance (BTC/USDT, ETH/USDT, BNB/USDT тощо). Пошук по тікеру дозволяє швидко знайти потрібну пару.</li>
+                            <li><strong>Типи графіків</strong> — свічковий (candlestick), лінійний, барний, Heikin Ashi та інші типи відображення.</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Віджети дашборду</h3>
+                        <p class="docs-text">Окрім графіку, дашборд містить додаткові віджети з корисною інформацією:</p>
+                        <ul class="docs-list">
+                            <li><strong>Ринкові ціни</strong> — таблиця з актуальними цінами основних криптовалют, зміною за 24 години (у відсотках та абсолютному значенні), обсягом торгів.</li>
+                            <li><strong>Баланс рахунку</strong> — поточний стан вашого демо або реального балансу.</li>
+                            <li><strong>Активні ордери</strong> — список ваших відкритих ордерів з можливістю швидкого скасування.</li>
+                            <li><strong>Стан ботів</strong> — короткий огляд активних торгових ботів та їх поточного прибутку.</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Кастомізація (drag & resize)</h3>
+                        <p class="docs-text">Дашборд повністю кастомізується під ваш стиль торгівлі:</p>
+                        <ul class="docs-list">
+                            <li><strong>Перетягування (drag)</strong> — захопіть віджет за верхню частину та перетягніть в потрібне місце. Інші віджети автоматично перебудуються.</li>
+                            <li><strong>Зміна розміру (resize)</strong> — потягніть за край або кут віджета для зміни його розміру. Графік, наприклад, можна розтягнути на весь екран для детального аналізу.</li>
+                            <li><strong>Збереження</strong> — ваше розташування віджетів зберігається автоматично і відновлюється при наступному вході.</li>
+                        </ul>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Для максимально зручної роботи розгорніть графік на більшу частину екрану, а допоміжні віджети розмістіть збоку або знизу. Так ви зможете одночасно аналізувати графік та контролювати ринкові дані.</div>
+                        </div>
+
+                        <h3 class="docs-h3">Ринкові дані</h3>
+                        <p class="docs-text">На дашборді відображаються ключові метрики ринку в реальному часі:</p>
+                        <ul class="docs-list">
+                            <li><strong>Ціна</strong> — поточна ціна обраної торгової пари з точністю до центів</li>
+                            <li><strong>Зміна 24h</strong> — відсоткова та абсолютна зміна ціни за останні 24 години. Зелений колір означає зростання, червоний — падіння.</li>
+                            <li><strong>Обсяг 24h</strong> — загальний обсяг торгів за 24 години в базовій та котирувальній валюті</li>
+                            <li><strong>High / Low 24h</strong> — максимальна та мінімальна ціна за 24 години</li>
+                        </ul>
+                        <p class="docs-text">Всі дані оновлюються автоматично без необхідності перезавантаження сторінки.</p>
+                    </section>
+
+                    <hr class="docs-divider">
+
+                    <!-- ═══════════════════════════════════════ -->
+                    <!-- 4. Портфель -->
+                    <!-- ═══════════════════════════════════════ -->
+                    <section class="docs-section" id="portfolio">
+                        <h2 class="docs-h2">Портфель</h2>
+                        <p class="docs-text">Сторінка портфелю (<strong>/portfolio</strong>) надає повний огляд вашого фінансового стану на платформі. Тут ви бачите всі свої активи, їх вартість, розподіл та детальну історію операцій.</p>
+
+                        <h3 class="docs-h3">Загальний баланс</h3>
+                        <p class="docs-text">У верхній частині сторінки відображається ваш загальний баланс — сума всіх ваших активів у доларовому еквіваленті (USDT). Це включає як вільні кошти на рахунку, так і кошти, що знаходяться в активних позиціях та ордерах. Баланс перераховується автоматично при зміні ринкових цін.</p>
+
+                        <h3 class="docs-h3">Розподіл активів</h3>
+                        <p class="docs-text">Графічна візуалізація (діаграма) показує, як ваш портфель розподілений між різними активами. Це допомагає контролювати диверсифікацію — якщо занадто велика частка припадає на один актив, можливо, варто перебалансувати портфель для зменшення ризиків.</p>
+
+                        <h3 class="docs-h3">Список холдингів</h3>
+                        <p class="docs-text">Детальна таблиця з інформацією по кожному активу у вашому портфелі:</p>
+                        <ul class="docs-list">
+                            <li><strong>Назва та тікер</strong> — наприклад, Bitcoin (BTC), Ethereum (ETH)</li>
+                            <li><strong>Кількість</strong> — скільки одиниць цього активу ви тримаєте</li>
+                            <li><strong>Поточна ціна</strong> — актуальна ринкова ціна активу</li>
+                            <li><strong>Загальна вартість</strong> — кількість помножена на поточну ціну</li>
+                            <li><strong>Прибуток/Збиток (PnL)</strong> — різниця між поточною вартістю та ціною покупки, у відсотках та абсолютному значенні</li>
+                            <li><strong>Частка портфелю</strong> — який відсоток загального портфелю займає цей актив</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Історія транзакцій</h3>
+                        <p class="docs-text">Повний лог всіх фінансових операцій на вашому рахунку:</p>
+                        <ul class="docs-list">
+                            <li><strong>Покупки</strong> — придбання криптовалюти (Market або Limit ордер)</li>
+                            <li><strong>Продажі</strong> — продаж криптовалюти</li>
+                            <li><strong>Операції ботів</strong> — автоматичні угоди, виконані торговими ботами</li>
+                            <li><strong>Поповнення</strong> — зарахування коштів на рахунок</li>
+                        </ul>
+                        <p class="docs-text">Кожна транзакція містить дату, час, тип операції, актив, кількість, ціну та статус.</p>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Регулярно перевіряйте розподіл портфелю. Здорова диверсифікація допомагає зменшити ризики. Уникайте ситуацій, коли більше 50% портфелю зосереджено в одному активі, якщо ви не впевнені в його перспективах.</div>
+                        </div>
+                    </section>
+
+                    <hr class="docs-divider">
+
+                    <!-- ═══════════════════════════════════════ -->
+                    <!-- 5. Торгові боти -->
+                    <!-- ═══════════════════════════════════════ -->
+                    <section class="docs-section" id="bots">
+                        <h2 class="docs-h2">Торгові боти</h2>
+                        <p class="docs-text">Торгові боти — це один з найпотужніших інструментів Yamato. Бот автоматично виконує торгові операції за заданими параметрами та стратегією, працюючи 24 години на добу, 7 днів на тиждень, навіть коли ви не онлайн.</p>
+                        <p class="docs-text">Боти підключаються до Binance через API і можуть торгувати будь-якими доступними парами. Yamato надає зручний інтерфейс для створення, налаштування, моніторингу та управління ботами.</p>
+
+                        <h3 class="docs-h3">Створення нового бота</h3>
+                        <div class="docs-steps">
+                            <div class="docs-step">
+                                <div class="docs-step-num">1</div>
+                                <div class="docs-step-text">Перейдіть на сторінку <strong>/bots</strong> та натисніть кнопку створення нового бота. Відкриється форма з налаштуваннями.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">2</div>
+                                <div class="docs-step-text"><strong>Назва бота</strong> — задайте зрозумілу назву, наприклад "BTC Grid 1h" або "ETH DCA Daily". Це допоможе відрізняти ботів у списку.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">3</div>
+                                <div class="docs-step-text"><strong>Тип бота</strong> — оберіть стратегію торгівлі. Різні типи ботів використовують різні алгоритми для прийняття рішень про купівлю та продаж.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">4</div>
+                                <div class="docs-step-text"><strong>Торгова пара</strong> — оберіть пару, якою бот буде торгувати (наприклад BTC/USDT, ETH/USDT). Бот буде відстежувати ціну саме цієї пари.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">5</div>
+                                <div class="docs-step-text"><strong>Режим роботи</strong> — оберіть Paper (симуляція) або Live (реальна торгівля). Для Live-режиму потрібні API ключі Binance.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">6</div>
+                                <div class="docs-step-text"><strong>API ключі Binance</strong> (тільки для Live) — вкажіть API Key та API Secret вашого акаунту Binance. Створити ключі можна у налаштуваннях Binance в розділі API Management.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">7</div>
+                                <div class="docs-step-text"><strong>Сума інвестиції</strong> — вкажіть суму (в USDT), яку бот може використовувати для торгівлі. Бот не перевищить цю суму.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">8</div>
+                                <div class="docs-step-text"><strong>Торгові налаштування</strong> — додаткові параметри стратегії: розмір позиції, частота угод, умови входу/виходу та інші, залежно від типу бота.</div>
+                            </div>
+                        </div>
+
+                        <h3 class="docs-h3">Налаштування API ключів Binance</h3>
+                        <p class="docs-text">Для роботи ботів у Live-режимі потрібні API ключі Binance. Ось як їх створити правильно:</p>
+                        <div class="docs-steps">
+                            <div class="docs-step">
+                                <div class="docs-step-num">1</div>
+                                <div class="docs-step-text">Увійдіть у свій акаунт Binance та перейдіть в <strong>Account > API Management</strong>.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">2</div>
+                                <div class="docs-step-text">Створіть новий API ключ. Задайте зрозумілу назву, наприклад "Yamato Bot".</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">3</div>
+                                <div class="docs-step-text"><strong>Дозволи</strong> — увімкніть тільки <strong>"Enable Spot & Margin Trading"</strong>. Категорично не вмикайте "Enable Withdrawals" — бот не потребує можливості виведення коштів.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">4</div>
+                                <div class="docs-step-text"><strong>Обмеження за IP</strong> (рекомендовано) — якщо ви знаєте IP-адресу сервера Yamato, додайте її в whitelist. Це гарантує, що ключ можна використовувати тільки з дозволеної адреси.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">5</div>
+                                <div class="docs-step-text">Скопіюйте <strong>API Key</strong> та <strong>Secret Key</strong> (Secret показується тільки один раз!) та вставте їх у форму створення бота на Yamato.</div>
+                            </div>
+                        </div>
+
+                        <div class="docs-warning">
+                            <svg class="docs-warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            <div><span class="docs-warning-label">Увага:</span> Ніколи не передавайте API ключі третім особам. Ніколи не вмикайте дозвіл на виведення коштів (Withdrawals) для ключів, які використовуються ботами. Якщо ви підозрюєте, що ключ скомпрометований — негайно видаліть його в налаштуваннях Binance та створіть новий.</div>
+                        </div>
+
+                        <h3 class="docs-h3">Режими роботи ботів</h3>
+                        <ul class="docs-list">
+                            <li><strong>Paper (паперова торгівля)</strong> — бот працює в режимі симуляції. Він відстежує реальні ринкові ціни та "виконує" угоди віртуально, але жодна реальна транзакція не відбувається. Це ідеальний спосіб протестувати стратегію перед запуском на реальні кошти. Результати Paper-торгівлі максимально наближені до реальних умов ринку.</li>
+                            <li><strong>Live (жива торгівля)</strong> — бот виконує реальні операції на вашому акаунті Binance через API. Кожна угода відображається як у Yamato, так і на Binance. Переконайтесь, що на вашому рахунку Binance достатньо коштів для торгівлі.</li>
+                        </ul>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Завжди спочатку запускайте нового бота в Paper-режимі мінімум на кілька днів. Це допоможе оцінити ефективність стратегії та виявити можливі проблеми до того, як ви ризикуєте реальними грошима.</div>
+                        </div>
+
+                        <h3 class="docs-h3">Моніторинг ботів</h3>
+                        <p class="docs-text">На сторінці <strong>/bots</strong> ви бачите список всіх ваших ботів з ключовою інформацією:</p>
+                        <ul class="docs-list">
+                            <li><strong>Статус</strong> — активний (працює), на паузі або зупинений</li>
+                            <li><strong>Торгова пара</strong> — на якій парі працює бот</li>
+                            <li><strong>Прибуток (PnL)</strong> — загальний результат бота з моменту запуску</li>
+                            <li><strong>Кількість угод</strong> — скільки торгових операцій виконав бот</li>
+                            <li><strong>Режим</strong> — Paper або Live</li>
+                            <li><strong>Час роботи</strong> — як довго бот працює</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Детальна статистика бота</h3>
+                        <p class="docs-text">Для кожного бота доступна окрема сторінка детальної статистики (<strong>/bot-stats/:id</strong>), яка включає:</p>
+                        <ul class="docs-list">
+                            <li>Графік прибутку за часом (equity curve)</li>
+                            <li>Список всіх угод з цінами входу та виходу</li>
+                            <li>Середній прибуток/збиток на угоду</li>
+                            <li>Відсоток успішних угод (win rate)</li>
+                            <li>Максимальна просадка (max drawdown)</li>
+                            <li>Загальний обсяг торгів</li>
                         </ul>
 
                         <h3 class="docs-h3">Управління ботами</h3>
                         <ul class="docs-list">
-                            <li><strong>Моніторинг</strong> — відстежуйте прибуток, кількість угод та стан бота в реальному часі</li>
-                            <li><strong>Активація/Пауза</strong> — запускайте або зупиняйте бота в будь-який момент</li>
-                            <li><strong>Дублювання</strong> — створіть копію бота з тими самими налаштуваннями</li>
-                            <li><strong>Статистика</strong> — детальні звіти по кожному боту на сторінці <strong>/bot-stats/:id</strong></li>
-                            <li><strong>Видалення</strong> — видаліть бота, якщо він більше не потрібен</li>
+                            <li><strong>Активація/Пауза</strong> — запускайте або зупиняйте бота в будь-який момент. При паузі бот припиняє відкривати нові позиції, але може дочекатися закриття поточних.</li>
+                            <li><strong>Дублювання</strong> — створіть копію бота з тими самими налаштуваннями. Корисно для запуску кількох однакових ботів на різних парах або для A/B-тестування.</li>
+                            <li><strong>Редагування</strong> — змініть налаштування бота (торгову пару, параметри стратегії, суму інвестиції). Деякі зміни вимагають зупинки бота.</li>
+                            <li><strong>Видалення</strong> — видалення бота незворотне. Переконайтесь, що бот не має відкритих позицій перед видаленням.</li>
                         </ul>
 
-                        <h3 class="docs-h3">Налаштування відображення</h3>
-                        <p class="docs-text">Кожен бот має налаштування відображення (display settings), які дозволяють змінити вигляд інформації на панелі бота: які дані показувати, формат відображення тощо.</p>
+                        <h3 class="docs-h3">Налаштування відображення (Display Settings)</h3>
+                        <p class="docs-text">Кожен бот має налаштування відображення, які дозволяють кастомізувати інформаційну панель бота: які дані показувати на картці бота, формат відображення числових даних, видимість окремих метрик. Це допомагає зосередитись на найважливішій інформації для кожного конкретного бота.</p>
+
+                        <h3 class="docs-h3">Підписка на бота</h3>
+                        <p class="docs-text">Yamato дозволяє підписуватися на публічних ботів інших трейдерів. Це означає, що ви можете копіювати стратегії успішних трейдерів та автоматично повторювати їх угоди на своєму рахунку. Перед підпискою обов'язково перевірте статистику бота та його історичні результати.</p>
                     </section>
 
                     <hr class="docs-divider">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 6. Ордери -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="orders">
                         <h2 class="docs-h2">Ордери</h2>
-                        <p class="docs-text">Yamato підтримує різні типи ордерів для гнучкої торгівлі:</p>
+                        <p class="docs-text">Ордер — це інструкція на купівлю або продаж криптовалюти за певних умов. Yamato підтримує кілька типів ордерів, кожен з яких має свої переваги та сценарії використання.</p>
 
-                        <h3 class="docs-h3">Типи ордерів</h3>
+                        <h3 class="docs-h3">Ринковий ордер (Market Order)</h3>
+                        <p class="docs-text">Ринковий ордер — найпростіший тип. Він виконується миттєво за поточною найкращою доступною ціною на ринку.</p>
                         <ul class="docs-list">
-                            <li><strong>Ринковий ордер (Market)</strong> — миттєва покупка або продаж за поточною ринковою ціною.</li>
-                            <li><strong>Лімітний ордер (Limit)</strong> — ордер виконається, коли ціна досягне вказаного рівня. Дозволяє купити дешевше або продати дорожче.</li>
-                            <li><strong>Стоп-лосс (Stop Loss)</strong> — автоматичний продаж активу при досягненні мінімальної ціни для обмеження збитків.</li>
-                            <li><strong>Тейк-профіт (Take Profit)</strong> — автоматичний продаж при досягненні цільової ціни для фіксації прибутку.</li>
+                            <li><strong>Коли використовувати:</strong> Коли вам потрібно негайно купити або продати актив, і точна ціна менш важлива, ніж швидкість виконання.</li>
+                            <li><strong>Переваги:</strong> Гарантоване виконання (за умови достатньої ліквідності).</li>
+                            <li><strong>Недоліки:</strong> Кінцева ціна може дещо відрізнятися від тієї, що ви бачили на екрані (прослизання/slippage), особливо на волатильному ринку або при великих обсягах.</li>
                         </ul>
 
-                        <div class="docs-tip">Використовуйте комбінацію стоп-лосс та тейк-профіт для кожної позиції — це захистить ваш капітал та зафіксує прибуток.</div>
+                        <h3 class="docs-h3">Лімітний ордер (Limit Order)</h3>
+                        <p class="docs-text">Лімітний ордер виконується тільки коли ціна досягне вказаного вами рівня або кращого.</p>
+                        <ul class="docs-list">
+                            <li><strong>Лімітна покупка</strong> — встановіть ціну нижче поточної. Ордер виконається, коли ціна впаде до вашого рівня. Наприклад, якщо BTC коштує $60,000, а ви хочете купити за $58,000 — створіть лімітну покупку на $58,000.</li>
+                            <li><strong>Лімітний продаж</strong> — встановіть ціну вище поточної. Ордер виконається, коли ціна зросте до вашого рівня.</li>
+                            <li><strong>Переваги:</strong> Повний контроль над ціною виконання. Ви завжди отримаєте вказану ціну або кращу.</li>
+                            <li><strong>Недоліки:</strong> Немає гарантії виконання — якщо ціна не досягне вашого рівня, ордер залишиться відкритим.</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Стоп-лосс (Stop Loss)</h3>
+                        <p class="docs-text">Стоп-лосс — це захисний ордер, який автоматично продає актив, коли ціна падає до вказаного рівня. Основна мета — обмежити потенційні збитки.</p>
+                        <ul class="docs-list">
+                            <li><strong>Приклад:</strong> Ви купили ETH за $3,000. Встановіть стоп-лосс на $2,700 (зниження на 10%). Якщо ціна впаде до $2,700, ETH буде автоматично проданий, і ваш максимальний збиток складе 10%.</li>
+                            <li><strong>Рекомендація:</strong> Завжди встановлюйте стоп-лосс для кожної позиції. Визначте максимально допустимий збиток заздалегідь.</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Тейк-профіт (Take Profit)</h3>
+                        <p class="docs-text">Тейк-профіт — ордер для автоматичної фіксації прибутку при досягненні цільової ціни.</p>
+                        <ul class="docs-list">
+                            <li><strong>Приклад:</strong> Ви купили BTC за $60,000 та хочете зафіксувати прибуток при зростанні до $66,000 (10%). Встановіть тейк-профіт на $66,000 — коли ціна досягне цього рівня, BTC буде автоматично проданий з прибутком.</li>
+                            <li><strong>Рекомендація:</strong> Встановлюйте реалістичні цілі на основі технічного аналізу (рівні опору, фібоначчі тощо).</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Управління ордерами</h3>
+                        <p class="docs-text">Усі ваші відкриті ордери відображаються на дашборді та на сторінці ордерів. Для кожного ордера доступна наступна інформація та дії:</p>
+                        <ul class="docs-list">
+                            <li>Тип ордера, торгова пара, напрямок (Buy/Sell)</li>
+                            <li>Ціна та кількість</li>
+                            <li>Статус: відкритий, виконаний, скасований</li>
+                            <li>Час створення та час виконання</li>
+                            <li>Кнопка скасування для відкритих ордерів</li>
+                        </ul>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Для кожної позиції використовуйте комбінацію стоп-лосс та тейк-профіт. Це створює "зону" торгівлі, де ви заздалегідь визначаєте максимальний збиток та цільовий прибуток. Популярне співвідношення Risk/Reward — 1:2 або 1:3 (наприклад, ризикуєте 5%, цілитесь на 10-15%).</div>
+                        </div>
+
+                        <div class="docs-warning">
+                            <svg class="docs-warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            <div><span class="docs-warning-label">Увага:</span> Торгівля криптовалютами пов'язана з високим ризиком. Ніколи не інвестуйте більше, ніж готові втратити. Стоп-лосс ордери не гарантують виконання за точною ціною в умовах екстремальної волатильності (gap).</div>
+                        </div>
                     </section>
 
                     <hr class="docs-divider">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 7. Профіль та безпека -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="profile">
                         <h2 class="docs-h2">Профіль та безпека</h2>
-                        <p class="docs-text">Управління акаунтом та налаштування безпеки знаходяться на сторінці <strong>/profile</strong>.</p>
+                        <p class="docs-text">Управління вашим акаунтом та налаштування безпеки знаходяться на сторінці <strong>/profile</strong>. Безпека вашого акаунту — пріоритет, тому рекомендуємо уважно ознайомитись з усіма доступними методами захисту.</p>
 
                         <h3 class="docs-h3">Редагування профілю</h3>
+                        <p class="docs-text">На сторінці профілю ви можете оновити наступну інформацію:</p>
                         <ul class="docs-list">
-                            <li>Зміна імені та аватара</li>
-                            <li>Оновлення email адреси</li>
-                            <li>Зміна паролю</li>
+                            <li><strong>Повне ім'я</strong> — відображається у вашому профілі та в інших місцях платформи</li>
+                            <li><strong>Аватар</strong> — завантажте фото або зображення для персоналізації</li>
+                            <li><strong>Email</strong> — зміна email потребує повторної верифікації нової адреси</li>
+                            <li><strong>Пароль</strong> — для зміни потрібно ввести поточний пароль та новий (мінімум 8 символів)</li>
                         </ul>
 
-                        <h3 class="docs-h3">Двофакторна автентифікація (2FA)</h3>
-                        <p class="docs-text">Для додаткового захисту акаунту рекомендуємо увімкнути 2FA:</p>
+                        <h3 class="docs-h3">Двофакторна автентифікація (2FA / TOTP)</h3>
+                        <p class="docs-text">Двофакторна автентифікація додає другий рівень захисту. Навіть якщо хтось дізнається ваш пароль, він не зможе увійти без коду з вашого телефону.</p>
                         <div class="docs-steps">
                             <div class="docs-step">
                                 <div class="docs-step-num">1</div>
-                                <div class="docs-step-text">Перейдіть у налаштування безпеки в профілі.</div>
+                                <div class="docs-step-text">Перейдіть в розділ <strong>Безпека</strong> на сторінці профілю та натисніть "Увімкнути 2FA".</div>
                             </div>
                             <div class="docs-step">
                                 <div class="docs-step-num">2</div>
-                                <div class="docs-step-text">Відскануйте QR-код додатком-автентифікатором (Google Authenticator, Authy тощо).</div>
+                                <div class="docs-step-text">Система згенерує <strong>QR-код</strong>. Відскануйте його додатком-автентифікатором на вашому смартфоні: Google Authenticator, Microsoft Authenticator, Authy або інший TOTP-сумісний додаток.</div>
                             </div>
                             <div class="docs-step">
                                 <div class="docs-step-num">3</div>
-                                <div class="docs-step-text">Введіть 6-значний код для підтвердження та активації 2FA.</div>
+                                <div class="docs-step-text">Додаток покаже <strong>6-значний код</strong>, який змінюється кожні 30 секунд. Введіть поточний код у поле підтвердження на сайті.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">4</div>
+                                <div class="docs-step-text">Після підтвердження 2FA буде активована. Тепер при кожному вході система буде запитувати 6-значний код з вашого додатку на додаток до паролю.</div>
                             </div>
                         </div>
 
-                        <h3 class="docs-h3">Passkeys</h3>
-                        <p class="docs-text">Yamato підтримує сучасний стандарт WebAuthn (Passkeys) — вхід за допомогою біометрії або апаратного ключа безпеки. Це найбезпечніший спосіб автентифікації.</p>
+                        <div class="docs-warning">
+                            <svg class="docs-warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            <div><span class="docs-warning-label">Увага:</span> При налаштуванні 2FA обов'язково збережіть секретний ключ (або зробіть скріншот QR-коду) у безпечному місці. Якщо ви втратите доступ до додатку-автентифікатора (наприклад, зламається телефон), цей ключ буде єдиним способом відновити доступ до 2FA.</div>
+                        </div>
+
+                        <h3 class="docs-h3">Passkeys (WebAuthn)</h3>
+                        <p class="docs-text">Yamato підтримує сучасний стандарт <strong>WebAuthn (Passkeys)</strong> — це найбезпечніший метод автентифікації, доступний на сьогодні. Passkeys використовують криптографічні ключі, що зберігаються на вашому пристрої.</p>
+                        <p class="docs-text">Як це працює:</p>
+                        <ul class="docs-list">
+                            <li><strong>Біометрія</strong> — вхід за відбитком пальця (Touch ID, fingerprint) або розпізнаванням обличчя (Face ID)</li>
+                            <li><strong>Апаратний ключ</strong> — USB-ключ безпеки (YubiKey, Titan Key тощо)</li>
+                            <li><strong>PIN пристрою</strong> — PIN-код вашого комп'ютера або телефону (Windows Hello, macOS Touch ID)</li>
+                        </ul>
+                        <p class="docs-text">Щоб додати Passkey, перейдіть в розділ безпеки профілю, натисніть "Додати Passkey" та слідуйте інструкціям браузера. Ви можете додати кілька Passkeys для різних пристроїв.</p>
 
                         <h3 class="docs-h3">Прив'язка Telegram</h3>
-                        <p class="docs-text">Прив'яжіть свій Telegram-акаунт для отримання сповіщень про важливі події: спрацювання ботів, виконання ордерів, зміни на ринку.</p>
+                        <p class="docs-text">Прив'яжіть свій Telegram-акаунт для отримання миттєвих сповіщень:</p>
+                        <div class="docs-steps">
+                            <div class="docs-step">
+                                <div class="docs-step-num">1</div>
+                                <div class="docs-step-text">Перейдіть в розділ <strong>Telegram</strong> на сторінці профілю.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">2</div>
+                                <div class="docs-step-text">Натисніть кнопку прив'язки — відкриється Telegram-бот Yamato.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">3</div>
+                                <div class="docs-step-text">Натисніть <strong>/start</strong> у Telegram-боті та підтвердіть прив'язку. Після цього ваш Telegram ID буде пов'язаний з акаунтом.</div>
+                            </div>
+                        </div>
+                        <p class="docs-text">Після прив'язки ви будете отримувати сповіщення про:</p>
+                        <ul class="docs-list">
+                            <li>Виконання ордерів (покупка/продаж)</li>
+                            <li>Операції торгових ботів (відкриття/закриття позицій)</li>
+                            <li>Важливі події безпеки (вхід з нового пристрою)</li>
+                            <li>Системні повідомлення платформи</li>
+                        </ul>
 
-                        <div class="docs-warning">Обов'язково увімкніть хоча б один метод додаткового захисту (2FA або Passkey) для безпеки вашого акаунту.</div>
+                        <h3 class="docs-h3">Рекомендації з безпеки</h3>
+                        <ul class="docs-list">
+                            <li>Увімкніть хоча б один додатковий метод захисту (2FA або Passkey)</li>
+                            <li>Використовуйте унікальний складний пароль (мінімум 12 символів з літерами, цифрами та спецсимволами)</li>
+                            <li>Не використовуйте один пароль для кількох сервісів</li>
+                            <li>Регулярно перевіряйте активні сесії та завершуйте підозрілі</li>
+                            <li>Не входьте в акаунт з публічних або ненадійних Wi-Fi мереж без VPN</li>
+                            <li>API ключі Binance створюйте з мінімально необхідними дозволами та обмеженням за IP</li>
+                        </ul>
                     </section>
 
                     <hr class="docs-divider">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 8. Підписки -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="subscriptions">
                         <h2 class="docs-h2">Підписки</h2>
-                        <p class="docs-text">Yamato пропонує різні плани підписки з розширеним функціоналом:</p>
+                        <p class="docs-text">Yamato пропонує різні плани підписки, кожен з яких відкриває доступ до додаткових можливостей платформи. Перегляньте повний опис планів на сторінці <strong>/subscriptions</strong>.</p>
+
+                        <h3 class="docs-h3">Безкоштовний план (Free)</h3>
+                        <p class="docs-text">Доступний одразу після реєстрації без оплати:</p>
                         <ul class="docs-list">
-                            <li><strong>Безкоштовний план</strong> — базовий доступ до платформи, обмежена кількість ботів та функцій.</li>
-                            <li><strong>Платні плани</strong> — розширені можливості: більше ботів, додаткові індикатори, пріоритетна підтримка та ексклюзивні функції.</li>
+                            <li>Доступ до дашборду та TradingView графіку</li>
+                            <li>Демо-рахунок з віртуальними коштами</li>
+                            <li>Базове управління портфелем</li>
+                            <li>Обмежена кількість торгових ботів</li>
+                            <li>Базові типи ордерів</li>
+                            <li>Стандартні сповіщення</li>
                         </ul>
-                        <p class="docs-text">Перегляньте доступні плани та їх можливості на сторінці <strong>/subscriptions</strong>.</p>
+
+                        <h3 class="docs-h3">Платні плани</h3>
+                        <p class="docs-text">Платні плани розширюють можливості платформи:</p>
+                        <ul class="docs-list">
+                            <li><strong>Більше ботів</strong> — збільшений ліміт одночасно активних ботів</li>
+                            <li><strong>Розширена аналітика</strong> — додаткові індикатори та метрики для аналізу</li>
+                            <li><strong>Пріоритетна підтримка</strong> — швидша відповідь від команди підтримки</li>
+                            <li><strong>Ексклюзивні функції</strong> — доступ до нових функцій раніше за інших</li>
+                            <li><strong>Розширені сповіщення</strong> — налаштування цінових алертів та кастомних тригерів</li>
+                        </ul>
+
+                        <h3 class="docs-h3">Як оформити підписку</h3>
+                        <div class="docs-steps">
+                            <div class="docs-step">
+                                <div class="docs-step-num">1</div>
+                                <div class="docs-step-text">Перейдіть на сторінку <strong>/subscriptions</strong> та ознайомтесь з доступними планами.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">2</div>
+                                <div class="docs-step-text">Оберіть план, який найкраще відповідає вашим потребам. Порівняйте можливості кожного плану.</div>
+                            </div>
+                            <div class="docs-step">
+                                <div class="docs-step-num">3</div>
+                                <div class="docs-step-text">Натисніть кнопку оформлення та виконайте оплату. Підписка активується миттєво після успішної оплати.</div>
+                            </div>
+                        </div>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Якщо ви тільки починаєте, безкоштовного плану цілком достатньо для знайомства з платформою. Переходьте на платний план, коли відчуєте потребу в додаткових ботах або розширеній аналітиці.</div>
+                        </div>
                     </section>
 
                     <hr class="docs-divider">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 9. Новини -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="news">
                         <h2 class="docs-h2">Новини</h2>
-                        <p class="docs-text">Стрічка новин (<strong>/news</strong>) містить актуальну інформацію про крипто-ринок:</p>
+                        <p class="docs-text">Стрічка новин (<strong>/news</strong>) тримає вас в курсі всього, що відбувається на крипто-ринку та на платформі Yamato. Інформація оновлюється регулярно, щоб ви завжди мали актуальні дані для прийняття торгових рішень.</p>
+
+                        <h3 class="docs-h3">Категорії новин</h3>
                         <ul class="docs-list">
-                            <li>Аналіз ринку та прогнози</li>
-                            <li>Важливі події в світі криптовалют</li>
-                            <li>Оновлення платформи Yamato</li>
-                            <li>Навчальні матеріали</li>
+                            <li><strong>Аналіз ринку</strong> — технічний та фундаментальний аналіз основних криптовалют, прогнози руху цін, розбір ринкових трендів</li>
+                            <li><strong>Крипто-новини</strong> — важливі події у світі криптовалют: регуляторні зміни, оновлення протоколів, партнерства, лістинги нових токенів</li>
+                            <li><strong>Оновлення платформи</strong> — нові функції Yamato, покращення інтерфейсу, виправлення помилок, планові оновлення</li>
+                            <li><strong>Навчальні матеріали</strong> — гайди з трейдингу, пояснення стратегій, поради для початківців та просунутих трейдерів</li>
                         </ul>
-                        <p class="docs-text">Новини можна фільтрувати за категоріями для швидкого пошуку потрібної інформації.</p>
+
+                        <h3 class="docs-h3">Фільтрація</h3>
+                        <p class="docs-text">Використовуйте фільтри у верхній частині сторінки новин, щоб показувати тільки цікаві вам категорії. Це особливо зручно, якщо вас цікавить тільки аналіз ринку або тільки оновлення платформи.</p>
+
+                        <div class="docs-tip">
+                            <svg class="docs-tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div><span class="docs-tip-label">Порада:</span> Слідкуйте за новинами щодня. Крипто-ринок дуже чутливий до новин — великі рухи цін часто відбуваються одразу після важливих подій (рішення SEC, хакерські атаки, зміни монетарної політики тощо).</div>
+                        </div>
                     </section>
 
                     <hr class="docs-divider">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 10. Спільнота -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="community">
                         <h2 class="docs-h2">Спільнота</h2>
-                        <p class="docs-text">Приєднуйтесь до спільноти Yamato в соціальних мережах:</p>
+                        <p class="docs-text">Yamato — це не тільки торгова платформа, а й спільнота трейдерів. Приєднуйтесь до наших офіційних каналів, щоб спілкуватися з іншими трейдерами, отримувати торгові сигнали та бути в курсі всіх оновлень.</p>
+
+                        <h3 class="docs-h3">Офіційні канали</h3>
                         <ul class="docs-list">
-                            <li><strong>Telegram</strong> — торгові сигнали, аналіз ринку та оновлення в реальному часі</li>
-                            <li><strong>Instagram</strong> — контент про трейдинг та успішні угоди</li>
-                            <li><strong>YouTube</strong> — навчальні відео, огляди ринку та гайди</li>
-                            <li><strong>TikTok</strong> — короткі відео та швидкі лайфхаки</li>
+                            <li><strong>Telegram канал</strong> — основний канал комунікації. Тут публікуються торгові сигнали, аналіз ринку, оновлення платформи та важливі оголошення. Підписуйтесь для миттєвих сповіщень.</li>
+                            <li><strong>Instagram</strong> (@yamato.legends_) — візуальний контент про трейдинг: графіки успішних угод, навчальні пости, мотиваційний контент, stories з торговими ідеями.</li>
+                            <li><strong>YouTube</strong> (@YamatoLegends1) — довгий формат: детальні навчальні відео, огляди ринку, покрокові гайди по платформі, розбори торгових стратегій, аналіз помилок початківців.</li>
+                            <li><strong>TikTok</strong> (@yamatolegends) — короткий формат: 60-секундні відео з швидкими торговими лайфхаками, трендами ринку, цікавими фактами про криптовалюти.</li>
                         </ul>
-                        <p class="docs-text">Всі посилання доступні на сторінці <strong>/community</strong>.</p>
+
+                        <p class="docs-text">Всі посилання на офіційні канали зібрані на сторінці <strong>/community</strong>. Переходьте та підписуйтесь на ті платформи, якими користуєтесь найчастіше.</p>
+
+                        <div class="docs-warning">
+                            <svg class="docs-warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            <div><span class="docs-warning-label">Увага:</span> Будьте обережні з фейковими каналами та групами, що видають себе за Yamato. Використовуйте тільки офіційні посилання зі сторінки /community. Адміністрація Yamato ніколи не запитує ваші паролі, API ключі або приватні дані у месенджерах.</div>
+                        </div>
                     </section>
 
                     <hr class="docs-divider">
 
+                    <!-- ═══════════════════════════════════════ -->
                     <!-- 11. FAQ -->
+                    <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="faq">
                         <h2 class="docs-h2">Часті питання (FAQ)</h2>
 
@@ -733,15 +1151,15 @@
                                 Чи безпечно зберігати API ключі Binance на платформі?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">Так, API ключі зберігаються у зашифрованому вигляді. Рекомендуємо створювати ключі з обмеженими дозволами — тільки для торгівлі, без можливості виведення коштів. Також радимо обмежити доступ ключа за IP-адресою у налаштуваннях Binance.</div>
+                            <div class="faq-answer">Так, API ключі зберігаються у зашифрованому вигляді на сервері. Однак для максимальної безпеки ми рекомендуємо: 1) Створювати ключі з мінімально необхідними дозволами — тільки "Enable Spot & Margin Trading", без "Enable Withdrawals". 2) Обмежити доступ ключа за IP-адресою у налаштуваннях Binance. 3) Регулярно перевіряти активність ключів та видаляти невикористовувані. Навіть якщо хтось отримає доступ до вашого ключа, він не зможе вивести кошти з вашого рахунку, якщо дозвіл на виведення вимкнений.</div>
                         </div>
 
                         <div class="faq-item">
                             <div class="faq-question" onclick="toggleFaq(this)">
-                                Що таке Paper-торгівля?
+                                Що таке Paper-торгівля і чим вона відрізняється від реальної?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">Paper-торгівля (паперова торгівля) — це режим симуляції, де бот виконує угоди на віртуальних коштах. Це дозволяє протестувати стратегію без фінансового ризику. Результати максимально наближені до реальних ринкових умов.</div>
+                            <div class="faq-answer">Paper-торгівля (паперова торгівля) — це режим симуляції, де бот або ви особисто торгуєте на віртуальних коштах. Бот відстежує реальні ринкові ціни від Binance та "виконує" угоди віртуально, фіксуючи результати так, ніби вони реальні. Різниця з реальною торгівлею: 1) Немає проблем з ліквідністю (у Paper завжди є контрагент). 2) Немає прослизання (slippage). 3) Немає комісій біржі. Тому реальні результати можуть дещо відрізнятися від Paper. Але загалом Paper — відмінний спосіб протестувати стратегію перед тим, як ризикувати реальними грошима.</div>
                         </div>
 
                         <div class="faq-item">
@@ -749,7 +1167,7 @@
                                 Як отримати демо-кошти?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">Демо-кошти нараховуються автоматично при реєстрації. Якщо ваш демо-баланс закінчився, ви можете скористатись функцією поповнення (faucet) для отримання додаткових віртуальних коштів.</div>
+                            <div class="faq-answer">При реєстрації кожен користувач отримує початковий демо-баланс автоматично. Якщо ваш демо-баланс вичерпався (наприклад, внаслідок збиткових угод), скористайтесь функцією Faucet на дашборді для поповнення віртуальних коштів. Faucet можна використовувати кілька разів, що дозволяє продовжувати навчання без обмежень.</div>
                         </div>
 
                         <div class="faq-item">
@@ -757,7 +1175,7 @@
                                 Як підключити Telegram-сповіщення?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">Перейдіть у налаштування профілю та знайдіть секцію Telegram. Натисніть кнопку прив'язки та слідуйте інструкціям Telegram-бота. Після підключення ви будете отримувати сповіщення про торгові операції та важливі події.</div>
+                            <div class="faq-answer">Перейдіть на сторінку профілю (/profile) та знайдіть секцію Telegram у налаштуваннях. Натисніть кнопку прив'язки — відкриється Telegram-бот Yamato. Натисніть /start у боті та підтвердіть прив'язку. Після успішного з'єднання ви почнете отримувати сповіщення про торгові операції, виконання ордерів, спрацювання ботів та інші важливі події. Ви можете відв'язати Telegram у будь-який момент з тієї ж сторінки профілю.</div>
                         </div>
 
                         <div class="faq-item">
@@ -765,7 +1183,7 @@
                                 Чи можу я мати кілька ботів одночасно?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">Так, кількість одночасно активних ботів залежить від вашого плану підписки. На безкоштовному плані є обмеження, а платні плани дозволяють запускати більше ботів паралельно.</div>
+                            <div class="faq-answer">Так, ви можете запускати кілька ботів паралельно. Кількість одночасно активних ботів залежить від вашого плану підписки — безкоштовний план має обмеження, а платні плани дозволяють запускати більше ботів. Кожен бот може працювати на окремій торговій парі та з власними налаштуваннями. Це дозволяє диверсифікувати стратегії та торгувати на кількох ринках одночасно.</div>
                         </div>
 
                         <div class="faq-item">
@@ -773,7 +1191,7 @@
                                 Що робити, якщо я забув пароль?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">На сторінці входу натисніть "Забули пароль?" та введіть свій email. Вам прийде лист з посиланням для скидання паролю. Посилання активне протягом обмеженого часу.</div>
+                            <div class="faq-answer">На сторінці входу (/login) натисніть "Забули пароль?" та введіть email вашого акаунту. На пошту прийде лист з одноразовим посиланням для скидання паролю. Перейдіть за посиланням та задайте новий пароль. Важливо: посилання має обмежений термін дії, тому використайте його якнайшвидше. Якщо лист не прийшов — перевірте папку "Спам". Якщо проблема зберігається, зверніться до підтримки через Telegram.</div>
                         </div>
 
                         <div class="faq-item">
@@ -781,7 +1199,39 @@
                                 Які криптовалюти підтримує платформа?
                                 <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
-                            <div class="faq-answer">Yamato підтримує всі торгові пари, доступні на Binance. Це включає основні криптовалюти (BTC, ETH, BNB та інші), а також сотні альткоїнів. Дані оновлюються в реальному часі.</div>
+                            <div class="faq-answer">Yamato підтримує всі торгові пари, доступні на біржі Binance. Це включає: основні криптовалюти (BTC, ETH, BNB, SOL, XRP, ADA та інші), стейблкоїни (USDT, USDC, BUSD), а також сотні альткоїнів. Графіки та ринкові дані оновлюються в реальному часі через WebSocket-з'єднання з Binance. Нові пари, що з'являються на Binance, стають автоматично доступними на Yamato.</div>
+                        </div>
+
+                        <div class="faq-item">
+                            <div class="faq-question" onclick="toggleFaq(this)">
+                                Чи можу я торгувати з мобільного пристрою?
+                                <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="faq-answer">Так, Yamato має адаптивний дизайн та оптимізований мобільний інтерфейс. Всі основні функції доступні на смартфоні: перегляд графіків, моніторинг ботів, управління портфелем, створення ордерів. Нижня мобільна навігація забезпечує швидкий доступ до ключових розділів. Для найзручнішої роботи рекомендуємо використовувати десктопну версію для аналізу графіків та створення ботів, а мобільну — для моніторингу та швидких операцій.</div>
+                        </div>
+
+                        <div class="faq-item">
+                            <div class="faq-question" onclick="toggleFaq(this)">
+                                Як працює переключення між демо та реальним рахунком?
+                                <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="faq-answer">Демо та реальний рахунки повністю незалежні один від одного. Кожен має свій окремий баланс, портфель, історію транзакцій та активні ордери. Переключення відбувається в налаштуваннях профілю або на дашборді. При переключенні всі дані відповідного рахунку завантажуються автоматично. Боти також прив'язані до типу рахунку — Paper-боти працюють на демо, Live-боти на реальному.</div>
+                        </div>
+
+                        <div class="faq-item">
+                            <div class="faq-question" onclick="toggleFaq(this)">
+                                Що робити, якщо бот працює зі збитком?
+                                <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="faq-answer">Перш за все, проаналізуйте статистику бота на сторінці /bot-stats — перевірте win rate, середній PnL на угоду, максимальну просадку. Якщо збиток системний: 1) Зупиніть бота. 2) Перевірте чи правильно налаштовані параметри стратегії. 3) Проаналізуйте ринкові умови — можливо, стратегія не підходить для поточного стану ринку (тренд, флет). 4) Протестуйте змінені параметри спочатку в Paper-режимі. Пам'ятайте: жодна стратегія не працює ідеально 100% часу. Збитки — нормальна частина торгівлі, головне — щоб загальний результат був позитивним.</div>
+                        </div>
+
+                        <div class="faq-item">
+                            <div class="faq-question" onclick="toggleFaq(this)">
+                                Як зв'язатись з підтримкою?
+                                <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div class="faq-answer">Найшвидший спосіб зв'язатись з командою Yamato — через офіційний Telegram-канал. Посилання на всі офіційні канали зв'язку знаходяться на сторінці /community. При зверненні опишіть проблему якомога детальніше: що саме не працює, коли це почалось, які кроки ви вже спробували. Скріншоти також допоможуть швидше розібратися в ситуації.</div>
                         </div>
                     </section>
 
@@ -795,14 +1245,14 @@
     <script>
         // ── TOC active highlighting via IntersectionObserver ──
         (function() {
-            const sections = document.querySelectorAll('.docs-section');
-            const tocItems = document.querySelectorAll('.docs-toc-item');
-            const content = document.getElementById('docsContent');
+            var sections = document.querySelectorAll('.docs-section');
+            var tocItems = document.querySelectorAll('.docs-toc-item');
+            var content = document.getElementById('docsContent');
 
-            const observer = new IntersectionObserver(function(entries) {
+            var observer = new IntersectionObserver(function(entries) {
                 entries.forEach(function(entry) {
                     if (entry.isIntersecting) {
-                        const id = entry.target.id;
+                        var id = entry.target.id;
                         tocItems.forEach(function(item) {
                             item.classList.toggle('active', item.dataset.section === id);
                         });
@@ -828,10 +1278,8 @@
                     }
                     // Close mobile TOC
                     if (window.innerWidth <= 768) {
-                        var toc = document.getElementById('docsToc');
-                        var toggle = document.getElementById('tocToggle');
-                        toc.classList.remove('open');
-                        toggle.classList.remove('open');
+                        document.getElementById('docsToc').classList.remove('open');
+                        document.getElementById('tocToggle').classList.remove('open');
                     }
                 });
             });
@@ -839,16 +1287,13 @@
 
         // ── Mobile TOC toggle ──
         function toggleToc() {
-            var toc = document.getElementById('docsToc');
-            var toggle = document.getElementById('tocToggle');
-            toc.classList.toggle('open');
-            toggle.classList.toggle('open');
+            document.getElementById('docsToc').classList.toggle('open');
+            document.getElementById('tocToggle').classList.toggle('open');
         }
 
         // ── FAQ toggle ──
         function toggleFaq(el) {
-            var item = el.parentElement;
-            item.classList.toggle('open');
+            el.parentElement.classList.toggle('open');
         }
     </script>
 <!-- Mobile Bottom Nav -->

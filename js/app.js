@@ -1931,8 +1931,13 @@ async function initializePage() {
 
             // Show admin nav link for admin/moderator
             const adminNavLink = document.getElementById('adminNavLink');
-            if (adminNavLink && (user.role === 'admin' || user.role === 'moderator')) {
-                adminNavLink.style.display = 'flex';
+            if (adminNavLink) {
+                if (user.role === 'admin' || user.role === 'moderator') {
+                    adminNavLink.classList.remove('admin-hidden');
+                    adminNavLink.style.display = '';
+                } else {
+                    adminNavLink.classList.add('admin-hidden');
+                }
             }
         } catch (error) {
             console.log('User not logged in');
@@ -2225,6 +2230,11 @@ window.openBotDetails = window.openBotDetails || function(botId) {
                 width: 210px !important;
                 padding: 16px 12px !important;
                 border-radius: 28px !important;
+            }
+
+            /* --- hide admin nav for non-admins --- */
+            .nav-item.admin-hidden {
+                display: none !important;
             }
 
             /* --- nav items: circles in collapsed --- */
