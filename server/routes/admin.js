@@ -1125,4 +1125,59 @@ router.get('/api/admin/analytics/bots/funnel', requireAuth, requireRole('admin',
     }
 });
 
+router.get('/api/admin/analytics/subscriptions/funnel', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const totalUsers = dbGet('SELECT COUNT(*) as count FROM users');
+        const freeUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "free" OR subscription_plan IS NULL');
+        const trialUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "trial"');
+        const proUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "pro"');
+        const enterpriseUsers = dbGet('SELECT COUNT(*) as count FROM users WHERE subscription_plan = "enterprise"');
+
+        const total = totalUsers?.count || 0;
+        const free = freeUsers?.count || 0;
+        const trial = trialUsers?.count || 0;
+        const pro = proUsers?.count || 0;
+        const enterprise = enterpriseUsers?.count || 0;
+
+        const paidUsers = trial + pro + enterprise;
+
+        res.json({
+            stages: [
+                {
+                    name: 'Free',
+                    count: free,
+                    percentage: total > 0 ? ((free / total) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Trial',
+                    count: trial,
+                    percentage: total > 0 ? ((trial / total) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Pro',
+                    count: pro,
+                    percentage: trial > 0 ? ((pro / trial) * 100).toFixed(1) : '0.0'
+                },
+                {
+                    name: 'Enterprise',
+                    count: enterprise,
+                    percentage: pro > 0 ? ((enterprise / pro) * 100).toFixed(1) : '0.0'
+                }
+            ],
+            summary: {
+                totalUsers: total,
+                freeUsers: free,
+                trialUsers: trial,
+                proUsers: pro,
+                enterpriseUsers: enterprise,
+                paidUsers: paidUsers,
+                conversionRate: total > 0 ? ((paidUsers / total) * 100).toFixed(1) : '0.0'
+            }
+        });
+    } catch (error) {
+        console.error('Subscription funnel analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch subscription funnel analytics' });
+    }
+});
+
 module.exports = router;

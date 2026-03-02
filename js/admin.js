@@ -1936,6 +1936,7 @@ setupEventListeners = function() {
 let userRegistrationsChartInstance = null;
 let userActivityChartInstance = null;
 let botFunnelChartInstance = null;
+let subscriptionFunnelChartInstance = null;
 
 async function loadAnalytics() {
     try {
@@ -1957,6 +1958,12 @@ async function loadAnalytics() {
             const botFunnelData = await botFunnelResponse.json();
             document.getElementById('analyticsBotActivity7d').textContent = botFunnelData.summary.liveActiveBots;
             renderBotFunnelChart(botFunnelData);
+        }
+
+        const subscriptionFunnelResponse = await fetch('/api/admin/analytics/subscriptions/funnel');
+        if (subscriptionFunnelResponse.ok) {
+            const subscriptionFunnelData = await subscriptionFunnelResponse.json();
+            renderSubscriptionFunnelChart(subscriptionFunnelData);
         }
 
     } catch (error) {
@@ -2158,6 +2165,97 @@ function renderBotFunnelChart(funnelData) {
                     'rgb(140, 168, 255)',
                     'rgb(245, 158, 11)',
                     'rgb(239, 68, 68)'
+                ],
+                borderWidth: 2,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const count = counts[index];
+                            const percentage = percentages[index];
+                            return [
+                                'Користувачів: ' + count,
+                                'Конверсія: ' + percentage + '%'
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#A1A1A1',
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: '#A1A1A1'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderSubscriptionFunnelChart(funnelData) {
+    const canvas = document.getElementById('subscriptionFunnelChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (subscriptionFunnelChartInstance) {
+        subscriptionFunnelChartInstance.destroy();
+    }
+
+    const labels = funnelData.stages.map(s => s.name);
+    const counts = funnelData.stages.map(s => s.count);
+    const percentages = funnelData.stages.map(s => s.percentage);
+
+    subscriptionFunnelChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Користувачів',
+                data: counts,
+                backgroundColor: [
+                    'rgba(161, 161, 161, 0.8)',
+                    'rgba(140, 168, 255, 0.8)',
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(245, 158, 11, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(161, 161, 161)',
+                    'rgb(140, 168, 255)',
+                    'rgb(16, 185, 129)',
+                    'rgb(245, 158, 11)'
                 ],
                 borderWidth: 2,
                 borderRadius: 8
