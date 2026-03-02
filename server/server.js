@@ -52,7 +52,13 @@ async function createApp() {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
     app.use(maintenanceMiddleware);
-    app.use(express.static(path.join(__dirname, '..')));
+    app.use(express.static(path.join(__dirname, '..'), {
+        setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.html')) {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            }
+        }
+    }));
 
     const sessionMiddleware = createSessionMiddleware();
     app.use(sessionMiddleware);
