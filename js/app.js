@@ -2828,11 +2828,8 @@ window.openBotDetails = window.openBotDetails || function(botId) {
     }
 })();
 
-// Bug Reporter — load on all authenticated pages
+// Bug Reporter — load on all pages
 (function() {
-    const skip = ['/login', '/register', '/verify-email', '/reset-password', '/beta'];
-    if (skip.some(p => window.location.pathname.startsWith(p))) return;
-
     const script = document.createElement('script');
     script.src = '/js/bug-reporter.js';
     script.defer = true;

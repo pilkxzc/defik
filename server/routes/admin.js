@@ -1947,8 +1947,8 @@ async function notifyAdminsNewBugReport(reportId, reporter, pageUrl, description
     }
 }
 
-// Public: check if bug reporting is enabled (requires auth)
-router.get('/api/admin/bug-reporting-enabled', requireAuth, (req, res) => {
+// Public: check if bug reporting is enabled (no auth required)
+router.get('/api/admin/bug-reporting-enabled', (req, res) => {
     res.json({ enabled: !!siteSettings.bugReportingEnabled });
 });
 
@@ -1969,15 +1969,16 @@ router.post('/api/admin/bug-reporting-toggle', requireAuth, requireRole('admin')
     }
 });
 
-// Submit bug report (any authenticated user)
-router.post('/api/bug-report', requireAuth, express.json({ limit: '20mb' }), async (req, res) => {
+// Submit bug report (works with or without auth)
+router.post('/api/bug-report', express.json({ limit: '20mb' }), async (req, res) => {
     try {
         if (!siteSettings.bugReportingEnabled) {
             return res.status(403).json({ error: 'Bug reporting is disabled' });
         }
 
         const { description, logs, screenshot, page_url, user_agent } = req.body;
-        const user = dbGet('SELECT id, email, full_name FROM users WHERE id = ?', [req.session.userId]);
+        const userId = req.session && req.session.userId;
+        const user = userId ? dbGet('SELECT id, email, full_name FROM users WHERE id = ?', [userId]) : null;
 
         ensureBugReportsDir();
 
@@ -2024,10 +2025,7 @@ router.post('/api/bug-report/:id/video',
             const reportId = parseInt(req.params.id);
             if (!reportId) return res.status(400).json({ error: 'Invalid report ID' });
 
-            const report = dbGet(
-                'SELECT id FROM bug_reports WHERE id = ? AND user_id = ?',
-                [reportId, req.session.userId]
-            );
+            const report = dbGet('SELECT id FROM bug_reports WHERE id = ?', [reportId]);
             if (!report) return res.status(404).json({ error: 'Report not found' });
 
             ensureBugReportsDir();
