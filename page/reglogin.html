@@ -122,7 +122,7 @@
             padding: 6px;
             border-radius: var(--radius-md);
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             margin-bottom: 40px;
         }
 
@@ -395,6 +395,7 @@
             <div class="tab-switcher">
                 <div class="tab-btn active" id="tabLogin">Увійти</div>
                 <div class="tab-btn" id="tabRegister">Реєстрація</div>
+                <div class="tab-btn" id="tabCode">Вхід з кодом</div>
             </div>
 
             <form class="form-container" id="authForm">
@@ -435,6 +436,27 @@
                 <div class="form-group" id="phoneGroup" style="display: none;">
                     <label class="form-label">Телефон (необов'язково)</label>
                     <input type="tel" class="form-input" placeholder="+380 XX XXX XX XX" id="phone">
+                </div>
+
+                <!-- Code Login Form (hidden by default) -->
+                <div id="codeLoginGroup" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Email адреса</label>
+                        <input type="email" class="form-input" placeholder="name@email.com" id="codeEmail" required>
+                    </div>
+                    <button type="button" class="btn-submit" id="codeRequestBtn" style="margin-bottom: 12px;">Надіслати код</button>
+                    <div id="codeRequestSuccess" style="color: #10B981; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
+                    <div id="codeRequestError" style="color: #EF4444; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
+
+                    <div class="form-group" id="codeInputGroup" style="display: none;">
+                        <label class="form-label">Код з Telegram</label>
+                        <input type="text" class="form-input" placeholder="Введіть 6-значний код" id="codeInput" maxlength="6" style="text-align: center; letter-spacing: 4px; font-size: 18px; font-weight: 700;" required>
+                        <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 8px; text-align: center;">
+                            Введіть код, який ви отримали у Telegram
+                        </div>
+                    </div>
+                    <button type="button" class="btn-submit" id="codeVerifyBtn" style="display: none; margin-bottom: 12px;">Перевірити код</button>
+                    <div id="codeVerifyError" style="color: #EF4444; text-align: center; margin-bottom: 12px; font-size: 14px; display: none;"></div>
                 </div>
 
                 <button type="submit" class="btn-submit" id="authSubmit">Увійти</button>
@@ -949,6 +971,136 @@
                 document.getElementById('authForm').style.display = 'block';
                 authSubmit.textContent = 'Sign Up';
                 authError.style.display = 'none';
+            });
+
+            // Code login tab
+            const tabCode = document.getElementById('tabCode');
+            tabCode.addEventListener('click', function() {
+                tabCode.classList.add('active');
+                tabLogin.classList.remove('active');
+                tabRegister.classList.remove('active');
+                document.getElementById('authForm').style.display = 'none';
+                document.getElementById('passkeyLoginBtn').style.display = 'none';
+                document.getElementById('loginDivider').style.display = 'none';
+                document.getElementById('telegramLoginBtn').style.display = 'none';
+                document.getElementById('telegramDivider').style.display = 'none';
+                document.getElementById('telegramRegForm').style.display = 'none';
+                document.getElementById('codeLoginGroup').style.display = 'block';
+                authError.style.display = 'none';
+                // Reset code login form
+                document.getElementById('codeEmail').value = '';
+                document.getElementById('codeInput').value = '';
+                document.getElementById('codeInputGroup').style.display = 'none';
+                document.getElementById('codeVerifyBtn').style.display = 'none';
+                document.getElementById('codeRequestError').style.display = 'none';
+                document.getElementById('codeRequestSuccess').style.display = 'none';
+                document.getElementById('codeVerifyError').style.display = 'none';
+            });
+
+            // Code login request button
+            const codeRequestBtn = document.getElementById('codeRequestBtn');
+            const codeRequestError = document.getElementById('codeRequestError');
+            const codeRequestSuccess = document.getElementById('codeRequestSuccess');
+            const codeVerifyBtn = document.getElementById('codeVerifyBtn');
+            const codeVerifyError = document.getElementById('codeVerifyError');
+            const codeInputGroup = document.getElementById('codeInputGroup');
+            const codeEmail = document.getElementById('codeEmail');
+            const codeInput = document.getElementById('codeInput');
+
+            codeRequestBtn.addEventListener('click', async function() {
+                const email = codeEmail.value.trim();
+
+                codeRequestError.style.display = 'none';
+                codeRequestSuccess.style.display = 'none';
+
+                if (!email) {
+                    codeRequestError.textContent = 'Введіть email адресу';
+                    codeRequestError.style.display = 'block';
+                    return;
+                }
+
+                // Basic email validation
+                if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                    codeRequestError.textContent = 'Введіть коректний email';
+                    codeRequestError.style.display = 'block';
+                    return;
+                }
+
+                codeRequestBtn.disabled = true;
+                codeRequestBtn.textContent = 'Надсилання...';
+
+                try {
+                    const response = await fetch('/api/auth/telegram-login-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ email })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Помилка при відправці коду');
+                    }
+
+                    // Success - show code input
+                    codeRequestSuccess.textContent = 'Код надіслано у Telegram! Перевірте вашу облікову запис.';
+                    codeRequestSuccess.style.display = 'block';
+                    codeInputGroup.style.display = 'block';
+                    codeVerifyBtn.style.display = 'block';
+                    codeInput.focus();
+                } catch (error) {
+                    codeRequestError.textContent = error.message;
+                    codeRequestError.style.display = 'block';
+                    codeRequestBtn.disabled = false;
+                    codeRequestBtn.textContent = 'Надіслати код';
+                }
+            });
+
+            // Code verify button
+            codeVerifyBtn.addEventListener('click', async function() {
+                const code = codeInput.value.trim();
+
+                codeVerifyError.style.display = 'none';
+
+                if (!code) {
+                    codeVerifyError.textContent = 'Введіть код';
+                    codeVerifyError.style.display = 'block';
+                    return;
+                }
+
+                // Validate 6-digit code
+                if (!code.match(/^\d{6}$/)) {
+                    codeVerifyError.textContent = 'Код має бути 6-значним числом';
+                    codeVerifyError.style.display = 'block';
+                    return;
+                }
+
+                codeVerifyBtn.disabled = true;
+                codeVerifyBtn.textContent = 'Перевірка...';
+
+                try {
+                    const response = await fetch('/api/auth/telegram-login-verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ code })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Невалідний код');
+                    }
+
+                    // Success - redirect to dashboard
+                    window.location.href = '/dashboard';
+                } catch (error) {
+                    codeVerifyError.textContent = error.message;
+                    codeVerifyError.style.display = 'block';
+                    codeVerifyBtn.disabled = false;
+                    codeVerifyBtn.textContent = 'Перевірити код';
+                }
             });
 
             // Form submission

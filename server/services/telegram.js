@@ -214,6 +214,19 @@ async function sendTelegramNotification(userId, title, message, icon = '') {
     }
 }
 
+async function sendLoginCode(telegramId, code) {
+    if (!telegramBot) return false;
+
+    try {
+        const text = `🔐 Your login code is:\n\n${code}\n\nValid for 10 minutes.`;
+        await telegramBot.sendMessage(telegramId, text);
+        return true;
+    } catch (err) {
+        console.error('Telegram login code error:', err.message);
+        return false;
+    }
+}
+
 function getTelegramBot() { return telegramBot; }
 
-module.exports = { initTelegramBot, sendTelegramNotification, getTelegramBot };
+module.exports = { initTelegramBot, sendTelegramNotification, sendLoginCode, getTelegramBot };

@@ -12,7 +12,7 @@ const { createSessionMiddleware }              = require('./middleware/session')
 const { maintenanceMiddleware }                = require('./middleware/maintenance');
 const { betaMiddleware, betaSubmit }           = require('./middleware/beta');
 const { errorHandler }                         = require('./middleware/errorHandler');
-const { loginLimiter, registerLimiter, ordersLimiter } = require('./middleware/rateLimiter');
+const { loginLimiter, registerLimiter, ordersLimiter, telegramCodeLimiter } = require('./middleware/rateLimiter');
 const { initSocket }                           = require('./socket');
 const { initTelegramBot }                      = require('./services/telegram');
 const { getSSLCredentials }                    = require('./utils/ssl');
@@ -63,6 +63,7 @@ async function createApp() {
     const authRouter = require('./routes/auth');
     app.use('/api/auth/login', loginLimiter);
     app.use('/api/auth/register', registerLimiter);
+    app.use('/api/auth/telegram-login-request', telegramCodeLimiter);
     app.use('/api/orders', ordersLimiter);
 
     app.use(authRouter);

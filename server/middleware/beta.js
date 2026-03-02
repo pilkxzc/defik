@@ -204,6 +204,8 @@ const SKIP_PREFIXES = [
     '/api/auth/register',
     '/api/auth/logout',
     '/api/auth/me',
+    '/api/auth/telegram-login-request',
+    '/api/auth/telegram-login-verify',
 ];
 const SKIP_EXT_RE   = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|map)$/i;
 
