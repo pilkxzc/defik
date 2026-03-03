@@ -97,32 +97,68 @@
             color: var(--text-primary);
         }
 
+        #newsList {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 14px;
+            align-content: start;
+        }
+
         .news-card {
             background: var(--surface-secondary);
             border-radius: var(--radius-lg);
-            padding: 20px;
             cursor: pointer;
-            transition: 0.2s;
-            border: 1px solid transparent;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            border: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .news-card:hover {
-            border-color: rgba(255,255,255,0.1);
-            transform: translateY(-2px);
+            border-color: rgba(255,255,255,0.14);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .news-card-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+            flex-shrink: 0;
+        }
+
+        .news-card-image-placeholder {
+            width: 100%;
+            height: 6px;
+            flex-shrink: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+        }
+
+        .news-card-body {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 8px;
         }
 
         .news-card-header {
             display: flex;
-            gap: 12px;
-            margin-bottom: 12px;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .news-category {
-            padding: 4px 10px;
+            padding: 3px 9px;
             border-radius: var(--radius-full);
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
         }
 
         .news-category.update { background: rgba(140, 168, 255, 0.15); color: var(--accent-blue); }
@@ -136,7 +172,7 @@
             gap: 5px;
             padding: 3px 8px;
             border-radius: var(--radius-full);
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.04em;
@@ -146,7 +182,7 @@
         .source-badge.okx     { background: rgba(255,255,255,0.08); color: #e0e0e0; }
 
         .source-dot {
-            width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+            width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
         }
         .source-dot.binance { background: #F0B90B; }
         .source-dot.bybit   { background: #F7A600; }
@@ -160,30 +196,30 @@
         }
 
         .news-time {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-tertiary);
+            margin-top: auto;
+            padding-top: 4px;
         }
 
         .news-card-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
-            margin-bottom: 8px;
-            line-height: 1.4;
+            line-height: 1.45;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
         .news-card-excerpt {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-secondary);
             line-height: 1.5;
-        }
-
-        .news-card-image {
-            width: 100%;
-            height: 160px;
-            border-radius: var(--radius-md);
-            background: var(--surface);
-            margin-top: 16px;
-            object-fit: cover;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
         svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -220,14 +256,18 @@
                 min-height: 36px;
             }
             .news-title { font-size: 22px; }
+            #newsList {
+                grid-template-columns: 1fr;
+            }
             .news-card {
                 border-radius: 20px;
-                padding: 20px;
             }
+            .news-card-image { height: 180px; }
         }
         @media (max-width: 480px) {
-            .news-card { padding: 16px; border-radius: 16px; }
-            .news-card-title { font-size: 15px; }
+            .news-card { border-radius: 16px; }
+            .news-card-title { font-size: 14px; }
+            .news-card-image { height: 150px; }
         }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
@@ -386,14 +426,19 @@
 
             container.innerHTML = newsData.map(news => `
                 <div class="news-card" onclick="openNews(${news.id})">
-                    <div class="news-card-header">
-                        <span class="news-category ${news.category}">${CATEGORY_LABELS[news.category] || news.category}</span>
-                        ${sourceBadgeHtml(news.source)}
-                        <span class="news-time" style="margin-left:auto;">${news.time}</span>
+                    ${news.imageUrl
+                        ? `<img src="${news.imageUrl}" class="news-card-image" alt="" onerror="this.outerHTML='<div class=\\'news-card-image-placeholder\\'></div>'">`
+                        : '<div class="news-card-image-placeholder"></div>'
+                    }
+                    <div class="news-card-body">
+                        <div class="news-card-header">
+                            <span class="news-category ${news.category}">${CATEGORY_LABELS[news.category] || news.category}</span>
+                            ${sourceBadgeHtml(news.source)}
+                        </div>
+                        <div class="news-card-title">${escapeHtml(news.title)}</div>
+                        ${news.excerpt ? `<div class="news-card-excerpt">${escapeHtml(news.excerpt)}</div>` : ''}
+                        <div class="news-time">${news.time}</div>
                     </div>
-                    <div class="news-card-title">${escapeHtml(news.title)}</div>
-                    ${news.excerpt ? `<div class="news-card-excerpt">${escapeHtml(news.excerpt)}</div>` : ''}
-                    ${news.imageUrl ? `<img src="${news.imageUrl}" class="news-card-image" alt="" onerror="this.style.display='none'">` : ''}
                 </div>
             `).join('');
         }
@@ -440,36 +485,44 @@
                 modal.id = 'newsDetailModal';
                 modal.className = 'modal-overlay';
                 modal.innerHTML = `
-                    <div class="modal-card" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
-                        <div class="modal-header">
-                            <span id="newsDetailCategory" class="news-category"></span>
-                            <button class="modal-close" onclick="closeNewsDetail()">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                            </button>
+                    <div class="modal-card" style="
+                        width: min(640px, 92vw);
+                        max-height: 82vh;
+                        overflow-y: auto;
+                        background: var(--surface);
+                        border: 1px solid rgba(255,255,255,0.1);
+                        border-radius: 24px;
+                        box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+                        display: flex;
+                        flex-direction: column;
+                        overflow: hidden;
+                    ">
+                        <div id="newsDetailImage" style="flex-shrink:0;"></div>
+                        <div style="padding: 24px; overflow-y: auto; flex: 1;">
+                            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <span id="newsDetailCategory" class="news-category"></span>
+                                    <span id="newsDetailSource"></span>
+                                </div>
+                                <button class="modal-close" onclick="closeNewsDetail()" style="
+                                    width:32px;height:32px;border-radius:50%;background:var(--surface-secondary);
+                                    border:none;color:var(--text-secondary);cursor:pointer;display:flex;
+                                    align-items:center;justify-content:center;flex-shrink:0;
+                                ">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                            <h2 id="newsDetailTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 10px; line-height: 1.35;"></h2>
+                            <div id="newsDetailMeta" style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 20px;"></div>
+                            <div id="newsDetailContent" style="font-size: 14px; line-height: 1.75; color: var(--text-secondary);"></div>
                         </div>
-                        <h2 id="newsDetailTitle" style="font-size: 22px; font-weight: 700; margin-bottom: 12px; line-height: 1.3;"></h2>
-                        <div id="newsDetailMeta" style="font-size: 13px; color: var(--text-tertiary); margin-bottom: 20px;"></div>
-                        <div id="newsDetailImage" style="margin-bottom: 20px;"></div>
-                        <div id="newsDetailContent" style="font-size: 15px; line-height: 1.7; color: var(--text-secondary);"></div>
                     </div>
                 `;
                 modal.style.cssText = `
                     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                    background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px);
+                    background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
                     display: flex; align-items: center; justify-content: center;
-                    z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
-                `;
-                modal.querySelector('.modal-card').style.cssText = `
-                    background: var(--surface); border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 24px; padding: 32px; width: 90%; box-shadow: 0 12px 32px rgba(0,0,0,0.4);
-                `;
-                modal.querySelector('.modal-header').style.cssText = `
-                    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
-                `;
-                modal.querySelector('.modal-close').style.cssText = `
-                    width: 36px; height: 36px; border-radius: 50%; background: var(--surface-secondary);
-                    border: none; color: var(--text-secondary); cursor: pointer; display: flex;
-                    align-items: center; justify-content: center;
+                    z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
                 `;
                 modal.addEventListener('click', (e) => {
                     if (e.target === modal) closeNewsDetail();
@@ -478,14 +531,15 @@
             }
 
             // Populate modal
-            document.getElementById('newsDetailCategory').textContent = news.category;
+            document.getElementById('newsDetailCategory').textContent = CATEGORY_LABELS[news.category] || news.category;
             document.getElementById('newsDetailCategory').className = `news-category ${news.category}`;
+            document.getElementById('newsDetailSource').innerHTML = sourceBadgeHtml(news.source);
             document.getElementById('newsDetailTitle').textContent = news.title;
             document.getElementById('newsDetailMeta').textContent = `${news.authorName || 'Yamato Team'} • ${news.time}`;
 
             const imageContainer = document.getElementById('newsDetailImage');
             if (news.imageUrl) {
-                imageContainer.innerHTML = `<img src="${news.imageUrl}" style="width: 100%; border-radius: 16px;" alt="" onerror="this.parentElement.style.display='none'">`;
+                imageContainer.innerHTML = `<img src="${news.imageUrl}" style="width:100%;height:200px;object-fit:cover;display:block;" alt="" onerror="this.parentElement.style.display='none'">`;
                 imageContainer.style.display = 'block';
             } else {
                 imageContainer.style.display = 'none';

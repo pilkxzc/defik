@@ -144,7 +144,8 @@ async function fetchOKX() {
 
         if (json.code !== '0') throw new Error(`code ${json.code}: ${json.msg}`);
 
-        const list = json?.data ?? [];
+        // data[0].details[] contains the actual announcements
+        const list = json?.data?.[0]?.details ?? [];
         if (!Array.isArray(list) || list.length === 0) {
             console.warn('[NewsCollector] OKX: empty list');
             return [];
