@@ -655,13 +655,28 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
 
         const toCard = b => {
             const act = botActivity[b.id] || {};
-            // Real status: active = is_active AND had a trade within last 5 minutes OR has an open trade
             const lastMs = act.lastTradeAt ? new Date(act.lastTradeAt).getTime() : 0;
-            const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-            const isReallyActive = !!b.is_active && (act.hasOpenTrade || lastMs > fiveMinAgo);
+            const now = Date.now();
+
+            // Real status logic:
+            // 'live'    — has open trade right now (actively in position)
+            // 'idle'    — is_active + had a trade in last 24h (bot is running, waiting for signal)
+            // 'stopped' — is_active but no trades for 24h+ (likely not working)
+            // 'off'     — is_active = false (manually disabled)
+            let realStatus;
+            if (!b.is_active) {
+                realStatus = 'off';
+            } else if (act.hasOpenTrade) {
+                realStatus = 'live';
+            } else if (lastMs > now - 24 * 60 * 60 * 1000) {
+                realStatus = 'idle';
+            } else {
+                realStatus = 'stopped';
+            }
+
             return {
                 id: b.id, name: b.name, is_active: !!b.is_active,
-                realStatus: isReallyActive ? 'live' : (b.is_active ? 'idle' : 'off'),
+                realStatus,
                 symbol: b.selected_symbol || '',
                 activeSymbol: act.activeSymbol || b.selected_symbol || '',
                 hasOpenTrade: act.hasOpenTrade || false,

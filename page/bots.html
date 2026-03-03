@@ -596,10 +596,13 @@
             box-shadow: 0 0 4px rgba(245, 158, 11, 0.3);
         }
 
-        .bot-status-dot.active {
-            background: var(--color-up);
-            box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
-            animation: pulse 1.5s infinite;
+        .bot-status-dot.stopped {
+            background: #EF4444;
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.3);
+        }
+
+        .bot-status-dot.off {
+            background: var(--text-tertiary);
         }
 
         .bot-live-pair {
@@ -1456,11 +1459,10 @@
             const pnlClass = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
             const pnlStr = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
             const isLive = b.mode === 'bot';
-            const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
+            const modeLabel = isLive ? 'REAL' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
 
-            // Real status: 'live' = actively trading, 'idle' = active but no recent trades, 'off' = inactive
-            const statusClass = b.realStatus || (b.is_active ? 'active' : '');
+            const statusClass = b.realStatus || 'off';
             const pairName = (b.activeSymbol || b.symbol || '').replace(/USDT|BUSD/gi, '');
             const pairHtml = pairName
                 ? `<span class="bot-live-pair${b.hasOpenTrade ? ' trading' : ''}">${pairName}${b.hasOpenTrade ? ' ●' : ''}</span>`
@@ -1486,19 +1488,19 @@
             const pnlStr = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
             const win = b.winRate != null ? b.winRate + '%' : '—';
             const isLive = b.mode === 'bot';
-            const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
+            const modeLabel = isLive ? 'REAL' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
             const mainHref = `/bot-stats/${b.id}`;
             const mainText = _isAdmin ? 'Дашборд' : 'Статистика';
             let statusBadge;
             if (b.realStatus === 'live') {
-                statusBadge = '<span class="status-badge status-active">LIVE ●</span>';
+                statusBadge = '<span class="status-badge status-active">В ПОЗИЦІЇ ●</span>';
             } else if (b.realStatus === 'idle') {
-                statusBadge = '<span class="status-badge" style="background:rgba(245,158,11,0.15);color:#F59E0B;">ОЧІКУЄ</span>';
-            } else if (b.is_active) {
-                statusBadge = '<span class="status-badge status-active">АКТИВНИЙ</span>';
+                statusBadge = '<span class="status-badge" style="background:rgba(245,158,11,0.15);color:#F59E0B;">ОЧІКУЄ СИГНАЛ</span>';
+            } else if (b.realStatus === 'stopped') {
+                statusBadge = '<span class="status-badge" style="background:rgba(239,68,68,0.15);color:#EF4444;">ЗУПИНЕНИЙ</span>';
             } else {
-                statusBadge = '<span class="status-badge status-inactive">НЕАКТИВНИЙ</span>';
+                statusBadge = '<span class="status-badge status-inactive">ВИМКНЕНИЙ</span>';
             }
 
             const activeS = (b.activeSymbol || '').toUpperCase();
