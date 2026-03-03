@@ -2854,7 +2854,8 @@ function renderSystemHealth(data) {
 // ==================== BACKUP TAB ====================
 
 async function loadBackupTab() {
-    await Promise.all([loadGoogleSettings(), loadBackupSettings(), loadBackupHistory(), loadServerInfo()]);
+    await Promise.all([loadGoogleSettings(), loadBackupSettings(), loadServerInfo()]);
+    await loadBackupHistory();
 }
 
 async function loadGoogleSettings() {
