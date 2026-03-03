@@ -6469,7 +6469,7 @@
                 document.getElementById('accountPnl').textContent = (demo.account.totalUnrealizedProfit >= 0 ? '+' : '') + '$' + demo.account.totalUnrealizedProfit.toFixed(2);
                 document.getElementById('accountPnl').className = `stat-value ${demo.account.totalUnrealizedProfit >= 0 ? 'positive' : 'negative'}`;
                 document.getElementById('accountAvailable').textContent = '$' + demo.account.availableBalance.toFixed(2);
-                updatePositionPanel(demo.position, demo);
+                updatePositionPanel(demo.positions || (demo.position ? [demo.position] : []), demo);
                 updateOrdersList(demo);
                 drawPriceLines(demo);
                 // Draw demo arrows on chart using klinecharts overlays
@@ -7745,11 +7745,15 @@
             return price.toFixed(8);
         }
 
-        function updatePositionPanel(position, fullData) {
+        function updatePositionPanel(positions, fullData) {
             const panel = document.getElementById('positionPanel');
             const content = document.getElementById('positionContent');
 
-            // Account-level summary bar (total unrealized PnL across ALL positions)
+            // Normalize: accept single position or array
+            if (!Array.isArray(positions)) positions = positions ? [positions] : [];
+            positions = positions.filter(p => p && p.entryPrice && p.entryPrice > 0);
+
+            // Account-level summary bar
             const acct = fullData?.account;
             let summaryHtml = '';
             if (acct) {
@@ -7775,7 +7779,7 @@
                 </div>`;
             }
 
-            if (!position) {
+            if (positions.length === 0) {
                 panel.style.display = 'block';
                 content.innerHTML = summaryHtml + '<div class="empty-state" style="padding:12px;">Немає відкритих позицій</div>';
                 const badge = document.getElementById('posGridBadge');
@@ -7783,8 +7787,9 @@
                 return;
             }
 
-            // Grid stats for Positions button: V_pos/V_i (filled orders count) + fill%
+            // Grid stats badge (use first position for backward compat)
             {
+                const position = positions[0];
                 const badge = document.getElementById('posGridBadge');
                 if (badge) {
                     const vPos = Math.abs(parseFloat(position.positionAmt || 0));
@@ -7806,91 +7811,87 @@
             }
 
             panel.style.display = 'block';
-            const pnl = position.unrealizedProfit || 0;
-            const pnlClass = pnl >= 0 ? 'positive' : 'negative';
-            const pnlSign = pnl >= 0 ? '+' : '';
-            const pnlColor = pnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
 
-            // Calculate ROE and PnL %
-            const entryVal = position.entryPrice * Math.abs(position.positionAmt);
-            const margin = entryVal / (parseFloat(position.leverage) || 1);
-            const roe = margin > 0 ? (pnl / margin * 100) : 0;
-            const pnlPct = entryVal > 0 ? (pnl / entryVal * 100) : 0;
-
-            // Estimated liquidation price
-            let liqPriceNum = null;
-            if (position.entryPrice > 0 && position.leverage > 0) {
-                const lev = parseFloat(position.leverage);
-                liqPriceNum = position.side === 'LONG'
-                    ? position.entryPrice * (1 - 1 / lev * 0.95)
-                    : position.entryPrice * (1 + 1 / lev * 0.95);
-            }
-            const liqDisplay = liqPriceNum ? '$' + formatPrice(liqPriceNum) : '—';
-
-            // ── Price range slider (SL → Entry → Current → TP) ──
+            // Build card HTML for each position
             const stopOrders = fullData?.stopOrders || [];
             const tpOrders = fullData?.takeProfitOrders || [];
-            const slPrice = stopOrders.length > 0 ? parseFloat(stopOrders[0].stopPrice || stopOrders[0].price) : null;
-            const tpPrice = tpOrders.length > 0 ? parseFloat(tpOrders[0].stopPrice || tpOrders[0].price) : null;
-            const markPrice = parseFloat(position.markPrice) || 0;
-            const entryPrice = parseFloat(position.entryPrice) || 0;
-            const isLong = position.side === 'LONG';
 
-            let sliderHtml = '';
-            if (slPrice && tpPrice && markPrice > 0) {
-                const low = Math.min(slPrice, tpPrice, entryPrice, markPrice) * 0.999;
-                const high = Math.max(slPrice, tpPrice, entryPrice, markPrice) * 1.001;
-                const range = high - low;
-                const toPct = v => ((v - low) / range * 100).toFixed(2);
+            let cardsHtml = positions.map((position, posIdx) => {
+                const pnl = position.unrealizedProfit || 0;
+                const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+                const pnlSign = pnl >= 0 ? '+' : '';
+                const pnlColor = pnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
 
-                const slPct = toPct(slPrice);
-                const tpPct = toPct(tpPrice);
-                const entryPct = toPct(entryPrice);
-                const markPct = toPct(markPrice);
-                const slColor = 'var(--color-stop)';
-                const tpColor = 'var(--color-tp)';
-                const entryColor = isLong ? 'var(--color-long)' : 'var(--color-short)';
+                const entryVal = position.entryPrice * Math.abs(position.positionAmt);
+                const margin = entryVal / (parseFloat(position.leverage) || 1);
+                const roe = margin > 0 ? (pnl / margin * 100) : 0;
+                const pnlPct = entryVal > 0 ? (pnl / entryVal * 100) : 0;
 
-                sliderHtml = `
-                <div class="price-range-slider" style="margin:10px 0 6px;">
-                    <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:5px;display:flex;justify-content:space-between;">
-                        <span style="color:${slColor}">SL $${formatPrice(slPrice)}</span>
-                        <span style="color:var(--text-secondary)">Entry $${formatPrice(entryPrice)}</span>
-                        <span style="color:${tpColor}">TP $${formatPrice(tpPrice)}</span>
-                    </div>
-                    <div style="position:relative;height:8px;background:rgba(255,255,255,0.07);border-radius:4px;margin:2px 0 14px;">
-                        <!-- SL marker -->
-                        <div title="Stop Loss" style="position:absolute;left:${slPct}%;top:50%;transform:translate(-50%,-50%);width:3px;height:14px;background:${slColor};border-radius:2px;"></div>
-                        <!-- TP marker -->
-                        <div title="Take Profit" style="position:absolute;left:${tpPct}%;top:50%;transform:translate(-50%,-50%);width:3px;height:14px;background:${tpColor};border-radius:2px;"></div>
-                        <!-- Entry marker -->
-                        <div title="Entry $${formatPrice(entryPrice)}" style="position:absolute;left:${entryPct}%;top:50%;transform:translate(-50%,-50%);width:3px;height:18px;background:${entryColor};border-radius:2px;"></div>
-                        <!-- Current price thumb -->
-                        <div title="Mark $${formatPrice(markPrice)}" style="position:absolute;left:${markPct}%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#fff;border:2px solid ${pnlColor};border-radius:50%;box-shadow:0 0 6px ${pnlColor}88;z-index:2;"></div>
-                    </div>
-                    <div style="font-size:10px;color:var(--text-tertiary);text-align:center;">
-                        Поточна ціна: <span style="color:${pnlColor};font-weight:600;">$${formatPrice(markPrice)}</span>
-                    </div>
-                </div>`;
-            } else {
-                // Simplified bar when no SL/TP
-                const barPct = Math.min(Math.abs(roe), 100);
-                const entryColor = isLong ? 'var(--color-long)' : 'var(--color-short)';
-                sliderHtml = `
-                <div style="margin:8px 0 4px;">
-                    <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
-                        <span style="color:var(--text-tertiary)">ROE ${roe >= 0 ? '+' : ''}${roe.toFixed(2)}%</span>
-                        <span style="color:var(--text-tertiary)">Mark $${formatPrice(markPrice)}</span>
-                    </div>
-                    <div style="position:relative;height:8px;background:rgba(255,255,255,0.07);border-radius:4px;">
-                        <div style="height:100%;width:${barPct}%;background:${pnlColor};border-radius:4px;transition:width 0.3s;"></div>
-                        <div style="position:absolute;left:${Math.min(barPct,98)}%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#fff;border:2px solid ${pnlColor};border-radius:50%;box-shadow:0 0 6px ${pnlColor}88;"></div>
-                    </div>
-                </div>`;
-            }
+                let liqPriceNum = null;
+                if (position.entryPrice > 0 && position.leverage > 0) {
+                    const lev = parseFloat(position.leverage);
+                    liqPriceNum = position.side === 'LONG'
+                        ? position.entryPrice * (1 - 1 / lev * 0.95)
+                        : position.entryPrice * (1 + 1 / lev * 0.95);
+                }
+                const liqDisplay = liqPriceNum ? '$' + formatPrice(liqPriceNum) : '—';
+                const markPrice = parseFloat(position.markPrice) || 0;
+                const entryPrice = parseFloat(position.entryPrice) || 0;
+                const isLong = position.side === 'LONG';
 
-            content.innerHTML = summaryHtml + `
-                <div class="position-card" id="positionCardClickable" title="Натисніть для показу на графіку" style="cursor:pointer;">
+                // SL/TP for this side
+                const sideStops = stopOrders.filter(o => isLong ? o.side === 'SELL' : o.side === 'BUY');
+                const sideTps = tpOrders.filter(o => isLong ? o.side === 'SELL' : o.side === 'BUY');
+                const slPrice = sideStops.length > 0 ? parseFloat(sideStops[0].stopPrice || sideStops[0].price) : null;
+                const tpPrice = sideTps.length > 0 ? parseFloat(sideTps[0].stopPrice || sideTps[0].price) : null;
+
+                let sliderHtml = '';
+                if (slPrice && tpPrice && markPrice > 0) {
+                    const low = Math.min(slPrice, tpPrice, entryPrice, markPrice) * 0.999;
+                    const high = Math.max(slPrice, tpPrice, entryPrice, markPrice) * 1.001;
+                    const range = high - low;
+                    const toPct = v => ((v - low) / range * 100).toFixed(2);
+                    const slPct = toPct(slPrice);
+                    const tpPct = toPct(tpPrice);
+                    const entryPct = toPct(entryPrice);
+                    const markPct = toPct(markPrice);
+                    const slColor = 'var(--color-stop)';
+                    const tpColor = 'var(--color-tp)';
+                    const entryColor = isLong ? 'var(--color-long)' : 'var(--color-short)';
+                    sliderHtml = `
+                    <div class="price-range-slider" style="margin:10px 0 6px;">
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:5px;display:flex;justify-content:space-between;">
+                            <span style="color:${slColor}">SL $${formatPrice(slPrice)}</span>
+                            <span style="color:var(--text-secondary)">Entry $${formatPrice(entryPrice)}</span>
+                            <span style="color:${tpColor}">TP $${formatPrice(tpPrice)}</span>
+                        </div>
+                        <div style="position:relative;height:8px;background:rgba(255,255,255,0.07);border-radius:4px;margin:2px 0 14px;">
+                            <div title="Stop Loss" style="position:absolute;left:${slPct}%;top:50%;transform:translate(-50%,-50%);width:3px;height:14px;background:${slColor};border-radius:2px;"></div>
+                            <div title="Take Profit" style="position:absolute;left:${tpPct}%;top:50%;transform:translate(-50%,-50%);width:3px;height:14px;background:${tpColor};border-radius:2px;"></div>
+                            <div title="Entry $${formatPrice(entryPrice)}" style="position:absolute;left:${entryPct}%;top:50%;transform:translate(-50%,-50%);width:3px;height:18px;background:${entryColor};border-radius:2px;"></div>
+                            <div title="Mark $${formatPrice(markPrice)}" style="position:absolute;left:${markPct}%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#fff;border:2px solid ${pnlColor};border-radius:50%;box-shadow:0 0 6px ${pnlColor}88;z-index:2;"></div>
+                        </div>
+                        <div style="font-size:10px;color:var(--text-tertiary);text-align:center;">
+                            Поточна ціна: <span style="color:${pnlColor};font-weight:600;">$${formatPrice(markPrice)}</span>
+                        </div>
+                    </div>`;
+                } else {
+                    const barPct = Math.min(Math.abs(roe), 100);
+                    sliderHtml = `
+                    <div style="margin:8px 0 4px;">
+                        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                            <span style="color:var(--text-tertiary)">ROE ${roe >= 0 ? '+' : ''}${roe.toFixed(2)}%</span>
+                            <span style="color:var(--text-tertiary)">Mark $${formatPrice(markPrice)}</span>
+                        </div>
+                        <div style="position:relative;height:8px;background:rgba(255,255,255,0.07);border-radius:4px;">
+                            <div style="height:100%;width:${barPct}%;background:${pnlColor};border-radius:4px;transition:width 0.3s;"></div>
+                            <div style="position:absolute;left:${Math.min(barPct,98)}%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#fff;border:2px solid ${pnlColor};border-radius:50%;box-shadow:0 0 6px ${pnlColor}88;"></div>
+                        </div>
+                    </div>`;
+                }
+
+                return `
+                <div class="position-card pos-card-clickable" data-pos-idx="${posIdx}" title="Натисніть для показу на графіку" style="cursor:pointer;${posIdx > 0 ? 'border-top:1px solid rgba(255,255,255,0.05);' : ''}">
                     <div class="position-header">
                         <span class="position-side ${position.side.toLowerCase()}">${position.side} ${position.leverage}x</span>
                         <span class="position-pnl ${pnlClass}" style="font-size:14px;">${pnlSign}$${Math.abs(pnl).toFixed(2)}</span>
@@ -7912,25 +7913,29 @@
                         <span class="position-detail-label">Лікв.</span>
                         <span class="position-detail-value">${liqDisplay}</span>
                     </div>
-                </div>
-            `;
+                </div>`;
+            }).join('');
 
-            // Click on position card → highlight entry on chart
-            const card = document.getElementById('positionCardClickable');
-            if (card) {
+            content.innerHTML = summaryHtml + cardsHtml;
+
+            // Click on any position card → highlight entry on chart
+            content.querySelectorAll('.pos-card-clickable').forEach(card => {
                 card.addEventListener('click', () => {
+                    const idx = parseInt(card.dataset.posIdx);
+                    const pos = positions[idx];
+                    if (!pos) return;
                     highlightTrade({
-                        openedAt: position.updateTime ? new Date(position.updateTime).toISOString() : new Date().toISOString(),
+                        openedAt: pos.updateTime ? new Date(pos.updateTime).toISOString() : new Date().toISOString(),
                         closedAt: null,
-                        price: entryPrice,
-                        pnl: pnl,
-                        quantity: Math.abs(position.positionAmt),
-                        side: position.side === 'LONG' ? 'BUY' : 'SELL',
+                        price: parseFloat(pos.entryPrice),
+                        pnl: pos.unrealizedProfit || 0,
+                        quantity: Math.abs(pos.positionAmt),
+                        side: pos.side === 'LONG' ? 'BUY' : 'SELL',
                         status: 'open',
-                        symbol: position.symbol || currentSymbol,
+                        symbol: pos.symbol || currentSymbol,
                     });
                 });
-            }
+            });
         }
 
         function updateOrdersList(data) {
