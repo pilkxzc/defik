@@ -369,6 +369,173 @@
             display: block;
         }
 
+        /* ── Reading progress bar ── */
+        .docs-progress-wrap {
+            position: sticky;
+            top: 0;
+            height: 2px;
+            background: transparent;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+        .docs-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10B981 0%, #8CA8FF 100%);
+            transform-origin: left;
+            transform: scaleX(0);
+            transition: transform 0.08s linear;
+            border-radius: 0 1px 1px 0;
+        }
+
+        /* ── TOC improvements ── */
+        .docs-toc-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .docs-toc-icon {
+            flex-shrink: 0;
+            opacity: 0.4;
+            transition: opacity 0.15s;
+            width: 14px;
+            height: 14px;
+        }
+        .docs-toc-item.active .docs-toc-icon { opacity: 1; }
+        .docs-toc-item:hover .docs-toc-icon { opacity: 0.75; }
+        .docs-toc-group-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+            color: var(--text-tertiary);
+            padding: 14px 12px 4px;
+        }
+
+        /* ── h2 section accent ── */
+        .docs-h2 {
+            padding-left: 14px !important;
+            border-left: 3px solid #10B981;
+            margin-left: 0;
+        }
+
+        /* ── Intro hero block ── */
+        .docs-hero {
+            background: linear-gradient(135deg, rgba(16,185,129,0.07) 0%, rgba(140,168,255,0.05) 100%);
+            border: 1px solid rgba(16,185,129,0.15);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            margin-bottom: 28px;
+        }
+        .docs-hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16,185,129,0.12);
+            color: #10B981;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            margin-bottom: 14px;
+        }
+        .docs-hero-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10B981;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.7); }
+        }
+        .docs-hero-quicklinks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 18px;
+        }
+        .docs-hero-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+        .docs-hero-link:hover {
+            background: rgba(16,185,129,0.1);
+            border-color: rgba(16,185,129,0.25);
+            color: #10B981;
+        }
+
+        /* ── Step timeline ── */
+        .docs-steps {
+            position: relative;
+        }
+        .docs-steps::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 44px;
+            bottom: 30px;
+            width: 2px;
+            background: linear-gradient(to bottom, rgba(16,185,129,0.3), rgba(16,185,129,0.03));
+            border-radius: 1px;
+            pointer-events: none;
+        }
+        .docs-step-num {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── Feature card hover ── */
+        .docs-feature {
+            transition: transform 0.2s, border-color 0.2s, background 0.2s;
+        }
+        .docs-feature:hover {
+            transform: translateY(-2px);
+            border-color: rgba(16,185,129,0.2);
+            background: rgba(16,185,129,0.04);
+        }
+        .docs-feature:hover .docs-feature-icon {
+            background: rgba(16,185,129,0.22);
+        }
+        .docs-feature-icon { transition: background 0.2s; }
+
+        /* ── FAQ smooth animation ── */
+        .faq-answer {
+            display: block !important;
+            max-height: 0;
+            overflow: hidden;
+            padding-top: 0;
+            padding-bottom: 0;
+            transition: max-height 0.3s ease, padding 0.2s ease;
+        }
+        .faq-item.open .faq-answer {
+            max-height: 500px;
+            padding-bottom: 16px;
+        }
+        .faq-question:hover {
+            background: rgba(16,185,129,0.04) !important;
+        }
+        .faq-item {
+            transition: border-color 0.2s;
+        }
+        .faq-item.open {
+            border-color: rgba(16,185,129,0.15);
+        }
+
         /* ── Mobile TOC toggle ── */
         .docs-toc-toggle {
             display: none;
@@ -513,29 +680,55 @@
                 <nav class="docs-toc" id="docsToc">
                     <div class="docs-toc-title">Зміст</div>
                     <ul class="docs-toc-list">
-                        <li><a class="docs-toc-item active" href="#intro" data-section="intro">Вступ</a></li>
-                        <li><a class="docs-toc-item" href="#getting-started" data-section="getting-started">Початок роботи</a></li>
-                        <li><a class="docs-toc-item" href="#dashboard" data-section="dashboard">Дашборд</a></li>
-                        <li><a class="docs-toc-item" href="#portfolio" data-section="portfolio">Портфель</a></li>
-                        <li><a class="docs-toc-item" href="#bots" data-section="bots">Торгові боти</a></li>
-                        <li><a class="docs-toc-item" href="#orders" data-section="orders">Ордери</a></li>
-                        <li><a class="docs-toc-item" href="#profile" data-section="profile">Профіль та безпека</a></li>
-                        <li><a class="docs-toc-item" href="#subscriptions" data-section="subscriptions">Підписки</a></li>
-                        <li><a class="docs-toc-item" href="#news" data-section="news">Новини</a></li>
-                        <li><a class="docs-toc-item" href="#community" data-section="community">Спільнота</a></li>
-                        <li><a class="docs-toc-item" href="#faq" data-section="faq">FAQ</a></li>
+                        <li class="docs-toc-group-label">Огляд</li>
+                        <li><a class="docs-toc-item active" href="#intro" data-section="intro"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg>Вступ</a></li>
+                        <li><a class="docs-toc-item" href="#getting-started" data-section="getting-started"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Початок роботи</a></li>
+                        <li class="docs-toc-group-label">Платформа</li>
+                        <li><a class="docs-toc-item" href="#dashboard" data-section="dashboard"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Дашборд</a></li>
+                        <li><a class="docs-toc-item" href="#portfolio" data-section="portfolio"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>Портфель</a></li>
+                        <li><a class="docs-toc-item" href="#bots" data-section="bots"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="15" x2="8" y2="15"/><line x1="16" y1="15" x2="16" y2="15"/></svg>Торгові боти</a></li>
+                        <li><a class="docs-toc-item" href="#orders" data-section="orders"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Ордери</a></li>
+                        <li class="docs-toc-group-label">Акаунт</li>
+                        <li><a class="docs-toc-item" href="#profile" data-section="profile"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Профіль та безпека</a></li>
+                        <li><a class="docs-toc-item" href="#subscriptions" data-section="subscriptions"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Підписки</a></li>
+                        <li class="docs-toc-group-label">Більше</li>
+                        <li><a class="docs-toc-item" href="#news" data-section="news"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>Новини</a></li>
+                        <li><a class="docs-toc-item" href="#community" data-section="community"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Спільнота</a></li>
+                        <li><a class="docs-toc-item" href="#faq" data-section="faq"><svg class="docs-toc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>FAQ</a></li>
                     </ul>
                 </nav>
 
                 <!-- Content -->
                 <div class="docs-content" id="docsContent">
+                    <div class="docs-progress-wrap"><div class="docs-progress-bar" id="docsProgressBar"></div></div>
 
                     <!-- ═══════════════════════════════════════ -->
                     <!-- 1. Вступ -->
                     <!-- ═══════════════════════════════════════ -->
                     <section class="docs-section" id="intro">
-                        <h1 class="docs-h1">Документація Yamato</h1>
-                        <p class="docs-text">Ласкаво просимо до офіційної документації <strong>Yamato</strong> — сучасної торгової платформи для криптовалют. Ця інструкція допоможе вам швидко розібратися з усіма можливостями системи та почати ефективно торгувати.</p>
+                        <div class="docs-hero">
+                            <div class="docs-hero-badge">Документація v1.0</div>
+                            <h1 class="docs-h1" style="margin-bottom: 10px;">Документація Yamato</h1>
+                            <p class="docs-text" style="margin-bottom: 0;">Повна інструкція з торгової платформи — від реєстрації до запуску автоматичних торгових стратегій.</p>
+                            <div class="docs-hero-quicklinks">
+                                <a class="docs-hero-link" onclick="document.getElementById('getting-started').scrollIntoView({behavior:'smooth'})">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                    Швидкий старт
+                                </a>
+                                <a class="docs-hero-link" onclick="document.getElementById('bots').scrollIntoView({behavior:'smooth'})">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
+                                    Торгові боти
+                                </a>
+                                <a class="docs-hero-link" onclick="document.getElementById('profile').scrollIntoView({behavior:'smooth'})">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                    Безпека
+                                </a>
+                                <a class="docs-hero-link" onclick="document.getElementById('faq').scrollIntoView({behavior:'smooth'})">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                    FAQ
+                                </a>
+                            </div>
+                        </div>
 
                         <p class="docs-text">Yamato об'єднує в собі професійні інструменти для аналізу ринку, автоматизовану торгівлю через ботів, управління портфелем та систему безпеки на рівні фінансових додатків. Платформа розроблена як для початківців, що роблять перші кроки у криптотрейдингу, так і для досвідчених трейдерів, яким потрібен надійний та зручний інструмент.</p>
 
@@ -1295,6 +1488,19 @@
         function toggleFaq(el) {
             el.parentElement.classList.toggle('open');
         }
+
+        // ── Reading progress bar ──
+        (function() {
+            var content = document.getElementById('docsContent');
+            var bar = document.getElementById('docsProgressBar');
+            if (!content || !bar) return;
+            content.addEventListener('scroll', function() {
+                var scrolled = content.scrollTop;
+                var total = content.scrollHeight - content.clientHeight;
+                var progress = total > 0 ? scrolled / total : 0;
+                bar.style.transform = 'scaleX(' + progress + ')';
+            }, { passive: true });
+        })();
     </script>
 <!-- Mobile Bottom Nav -->
 <nav class="m-bottom-nav" id="mobileNav" style="display:none;">

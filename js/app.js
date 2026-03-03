@@ -248,13 +248,12 @@ function initSocketIO() {
 // ==================== NOTIFICATION PANEL ====================
 
 function createNotificationPanel() {
-    // Don't create on login/register page
     const path = window.location.pathname;
     if (path.includes('reglogin') || path === '/login' || path === '/register' || path === '/' || path.includes('index.html')) {
         return;
     }
 
-    // Add notification icon to nav if not exists
+    // Add notification button to sidebar
     const navSidebar = document.querySelector('.nav-sidebar');
     if (navSidebar && !document.getElementById('notificationBtn')) {
         const notifBtn = document.createElement('div');
@@ -266,251 +265,256 @@ function createNotificationPanel() {
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
-            <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
+            <span id="notificationBadge" class="notification-badge" style="display:none">0</span>
             <span class="nav-label">Сповіщення</span>
         `;
         notifBtn.onclick = toggleNotificationPanel;
-
-        // Insert after profile link (settings)
         const profileLink = navSidebar.querySelector('[href="/profile"]');
-        if (profileLink) {
-            profileLink.after(notifBtn);
-        } else {
-            navSidebar.appendChild(notifBtn);
-        }
+        if (profileLink) profileLink.after(notifBtn);
+        else navSidebar.appendChild(notifBtn);
     }
 
-    // Create notification panel
-    if (!document.getElementById('notificationPanel')) {
-        const panel = document.createElement('div');
-        panel.id = 'notificationPanel';
-        panel.innerHTML = `
-            <div class="notif-panel-header">
-                <h3>Сповіщення</h3>
-                <div class="notif-panel-actions">
-                    <button onclick="markAllNotificationsRead()" title="Позначити всі як прочитані">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="9 11 12 14 22 4"></polyline>
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                        </svg>
-                    </button>
-                    <button onclick="toggleNotificationPanel()">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div id="notificationList" class="notif-panel-list">
-                <div class="notif-loading">Завантаження...</div>
-            </div>
-        `;
-        document.body.appendChild(panel);
+    if (document.getElementById('notificationPanel')) return;
 
-        // Add panel styles
-        const style = document.createElement('style');
-        style.textContent = `
-            .notification-badge {
-                position: absolute;
-                top: -2px;
-                right: -2px;
-                background: #60063B;
-                color: white;
-                font-size: 10px;
-                font-weight: 700;
-                min-width: 18px;
-                height: 18px;
-                border-radius: 9px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 0 4px;
-            }
+    // Inject styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .notification-badge {
+            position: absolute;
+            top: 2px; right: 2px;
+            background: #10B981;
+            color: #000;
+            font-size: 9px; font-weight: 800;
+            min-width: 16px; height: 16px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 3px;
+            border: 2px solid #080808;
+            line-height: 1;
+        }
+        #notificationPanel {
+            position: fixed;
+            width: 340px;
+            max-height: min(520px, calc(100dvh - 32px));
+            background: #111;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            box-shadow: 0 8px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            transform-origin: top left;
+        }
+        #notificationPanel.active {
+            display: flex;
+            animation: notifIn 0.22s cubic-bezier(0.16,1,0.3,1);
+        }
+        @keyframes notifIn {
+            from { opacity: 0; transform: scale(0.93) translateX(-6px); }
+            to   { opacity: 1; transform: scale(1)    translateX(0); }
+        }
+        .notif-panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 18px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-shrink: 0;
+        }
+        .notif-panel-header-left {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .notif-panel-header h3 {
+            font-size: 15px; font-weight: 700; margin: 0;
+            color: #fff;
+        }
+        .notif-unread-count {
+            font-size: 11px; font-weight: 700;
+            background: rgba(16,185,129,0.15);
+            color: #10B981;
+            padding: 2px 8px; border-radius: 100px;
+            display: none;
+        }
+        .notif-panel-actions {
+            display: flex; gap: 4px;
+        }
+        .notif-panel-actions button {
+            background: none; border: none;
+            color: #555; cursor: pointer;
+            padding: 6px; border-radius: 10px;
+            transition: background 0.15s, color 0.15s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .notif-panel-actions button:hover {
+            background: rgba(255,255,255,0.07); color: #fff;
+        }
+        .notif-panel-list {
+            flex: 1; overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .notif-panel-list::-webkit-scrollbar { width: 4px; }
+        .notif-panel-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.08); border-radius: 4px;
+        }
+        .notif-item {
+            display: flex; gap: 12px;
+            padding: 13px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            cursor: pointer;
+            transition: background 0.15s;
+            position: relative;
+        }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item:hover { background: rgba(255,255,255,0.03); }
+        .notif-item.unread {
+            background: rgba(16,185,129,0.04);
+        }
+        .notif-item.unread::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 8px; bottom: 8px;
+            width: 3px; border-radius: 0 3px 3px 0;
+            background: #10B981;
+        }
+        .notif-item-icon {
+            width: 38px; height: 38px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 17px; flex-shrink: 0;
+        }
+        .notif-item-content { flex: 1; min-width: 0; }
+        .notif-item-title {
+            font-size: 13px; font-weight: 600;
+            color: #e8e8e8; margin-bottom: 3px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .notif-item-message {
+            font-size: 12px; color: #777;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .notif-item-time {
+            font-size: 11px; color: #444;
+            margin-top: 5px;
+        }
+        .notif-empty {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 10px;
+            padding: 48px 24px;
+            text-align: center; color: #555;
+        }
+        .notif-empty-icon {
+            width: 48px; height: 48px; border-radius: 14px;
+            background: rgba(255,255,255,0.04);
+            display: flex; align-items: center; justify-content: center;
+            color: #444;
+        }
+        .notif-empty p { font-size: 13px; margin: 0; }
+        .notif-loading {
+            padding: 40px 24px; text-align: center; color: #555; font-size: 13px;
+        }
+        .notif-panel-footer {
+            padding: 10px 18px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            flex-shrink: 0;
+        }
+        .notif-mark-all-btn {
+            width: 100%; padding: 9px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 10px;
+            color: #888; font-size: 12px; font-weight: 600;
+            font-family: inherit; cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .notif-mark-all-btn:hover { background: rgba(255,255,255,0.08); color: #ccc; }
+
+        /* Mobile: slide up from bottom */
+        @media (max-width: 768px) {
             #notificationPanel {
-                position: fixed;
-                top: 20px;
-                left: 100px;
-                width: 360px;
-                max-height: calc(100vh - 40px);
-                background: #141414;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 24px;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-                z-index: 9999;
-                display: none;
-                flex-direction: column;
-                overflow: hidden;
+                width: calc(100vw - 24px) !important;
+                left: 12px !important;
+                bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+                top: auto !important;
+                border-radius: 20px;
+                transform-origin: bottom center;
             }
-            #notificationPanel.active {
-                display: flex;
-                animation: panelSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            @keyframes notifIn {
+                from { opacity: 0; transform: translateY(12px) scale(0.97); }
+                to   { opacity: 1; transform: translateY(0)    scale(1); }
             }
-            @keyframes panelSlideIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-10px) scale(0.95);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0) scale(1);
-                }
-            }
-            .notif-panel-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 20px 24px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            }
-            .notif-panel-header h3 {
-                font-size: 16px;
-                font-weight: 700;
-                margin: 0;
-            }
-            .notif-panel-actions {
-                display: flex;
-                gap: 8px;
-            }
-            .notif-panel-actions button {
-                background: none;
-                border: none;
-                color: #666;
-                cursor: pointer;
-                padding: 6px;
-                border-radius: 8px;
-                transition: 0.2s;
-            }
-            .notif-panel-actions button:hover {
-                background: rgba(255, 255, 255, 0.1);
-                color: #fff;
-            }
-            .notif-panel-list {
-                flex: 1;
-                overflow-y: auto;
-                max-height: 400px;
-            }
-            .notif-item {
-                display: flex;
-                gap: 12px;
-                padding: 16px 24px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-                cursor: pointer;
-                transition: 0.2s;
-            }
-            .notif-item:hover {
-                background: rgba(255, 255, 255, 0.03);
-            }
-            .notif-item.unread {
-                background: rgba(96, 6, 59, 0.05);
-            }
-            .notif-item-icon {
-                width: 36px;
-                height: 36px;
-                border-radius: 50%;
-                background: rgba(255, 255, 255, 0.05);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 16px;
-                flex-shrink: 0;
-            }
-            .notif-item-content {
-                flex: 1;
-                min-width: 0;
-            }
-            .notif-item-title {
-                font-size: 13px;
-                font-weight: 600;
-                color: #fff;
-                margin-bottom: 2px;
-            }
-            .notif-item-message {
-                font-size: 12px;
-                color: #888;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .notif-item-time {
-                font-size: 11px;
-                color: #555;
-                margin-top: 4px;
-            }
-            .notif-empty {
-                padding: 40px 24px;
-                text-align: center;
-                color: #666;
-            }
-            .notif-empty svg {
-                margin-bottom: 12px;
-                opacity: 0.5;
-            }
-            .notif-loading {
-                padding: 40px 24px;
-                text-align: center;
-                color: #666;
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Make panel draggable via header
-        const header = panel.querySelector('.notif-panel-header');
-        if (header) {
-            header.style.cursor = 'grab';
-            let dragging = false, ox = 0, oy = 0;
-
-            header.addEventListener('mousedown', e => {
-                if (e.target.closest('button')) return;
-                dragging = true;
-                const r = panel.getBoundingClientRect();
-                ox = e.clientX - r.left;
-                oy = e.clientY - r.top;
-                panel.style.right = 'unset';
-                header.style.cursor = 'grabbing';
-                e.preventDefault();
-            });
-
-            document.addEventListener('mousemove', e => {
-                if (!dragging) return;
-                panel.style.left = (e.clientX - ox) + 'px';
-                panel.style.top  = (e.clientY - oy) + 'px';
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (dragging) { dragging = false; header.style.cursor = 'grab'; }
-            });
-
-            // Touch
-            header.addEventListener('touchstart', e => {
-                if (e.target.closest('button')) return;
-                const t = e.touches[0];
-                const r = panel.getBoundingClientRect();
-                dragging = true;
-                ox = t.clientX - r.left;
-                oy = t.clientY - r.top;
-                panel.style.right = 'unset';
-            }, { passive: true });
-
-            document.addEventListener('touchmove', e => {
-                if (!dragging) return;
-                const t = e.touches[0];
-                panel.style.left = (t.clientX - ox) + 'px';
-                panel.style.top  = (t.clientY - oy) + 'px';
-            }, { passive: true });
-
-            document.addEventListener('touchend', () => { dragging = false; });
         }
-    }
+    `;
+    document.head.appendChild(style);
+
+    // Build panel DOM
+    const panel = document.createElement('div');
+    panel.id = 'notificationPanel';
+    panel.innerHTML = `
+        <div class="notif-panel-header">
+            <div class="notif-panel-header-left">
+                <h3>Сповіщення</h3>
+                <span id="notifUnreadCount" class="notif-unread-count"></span>
+            </div>
+            <div class="notif-panel-actions">
+                <button onclick="markAllNotificationsRead()" title="Позначити всі як прочитані">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <polyline points="9 11 12 14 22 4"></polyline>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                </button>
+                <button onclick="toggleNotificationPanel()" title="Закрити">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div id="notificationList" class="notif-panel-list">
+            <div class="notif-loading">Завантаження…</div>
+        </div>
+        <div class="notif-panel-footer">
+            <button class="notif-mark-all-btn" onclick="markAllNotificationsRead()">
+                Позначити всі як прочитані
+            </button>
+        </div>
+    `;
+    document.body.appendChild(panel);
+}
+
+// Position the panel anchored to the bell button
+function _positionNotifPanel() {
+    const panel = document.getElementById('notificationPanel');
+    const btn   = document.getElementById('notificationBtn');
+    if (!panel || !btn) return;
+
+    // Mobile: CSS handles it via @media
+    if (window.innerWidth <= 768) return;
+
+    const r = btn.getBoundingClientRect();
+    const panelH = Math.min(520, window.innerHeight - 32);
+    let top = r.top;
+    // Clamp vertically
+    if (top + panelH > window.innerHeight - 16) top = window.innerHeight - panelH - 16;
+    if (top < 16) top = 16;
+
+    panel.style.left = (r.right + 10) + 'px';
+    panel.style.top  = top + 'px';
 }
 
 function toggleNotificationPanel() {
     const panel = document.getElementById('notificationPanel');
     if (!panel) return;
-
     if (panel.classList.contains('active')) {
         panel.classList.remove('active');
     } else {
+        _positionNotifPanel();
         panel.classList.add('active');
         loadNotifications();
     }
@@ -527,13 +531,20 @@ async function loadNotifications() {
         if (!data.notifications || data.notifications.length === 0) {
             list.innerHTML = `
                 <div class="notif-empty">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                    </svg>
-                    <div>Немає сповіщень</div>
+                    <div class="notif-empty-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                    </div>
+                    <p>Сповіщень поки немає</p>
                 </div>
             `;
+            // Update unread badge/count
+            notificationCount = 0;
+            updateNotificationBadge();
+            const uc = document.getElementById('notifUnreadCount');
+            if (uc) uc.style.display = 'none';
             return;
         }
 
@@ -541,16 +552,25 @@ async function loadNotifications() {
             <div class="notif-item ${notif.is_read ? '' : 'unread'}" onclick="markNotificationRead(${notif.id})">
                 <div class="notif-item-icon">${getNotificationIcon(notif.type)}</div>
                 <div class="notif-item-content">
-                    <div class="notif-item-title">${notif.title}</div>
-                    <div class="notif-item-message">${notif.message}</div>
+                    <div class="notif-item-title">${notif.title || ''}</div>
+                    <div class="notif-item-message">${notif.message || ''}</div>
                     <div class="notif-item-time">${getTimeAgo(notif.created_at)}</div>
                 </div>
             </div>
         `).join('');
 
-        // Update badge
+        // Update badge and header unread count
         notificationCount = data.unreadCount || 0;
         updateNotificationBadge();
+        const uc = document.getElementById('notifUnreadCount');
+        if (uc) {
+            if (notificationCount > 0) {
+                uc.textContent = notificationCount;
+                uc.style.display = 'inline-flex';
+            } else {
+                uc.style.display = 'none';
+            }
+        }
 
     } catch (error) {
         console.error('Failed to load notifications:', error);
@@ -565,16 +585,19 @@ async function markNotificationRead(id) {
             credentials: 'include'
         });
 
-        // Update UI
+        // Update UI instantly
         const item = document.querySelector(`.notif-item[onclick="markNotificationRead(${id})"]`);
-        if (item) {
+        if (item && item.classList.contains('unread')) {
             item.classList.remove('unread');
-        }
-
-        // Update count
-        if (notificationCount > 0) {
-            notificationCount--;
-            updateNotificationBadge();
+            if (notificationCount > 0) {
+                notificationCount--;
+                updateNotificationBadge();
+                const uc = document.getElementById('notifUnreadCount');
+                if (uc) {
+                    if (notificationCount > 0) { uc.textContent = notificationCount; }
+                    else { uc.style.display = 'none'; }
+                }
+            }
         }
     } catch (error) {
         console.error('Failed to mark notification as read:', error);
@@ -588,13 +611,11 @@ async function markAllNotificationsRead() {
             credentials: 'include'
         });
 
-        // Update UI
-        document.querySelectorAll('.notif-item.unread').forEach(item => {
-            item.classList.remove('unread');
-        });
-
+        document.querySelectorAll('.notif-item.unread').forEach(item => item.classList.remove('unread'));
         notificationCount = 0;
         updateNotificationBadge();
+        const uc = document.getElementById('notifUnreadCount');
+        if (uc) uc.style.display = 'none';
     } catch (error) {
         console.error('Failed to mark all notifications as read:', error);
     }
