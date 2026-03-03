@@ -3351,7 +3351,7 @@
             </div>
 
             <!-- Current Position -->
-            <div class="panel-card resizable-panel" id="positionPanel" data-panel="position" data-max-height="320" style="height: 150px;">
+            <div class="panel-card resizable-panel" id="positionPanel" data-panel="position" data-max-height="450" style="height: auto; min-height: 48px;">
                 <div class="resize-handle-w" data-panel="positionPanel"></div>
                 <div class="panel-header" style="position:relative;">
                     <div class="color-edit-marker" data-target="positionPanel" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('positionPanel',this.value)"></div>
@@ -4230,7 +4230,8 @@
         let trendOverlayIdx = 0;
         let tradeOverlayGroup = 'trades-0';  // overlay group for trade markers
         let tradeOverlayIdx = 0;
-        let positionOverlayId = null;        // overlay id for position marker
+        let positionOverlayId = null;        // overlay id for position marker (legacy single)
+        let positionOverlayIds = [];         // overlay ids for all position markers
         let orderLineOverlays = new Map();   // key → overlay id (price level lines)
         let highlightOverlayIds = [];        // overlay ids for trade highlight (klinecharts)
         let statsChartOverlayIds = [];       // overlay ids for stats period markers
@@ -5096,13 +5097,15 @@
                 return;
             }
 
-            const blocks = buildPositionBlocks(allLoadedTrades);
+            const allBlocks = buildPositionBlocks(allLoadedTrades);
+            // Show only open positions
+            const blocks = allBlocks.filter(b => b.isOpen);
             _lastPositionBlocks = blocks;
             const countEl = document.getElementById('posBlockCount');
             if (countEl) countEl.textContent = blocks.length;
 
             if (blocks.length === 0) {
-                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Позиції не знайдено</div></div>';
+                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Немає відкритих позицій</div></div>';
                 return;
             }
 
@@ -7009,6 +7012,7 @@
                 rsiPaneId = null;
                 macdPaneId = null;
                 positionOverlayId = null;
+                positionOverlayIds = [];
                 orderLineOverlays.clear();
                 highlightOverlayIds = [];
             }
@@ -7380,35 +7384,50 @@
             return klinesData[lo].time;
         }
 
-        function applyPositionMarker(position, _internal) {
+        function applyPositionMarker(positionOrPositions, _internal) {
             if (markersLoading && !_internal) return;
             if (!klChart) return;
 
-            // Remove old position overlay
+            // Remove old position overlays
             if (positionOverlayId !== null) {
                 try { klChart.removeOverlay({ id: positionOverlayId }); } catch(e) {}
                 positionOverlayId = null;
             }
+            positionOverlayIds.forEach(function(oid) {
+                try { klChart.removeOverlay({ id: oid }); } catch(e) {}
+            });
+            positionOverlayIds = [];
 
-            if (!position || !position.entryPrice || position.entryPrice <= 0) {
+            // Normalize to array
+            var positions = Array.isArray(positionOrPositions)
+                ? positionOrPositions
+                : (positionOrPositions ? [positionOrPositions] : []);
+            positions = positions.filter(function(p) { return p && p.entryPrice && p.entryPrice > 0; });
+
+            if (positions.length === 0) {
                 lastKnownPosition = null;
                 return;
             }
 
-            lastKnownPosition = position;
-            const isLong = position.side === 'LONG';
+            lastKnownPosition = positions[0];
             const tsMs = klinesData.length > 0 ? klinesData[klinesData.length - 1].time * 1000 : Date.now();
 
-            try {
-                const ids = klChart.createOverlay({
-                    name: 'tradeMarker',
-                    groupId: 'position',
-                    lock: true,
-                    points: [{ timestamp: tsMs, value: parseFloat(position.entryPrice) }],
-                    extendData: { isBuy: isLong },
-                });
-                positionOverlayId = Array.isArray(ids) ? ids[0] : ids;
-            } catch(e) { console.warn('[applyPositionMarker] error:', e); }
+            positions.forEach(function(pos) {
+                const isLong = pos.side === 'LONG';
+                try {
+                    const ids = klChart.createOverlay({
+                        name: 'tradeMarker',
+                        groupId: 'position',
+                        lock: true,
+                        points: [{ timestamp: tsMs, value: parseFloat(pos.entryPrice) }],
+                        extendData: { isBuy: isLong },
+                    });
+                    const oid = Array.isArray(ids) ? ids[0] : ids;
+                    if (oid) positionOverlayIds.push(oid);
+                } catch(e) { console.warn('[applyPositionMarker] error:', e); }
+            });
+            // Keep legacy id for backward compat
+            if (positionOverlayIds.length > 0) positionOverlayId = positionOverlayIds[0];
         }
 
         async function loadTradeMarkers() {
@@ -7688,7 +7707,7 @@
                 data.limitOrders = data.limitOrders || [];
                 data.stopOrders = data.stopOrders || [];
                 data.takeProfitOrders = data.takeProfitOrders || [];
-                updatePositionPanel(data.position, data);
+                updatePositionPanel(data.positions || (data.position ? [data.position] : []), data);
                 data.canceledOrders = data.canceledOrders || [];
                 updateOrdersList(data);
 
@@ -7702,7 +7721,7 @@
                 }
 
                 // Add/update open-position entry marker on chart
-                applyPositionMarker(data.position);
+                applyPositionMarker(data.positions || data.position);
 
                 document.getElementById('chartLoading').style.display = 'none';
             } catch (error) {
@@ -8506,8 +8525,8 @@
                 // Update orders panel (position shown as first item)
                 updateOrdersList(data);
                 // Update position panel and add/remove open position marker on chart
-                updatePositionPanel(data.position, data);
-                applyPositionMarker(data.position);
+                updatePositionPanel(data.positions || (data.position ? [data.position] : []), data);
+                applyPositionMarker(data.positions || data.position);
                 // Redraw only the order lines, keeping position line from lastChartData
                 if (lastChartData) {
                     drawPriceLines({ ...lastChartData, ...data });

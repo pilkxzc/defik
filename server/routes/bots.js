@@ -737,7 +737,8 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
 
         try { allOrders = await makeReq('/fapi/v1/allOrders', { symbol, limit: 100 }); } catch (e) {}
 
-        const position          = account.positions?.find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+        const activePositions    = account.positions?.filter(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0) || [];
+        const position          = activePositions[0] || null;
         const stopOrders        = openOrders.filter(o => o.type === 'STOP' || o.type === 'STOP_MARKET' || o.type === 'TRAILING_STOP_MARKET');
         const takeProfitOrders  = openOrders.filter(o => o.type === 'TAKE_PROFIT' || o.type === 'TAKE_PROFIT_MARKET');
         const stopSet           = new Set(stopOrders.map(o => o.orderId));
@@ -779,6 +780,16 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
                 leverage:         position.leverage,
                 updateTime:       position.updateTime || null
             } : null,
+            positions: activePositions.map(p => ({
+                symbol:           p.symbol,
+                side:             parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT',
+                positionAmt:      Math.abs(parseFloat(p.positionAmt)),
+                entryPrice:       parseFloat(p.entryPrice),
+                markPrice:        parseFloat(p.markPrice),
+                unrealizedProfit: parseFloat(p.unrealizedProfit),
+                leverage:         p.leverage,
+                updateTime:       p.updateTime || null
+            })),
             limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), time: o.time })),
             stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
             takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
