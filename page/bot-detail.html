@@ -5374,6 +5374,42 @@
                 }
             }
 
+            // Highlight individual trades that belong to this position block
+            if (block.tradeIds) {
+                const ids = new Set(String(block.tradeIds).split(',').map(s => parseInt(s.trim())).filter(n => n > 0));
+                const matchingTrades = (allLoadedTrades || []).filter(t => ids.has(t.id));
+                matchingTrades.forEach(t => {
+                    const tradeMs = parseUTC(t.openedAt || t.closedAt);
+                    if (!tradeMs) return;
+                    const barTime = snapToBar(Math.floor(tradeMs / 1000));
+                    if (barTime === null) return;
+                    const tPrice = parseFloat(t.price || 0);
+                    if (tPrice <= 0) return;
+                    const tSide = (t.positionSide || t.side || '').toUpperCase();
+                    const tIsLong = tSide === 'LONG' || tSide === 'BUY';
+                    // Trade marker
+                    try {
+                        const mid = klChart.createOverlay({
+                            name: 'tradeMarker', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: barTime * 1000, value: tPrice }],
+                            extendData: { isBuy: tIsLong, _isLong: tIsLong, _isEntry: true, price: tPrice, qty: parseFloat(t.quantity || 0), time: Math.floor(tradeMs / 1000), side: tSide },
+                        });
+                        const moid = Array.isArray(mid) ? mid[0] : mid;
+                        if (moid) highlightOverlayIds.push(moid);
+                    } catch(e) {}
+                    // Glow column
+                    try {
+                        const gid = klChart.createOverlay({
+                            name: 'highlightCandle', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: barTime * 1000, value: tPrice }],
+                            extendData: { isBuy: tIsLong },
+                        });
+                        const goid = Array.isArray(gid) ? gid[0] : gid;
+                        if (goid) highlightOverlayIds.push(goid);
+                    } catch(e) {}
+                });
+            }
+
             // Scroll chart to entry candle so the position is visible and centered
             const scrollTarget = entryBarTime || (_bStartMs ? snapToBar(Math.floor(_bStartMs / 1000)) : null);
             if (scrollTarget !== null) {
