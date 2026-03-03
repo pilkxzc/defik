@@ -7149,32 +7149,51 @@
             if (!markerVisState.trend) return;
             if (!rawMarkers || rawMarkers.length === 0) return;
 
-            const allSortedMarkers = [...rawMarkers].sort((a, b) => a.time - b.time);
+            const allSortedMarkers = [...rawMarkers]
+                .filter(m => m.time > 0 && m.price && parseFloat(m.price) > 0)
+                .sort((a, b) => a.time - b.time);
 
-            // Build position windows from entry/exit markers
+            // Build position windows: continuous line while trades of same side exist.
+            // A window starts at first trade of a side and extends through all consecutive
+            // trades of the same side. It ends when the opposite side appears or when
+            // there's a closing exit with no subsequent same-side entry.
             const posWindows = [];
-            let openEntry = null;
+            let curSide = null;  // 'LONG' or 'SHORT'
+            let curFrom = null;
+            let curTo   = null;
+            let openCount = 0;   // track net open entries
+
             for (const m of allSortedMarkers) {
-                if (m.isEntry === true) {
-                    if (openEntry) {
-                        const prevTrend = (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1;
-                        const newTrend  = (m.side === 'LONG' || m.side === 'BUY') ? 1 : -1;
-                        if (prevTrend !== newTrend) {
-                            posWindows.push({ from: openEntry.time, to: m.time, trend: prevTrend });
-                        }
-                    }
-                    openEntry = m;
-                } else if (m.isEntry === false) {
-                    if (openEntry) {
-                        posWindows.push({ from: openEntry.time, to: m.time,
-                            trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
-                        openEntry = null;
-                    }
+                const mSide = (m.positionSide === 'LONG' || m.side === 'LONG' || m.side === 'BUY') ? 'LONG' : 'SHORT';
+                const isEntry = m.isEntry === true || (m.isEntry === undefined && Math.abs(m.pnl || 0) < 0.0001);
+
+                if (curSide === null) {
+                    // First trade — start a window
+                    curSide = mSide;
+                    curFrom = m.time;
+                    curTo = m.time;
+                    openCount = isEntry ? 1 : 0;
+                } else if (mSide === curSide) {
+                    // Same side — extend the window
+                    curTo = m.time;
+                    openCount += isEntry ? 1 : -1;
+                    if (openCount < 0) openCount = 0;
+                } else {
+                    // Opposite side — close current window, start new
+                    posWindows.push({ from: curFrom, to: curTo, trend: curSide === 'LONG' ? 1 : -1 });
+                    curSide = mSide;
+                    curFrom = m.time;
+                    curTo = m.time;
+                    openCount = isEntry ? 1 : 0;
                 }
             }
-            if (openEntry && klinesData.length > 0) {
-                posWindows.push({ from: openEntry.time, to: klinesData[klinesData.length - 1].time,
-                    trend: (openEntry.side === 'LONG' || openEntry.side === 'BUY') ? 1 : -1 });
+            // Close last window
+            if (curSide !== null) {
+                // If still has open entries, extend to last candle
+                const lastTime = openCount > 0 && klinesData.length > 0
+                    ? klinesData[klinesData.length - 1].time
+                    : curTo;
+                posWindows.push({ from: curFrom, to: lastTime, trend: curSide === 'LONG' ? 1 : -1 });
             }
 
             if (posWindows.length === 0) return;
