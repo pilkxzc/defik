@@ -170,6 +170,103 @@ function updateBotStats(botId) {
     }
 }
 
+// Rebuild position blocks: group consecutive same-side trades per symbol
+function rebuildPositionBlocks(botId) {
+    const MAX_BLOCKS = 5000;
+    const trades = dbAll(
+        'SELECT id, symbol, side, position_side, quantity, price, pnl, status, opened_at, closed_at FROM bot_trades WHERE bot_id = ? ORDER BY opened_at ASC',
+        [botId]
+    );
+
+    function getSide(t) {
+        const ps = (t.position_side || '').toUpperCase();
+        if (ps === 'LONG' || ps === 'SHORT') return ps;
+        const s = (t.side || '').toUpperCase();
+        return (s === 'BUY' || s === 'LONG') ? 'LONG' : 'SHORT';
+    }
+
+    // Group by symbol
+    const bySymbol = {};
+    trades.forEach(t => {
+        const sym = t.symbol || 'UNKNOWN';
+        if (!bySymbol[sym]) bySymbol[sym] = [];
+        bySymbol[sym].push(t);
+    });
+
+    const allBlocks = [];
+    for (const [sym, symTrades] of Object.entries(bySymbol)) {
+        let blockTrades = [];
+        let curSide = null;
+
+        for (const t of symTrades) {
+            const side = getSide(t);
+            if (blockTrades.length === 0 || side === curSide) {
+                blockTrades.push(t);
+                curSide = side;
+            } else {
+                allBlocks.push(buildBlockObj(sym, curSide, blockTrades));
+                blockTrades = [t];
+                curSide = side;
+            }
+        }
+        if (blockTrades.length > 0) {
+            allBlocks.push(buildBlockObj(sym, curSide, blockTrades));
+        }
+    }
+
+    // Sort by started_at ASC
+    allBlocks.sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
+
+    // Keep only last MAX_BLOCKS
+    const kept = allBlocks.slice(-MAX_BLOCKS);
+
+    // Replace all blocks in DB
+    dbRun('DELETE FROM bot_position_blocks WHERE bot_id = ?', [botId]);
+    for (const b of kept) {
+        dbRun(
+            `INSERT INTO bot_position_blocks (bot_id, symbol, side, trade_count, total_qty, avg_entry, avg_exit, total_pnl, is_open, started_at, ended_at, trade_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [botId, b.symbol, b.side, b.trade_count, b.total_qty, b.avg_entry, b.avg_exit, b.total_pnl, b.is_open ? 1 : 0, b.started_at, b.ended_at, b.trade_ids]
+        );
+    }
+    saveDatabase();
+    return kept.length;
+}
+
+function buildBlockObj(sym, side, trades) {
+    const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const totalQty = trades.reduce((s, t) => s + (t.quantity || 0), 0);
+
+    let sumEntry = 0, sumEntryW = 0;
+    trades.forEach(t => {
+        const q = t.quantity || 0;
+        const p = t.price || 0;
+        if (p > 0 && q > 0) { sumEntry += p * q; sumEntryW += q; }
+    });
+    const avgEntry = sumEntryW > 0 ? sumEntry / sumEntryW : 0;
+
+    let sumExit = 0, sumExitW = 0;
+    trades.filter(t => t.status === 'closed').forEach(t => {
+        const q = t.quantity || 0;
+        const p = t.price || 0;
+        const pnl = t.pnl || 0;
+        if (p > 0 && q > 0) {
+            const exitP = side === 'LONG' ? p + pnl / q : p - pnl / q;
+            sumExit += exitP * q;
+            sumExitW += q;
+        }
+    });
+    const avgExit = sumExitW > 0 ? sumExit / sumExitW : 0;
+
+    const startedAt = trades[0].opened_at || trades[0].closed_at;
+    const lastT = trades[trades.length - 1];
+    const endedAt = lastT.closed_at || lastT.opened_at;
+    const isOpen = trades.some(t => t.status === 'open');
+    const tradeIds = trades.map(t => t.id).join(',');
+
+    return { symbol: sym, side, trade_count: trades.length, total_qty: totalQty, avg_entry: avgEntry, avg_exit: avgExit, total_pnl: totalPnl, is_open: isOpen, started_at: startedAt, ended_at: endedAt, trade_ids: tradeIds };
+}
+
 // Fix orphaned trades: pair open entries with standalone closed exits by time/symbol/side
 function repairOrphanedTrades(botId) {
     // Standalone closed trades: inserted as closed with no matching open (binance_close_trade_id set, no binance_trade_id)
@@ -387,7 +484,7 @@ async function syncBinanceTrades(botId) {
 
         if (totalSaved > 0 || repaired > 0 || symbols.length > 0) {
             updateBotStats(botId);
-            saveDatabase();
+            rebuildPositionBlocks(botId);
         }
 
         // Reconcile any remaining open trades against actual Binance positions
@@ -502,7 +599,7 @@ async function reconcileOpenTrades(botId) {
 
         if (fixed > 0) {
             updateBotStats(botId);
-            saveDatabase();
+            rebuildPositionBlocks(botId);
             console.log(`[Bot ${botId}] reconcileOpenTrades: fixed ${fixed} trades`);
         }
         return fixed;
@@ -1083,6 +1180,49 @@ router.patch('/api/bots/:id/copy-trading', requireAuth, async (req, res) => {
     }
 });
 
+router.get('/api/bots/:id/position-blocks', requireAuth, (req, res) => {
+    try {
+        const { limit = 100, offset = 0, open } = req.query;
+        let query = 'SELECT * FROM bot_position_blocks WHERE bot_id = ?';
+        const params = [req.params.id];
+
+        if (open === '1') { query += ' AND is_open = 1'; }
+
+        const total = dbGet(`SELECT COUNT(*) as c FROM bot_position_blocks WHERE bot_id = ?${open === '1' ? ' AND is_open = 1' : ''}`, [req.params.id]);
+
+        query += ' ORDER BY started_at DESC LIMIT ? OFFSET ?';
+        params.push(parseInt(limit), parseInt(offset));
+
+        const blocks = dbAll(query, params);
+
+        res.json({
+            blocks: blocks.map(b => ({
+                id: b.id, symbol: b.symbol, side: b.side,
+                tradeCount: b.trade_count, totalQty: b.total_qty,
+                avgEntry: b.avg_entry, avgExit: b.avg_exit,
+                totalPnl: b.total_pnl, isOpen: !!b.is_open,
+                startedAt: b.started_at, endedAt: b.ended_at,
+                tradeIds: b.trade_ids
+            })),
+            total: total?.c || 0
+        });
+    } catch (error) {
+        console.error('Position blocks error:', error);
+        res.status(500).json({ error: 'Failed to fetch position blocks' });
+    }
+});
+
+// Trigger rebuild of position blocks (manual)
+router.post('/api/bots/:id/rebuild-blocks', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const count = rebuildPositionBlocks(parseInt(req.params.id));
+        res.json({ success: true, blocks: count });
+    } catch (error) {
+        console.error('Rebuild blocks error:', error);
+        res.status(500).json({ error: 'Failed to rebuild blocks' });
+    }
+});
+
 router.post('/api/bots/:id/copy-now', requireAuth, async (req, res) => {
     try {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
@@ -1168,7 +1308,8 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
             trades: trades.map(t => ({
                 id: t.id, symbol: t.symbol, side: t.side, type: t.type,
                 quantity: t.quantity, price: t.price, pnl: t.pnl, pnlPercent: t.pnl_percent,
-                status: t.status, openedAt: t.opened_at, closedAt: t.closed_at
+                status: t.status, openedAt: t.opened_at, closedAt: t.closed_at,
+                positionSide: t.position_side || null
             })),
             total: total?.count || 0
         });
@@ -1254,6 +1395,7 @@ router.post('/api/bots/:id/resync-trades', requireAuth, async (req, res) => {
 
         const before = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE bot_id = ?', [req.params.id]);
         dbRun('DELETE FROM bot_trades WHERE bot_id = ?', [req.params.id]);
+        dbRun('DELETE FROM bot_position_blocks WHERE bot_id = ?', [req.params.id]);
         saveDatabase();
 
         const result  = await syncBinanceTrades(req.params.id);

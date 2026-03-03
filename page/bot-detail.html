@@ -5089,33 +5089,52 @@
             return `${m}хв`;
         }
 
-        function renderPositionBlocks() {
+        var _posBlocksCache = [];
+        var _posBlocksLoading = false;
+
+        async function loadPositionBlocks(openOnly) {
+            if (_posBlocksLoading) return _posBlocksCache;
+            _posBlocksLoading = true;
+            try {
+                const url = `/api/bots/${botId}/position-blocks?limit=200${openOnly ? '&open=1' : ''}`;
+                const resp = await fetch(url, { credentials: 'include' });
+                if (!resp.ok) return _posBlocksCache;
+                const data = await resp.json();
+                _posBlocksCache = data.blocks || [];
+                return _posBlocksCache;
+            } catch(e) {
+                console.error('loadPositionBlocks:', e);
+                return _posBlocksCache;
+            } finally {
+                _posBlocksLoading = false;
+            }
+        }
+
+        async function renderPositionBlocks() {
             const container = document.getElementById('positionsContent');
             if (!container) return;
 
-            if (!allLoadedTrades || allLoadedTrades.length === 0) {
-                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Завантажте угоди спочатку</div></div>';
-                return;
-            }
+            container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:12px;">Завантаження...</div>';
 
-            const allBlocks = buildPositionBlocks(allLoadedTrades);
-            // Show only open positions
-            const blocks = allBlocks.filter(b => b.isOpen);
-            _lastPositionBlocks = blocks;
+            // Load all blocks from API
+            const allBlocks = await loadPositionBlocks(false);
+            const openBlocks = allBlocks.filter(b => b.isOpen);
+            _lastPositionBlocks = allBlocks;
+
             const countEl = document.getElementById('posBlockCount');
-            if (countEl) countEl.textContent = blocks.length;
+            if (countEl) countEl.textContent = allBlocks.length;
 
-            if (blocks.length === 0) {
-                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Немає відкритих позицій</div></div>';
+            if (allBlocks.length === 0) {
+                container.innerHTML = '<div style="padding:16px;"><div class="empty-state">Позицій ще немає.<br><small style="color:var(--text-tertiary)">Синхронізуйте угоди для створення блоків</small></div></div>';
                 return;
             }
 
-            // Summary bar
-            const totalPnl = blocks.reduce((s, b) => s + b.totalPnl, 0);
-            const wins = blocks.filter(b => b.totalPnl > 0).length;
-            const wr = blocks.length > 0 ? (wins / blocks.length * 100).toFixed(0) : 0;
-            const longBlocks = blocks.filter(b => b.side === 'LONG');
-            const shortBlocks = blocks.filter(b => b.side === 'SHORT');
+            // Summary bar from all blocks
+            const totalPnl = allBlocks.reduce((s, b) => s + b.totalPnl, 0);
+            const wins = allBlocks.filter(b => b.totalPnl > 0).length;
+            const wr = allBlocks.length > 0 ? (wins / allBlocks.length * 100).toFixed(0) : 0;
+            const longBlocks = allBlocks.filter(b => b.side === 'LONG');
+            const shortBlocks = allBlocks.filter(b => b.side === 'SHORT');
             const longPnl = longBlocks.reduce((s, b) => s + b.totalPnl, 0);
             const shortPnl = shortBlocks.reduce((s, b) => s + b.totalPnl, 0);
             const pnlColor = totalPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
@@ -5141,21 +5160,27 @@
                     </div>
                 </div>`;
 
-            const blocksHtml = blocks.map((b, i) => {
+            // Show open blocks on top, then closed (newest first)
+            const sorted = [...openBlocks, ...allBlocks.filter(b => !b.isOpen)];
+
+            const blocksHtml = sorted.map((b, i) => {
                 const pnlC = b.totalPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
                 const sideC = b.side === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
                 const openBadge = b.isOpen ? `<span style="font-size:9px;background:rgba(16,185,129,0.15);color:#10B981;padding:2px 6px;border-radius:9999px;margin-left:4px;">OPEN</span>` : '';
                 const entryStr = b.avgEntry > 0 ? (b.avgEntry >= 1000 ? b.avgEntry.toFixed(1) : b.avgEntry.toFixed(4)) : '—';
                 const exitStr = b.avgExit > 0 ? (b.avgExit >= 1000 ? b.avgExit.toFixed(1) : b.avgExit.toFixed(4)) : '—';
-                const dateStr = b.endTime ? new Date(b.endTime).toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' }) : '';
+                const endMs = b.endedAt ? new Date(b.endedAt).getTime() : (b.startedAt ? new Date(b.startedAt).getTime() : 0);
+                const startMs = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+                const durationMs = endMs - startMs;
+                const dateStr = endMs ? new Date(endMs).toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' }) : '';
 
                 return `
                 <div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background 0.15s;"
                      onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''"
-                     onclick="togglePositionBlockDetail(this, ${i})">
+                     onclick="highlightPositionBlockFromList(${i})">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                         <div style="display:flex;align-items:center;gap:6px;">
-                            <span style="font-size:11px;font-weight:700;">${b.sym.replace('USDT','')}</span>
+                            <span style="font-size:11px;font-weight:700;">${(b.symbol || '').replace('USDT','')}</span>
                             <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${b.side === 'LONG' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${sideC};">${b.side}</span>
                             ${openBadge}
                         </div>
@@ -5164,30 +5189,9 @@
                     <div style="display:flex;gap:12px;font-size:10px;color:var(--text-tertiary);">
                         <span>Вхід <span style="color:var(--text-secondary)">$${entryStr}</span></span>
                         <span>Вихід <span style="color:var(--text-secondary)">$${exitStr}</span></span>
-                        <span>${b.trades.length} угод</span>
-                        <span style="margin-left:auto;">${formatDuration(b.durationMs)}</span>
+                        <span>${b.tradeCount} угод</span>
+                        <span style="margin-left:auto;">${formatDuration(durationMs)}</span>
                         <span>${dateStr}</span>
-                    </div>
-                    <div class="pos-block-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.04);">
-                        ${b.trades.map(t => {
-                            const ts = (t.side || '').toUpperCase();
-                            const tc = ts === 'BUY' || ts === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
-                            const tp = parseFloat(t.pnl || 0);
-                            const tPrice = parseFloat(t.price || 0);
-                            const tQty = parseFloat(t.quantity || t.qty || 0);
-                            const fmtPr = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
-                            let exitP = '';
-                            if (t.status === 'closed' && tPrice > 0 && tQty > 0) {
-                                const ep = b.side === 'LONG' ? tPrice + tp / tQty : tPrice - tp / tQty;
-                                exitP = '→ $' + fmtPr(ep);
-                            }
-                            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px;">
-                                <span style="color:${tc};font-weight:600;">${ts}</span>
-                                <span style="color:var(--text-secondary)">$${fmtPr(tPrice)} ${exitP}</span>
-                                <span style="color:var(--text-tertiary)">${tQty.toFixed(4)}</span>
-                                <span style="color:${tp >= 0 ? 'var(--color-long)' : 'var(--color-short)'};">${tp >= 0 ? '+' : ''}$${Math.abs(tp).toFixed(2)}</span>
-                            </div>`;
-                        }).join('')}
                     </div>
                 </div>`;
             }).join('');
@@ -5196,6 +5200,23 @@
 
             // Draw position zones on chart (limit to recent 30 to avoid overload)
             drawPositionBlockZones(allBlocks.slice(0, 30));
+        }
+
+        function highlightPositionBlockFromList(idx) {
+            const openBlocks = _lastPositionBlocks.filter(b => b.isOpen);
+            const sorted = [...openBlocks, ..._lastPositionBlocks.filter(b => !b.isOpen)];
+            const block = sorted[idx];
+            if (!block) return;
+            // Navigate chart to this block's time range
+            const startMs = block.startedAt ? new Date(block.startedAt).getTime() : 0;
+            if (startMs && klChart) {
+                klChart.scrollToTimestamp(startMs);
+                var cw = document.getElementById('chartContainer');
+                var halfW = cw ? cw.offsetWidth / 2 : 300;
+                setTimeout(function() {
+                    try { klChart.scrollByDistance(-halfW, 300); } catch(e) {}
+                }, 20);
+            }
         }
 
         var _posBlockZoneIds = [];
@@ -5211,10 +5232,10 @@
             if (!displaySettings.trades) return; // respect trades toggle
 
             blocks.forEach(function(b) {
-                if (!b.startTime || !b.endTime) return;
-                // Use startTime of first trade and endTime of last trade (or now if open)
-                var t1 = b.startTime;
-                var t2 = b.isOpen ? Date.now() : b.endTime;
+                // Support both old format (startTime/endTime ms) and new API format (startedAt/endedAt ISO)
+                var t1 = b.startTime || (b.startedAt ? new Date(b.startedAt).getTime() : 0);
+                var t2 = b.isOpen ? Date.now() : (b.endTime || (b.endedAt ? new Date(b.endedAt).getTime() : 0));
+                if (!t1 || !t2) return;
                 if (t1 >= t2) t2 = t1 + 60000; // min 1 min width
 
                 try {
@@ -5236,16 +5257,10 @@
 
         let _reconcileInFlight = false;
         async function reconcileAndRenderPositions() {
-            renderPositionBlocks(); // render immediately with current data
+            // Blocks are now stored server-side — just load & render
+            await renderPositionBlocks();
 
-            // Load all remaining trade pages so positions are complete (with delay to avoid 429)
-            while (tradeHistoryHasMore && !tradeHistoryLoading) {
-                await loadFullTradeHistory();
-                if (tradeHistoryHasMore) await new Promise(r => setTimeout(r, 300));
-            }
-            if (allLoadedTrades.length > 0) renderPositionBlocks();
-
-            // Reconcile open trades on Binance
+            // Reconcile open trades on Binance (triggers rebuild on server)
             if (_reconcileInFlight) return;
             _reconcileInFlight = true;
             try {
@@ -5254,13 +5269,8 @@
                 });
                 const data = await resp.json();
                 if (data.fixed > 0) {
-                    // Trades were updated — reload all trade history and re-render
-                    await loadFullTradeHistory(true);
-                    while (tradeHistoryHasMore && !tradeHistoryLoading) {
-                        await loadFullTradeHistory();
-                        if (tradeHistoryHasMore) await new Promise(r => setTimeout(r, 300));
-                    }
-                    renderPositionBlocks();
+                    // Blocks were rebuilt on server — reload
+                    await renderPositionBlocks();
                 }
             } catch(e) {
                 console.log('[reconcile] error:', e.message);
@@ -5272,16 +5282,12 @@
         function togglePositionBlockDetail(row, idx) {
             const detail = row.querySelector('.pos-block-detail');
             if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
-
-            // Highlight position block on chart
-            const block = _lastPositionBlocks[idx];
-            if (block) highlightPositionBlock(block);
         }
 
         let _pendingBlockHighlight = null;
         function highlightPositionBlock(block) {
             // Switch symbol if the block belongs to a different pair
-            const blockSymbol = (block.sym || '').toUpperCase().replace(/^[^:]+:/, '');
+            const blockSymbol = (block.symbol || block.sym || '').toUpperCase().replace(/^[^:]+:/, '');
             if (blockSymbol && blockSymbol !== currentSymbol) {
                 _pendingBlockHighlight = block;
                 changeSymbol(blockSymbol);
@@ -5325,8 +5331,9 @@
 
             // Entry marker + glow at first trade's candle
             let entryBarTime = null;
-            if (block.startTime) {
-                entryBarTime = snapToBar(Math.floor(block.startTime / 1000));
+            const _bStartMs = block.startTime || (block.startedAt ? new Date(block.startedAt).getTime() : 0);
+            if (_bStartMs) {
+                entryBarTime = snapToBar(Math.floor(_bStartMs / 1000));
                 if (entryBarTime !== null) {
                     try {
                         const id = klChart.createOverlay({
@@ -5351,8 +5358,9 @@
 
             // Exit marker + glow at last trade's candle
             let exitBarTime = null;
-            if (block.endTime && block.avgExit > 0) {
-                exitBarTime = snapToBar(Math.floor(block.endTime / 1000));
+            const _bEndMs = block.endTime || (block.endedAt ? new Date(block.endedAt).getTime() : 0);
+            if (_bEndMs && block.avgExit > 0) {
+                exitBarTime = snapToBar(Math.floor(_bEndMs / 1000));
                 if (exitBarTime !== null) {
                     try {
                         const id = klChart.createOverlay({
@@ -5376,7 +5384,7 @@
             }
 
             // Scroll chart to entry candle so the position is visible and centered
-            const scrollTarget = entryBarTime || (block.startTime ? snapToBar(Math.floor(block.startTime / 1000)) : null);
+            const scrollTarget = entryBarTime || (_bStartMs ? snapToBar(Math.floor(_bStartMs / 1000)) : null);
             if (scrollTarget !== null) {
                 try {
                     klChart.scrollToTimestamp(scrollTarget * 1000);
@@ -5391,19 +5399,23 @@
             // Show position info in tradeInfoOverlay
             const pnlSign = block.totalPnl >= 0 ? '+' : '';
             const pnlC = block.totalPnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
-            const startDt = block.startTime ? new Date(block.startTime) : null;
-            const endDt = block.endTime ? new Date(block.endTime) : null;
+            const startDt = _bStartMs ? new Date(_bStartMs) : null;
+            const endDt = _bEndMs ? new Date(_bEndMs) : null;
             const dtFmt = { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' };
-            document.getElementById('tioTitle').textContent = `${isLong ? '↑ LONG' : '↓ SHORT'} ${block.sym.replace('USDT', '')}`;
+            const _bSymbol = block.symbol || block.sym || '';
+            const _bQty = block.totalQty || block.total_qty || 0;
+            const _bTradeCount = block.tradeCount || (block.trades ? block.trades.length : 0);
+            const _bDuration = block.durationMs || (_bEndMs && _bStartMs ? _bEndMs - _bStartMs : 0);
+            document.getElementById('tioTitle').textContent = `${isLong ? '↑ LONG' : '↓ SHORT'} ${_bSymbol.replace('USDT', '')}`;
             document.getElementById('tioBody').innerHTML = `
                 <div class="tio-row"><span class="tio-label">Відкрито</span><span class="tio-value">${startDt ? startDt.toLocaleString('uk-UA', dtFmt) : '—'}</span></div>
                 ${endDt ? `<div class="tio-row"><span class="tio-label">Закрито</span><span class="tio-value">${endDt.toLocaleString('uk-UA', dtFmt)}</span></div>` : ''}
                 <div class="tio-row"><span class="tio-label">Вхід</span><span class="tio-value">${block.avgEntry > 0 ? '$' + fmtP(block.avgEntry) : '—'}</span></div>
                 <div class="tio-row"><span class="tio-label">Вихід</span><span class="tio-value">${block.avgExit > 0 ? '$' + fmtP(block.avgExit) : '—'}</span></div>
-                <div class="tio-row"><span class="tio-label">Кіл.</span><span class="tio-value">${block.totalQty.toFixed(4)}</span></div>
-                <div class="tio-row"><span class="tio-label">Угод</span><span class="tio-value">${block.trades.length}</span></div>
+                <div class="tio-row"><span class="tio-label">Кіл.</span><span class="tio-value">${_bQty.toFixed(4)}</span></div>
+                <div class="tio-row"><span class="tio-label">Угод</span><span class="tio-value">${_bTradeCount}</span></div>
                 <div class="tio-row"><span class="tio-label">PNL</span><span class="tio-value" style="color:${pnlC}">${pnlSign}$${Math.abs(block.totalPnl).toFixed(2)}</span></div>
-                ${block.durationMs > 0 ? `<div class="tio-row"><span class="tio-label">Тривалість</span><span class="tio-value">${formatDuration(block.durationMs)}</span></div>` : ''}
+                ${_bDuration > 0 ? `<div class="tio-row"><span class="tio-label">Тривалість</span><span class="tio-value">${formatDuration(_bDuration)}</span></div>` : ''}
                 ${block.isOpen ? `<div class="tio-row"><span class="tio-label">Статус</span><span class="tio-value" style="color:#F59E0B">OPEN</span></div>` : ''}
             `;
             document.getElementById('tradeInfoOverlay').style.display = 'block';

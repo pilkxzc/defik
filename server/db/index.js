@@ -266,6 +266,26 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bot_trades ADD COLUMN binance_trade_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_trades ADD COLUMN binance_close_trade_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_trades ADD COLUMN position_side TEXT'); } catch(e) {}
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bot_position_blocks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bot_id INTEGER NOT NULL,
+            symbol TEXT NOT NULL,
+            side TEXT NOT NULL,
+            trade_count INTEGER DEFAULT 0,
+            total_qty REAL DEFAULT 0,
+            avg_entry REAL DEFAULT 0,
+            avg_exit REAL DEFAULT 0,
+            total_pnl REAL DEFAULT 0,
+            is_open INTEGER DEFAULT 0,
+            started_at TEXT,
+            ended_at TEXT,
+            trade_ids TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bot_id) REFERENCES bots(id)
+        )
+    `);
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_trades_binance_id ON bot_trades(bot_id, binance_trade_id) WHERE binance_trade_id IS NOT NULL'); } catch(e) {}
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_trades_close_id ON bot_trades(bot_id, binance_close_trade_id) WHERE binance_close_trade_id IS NOT NULL'); } catch(e) {}
 
