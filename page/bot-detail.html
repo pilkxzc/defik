@@ -4955,13 +4955,15 @@
             const pnlClass = pnl >= 0 ? 'positive' : 'negative';
             const sideClass = (t.side === 'BUY' || t.side === 'LONG') ? 'long' : 'short';
             const sideLabel = (t.side === 'BUY' || t.side === 'LONG') ? 'LONG' : 'SHORT';
-            const dt = t.closedAt ? new Date(t.closedAt).toLocaleString('uk-UA', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'UTC' }) : '—';
+            const dtFmt = { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'UTC' };
+            const openDt = t.openedAt ? new Date(t.openedAt).toLocaleString('uk-UA', dtFmt) : '—';
+            const closeDt = t.closedAt ? new Date(t.closedAt).toLocaleString('uk-UA', dtFmt) : (t.status === 'open' ? '<span style="color:#F59E0B">OPEN</span>' : '—');
             return `<tr class="trade-row" data-trade='${JSON.stringify(t).replace(/'/g, "&#39;")}'>
                 <td><div class="trade-symbol"><span class="trade-side ${sideClass}">${sideLabel}</span>${(t.symbol || '').replace('USDT', '')}</div></td>
                 <td>$${formatPrice(parseFloat(t.price || 0))}</td>
                 <td>${parseFloat(t.quantity || 0).toFixed(4)}</td>
                 <td class="trade-pnl ${pnlClass}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
-                <td style="color:var(--text-tertiary);font-size:11px;">${dt}</td>
+                <td style="color:var(--text-tertiary);font-size:10px;line-height:1.4;">${openDt}<br>${closeDt}</td>
             </tr>`;
         }
 
@@ -5172,7 +5174,9 @@
                 const endMs = b.endedAt ? new Date(b.endedAt).getTime() : (b.startedAt ? new Date(b.startedAt).getTime() : 0);
                 const startMs = b.startedAt ? new Date(b.startedAt).getTime() : 0;
                 const durationMs = endMs - startMs;
-                const dateStr = endMs ? new Date(endMs).toLocaleDateString('uk-UA', { month: 'short', day: 'numeric' }) : '';
+                const _dtFmt = { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'UTC' };
+                const openStr = startMs ? new Date(startMs).toLocaleString('uk-UA', _dtFmt) : '—';
+                const closeStr = b.isOpen ? '<span style="color:#F59E0B">OPEN</span>' : (endMs ? new Date(endMs).toLocaleString('uk-UA', _dtFmt) : '—');
 
                 return `
                 <div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background 0.15s;"
@@ -5191,7 +5195,10 @@
                         <span>Вихід <span style="color:var(--text-secondary)">$${exitStr}</span></span>
                         <span>${b.tradeCount} угод</span>
                         <span style="margin-left:auto;">${formatDuration(durationMs)}</span>
-                        <span>${dateStr}</span>
+                    </div>
+                    <div style="display:flex;gap:8px;font-size:9px;color:var(--text-tertiary);margin-top:3px;">
+                        <span>Відкр: <span style="color:var(--text-secondary)">${openStr}</span></span>
+                        <span>Закр: ${closeStr}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -9557,7 +9564,7 @@
                                     <th class="sortable" data-sort="price" onclick="setTradesSort('price')">Ціна <span class="sort-arrow">▼</span></th>
                                     <th class="sortable" data-sort="qty" onclick="setTradesSort('qty')">Кіл. <span class="sort-arrow">▼</span></th>
                                     <th class="sortable" data-sort="pnl" onclick="setTradesSort('pnl')">PNL <span class="sort-arrow">▼</span></th>
-                                    <th class="sortable sorted" data-sort="time" onclick="setTradesSort('time')">Час <span class="sort-arrow">▼</span></th>
+                                    <th class="sortable sorted" data-sort="time" onclick="setTradesSort('time')">Відкр / Закр <span class="sort-arrow">▼</span></th>
                                 </tr>
                             </thead>
                             <tbody id="tradesTableBody"></tbody>

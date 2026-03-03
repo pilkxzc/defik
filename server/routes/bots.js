@@ -482,7 +482,19 @@ async function syncBinanceTrades(botId) {
         // Repair any orphaned open/closed pairs created by out-of-order processing
         const repaired = repairOrphanedTrades(botId);
 
-        if (totalSaved > 0 || repaired > 0 || symbols.length > 0) {
+        // Fix closed trades missing closed_at timestamp
+        const missingCloseTime = dbAll(
+            "SELECT id, opened_at FROM bot_trades WHERE bot_id = ? AND status = 'closed' AND (closed_at IS NULL OR closed_at = '')",
+            [botId]
+        );
+        if (missingCloseTime.length > 0) {
+            missingCloseTime.forEach(t => {
+                dbRun('UPDATE bot_trades SET closed_at = ? WHERE id = ?', [t.opened_at || new Date().toISOString(), t.id]);
+            });
+            console.log(`[Bot ${botId}] Fixed ${missingCloseTime.length} closed trades missing closed_at`);
+        }
+
+        if (totalSaved > 0 || repaired > 0 || symbols.length > 0 || missingCloseTime.length > 0) {
             updateBotStats(botId);
             rebuildPositionBlocks(botId);
         }
