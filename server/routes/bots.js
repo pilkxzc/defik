@@ -314,10 +314,15 @@ function repairOrphanedTrades(botId) {
         }
         if (match) {
             // Merge: update the open entry to become the complete closed trade
-            dbRun(
-                `UPDATE bot_trades SET status = 'closed', pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?`,
-                [closed.pnl, closed.closed_at, closed.binance_close_trade_id, match.id]
-            );
+            const closeId = closed.binance_close_trade_id;
+            const existingClose = closeId ? dbGet('SELECT id FROM bot_trades WHERE bot_id = ? AND binance_close_trade_id = ? AND id != ?', [botId, closeId, match.id]) : null;
+            if (existingClose) {
+                dbRun(`UPDATE bot_trades SET status = 'closed', pnl = ?, closed_at = ? WHERE id = ?`,
+                    [closed.pnl, closed.closed_at, match.id]);
+            } else {
+                dbRun(`UPDATE bot_trades SET status = 'closed', pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?`,
+                    [closed.pnl, closed.closed_at, closeId, match.id]);
+            }
             // Delete the duplicate standalone closed entry
             dbRun('DELETE FROM bot_trades WHERE id = ?', [closed.id]);
             // Remove matched open from the pool
@@ -586,10 +591,17 @@ async function reconcileOpenTrades(botId) {
                     if (closingFill) {
                         const pnl      = parseFloat(closingFill.realizedPnl);
                         const closedAt = new Date(closingFill.time).toISOString();
-                        dbRun(
-                            'UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?',
-                            ['closed', pnl, closedAt, closingFill.id.toString(), trade.id]
-                        );
+                        const closeId  = closingFill.id.toString();
+                        // Check if this close ID is already used by another trade
+                        const existing = dbGet('SELECT id FROM bot_trades WHERE bot_id = ? AND binance_close_trade_id = ? AND id != ?', [botId, closeId, trade.id]);
+                        if (existing) {
+                            // Close without the duplicate binance_close_trade_id
+                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ? WHERE id = ?',
+                                ['closed', pnl, closedAt, trade.id]);
+                        } else {
+                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?',
+                                ['closed', pnl, closedAt, closeId, trade.id]);
+                        }
                         console.log(`[Bot ${botId}] reconcile: closed trade ${trade.id} (${symbol}) pnl=${pnl}`);
                     } else {
                         // No closing fill found in recent history — still force-close so it doesn't stay stuck

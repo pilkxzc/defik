@@ -535,12 +535,31 @@ async function initDatabase() {
     console.log('Database initialized');
 }
 
+let _saveTimer = null;
+let _lastSaveTime = 0;
+
 function saveDatabase() {
+    // Debounce: wait 2s after last write, but force save every 10s
+    const now = Date.now();
+    if (_saveTimer) clearTimeout(_saveTimer);
+
+    const timeSinceLastSave = now - _lastSaveTime;
+    if (timeSinceLastSave >= 10000) {
+        // Force immediate save if it's been 10s+
+        _saveDatabaseNow();
+    } else {
+        // Debounce — save 2s after last call
+        _saveTimer = setTimeout(_saveDatabaseNow, 2000);
+    }
+}
+
+function _saveDatabaseNow() {
+    if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
     try {
         const data   = db.export();
         const buffer = Buffer.from(data);
         fs.writeFileSync(DB_PATH, buffer);
-        console.log(`Database saved (${buffer.length} bytes)`);
+        _lastSaveTime = Date.now();
     } catch (error) {
         console.error('Error saving database:', error);
     }
