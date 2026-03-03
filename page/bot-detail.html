@@ -4909,8 +4909,9 @@
         let _lastPositionBlocks = []; // stored for chart highlight on click
 
         function buildPositionBlocks(trades) {
-            // Group trades into position blocks per symbol
-            // Uses status + pnl to identify entry vs exit (works for both LONG and SHORT)
+            // Each trade row = one round-trip (entry→exit in same DB row).
+            // `price` = entry price, `pnl` = realized P&L, `side` = BUY (LONG) or SELL (SHORT).
+            // Group trades that were concurrently open on the same symbol into one position block.
             const bySymbol = {};
             trades.forEach(t => {
                 const sym = t.symbol || t.pair || currentSymbol;
@@ -4920,133 +4921,80 @@
 
             const blocks = [];
             Object.keys(bySymbol).forEach(sym => {
-                const symTrades = bySymbol[sym].slice().sort((a, b) => parseUTC(a.openedAt || a.closedAt) - parseUTC(b.openedAt || b.closedAt));
+                const symTrades = bySymbol[sym].slice().sort((a, b) =>
+                    parseUTC(a.openedAt || a.closedAt) - parseUTC(b.openedAt || b.closedAt)
+                );
                 let blockTrades = [];
-                let netQty = 0;
+                let blockCloseTime = 0; // latest closedAt in current block (ms)
 
                 symTrades.forEach(t => {
-                    const qty = parseFloat(t.quantity || t.qty || 0);
-                    const pnl = parseFloat(t.pnl || 0);
-                    const isStandalone = t.status === 'closed' && pnl !== 0 && t.openedAt === t.closedAt;
-                    const isEntry = t.status === 'open' || (t.status !== 'closed' && pnl === 0);
-                    const isExit = t.status === 'closed' && pnl !== 0 && !isStandalone;
+                    const openMs  = parseUTC(t.openedAt || t.closedAt) || 0;
+                    const closeMs = parseUTC(t.closedAt) || 0;
+                    const isClosed = t.status === 'closed' && closeMs > 0;
 
-                    if (isStandalone) {
-                        // Standalone closed trade — its own complete block
-                        if (blockTrades.length > 0) {
-                            const b = buildBlock(sym, blockTrades);
-                            b.isOpen = true;
-                            blocks.push(b);
-                            blockTrades = [];
-                            netQty = 0;
-                        }
-                        blocks.push(buildBlock(sym, [t]));
-                        return;
-                    }
-
-                    blockTrades.push(t);
-                    if (isEntry) netQty += qty;
-                    else if (isExit) netQty = Math.max(0, netQty - qty);
-
-                    // Close block when position returns to ~0
-                    if (netQty < 0.0001 && blockTrades.length > 0) {
+                    if (blockTrades.length === 0 || openMs <= blockCloseTime) {
+                        // Overlaps with current block → same position
+                        blockTrades.push(t);
+                        blockCloseTime = isClosed
+                            ? Math.max(blockCloseTime, closeMs)
+                            : Infinity;
+                    } else {
+                        // Opened after all previous closed → new position
                         blocks.push(buildBlock(sym, blockTrades));
-                        blockTrades = [];
-                        netQty = 0;
+                        blockTrades = [t];
+                        blockCloseTime = isClosed ? closeMs : Infinity;
                     }
                 });
 
-                // Remaining unclosed block
                 if (blockTrades.length > 0) {
                     const b = buildBlock(sym, blockTrades);
-                    b.isOpen = true;
+                    if (blockCloseTime === Infinity || blockTrades.some(t => t.status === 'open')) {
+                        b.isOpen = true;
+                    }
                     blocks.push(b);
                 }
             });
 
-            // Sort blocks by end time descending
             blocks.sort((a, b) => (b.endTime || b.startTime) - (a.endTime || a.startTime));
             return blocks;
         }
 
         function buildBlock(sym, trades) {
             const totalPnl = trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
+            const totalQty = trades.reduce((s, t) => s + parseFloat(t.quantity || t.qty || 0), 0);
 
-            // Identify entries and exits by status/pnl, not by side
-            const entries = [];
-            const exits = [];
-            const isStandalone = trades.length === 1 && trades[0].status === 'closed'
-                && parseFloat(trades[0].pnl || 0) !== 0 && trades[0].openedAt === trades[0].closedAt;
+            // Side from first trade: BUY/LONG → LONG, SELL/SHORT → SHORT
+            const firstSide = (trades[0].side || '').toUpperCase();
+            const side = (firstSide === 'BUY' || firstSide === 'LONG') ? 'LONG' : 'SHORT';
 
+            // Avg entry = weighted avg of `price` field (= entry price in DB)
+            let sumEntry = 0, sumEntryW = 0;
             trades.forEach(t => {
+                const q = parseFloat(t.quantity || t.qty || 0);
+                const p = parseFloat(t.price || 0);
+                if (p > 0 && q > 0) { sumEntry += p * q; sumEntryW += q; }
+            });
+            const avgEntry = sumEntryW > 0 ? sumEntry / sumEntryW : 0;
+
+            // Avg exit = derived from entry price + pnl for closed trades
+            // LONG: exitPrice = entryPrice + pnl/qty
+            // SHORT: exitPrice = entryPrice - pnl/qty
+            let sumExit = 0, sumExitW = 0;
+            trades.filter(t => t.status === 'closed').forEach(t => {
+                const q = parseFloat(t.quantity || t.qty || 0);
+                const p = parseFloat(t.price || 0);
                 const pnl = parseFloat(t.pnl || 0);
-                if (isStandalone) {
-                    exits.push(t);
-                } else if (t.status === 'open' || (t.status !== 'closed' && pnl === 0)) {
-                    entries.push(t);
-                } else if (t.status === 'closed' && pnl !== 0) {
-                    exits.push(t);
+                if (p > 0 && q > 0) {
+                    const exitP = side === 'LONG' ? p + pnl / q : p - pnl / q;
+                    sumExit += exitP * q;
+                    sumExitW += q;
                 }
             });
+            const avgExit = sumExitW > 0 ? sumExit / sumExitW : 0;
 
-            // Determine side from entries, or from standalone exit (opposite of side)
-            let side;
-            if (entries.length > 0) {
-                const entrySide = (entries[0].side || '').toUpperCase();
-                side = (entrySide === 'BUY' || entrySide === 'LONG') ? 'LONG' : 'SHORT';
-            } else if (isStandalone) {
-                const exitSide = (trades[0].side || '').toUpperCase();
-                side = (exitSide === 'BUY') ? 'SHORT' : 'LONG';
-            } else {
-                side = 'LONG';
-            }
-
-            // Avg entry price (weighted by qty)
-            let avgEntry = 0;
-            if (entries.length > 0) {
-                let totalWt = 0, sumWt = 0;
-                entries.forEach(t => {
-                    const q = parseFloat(t.quantity || t.qty || 0);
-                    const p = parseFloat(t.entryPrice || t.price || 0);
-                    sumWt += p * q;
-                    totalWt += q;
-                });
-                avgEntry = totalWt > 0 ? sumWt / totalWt : 0;
-            } else if (isStandalone) {
-                const t = trades[0];
-                const p = parseFloat(t.exitPrice || t.price || 0);
-                const pnl = parseFloat(t.pnl || 0);
-                const q = parseFloat(t.quantity || t.qty || 0);
-                if (q > 0) {
-                    avgEntry = side === 'LONG' ? p - pnl / q : p + pnl / q;
-                }
-            }
-
-            // Avg exit price
-            let avgExit = 0;
-            if (exits.length > 0) {
-                let totalWt = 0, sumWt = 0;
-                exits.forEach(t => {
-                    const q = parseFloat(t.quantity || t.qty || 0);
-                    let p = parseFloat(t.exitPrice || 0);
-                    if (!p || p === 0) {
-                        const ep = parseFloat(t.entryPrice || t.price || 0);
-                        const pnl = parseFloat(t.pnl || 0);
-                        if (ep > 0 && q > 0) {
-                            p = side === 'LONG' ? ep + pnl / q : ep - pnl / q;
-                        } else {
-                            p = parseFloat(t.price || 0);
-                        }
-                    }
-                    sumWt += p * q;
-                    totalWt += q;
-                });
-                avgExit = totalWt > 0 ? sumWt / totalWt : 0;
-            }
-
-            const totalQty = (entries.length > 0 ? entries : exits).reduce((s, t) => s + parseFloat(t.quantity || t.qty || 0), 0);
             const startTime = parseUTC(trades[0].openedAt || trades[0].closedAt);
-            const endTime = parseUTC(trades[trades.length - 1].closedAt || trades[trades.length - 1].openedAt);
+            const lastTrade = trades[trades.length - 1];
+            const endTime = parseUTC(lastTrade.closedAt || lastTrade.openedAt);
             const durationMs = endTime - startTime;
 
             return { sym, trades, totalPnl, avgEntry, avgExit, totalQty, startTime, endTime, durationMs, side, isOpen: false };
@@ -5143,10 +5091,18 @@
                             const ts = (t.side || '').toUpperCase();
                             const tc = ts === 'BUY' || ts === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
                             const tp = parseFloat(t.pnl || 0);
+                            const tPrice = parseFloat(t.price || 0);
+                            const tQty = parseFloat(t.quantity || t.qty || 0);
+                            const fmtPr = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
+                            let exitP = '';
+                            if (t.status === 'closed' && tPrice > 0 && tQty > 0) {
+                                const ep = b.side === 'LONG' ? tPrice + tp / tQty : tPrice - tp / tQty;
+                                exitP = '→ $' + fmtPr(ep);
+                            }
                             return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px;">
                                 <span style="color:${tc};font-weight:600;">${ts}</span>
-                                <span style="color:var(--text-secondary)">$${parseFloat(t.entryPrice || t.price || 0).toFixed(4)}</span>
-                                <span style="color:var(--text-tertiary)">${parseFloat(t.quantity || t.qty || 0).toFixed(4)}</span>
+                                <span style="color:var(--text-secondary)">$${fmtPr(tPrice)} ${exitP}</span>
+                                <span style="color:var(--text-tertiary)">${tQty.toFixed(4)}</span>
                                 <span style="color:${tp >= 0 ? 'var(--color-long)' : 'var(--color-short)'};">${tp >= 0 ? '+' : ''}$${Math.abs(tp).toFixed(2)}</span>
                             </div>`;
                         }).join('')}
@@ -5166,7 +5122,17 @@
             if (block) highlightPositionBlock(block);
         }
 
+        let _pendingBlockHighlight = null;
         function highlightPositionBlock(block) {
+            // Switch symbol if the block belongs to a different pair
+            const blockSymbol = (block.sym || '').toUpperCase().replace(/^[^:]+:/, '');
+            if (blockSymbol && blockSymbol !== currentSymbol) {
+                _pendingBlockHighlight = block;
+                changeSymbol(blockSymbol);
+                return;
+            }
+            _pendingBlockHighlight = null;
+
             clearTradeHighlight(false);
             if (!klChart || klinesData.length < 2) return;
 
@@ -5201,47 +5167,62 @@
                 } catch(e) {}
             }
 
-            // Entry marker at first trade's candle
+            // Entry marker + glow at first trade's candle
+            let entryBarTime = null;
             if (block.startTime) {
-                const barTime = snapToBar(Math.floor(block.startTime / 1000));
-                if (barTime !== null) {
+                entryBarTime = snapToBar(Math.floor(block.startTime / 1000));
+                if (entryBarTime !== null) {
                     try {
                         const id = klChart.createOverlay({
                             name: 'tradeMarker', groupId: 'highlight', lock: true,
-                            points: [{ timestamp: barTime * 1000, value: block.avgEntry || 0 }],
+                            points: [{ timestamp: entryBarTime * 1000, value: block.avgEntry || 0 }],
                             extendData: { isBuy: isLong },
                         });
                         const oid = Array.isArray(id) ? id[0] : id;
                         if (oid) highlightOverlayIds.push(oid);
                     } catch(e) {}
+                    try {
+                        const gid = klChart.createOverlay({
+                            name: 'highlightCandle', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: entryBarTime * 1000, value: block.avgEntry || 0 }],
+                            extendData: { isBuy: isLong },
+                        });
+                        const goid = Array.isArray(gid) ? gid[0] : gid;
+                        if (goid) highlightOverlayIds.push(goid);
+                    } catch(e) {}
                 }
             }
 
-            // Exit marker at last trade's candle
+            // Exit marker + glow at last trade's candle
+            let exitBarTime = null;
             if (block.endTime && block.avgExit > 0) {
-                const barTime = snapToBar(Math.floor(block.endTime / 1000));
-                if (barTime !== null) {
+                exitBarTime = snapToBar(Math.floor(block.endTime / 1000));
+                if (exitBarTime !== null) {
                     try {
                         const id = klChart.createOverlay({
                             name: 'tradeMarker', groupId: 'highlight', lock: true,
-                            points: [{ timestamp: barTime * 1000, value: block.avgExit }],
+                            points: [{ timestamp: exitBarTime * 1000, value: block.avgExit }],
                             extendData: { isBuy: !isLong },
                         });
                         const oid = Array.isArray(id) ? id[0] : id;
                         if (oid) highlightOverlayIds.push(oid);
                     } catch(e) {}
+                    try {
+                        const gid = klChart.createOverlay({
+                            name: 'highlightCandle', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: exitBarTime * 1000, value: block.avgExit }],
+                            extendData: { isBuy: !isLong },
+                        });
+                        const goid = Array.isArray(gid) ? gid[0] : gid;
+                        if (goid) highlightOverlayIds.push(goid);
+                    } catch(e) {}
                 }
             }
 
-            // Scroll chart to midpoint of position timeframe
-            const midTime = block.startTime && block.endTime
-                ? Math.floor((block.startTime + block.endTime) / 2000)
-                : block.startTime ? Math.floor(block.startTime / 1000) : null;
-            if (midTime) {
-                const barTime = snapToBar(midTime);
-                if (barTime !== null) {
-                    try { klChart.scrollToTimestamp(barTime * 1000, 300); } catch(e) {}
-                }
+            // Scroll chart to entry candle so the position is visible and centered
+            const scrollTarget = entryBarTime || (block.startTime ? snapToBar(Math.floor(block.startTime / 1000)) : null);
+            if (scrollTarget !== null) {
+                try { klChart.scrollToTimestamp(scrollTarget * 1000, 300); } catch(e) {}
             }
 
             // Show position info in tradeInfoOverlay
@@ -6720,7 +6701,7 @@
                         const isLong = ed.isLong;
                         const dir = isLong ? -1 : 1; // -1 = up, 1 = down
                         const stripH = 10; // px per strip
-                        const strips = 4;
+                        const strips = 6;
                         for (let i = 0; i < strips; i++) {
                             const y1 = dir * i * stripH;
                             const y2 = dir * (i + 1) * stripH;
@@ -7170,6 +7151,11 @@
                     const ph = _pendingHighlight;
                     _pendingHighlight = null;
                     highlightTrade(ph.trade, ph.rowEl, ph.noNavigate);
+                }
+                if (_pendingBlockHighlight) {
+                    const pb = _pendingBlockHighlight;
+                    _pendingBlockHighlight = null;
+                    highlightPositionBlock(pb);
                 }
             });
         }
