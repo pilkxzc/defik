@@ -25,7 +25,6 @@ function stripHtml(html = '') {
         .replace(/\s+/g, ' ').trim();
 }
 
-// Minimal RSS parser — no deps needed
 function parseRSS(xml) {
     const items = [];
     const re = /<item>([\s\S]*?)<\/item>/g;
@@ -49,14 +48,15 @@ function parseRSS(xml) {
     return items;
 }
 
-async function safeFetch(url, opts = {}, timeoutMs = 8000) {
+async function safeFetch(url, opts = {}, timeoutMs = 10000) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
         return await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'application/json, text/xml, */*',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
+                'Accept': 'application/json, text/xml, application/xml, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
             },
             ...opts,
             signal: ctrl.signal,
@@ -67,107 +67,22 @@ async function safeFetch(url, opts = {}, timeoutMs = 8000) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Binance  — internal CMS JSON API (more reliable than RSS)
-// catalogId 48 = New Listings, 157 = Launchpool, 49 = New Futures
+// Binance — RSS feed (more reliable than their internal CMS JSON API)
+// https://www.binance.com/en/support/announcement/rss
 // ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchBinanceCatalog(catalogId) {
-    const url = `https://www.binance.com/bapi/composite/v1/public/cms/article/catalog/list/query` +
-        `?catalogId=${catalogId}&pageNo=1&pageSize=20&type=1`;
-    const res = await safeFetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.code !== '000000') throw new Error(`API code ${json.code}`);
-    return (json.data?.articles ?? []).map(a => ({
-        source:     'binance',
-        externalId: `binance-${a.id}`,
-        title:      a.title ?? '',
-        excerpt:    '',
-        content:    '',
-        category:   guessCategory(a.title ?? ''),
-        imageUrl:   null,
-        publishedAt: a.releaseDate
-            ? new Date(Number(a.releaseDate)).toISOString()
-            : new Date().toISOString(),
-    }));
-}
 
 async function fetchBinance() {
     try {
-        // Fetch multiple catalogs in parallel, merge and deduplicate
-        const [listings, launchpool] = await Promise.allSettled([
-            fetchBinanceCatalog(48),   // New Cryptocurrency Listing
-            fetchBinanceCatalog(157),  // Launchpool
-        ]);
-        const items = [
-            ...(listings.status   === 'fulfilled' ? listings.value   : []),
-            ...(launchpool.status === 'fulfilled' ? launchpool.value : []),
-        ];
-        const seen = new Set();
-        return items.filter(i => seen.has(i.externalId) ? false : seen.add(i.externalId));
-    } catch (e) {
-        console.error('[NewsCollector] Binance error:', e.message);
-        return [];
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Bybit  — public announcements API
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchBybit() {
-    try {
-        const url = 'https://announcements.bybit.com/en-US/api/v2/articles?page=1&limit=30';
-        const res = await safeFetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-
-        // Try multiple response shapes
-        const articles =
-            json?.result?.items ??
-            json?.result?.list  ??
-            json?.data?.list    ??
-            json?.data          ??
-            json?.items         ??
-            [];
-
-        if (!Array.isArray(articles) || articles.length === 0) {
-            console.warn('[NewsCollector] Bybit: empty response, keys:', Object.keys(json));
-            return [];
-        }
-
-        return articles.map(a => ({
-            source:     'bybit',
-            externalId: `bybit-${a.id ?? a.articleId ?? a.title}`,
-            title:      a.title ?? a.articleTitle ?? '',
-            excerpt:    stripHtml(a.description ?? a.summary ?? '').slice(0, 400),
-            content:    stripHtml(a.content ?? a.description ?? ''),
-            category:   guessCategory(a.title ?? ''),
-            imageUrl:   a.coverImgUrl ?? a.imgUrl ?? null,
-            publishedAt: a.publishTime
-                ? new Date(Number(a.publishTime)).toISOString()
-                : a.dateTimeISO
-                ? new Date(a.dateTimeISO).toISOString()
-                : new Date().toISOString(),
-        }));
-    } catch (e) {
-        console.error('[NewsCollector] Bybit error:', e.message);
-        return [];
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OKX  — RSS feed (more reliable than their JSON API)
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchOKX() {
-    try {
-        const res = await safeFetch('https://www.okx.com/help/rss/en-us.xml');
+        const res = await safeFetch('https://www.binance.com/en/support/announcement/rss');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const xml = await res.text();
-        return parseRSS(xml).slice(0, 20).map(item => ({
-            source:     'okx',
-            externalId: `okx-${item.guid}`,
+        const items = parseRSS(xml);
+        if (items.length === 0) {
+            console.warn('[NewsCollector] Binance RSS: parsed 0 items from response, length=', xml.length);
+        }
+        return items.slice(0, 30).map(item => ({
+            source:     'binance',
+            externalId: `binance-${item.guid}`,
             title:      item.title,
             excerpt:    stripHtml(item.description).slice(0, 400),
             content:    stripHtml(item.description),
@@ -178,13 +93,89 @@ async function fetchOKX() {
                 : new Date().toISOString(),
         }));
     } catch (e) {
+        console.error('[NewsCollector] Binance error:', e.message);
+        return [];
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bybit — official public REST API v5
+// https://api.bybit.com/v5/announcements/index
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function fetchBybit() {
+    try {
+        const url = 'https://api.bybit.com/v5/announcements/index?locale=en-US&page=1&limit=30';
+        const res = await safeFetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+
+        if (json.retCode !== 0) throw new Error(`retCode ${json.retCode}: ${json.retMsg}`);
+
+        const list = json?.result?.list ?? [];
+        if (!Array.isArray(list) || list.length === 0) {
+            console.warn('[NewsCollector] Bybit: empty list, result keys:', Object.keys(json.result ?? {}));
+            return [];
+        }
+
+        return list.map(a => ({
+            source:     'bybit',
+            externalId: `bybit-${a.id ?? a.dateTimestamp ?? a.title}`,
+            title:      a.title ?? '',
+            excerpt:    stripHtml(a.description ?? '').slice(0, 400),
+            content:    stripHtml(a.description ?? ''),
+            category:   guessCategory(a.title ?? ''),
+            imageUrl:   null,
+            publishedAt: a.dateTimestamp
+                ? new Date(Number(a.dateTimestamp)).toISOString()
+                : new Date().toISOString(),
+        }));
+    } catch (e) {
+        console.error('[NewsCollector] Bybit error:', e.message);
+        return [];
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OKX — official v5 support announcements API
+// https://www.okx.com/api/v5/support/announcements
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function fetchOKX() {
+    try {
+        const url = 'https://www.okx.com/api/v5/support/announcements?lang=en-US&limit=30';
+        const res = await safeFetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+
+        if (json.code !== '0') throw new Error(`code ${json.code}: ${json.msg}`);
+
+        const list = json?.data ?? [];
+        if (!Array.isArray(list) || list.length === 0) {
+            console.warn('[NewsCollector] OKX: empty list');
+            return [];
+        }
+
+        return list.map(a => ({
+            source:     'okx',
+            externalId: `okx-${a.url ?? a.title}`,
+            title:      a.title ?? '',
+            excerpt:    '',
+            content:    '',
+            category:   guessCategory(a.title ?? ''),
+            imageUrl:   null,
+            publishedAt: a.pTime
+                ? new Date(Number(a.pTime)).toISOString()
+                : new Date().toISOString(),
+        }));
+    } catch (e) {
         console.error('[NewsCollector] OKX error:', e.message);
         return [];
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Persist
+// Persist — skip duplicates by external_id
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function saveItems(items) {
@@ -192,10 +183,7 @@ async function saveItems(items) {
     for (const item of items) {
         if (!item.title || !item.externalId) continue;
         try {
-            const exists = dbGet(
-                'SELECT id FROM news WHERE external_id = ?',
-                [item.externalId]
-            );
+            const exists = dbGet('SELECT id FROM news WHERE external_id = ?', [item.externalId]);
             if (exists) continue;
             dbRun(
                 `INSERT INTO news
@@ -223,17 +211,25 @@ let _interval = null;
 async function collect() {
     console.log('[NewsCollector] Collecting...');
     const t = Date.now();
+
     const [binance, bybit, okx] = await Promise.allSettled([
         fetchBinance(),
         fetchBybit(),
         fetchOKX(),
     ]);
+
+    const counts = {
+        Binance: binance.status === 'fulfilled' ? binance.value.length : `ERR(${binance.reason?.message})`,
+        Bybit:   bybit.status   === 'fulfilled' ? bybit.value.length   : `ERR(${bybit.reason?.message})`,
+        OKX:     okx.status     === 'fulfilled' ? okx.value.length     : `ERR(${okx.reason?.message})`,
+    };
+    console.log(`[NewsCollector] Fetched: Binance=${counts.Binance} Bybit=${counts.Bybit} OKX=${counts.OKX} (${Date.now()-t}ms)`);
+
     const all = [
         ...(binance.status === 'fulfilled' ? binance.value : []),
         ...(bybit.status   === 'fulfilled' ? bybit.value   : []),
         ...(okx.status     === 'fulfilled' ? okx.value     : []),
     ];
-    console.log(`[NewsCollector] Fetched: Binance=${binance.status==='fulfilled'?binance.value.length:'ERR'} Bybit=${bybit.status==='fulfilled'?bybit.value.length:'ERR'} OKX=${okx.status==='fulfilled'?okx.value.length:'ERR'} (${Date.now()-t}ms)`);
     await saveItems(all);
 }
 
