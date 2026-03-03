@@ -5207,16 +5207,7 @@
             const sorted = [...openBlocks, ..._lastPositionBlocks.filter(b => !b.isOpen)];
             const block = sorted[idx];
             if (!block) return;
-            // Navigate chart to this block's time range
-            const startMs = block.startedAt ? new Date(block.startedAt).getTime() : 0;
-            if (startMs && klChart) {
-                klChart.scrollToTimestamp(startMs);
-                var cw = document.getElementById('chartContainer');
-                var halfW = cw ? cw.offsetWidth / 2 : 300;
-                setTimeout(function() {
-                    try { klChart.scrollByDistance(-halfW, 300); } catch(e) {}
-                }, 20);
-            }
+            highlightPositionBlock(block);
         }
 
         var _posBlockZoneIds = [];
