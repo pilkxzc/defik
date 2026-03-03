@@ -5334,7 +5334,14 @@
             // Scroll chart to entry candle so the position is visible and centered
             const scrollTarget = entryBarTime || (block.startTime ? snapToBar(Math.floor(block.startTime / 1000)) : null);
             if (scrollTarget !== null) {
-                try { klChart.scrollToTimestamp(scrollTarget * 1000, 300); } catch(e) {}
+                try {
+                    klChart.scrollToTimestamp(scrollTarget * 1000);
+                    var _cw = document.getElementById('chartContainer');
+                    var _halfW = _cw ? _cw.offsetWidth / 2 : 300;
+                    setTimeout(function() {
+                        try { klChart.scrollByDistance(-_halfW, 300); } catch(e2) {}
+                    }, 20);
+                } catch(e) {}
             }
 
             // Show position info in tradeInfoOverlay
@@ -8168,9 +8175,18 @@
                         if (goid) highlightOverlayIds.push(goid);
                     } catch(e) {}
 
-                    // Scroll chart to show the trade candle
+                    // Scroll chart to show the trade candle (centered)
                     if (!noNavigate) {
-                        try { klChart.scrollToTimestamp(barTime * 1000, 300); } catch(e) {}
+                        try {
+                            klChart.scrollToTimestamp(barTime * 1000);
+                            // scrollToTimestamp puts the bar at the right edge;
+                            // shift left by half the chart width to center it
+                            var cw = document.getElementById('chartContainer');
+                            var halfW = cw ? cw.offsetWidth / 2 : 300;
+                            setTimeout(function() {
+                                try { klChart.scrollByDistance(-halfW, 300); } catch(e2) {}
+                            }, 20);
+                        } catch(e) {}
                     }
                 }
             }
