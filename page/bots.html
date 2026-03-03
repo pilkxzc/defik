@@ -1459,8 +1459,8 @@
             const isLive = b.mode === 'bot';
             const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
-            const mainHref = _isAdmin ? `/bot/${b.id}` : `/bot-stats/${b.id}`;
-            const mainText = _isAdmin ? 'Деталі' : 'Статистика';
+            const mainHref = `/bot-stats/${b.id}`;
+            const mainText = _isAdmin ? 'Дашборд' : 'Статистика';
             const statusBadge = b.is_active
                 ? '<span class="status-badge status-active">АКТИВНИЙ</span>'
                 : '<span class="status-badge status-inactive">НЕАКТИВНИЙ</span>';
@@ -1516,12 +1516,11 @@
                     </div>
                 </div>
                 <div class="detail-actions">
-                    <a class="card-action-btn" href="/bot/${b.id}">Редагувати</a>
+                    ${_isAdmin ? `<a class="card-action-btn" href="/bot/${b.id}">Редагувати</a>` : ''}
                     <button class="card-action-btn btn-danger" onclick="if(confirm('Видалити бота?')) deleteBot(${b.id})">Видалити</button>
-                    <a class="card-action-btn" href="${mainHref}">${mainText}</a>
+                    <a class="card-action-btn btn-blue" href="${mainHref}">${mainText}</a>
                     <button class="card-action-btn" onclick="cloneBot(${b.id})">Дублювати</button>
                     <button class="card-action-btn ${b.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleBotActive(${b.id}, ${b.is_active ? 'false' : 'true'})">${b.is_active ? 'Деактивувати' : 'Активувати'}</button>
-                    ${_isAdmin ? `<a class="card-action-btn btn-blue" href="/bot-stats/${b.id}">Дашборд</a>` : ''}
                 </div>`;
         }
 
