@@ -25,28 +25,6 @@ function stripHtml(html = '') {
         .replace(/\s+/g, ' ').trim();
 }
 
-function parseRSS(xml) {
-    const items = [];
-    const re = /<item>([\s\S]*?)<\/item>/g;
-    let m;
-    while ((m = re.exec(xml)) !== null) {
-        const b = m[1];
-        const val = tag => {
-            const r = b.match(new RegExp(
-                `<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`, 'i'
-            ));
-            return r ? r[1].trim() : '';
-        };
-        const title = val('title');
-        const guid  = val('guid') || val('link') || title;
-        if (title) items.push({
-            title, guid,
-            description: val('description'),
-            pubDate: val('pubDate') || val('dc:date'),
-        });
-    }
-    return items;
-}
 
 async function safeFetch(url, opts = {}, timeoutMs = 10000) {
     const ctrl = new AbortController();
@@ -67,31 +45,47 @@ async function safeFetch(url, opts = {}, timeoutMs = 10000) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Binance — RSS feed (more reliable than their internal CMS JSON API)
-// https://www.binance.com/en/support/announcement/rss
+// Binance — internal CMS API (all catalog types: listings, delisting,
+//           airdrops, activities, maintenance, news, etc.)
+// https://www.binance.com/bapi/composite/v1/public/cms/article/list/query
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchBinance() {
     try {
-        const res = await safeFetch('https://www.binance.com/en/support/announcement/rss');
+        const url = 'https://www.binance.com/bapi/composite/v1/public/cms/article/list/query?type=1&pageNo=1&pageSize=10';
+        const res = await safeFetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const xml = await res.text();
-        const items = parseRSS(xml);
-        if (items.length === 0) {
-            console.warn('[NewsCollector] Binance RSS: parsed 0 items from response, length=', xml.length);
+        const json = await res.json();
+
+        if (!json.success) throw new Error(`success=false: ${json.message}`);
+
+        const catalogs = json?.data?.catalogs ?? [];
+        if (catalogs.length === 0) {
+            console.warn('[NewsCollector] Binance: no catalogs in response');
+            return [];
         }
-        return items.slice(0, 30).map(item => ({
-            source:     'binance',
-            externalId: `binance-${item.guid}`,
-            title:      item.title,
-            excerpt:    stripHtml(item.description).slice(0, 400),
-            content:    stripHtml(item.description),
-            category:   guessCategory(item.title),
-            imageUrl:   null,
-            publishedAt: item.pubDate
-                ? new Date(item.pubDate).toISOString()
-                : new Date().toISOString(),
-        }));
+
+        const seen = new Set();
+        const result = [];
+        for (const catalog of catalogs) {
+            for (const a of (catalog.articles ?? [])) {
+                if (!a.id || seen.has(a.id)) continue;
+                seen.add(a.id);
+                result.push({
+                    source:     'binance',
+                    externalId: `binance-${a.id}`,
+                    title:      a.title ?? '',
+                    excerpt:    '',
+                    content:    '',
+                    category:   guessCategory(a.title ?? ''),
+                    imageUrl:   null,
+                    publishedAt: a.releaseDate
+                        ? new Date(Number(a.releaseDate)).toISOString()
+                        : new Date().toISOString(),
+                });
+            }
+        }
+        return result;
     } catch (e) {
         console.error('[NewsCollector] Binance error:', e.message);
         return [];
