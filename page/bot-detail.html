@@ -7465,6 +7465,9 @@
                 const barGroups = new Map(); // barTime → [enriched marker, ...]
                 rawMarkers.forEach(m => {
                     if (!m.time || m.time < minTime || m.time > maxTime + 86400) return;
+                    // Skip zero/invalid markers
+                    if (!m.price || parseFloat(m.price) <= 0) return;
+                    if (!m.qty || parseFloat(m.qty) <= 0) return;
                     const barTime = snapToBar(m.time);
                     if (barTime === null) return;
                     const isLong  = m.positionSide === 'LONG' ? true : m.positionSide === 'SHORT' ? false : (m.side === 'LONG' || m.side === 'BUY');
@@ -7946,12 +7949,13 @@
                 ...data.takeProfitOrders.map(o => ({ ...o, type: 'TP' }))
             ].sort((a, b) => (b.stopPrice || b.price) - (a.stopPrice || a.price));
 
-            const pos = data.position;
-            document.getElementById('ordersCount').textContent = allOrders.length + (pos ? 1 : 0);
+            const posArr = data.positions || (data.position ? [data.position] : []);
+            const validPos = posArr.filter(p => p && p.entryPrice > 0);
+            document.getElementById('ordersCount').textContent = allOrders.length + validPos.length;
 
             // Stats counts
-            const longCount = allOrders.filter(o => o.side === 'BUY').length + (pos && pos.side === 'LONG' ? 1 : 0);
-            const shortCount = allOrders.filter(o => o.side === 'SELL').length + (pos && pos.side === 'SHORT' ? 1 : 0);
+            const longCount = allOrders.filter(o => o.side === 'BUY').length + validPos.filter(p => p.side === 'LONG').length;
+            const shortCount = allOrders.filter(o => o.side === 'SELL').length + validPos.filter(p => p.side === 'SHORT').length;
             const limitCount = allOrders.filter(o => o.type === 'LIMIT').length;
             const stopCount = allOrders.filter(o => o.type === 'STOP').length;
             const tpCount = allOrders.filter(o => o.type === 'TP').length;
@@ -7967,20 +7971,19 @@
                 </div>
             ` : '';
 
-            let posHtml = '';
-            if (pos && pos.entryPrice > 0) {
+            let posHtml = validPos.map(pos => {
                 const pnl = pos.unrealizedProfit || 0;
                 const pnlColor = pnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
                 const pnlSign = pnl >= 0 ? '+' : '';
                 const borderColor = pos.side === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
-                posHtml = `
-                    <div class="order-item" style="border-left: 3px solid ${borderColor}; padding-left: 8px; margin-bottom: 4px;">
+                return `
+                    <div class="order-item order-clickable" data-price="${pos.entryPrice}" style="border-left: 3px solid ${borderColor}; padding-left: 8px; margin-bottom: 4px; cursor:pointer;">
                         <span class="order-side ${pos.side.toLowerCase()}">${pos.side}</span>
                         <span class="order-price">$${formatPrice(pos.entryPrice)}</span>
                         <span class="order-qty">${pos.quantity || pos.positionAmt || ''}</span>
                         <span style="color: ${pnlColor}; font-size: 10px; font-weight: 700;">POS ${pnlSign}$${Math.abs(pnl).toFixed(2)}</span>
                     </div>`;
-            }
+            }).join('');
 
             if (!posHtml && allOrders.length === 0) {
                 content.innerHTML = '<div class="empty-state">Немає відкритих ордерів</div>';
@@ -8020,13 +8023,36 @@
             `;
             // Restore scroll so user isn't kicked to top on every poll update
             content.scrollTop = savedScroll;
+
+            // Click on order → scroll chart to that price level
+            content.querySelectorAll('.order-clickable').forEach(el => {
+                el.addEventListener('click', function() {
+                    const price = parseFloat(this.dataset.price);
+                    if (!price || !klChart) return;
+                    // Flash highlight
+                    this.style.background = 'rgba(139,92,246,0.15)';
+                    setTimeout(() => { this.style.background = ''; }, 400);
+                    // Create temporary highlight price line
+                    try {
+                        clearTradeHighlight(true);
+                        const id = klChart.createOverlay({
+                            name: 'priceLevel', groupId: 'highlight', lock: true,
+                            points: [{ value: price }],
+                            extendData: { color: '#A78BFA', text: `$${formatPrice(price)}` },
+                        });
+                        const oid = Array.isArray(id) ? id[0] : id;
+                        if (oid) highlightOverlayIds.push(oid);
+                    } catch(e) {}
+                });
+            });
         }
 
         function renderOrderItem(o) {
             const typeColor = o.type === 'LIMIT' ? 'var(--color-limit)' : o.type === 'STOP' ? 'var(--color-stop)' : 'var(--color-tp)';
-            return `<div class="order-item">
+            const orderPrice = o.stopPrice || o.price;
+            return `<div class="order-item order-clickable" data-price="${orderPrice}" data-time="${o.time || ''}" style="cursor:pointer;">
                 <span class="order-side ${o.side.toLowerCase()}">${o.side}</span>
-                <span class="order-price">$${formatPrice(o.stopPrice || o.price)}</span>
+                <span class="order-price">$${formatPrice(orderPrice)}</span>
                 <span class="order-qty">${o.quantity}</span>
                 <span style="color:${typeColor};font-size:10px;font-weight:700;">${o.type}</span>
             </div>`;
@@ -8051,14 +8077,18 @@
                 desiredLines.set(key, { price, color, text, type: type || 'order' });
             }
 
-            if (data.position && displaySettings.positions) {
-                const isLong = data.position.side === 'LONG';
-                addDesired(`pos-${data.position.side}-${data.position.entryPrice}`,
-                    data.position.entryPrice,
-                    isLong ? userTheme.colors.long : userTheme.colors.short,
-                    isLong ? 'Long Entry' : 'Short Entry',
-                    'entry'
-                );
+            if (displaySettings.positions) {
+                const posArr = data.positions || (data.position ? [data.position] : []);
+                posArr.forEach(pos => {
+                    if (!pos || !pos.entryPrice || pos.entryPrice <= 0) return;
+                    const isLong = pos.side === 'LONG';
+                    addDesired(`pos-${pos.side}-${pos.entryPrice}`,
+                        pos.entryPrice,
+                        isLong ? userTheme.colors.long : userTheme.colors.short,
+                        isLong ? 'Long Entry' : 'Short Entry',
+                        'entry'
+                    );
+                });
             }
             if (displaySettings.limits) {
                 (data.limitOrders || []).forEach((o, i) => {
@@ -8525,8 +8555,9 @@
                 data.stopOrders     = data.stopOrders     || [];
                 data.takeProfitOrders = data.takeProfitOrders || [];
                 data.canceledOrders = lastChartData?.canceledOrders || [];
-                // position comes directly from server (positionRisk); fall back to lastChartData
+                // positions come directly from server (positionRisk); fall back to lastChartData
                 if (data.position === undefined) data.position = lastChartData?.position || null;
+                if (!data.positions) data.positions = lastChartData?.positions || (data.position ? [data.position] : []);
                 // Update orders panel (position shown as first item)
                 updateOrdersList(data);
                 // Update position panel and add/remove open position marker on chart
@@ -10257,11 +10288,11 @@
                 }
             } catch(e) {}
 
-            // Real-time order polling every 5 seconds (lightweight — only open orders)
-            setInterval(loadOrdersOnly, 5000);
+            // Real-time order polling every 10 seconds (lightweight — only open orders)
+            setInterval(loadOrdersOnly, 10000);
 
-            // Full chart data refresh every 5 seconds (position + account balance)
-            setInterval(loadChartData, 5000);
+            // Full chart data refresh every 15 seconds (position + account balance)
+            setInterval(loadChartData, 15000);
 
             // Real-time trade markers: refresh every 5 seconds to pick up new trades
             setInterval(() => {

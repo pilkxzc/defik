@@ -1104,24 +1104,28 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
         ]);
 
         const openOrders       = ordersResp.data || [];
-        const posRisk          = (posRiskResp.data || []).find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+        const activePositions   = (posRiskResp.data || []).filter(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+        const posRisk          = activePositions[0] || null;
         const stopOrders       = openOrders.filter(o => o.type === 'STOP' || o.type === 'STOP_MARKET' || o.type === 'TRAILING_STOP_MARKET');
         const takeProfitOrders = openOrders.filter(o => o.type === 'TAKE_PROFIT' || o.type === 'TAKE_PROFIT_MARKET');
         const stopSet          = new Set(stopOrders.map(o => o.orderId));
         const tpSet            = new Set(takeProfitOrders.map(o => o.orderId));
         const limitOrders      = openOrders.filter(o => !stopSet.has(o.orderId) && !tpSet.has(o.orderId));
 
+        const formatPos = (p) => ({
+            symbol: p.symbol, side: parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT',
+            positionAmt: Math.abs(parseFloat(p.positionAmt)), entryPrice: parseFloat(p.entryPrice),
+            markPrice: parseFloat(p.markPrice), unrealizedProfit: parseFloat(p.unRealizedProfit),
+            leverage: p.leverage, updateTime: p.updateTime || null
+        });
+
         res.json({
             isActive: !!bot.is_active,
             limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), time: o.time })),
             stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
             takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
-            position: posRisk ? {
-                symbol: posRisk.symbol, side: parseFloat(posRisk.positionAmt) > 0 ? 'LONG' : 'SHORT',
-                positionAmt: Math.abs(parseFloat(posRisk.positionAmt)), entryPrice: parseFloat(posRisk.entryPrice),
-                markPrice: parseFloat(posRisk.markPrice), unrealizedProfit: parseFloat(posRisk.unRealizedProfit),
-                leverage: posRisk.leverage, updateTime: posRisk.updateTime || null
-            } : null
+            position: posRisk ? formatPos(posRisk) : null,
+            positions: activePositions.map(formatPos)
         });
     } catch (error) {
         logBinanceError('Orders poll error:', error);
@@ -1273,8 +1277,10 @@ router.get('/api/bots/:id/trade-markers', requireAuth, async (req, res) => {
             if (exitTime > 0 && t.status === 'closed') markers.push({ time: exitTime, side: t.side, price: t.price, pnl: t.pnl, isEntry: false, status: t.status, symbol: t.symbol, qty: t.quantity });
         }
 
-        markers.sort((a, b) => a.time - b.time);
-        res.json({ markers });
+        // Filter out zero/invalid markers
+        const validMarkers = markers.filter(m => m.time > 0 && m.price && parseFloat(m.price) > 0 && m.qty && parseFloat(m.qty) > 0);
+        validMarkers.sort((a, b) => a.time - b.time);
+        res.json({ markers: validMarkers });
     } catch (err) {
         console.error('Trade markers error:', err.response?.data || err.message);
         res.json({ markers: [] });
