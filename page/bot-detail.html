@@ -6470,18 +6470,21 @@
                         const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
                         const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#10B981' : '#EF4444');
 
-                        // Grouped → diamond (ромб) shape
+                        // Grouped → diamond (ромб) shape drawn with lines
                         if (count > 1) {
                             const dsz = 8;
-                            const dpts = [
-                                { x: c.x,       y: c.y - dsz - 8 },
-                                { x: c.x + dsz, y: c.y - 8 },
-                                { x: c.x,       y: c.y + dsz - 8 },
-                                { x: c.x - dsz, y: c.y - 8 },
-                            ];
+                            const cy = c.y - 8;
+                            const top    = { x: c.x,       y: cy - dsz };
+                            const right  = { x: c.x + dsz, y: cy };
+                            const bottom = { x: c.x,       y: cy + dsz };
+                            const left   = { x: c.x - dsz, y: cy };
+                            const ls = { color: '#8B5CF6', size: 1.5 };
                             return [
-                                { type: 'polygon', attrs: { coordinates: dpts }, styles: { style: 'stroke_fill', color: 'rgba(139,92,246,0.18)', borderColor: '#8B5CF6', borderSize: 1.5 } },
-                                { type: 'text', attrs: { x: c.x, y: c.y - 8, text: String(count), align: 'center', baseline: 'middle' }, styles: { color: '#C4B5FD', size: 9, weight: '700' } },
+                                { type: 'line', attrs: { coordinates: [top, right] }, styles: ls },
+                                { type: 'line', attrs: { coordinates: [right, bottom] }, styles: ls },
+                                { type: 'line', attrs: { coordinates: [bottom, left] }, styles: ls },
+                                { type: 'line', attrs: { coordinates: [left, top] }, styles: ls },
+                                { type: 'text', attrs: { x: c.x, y: cy, text: String(count), align: 'center', baseline: 'middle' }, styles: { color: '#C4B5FD', size: 9, weight: '700' } },
                             ];
                         }
 
@@ -6491,16 +6494,17 @@
                         const alphaFill = isLong ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
 
                         if (isEntry) {
-                            // Entry → hollow triangle, tip exactly at price
+                            // Entry → hollow triangle via lines, tip exactly at price
                             const tipY = c.y;
                             const baseY = below ? tipY + sz * 2 : tipY - sz * 2;
-                            const pts = [
-                                { x: c.x, y: tipY },
-                                { x: c.x - sz, y: baseY },
-                                { x: c.x + sz, y: baseY },
-                            ];
+                            const tip = { x: c.x, y: tipY };
+                            const bl  = { x: c.x - sz, y: baseY };
+                            const br  = { x: c.x + sz, y: baseY };
+                            const ls = { color, size: 1.5 };
                             return [
-                                { type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'stroke_fill', color: alphaFill, borderColor: color, borderSize: 1.5 } },
+                                { type: 'line', attrs: { coordinates: [tip, bl] }, styles: ls },
+                                { type: 'line', attrs: { coordinates: [bl, br] }, styles: ls },
+                                { type: 'line', attrs: { coordinates: [br, tip] }, styles: ls },
                             ];
                         } else {
                             // Exit → hollow circle, center at price
