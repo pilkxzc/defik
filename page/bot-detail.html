@@ -6797,7 +6797,10 @@
                         }
                     },
                     onClick({ overlay, coordinate }) {
-                        if (overlay.extendData) showMarkerPopup(overlay.extendData, { point: coordinate });
+                        const d = overlay.extendData;
+                        if (d && (d.price > 0 || (d._all && d._all.length > 0))) {
+                            showMarkerPopup(d, { point: coordinate });
+                        }
                         return true;
                     }
                 });
@@ -7420,7 +7423,18 @@
                         groupId: 'position',
                         lock: true,
                         points: [{ timestamp: tsMs, value: parseFloat(pos.entryPrice) }],
-                        extendData: { isBuy: isLong },
+                        extendData: {
+                            isBuy: isLong,
+                            _isEntry: true,
+                            _isLong: isLong,
+                            side: pos.side,
+                            price: parseFloat(pos.entryPrice),
+                            qty: Math.abs(parseFloat(pos.positionAmt || 0)),
+                            time: Math.floor(tsMs / 1000),
+                            pnl: parseFloat(pos.unrealizedProfit || 0),
+                            symbol: pos.symbol || currentSymbol,
+                            _isPosition: true
+                        },
                     });
                     const oid = Array.isArray(ids) ? ids[0] : ids;
                     if (oid) positionOverlayIds.push(oid);
@@ -7529,6 +7543,8 @@
         }
 
         function showMarkerPopup(m, param) {
+            // Skip markers with no meaningful data
+            if (!m || (!m.price && !m._all)) return;
             let popup = document.getElementById('markerPopup');
             if (!popup) {
                 popup = document.createElement('div');
