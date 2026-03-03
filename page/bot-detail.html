@@ -2809,9 +2809,8 @@
             display: flex; align-items: center; gap: 4px;
             padding: 5px 12px; background: var(--bg-app,#080808);
             border-bottom: 1px solid rgba(255,255,255,0.06);
-            flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+            flex-shrink: 0; overflow: visible; position: relative; z-index: 50;
         }
-        .chart-indicators-bar::-webkit-scrollbar { display: none; }
         .ind-btn {
             display: flex; align-items: center; gap: 5px;
             padding: 5px 10px; background: rgba(255,255,255,0.04);
@@ -8153,6 +8152,9 @@
             // Marker at entry bar
             if (openTime) {
                 const barTime = snapToBar(openTime);
+                if (barTime === null) {
+                    if (typeof showToast === 'function') showToast('warning', 'Угода поза графіком', 'Ця угода не потрапляє на поточний таймфрейм');
+                }
                 if (barTime !== null) {
                     try {
                         const id = klChart.createOverlay({
