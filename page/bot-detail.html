@@ -6894,18 +6894,15 @@
                             figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { color, size: 1.5 } });
                         } else if (type === 'stop' || type === 'tp') {
-                            // Wavy (sinusoidal) line for stop/tp
-                            const waveAmp = 3;      // amplitude in px
-                            const waveLen = 16;     // wavelength in px
-                            const step = 4;         // segment resolution
-                            const pts = [];
-                            for (let x = 0; x <= w; x += step) {
-                                pts.push({ x, y: y + Math.sin((x / waveLen) * Math.PI * 2) * waveAmp });
+                            // Wavy zigzag line for stop/tp
+                            const amp = 2.5, wLen = 12;
+                            const coords = [];
+                            for (let x = 0; x <= w; x += wLen / 2) {
+                                coords.push({ x, y: y + (coords.length % 2 === 0 ? -amp : amp) });
                             }
-                            for (let i = 0; i < pts.length - 1; i++) {
-                                figs.push({ type: 'line', attrs: { coordinates: [pts[i], pts[i + 1]] },
-                                            styles: { color, size: 1.2 } });
-                            }
+                            // Use polygon (open polyline) — single figure, much faster
+                            figs.push({ type: 'polygon', attrs: { coordinates: coords },
+                                        styles: { style: 'stroke', color, size: 1.2 } });
                         } else {
                             figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { style: 'dashed', color, size: 1, dashedValue: [6, 4] } });
