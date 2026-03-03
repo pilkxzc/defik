@@ -8095,7 +8095,7 @@
             const tpCount = allOrders.filter(o => o.type === 'TP').length;
 
             // Stats bar HTML
-            const statsHtml = (allOrders.length > 0 || pos) ? `
+            const statsHtml = (allOrders.length > 0 || validPos.length > 0) ? `
                 <div class="orders-stats-bar">
                     ${longCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-long)"></div>Long ${longCount}</div>` : ''}
                     ${shortCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-short)"></div>Short ${shortCount}</div>` : ''}
