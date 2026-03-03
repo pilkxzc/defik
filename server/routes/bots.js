@@ -1354,4 +1354,46 @@ router.get('/api/bots/:id/stats', requireAuth, async (req, res) => {
     }
 });
 
+// ── Periodic reconciliation for active bots with open trades ──────────────────
+// Runs every 2 minutes: checks all active bots that have open trades and reconciles them
+let _reconcileRunning = false;
+async function periodicReconcile() {
+    if (_reconcileRunning) return;
+    _reconcileRunning = true;
+    try {
+        const botsWithOpen = dbAll(`
+            SELECT DISTINCT b.id FROM bots b
+            INNER JOIN bot_trades bt ON bt.bot_id = b.id AND bt.status = 'open'
+            WHERE b.binance_api_key IS NOT NULL AND b.binance_api_key != ''
+        `);
+        for (const bot of botsWithOpen) {
+            try {
+                await reconcileOpenTrades(bot.id);
+            } catch (e) {
+                console.log(`[periodicReconcile] bot ${bot.id} error:`, e.message);
+            }
+            // Small delay between bots to avoid rate limits
+            await new Promise(r => setTimeout(r, 500));
+        }
+    } catch (e) {
+        console.error('[periodicReconcile] error:', e.message);
+    } finally {
+        _reconcileRunning = false;
+    }
+}
+setInterval(periodicReconcile, 2 * 60 * 1000); // every 2 minutes
+// Run once on startup after a short delay
+setTimeout(periodicReconcile, 10000);
+
+// Explicit reconcile endpoint — triggered from frontend when viewing positions
+router.post('/api/bots/:id/reconcile', requireAuth, async (req, res) => {
+    try {
+        const fixed = await reconcileOpenTrades(req.params.id);
+        res.json({ success: true, fixed });
+    } catch (error) {
+        console.error('Reconcile error:', error);
+        res.status(500).json({ error: 'Reconcile failed' });
+    }
+});
+
 module.exports = router;

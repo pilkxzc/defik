@@ -1659,7 +1659,9 @@
         }
         .chart-container.chart-fullscreen #chart {
             width: 100vw !important;
-            height: calc(100vh - 28px) !important;
+            height: auto !important;
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
         }
         .chart-container.chart-fullscreen .chart-markers-legend {
             position: relative; width: 100%;
@@ -2825,6 +2827,64 @@
         .ind-btn-vol.active  { background: rgba(100,116,139,0.14); border-color: rgba(100,116,139,0.35); color: #94A3B8; }
         .ind-btn-rsi.active  { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: #F59E0B; }
         .ind-btn-macd.active { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.35); color: #A78BFA; }
+
+        /* ── Indicators Dropdown ── */
+        .ind-dropdown-wrap { position: relative; }
+        .ind-dropdown-trigger {
+            display: flex; align-items: center; gap: 5px;
+            padding: 5px 10px; background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;
+            color: var(--text-secondary,#A1A1A1); font-size: 11px; font-weight: 600;
+            cursor: pointer; font-family: inherit; white-space: nowrap;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .ind-dropdown-trigger:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .ind-dropdown-trigger.has-active { border-color: rgba(16,185,129,0.3); color: #10B981; }
+        .ind-dropdown-trigger .ind-badge {
+            background: rgba(16,185,129,0.2); color: #10B981;
+            font-size: 9px; font-weight: 700; padding: 1px 5px;
+            border-radius: 6px; min-width: 14px; text-align: center;
+        }
+        .ind-dropdown-trigger .ind-chevron {
+            transition: transform 0.2s;
+        }
+        .ind-dropdown-trigger.open .ind-chevron {
+            transform: rotate(180deg);
+        }
+        .ind-dropdown {
+            display: none; position: absolute; top: calc(100% + 4px); left: 0;
+            background: var(--surface, #1a1a1a); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-md, 16px); padding: 6px 0;
+            min-width: 190px; z-index: 201; box-shadow: var(--shadow-card);
+        }
+        .ind-dropdown.open { display: block; }
+        .ind-dropdown-section {
+            padding: 4px 10px 2px; font-size: 9px; color: rgba(255,255,255,0.25);
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .ind-dropdown-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 12px; cursor: pointer; font-size: 12px; font-weight: 500;
+            color: var(--text-secondary, #A1A1A1); font-family: inherit;
+            background: none; border: none; width: 100%; text-align: left;
+            transition: background 0.12s, color 0.12s;
+        }
+        .ind-dropdown-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .ind-dropdown-item .ind-item-check {
+            width: 16px; height: 16px; border-radius: 4px;
+            border: 1.5px solid rgba(255,255,255,0.15); display: flex;
+            align-items: center; justify-content: center; flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .ind-dropdown-item.active .ind-item-check {
+            background: #10B981; border-color: #10B981;
+        }
+        .ind-dropdown-item.active .ind-item-check svg { opacity: 1; }
+        .ind-dropdown-item .ind-item-check svg { opacity: 0; transition: opacity 0.15s; }
+        .ind-dropdown-item.active.ind-item-vol .ind-item-check { background: #94A3B8; border-color: #94A3B8; }
+        .ind-dropdown-item.active.ind-item-rsi .ind-item-check { background: #F59E0B; border-color: #F59E0B; }
+        .ind-dropdown-item.active.ind-item-macd .ind-item-check { background: #A78BFA; border-color: #A78BFA; }
+        .ind-dropdown-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 8px; }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/shared-layout.css">
@@ -3005,45 +3065,64 @@
         <div class="chart-container" id="chartContainer" style="position: relative; display:flex; flex-direction:column;">
             <!-- Indicators Toolbar -->
             <div id="indicatorsToolbar" class="chart-indicators-bar">
-                <!-- Main pane overlays -->
-                <button class="ind-btn" id="indEma" onclick="toggleIndicator('ema')" title="EMA 20 — ковзна середня">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 14 Q7 4 12 12 Q17 20 21 10" stroke-dasharray="4 2"/></svg>
-                    EMA
-                </button>
-                <button class="ind-btn" id="indBoll" onclick="toggleIndicator('boll')" title="Bollinger Bands (20,2)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/><path d="M3 7 Q8 2 12 7 Q16 12 21 7" stroke-dasharray="2 2"/><path d="M3 17 Q8 12 12 17 Q16 22 21 17" stroke-dasharray="2 2"/></svg>
-                    BOLL
-                </button>
-                <button class="ind-btn" id="indFill" onclick="toggleIndicator('fill')" title="Заливка між ціною та EMA">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 Q16 12 21 8 L21 16 Q16 20 12 16 Q8 12 3 16Z" fill="rgba(16,185,129,0.4)" stroke="none"/></svg>
-                    Заливка
-                </button>
+                <!-- Indicators dropdown -->
+                <div class="ind-dropdown-wrap" id="indDropdownWrap">
+                    <button class="ind-dropdown-trigger has-active" id="indDropdownTrigger" onclick="toggleIndDropdown()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L7 10 L10 14 L14 6 L17 12 L21 8"/></svg>
+                        Індикатори
+                        <span class="ind-badge" id="indBadge">1</span>
+                        <svg class="ind-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="ind-dropdown" id="indDropdownMenu">
+                        <div class="ind-dropdown-section">Оверлей</div>
+                        <button class="ind-dropdown-item" id="indEma" onclick="toggleIndicator('ema')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 14 Q7 4 12 12 Q17 20 21 10" stroke-dasharray="4 2"/></svg>
+                            EMA 20
+                        </button>
+                        <button class="ind-dropdown-item" id="indBoll" onclick="toggleIndicator('boll')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12 Q8 6 12 12 Q16 18 21 12"/><path d="M3 7 Q8 2 12 7 Q16 12 21 7" stroke-dasharray="2 2"/><path d="M3 17 Q8 12 12 17 Q16 22 21 17" stroke-dasharray="2 2"/></svg>
+                            Bollinger Bands
+                        </button>
+                        <button class="ind-dropdown-item" id="indFill" onclick="toggleIndicator('fill')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 Q16 12 21 8 L21 16 Q16 20 12 16 Q8 12 3 16Z" fill="rgba(16,185,129,0.4)" stroke="none"/></svg>
+                            Заливка
+                        </button>
+                        <div class="ind-dropdown-divider"></div>
+                        <div class="ind-dropdown-section">Під-панелі</div>
+                        <button class="ind-dropdown-item ind-item-vol active" id="indVol" onclick="toggleIndicator('vol')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="3" height="9" rx="1"/><rect x="8.5" y="7" width="3" height="14" rx="1"/><rect x="14" y="4" width="3" height="17" rx="1"/><rect x="19.5" y="9" width="3" height="12" rx="1"/></svg>
+                            Volume
+                        </button>
+                        <button class="ind-dropdown-item ind-item-rsi" id="indRsi" onclick="toggleIndicator('rsi')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L7 10 L10 14 L14 6 L17 12 L21 8"/></svg>
+                            RSI (14)
+                        </button>
+                        <button class="ind-dropdown-item ind-item-macd" id="indMacd" onclick="toggleIndicator('macd')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="10" width="2" height="5" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="7" y="8" width="2" height="8" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="11" y="11" width="2" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><path d="M3 12 Q9 6 12 10 Q16 14 21 8" stroke-width="1.5"/></svg>
+                            MACD
+                        </button>
+                        <div class="ind-dropdown-divider"></div>
+                        <button class="ind-dropdown-item" id="indSignals" onclick="toggleIndicator('signals')">
+                            <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16 14 18 21 12 17 6 21 8 14 2 9 9 9"/></svg>
+                            Сигнали
+                        </button>
+                    </div>
+                </div>
                 <div class="ind-sep"></div>
-                <!-- Sub-pane indicators -->
-                <button class="ind-btn ind-btn-vol active" id="indVol" onclick="toggleIndicator('vol')" title="Обʼєм">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="3" height="9" rx="1"/><rect x="8.5" y="7" width="3" height="14" rx="1"/><rect x="14" y="4" width="3" height="17" rx="1"/><rect x="19.5" y="9" width="3" height="12" rx="1"/></svg>
-                    VOL
-                </button>
-                <button class="ind-btn ind-btn-rsi" id="indRsi" onclick="toggleIndicator('rsi')" title="RSI (14) — індекс відносної сили">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L7 10 L10 14 L14 6 L17 12 L21 8"/><line x1="3" y1="7" x2="21" y2="7" stroke-dasharray="3 2" stroke-width="1" stroke-opacity="0.5"/><line x1="3" y1="17" x2="21" y2="17" stroke-dasharray="3 2" stroke-width="1" stroke-opacity="0.5"/></svg>
-                    RSI
-                </button>
-                <button class="ind-btn ind-btn-macd" id="indMacd" onclick="toggleIndicator('macd')" title="MACD (12,26,9)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="10" width="2" height="5" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="7" y="8" width="2" height="8" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="11" y="11" width="2" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="15" y="9" width="2" height="7" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><rect x="19" y="12" width="2" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/><path d="M3 12 Q9 6 12 10 Q16 14 21 8" stroke-width="1.5"/></svg>
-                    MACD
-                </button>
-                <div class="ind-sep"></div>
-                <!-- Bot signals / trades -->
-                <button class="ind-btn" id="indSignals" onclick="toggleIndicator('signals')" title="Авто сигнали Buy/Sell">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9 16 14 18 21 12 17 6 21 8 14 2 9 9 9"/></svg>
-                    Сигнали
-                </button>
+                <!-- Trades toggle -->
                 <button class="ind-btn active" id="indTrades" onclick="toggleIndicator('trades')" title="Угоди бота">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
                     Угоди
                 </button>
                 <div class="ind-sep"></div>
-                <!-- Ruler — moved from header -->
+                <!-- Ruler -->
                 <button class="ind-btn ruler-btn" id="rulerBtn" title="Лінійка (вимірювання)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><line x1="14" y1="13" x2="11" y2="10"/><line x1="10.5" y1="16.5" x2="7.5" y2="13.5"/><line x1="17.5" y1="9.5" x2="14.5" y2="6.5"/></svg>
                     Лінійка
@@ -5111,6 +5190,39 @@
             }).join('');
 
             container.innerHTML = summaryHtml + `<div style="flex:1;overflow-y:auto;">${blocksHtml}</div>`;
+        }
+
+        let _reconcileInFlight = false;
+        async function reconcileAndRenderPositions() {
+            renderPositionBlocks(); // render immediately with current data
+
+            // Load all remaining trade pages so positions are complete
+            while (tradeHistoryHasMore && !tradeHistoryLoading) {
+                await loadFullTradeHistory();
+            }
+            if (allLoadedTrades.length > 0) renderPositionBlocks();
+
+            // Reconcile open trades on Binance
+            if (_reconcileInFlight) return;
+            _reconcileInFlight = true;
+            try {
+                const resp = await fetch(`/api/bots/${botId}/reconcile`, {
+                    method: 'POST', credentials: 'include'
+                });
+                const data = await resp.json();
+                if (data.fixed > 0) {
+                    // Trades were updated — reload all trade history and re-render
+                    await loadFullTradeHistory(true);
+                    while (tradeHistoryHasMore && !tradeHistoryLoading) {
+                        await loadFullTradeHistory();
+                    }
+                    renderPositionBlocks();
+                }
+            } catch(e) {
+                console.log('[reconcile] error:', e.message);
+            } finally {
+                _reconcileInFlight = false;
+            }
         }
 
         function togglePositionBlockDetail(row, idx) {
@@ -8168,6 +8280,42 @@
             const btnId = 'ind' + name.charAt(0).toUpperCase() + name.slice(1);
             document.getElementById(btnId)?.classList.toggle('active', indState[name]);
             applyIndicators();
+            updateIndBadge();
+        }
+
+        function updateIndBadge() {
+            var dropdownKeys = ['ema','boll','fill','vol','rsi','macd','signals'];
+            var count = dropdownKeys.filter(function(k){ return indState[k]; }).length;
+            var badge = document.getElementById('indBadge');
+            var trigger = document.getElementById('indDropdownTrigger');
+            if (badge) {
+                badge.textContent = count;
+                badge.style.display = count > 0 ? '' : 'none';
+            }
+            if (trigger) trigger.classList.toggle('has-active', count > 0);
+        }
+
+        function toggleIndDropdown() {
+            var menu = document.getElementById('indDropdownMenu');
+            var trigger = document.getElementById('indDropdownTrigger');
+            if (!menu) return;
+            var isOpen = menu.classList.toggle('open');
+            if (trigger) trigger.classList.toggle('open', isOpen);
+            if (isOpen) {
+                setTimeout(function() {
+                    document.addEventListener('click', closeIndDropdownOutside);
+                }, 0);
+            }
+        }
+        function closeIndDropdownOutside(e) {
+            var wrap = document.getElementById('indDropdownWrap');
+            if (wrap && !wrap.contains(e.target)) {
+                var menu = document.getElementById('indDropdownMenu');
+                var trigger = document.getElementById('indDropdownTrigger');
+                if (menu) menu.classList.remove('open');
+                if (trigger) trigger.classList.remove('open');
+                document.removeEventListener('click', closeIndDropdownOutside);
+            }
         }
 
         function toggleMarkerType(type) {
@@ -9565,10 +9713,10 @@
             } else if (tab === 'positions') {
                 positionsContent.style.display = 'flex';
                 positionsContent.style.flexDirection = 'column';
+                // Reconcile open trades first, then render
+                reconcileAndRenderPositions();
                 if (!tradeHistoryLoaded) {
-                    loadFullTradeHistory(true).then(() => renderPositionBlocks());
-                } else {
-                    renderPositionBlocks();
+                    loadFullTradeHistory(true).then(() => reconcileAndRenderPositions());
                 }
             } else {
                 tradesContent.style.display = 'block';
