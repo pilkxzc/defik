@@ -2990,11 +2990,28 @@ async function loadBackupHistory() {
     try {
         const res = await fetch('/api/admin/backup/history');
         const data = await res.json();
-        const history = data.history || data;
+        // Support both old (array) and new ({ history, nextBackupAt }) formats
+        const history = Array.isArray(data) ? data : (data.history || []);
         const container = document.getElementById('backupHistoryList');
 
-        // Update countdown timer
-        updateBackupCountdown(data.nextBackupAt, data.backupEnabled);
+        // Update countdown timer — fallback: calc from backup settings if API didn't return it
+        let nextAt = data.nextBackupAt;
+        let enabled = data.backupEnabled;
+        if (nextAt === undefined) {
+            // Fallback: read from backup settings inputs
+            const chk = document.getElementById('backupEnabled');
+            const timeInput = document.getElementById('backupTime');
+            enabled = chk?.checked || false;
+            if (enabled && timeInput?.value) {
+                const [h, m] = timeInput.value.split(':').map(Number);
+                const now = new Date();
+                const next = new Date(now);
+                next.setHours(h, m, 0, 0);
+                if (next <= now) next.setDate(next.getDate() + 1);
+                nextAt = next.toISOString();
+            }
+        }
+        updateBackupCountdown(nextAt, enabled);
 
         // Update last backup status
         const lastInfo = document.getElementById('lastBackupInfo');
