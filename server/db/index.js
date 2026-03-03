@@ -77,6 +77,8 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_key TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_secret TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN category_id INTEGER DEFAULT NULL'); } catch(e) {}
+    try { db.run('ALTER TABLE news ADD COLUMN source TEXT DEFAULT NULL'); } catch(e) {}
+    try { db.run('ALTER TABLE news ADD COLUMN external_id TEXT DEFAULT NULL'); } catch(e) {}
 
     db.run(`
         CREATE TABLE IF NOT EXISTS bot_categories (

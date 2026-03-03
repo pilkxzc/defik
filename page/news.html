@@ -127,8 +127,37 @@
 
         .news-category.update { background: rgba(140, 168, 255, 0.15); color: var(--accent-blue); }
         .news-category.market { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
-        .news-category.alert { background: rgba(255, 59, 48, 0.15); color: var(--accent-primary); }
+        .news-category.alert { background: rgba(255, 59, 48, 0.15); color: #EF4444; }
         .news-category.feature { background: rgba(245, 158, 11, 0.15); color: #F59E0B; }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .source-badge.binance { background: rgba(240,185,11,0.15); color: #F0B90B; }
+        .source-badge.bybit   { background: rgba(247,166,0,0.15);  color: #F7A600; }
+        .source-badge.okx     { background: rgba(255,255,255,0.08); color: #e0e0e0; }
+
+        .source-dot {
+            width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+        }
+        .source-dot.binance { background: #F0B90B; }
+        .source-dot.bybit   { background: #F7A600; }
+        .source-dot.okx     { background: #aaa; }
+
+        .source-filter-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
 
         .news-time {
             font-size: 12px;
@@ -256,11 +285,24 @@
             <div class="card scroll-y news-feed">
                 <div class="news-header">
                     <h1 class="news-title">Ринкові новини</h1>
-                    <div class="news-filters">
-                        <button class="filter-btn active" data-filter="all">Всі</button>
-                        <button class="filter-btn" data-filter="market">Ринок</button>
-                        <button class="filter-btn" data-filter="update">Оновлення</button>
-                        <button class="filter-btn" data-filter="alert">Сповіщення</button>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                        <div class="news-filters">
+                            <button class="filter-btn active" data-filter="all">Всі</button>
+                            <button class="filter-btn" data-filter="market">Лістинги</button>
+                            <button class="filter-btn" data-filter="alert">Сповіщення</button>
+                            <button class="filter-btn" data-filter="update">Оновлення</button>
+                        </div>
+                        <div class="source-filter-row">
+                            <button class="filter-btn active" data-source="all" style="font-size:12px;padding:5px 12px;">Всі джерела</button>
+                            <button class="filter-btn" data-source="binance" style="font-size:12px;padding:5px 12px;color:#F0B90B;">Binance</button>
+                            <button class="filter-btn" data-source="bybit"   style="font-size:12px;padding:5px 12px;color:#F7A600;">Bybit</button>
+                            <button class="filter-btn" data-source="okx"     style="font-size:12px;padding:5px 12px;color:#aaa;">OKX</button>
+                            <button class="filter-btn" data-source="manual"  style="font-size:12px;padding:5px 12px;">Ручні</button>
+                            <button id="collectNowBtn" onclick="collectNews()" style="display:none;font-size:12px;padding:5px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-full);color:#10B981;cursor:pointer;font-weight:600;transition:0.2s;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                                Оновити зараз
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -277,11 +319,17 @@
     <script>
         let newsData = [];
         let currentFilter = 'all';
+        let currentSource = 'all';
         let isLoading = false;
 
-        async function loadNews(filter = 'all') {
+        const SOURCE_LABELS = { binance: 'Binance', bybit: 'Bybit', okx: 'OKX' };
+        const CATEGORY_LABELS = { market: 'Лістинг', alert: 'Сповіщення', update: 'Оновлення', feature: 'Фіча' };
+
+        async function loadNews(filter = currentFilter, source = currentSource) {
             if (isLoading) return;
             isLoading = true;
+            currentFilter = filter;
+            currentSource = source;
 
             const container = document.getElementById('newsList');
             container.innerHTML = `
@@ -292,16 +340,17 @@
             `;
 
             try {
-                const categoryParam = filter !== 'all' ? `?category=${filter}` : '';
-                const response = await fetch(`/api/news${categoryParam}`);
+                const params = new URLSearchParams();
+                if (filter !== 'all') params.set('category', filter);
+                if (source !== 'all') params.set('source', source);
+                params.set('limit', '100');
 
+                const response = await fetch(`/api/news?${params}`);
                 if (!response.ok) throw new Error('Failed to fetch news');
 
                 const data = await response.json();
                 newsData = data.news || [];
-
                 renderNews();
-
             } catch (error) {
                 console.error('Load news error:', error);
                 container.innerHTML = `
@@ -316,6 +365,11 @@
             }
         }
 
+        function sourceBadgeHtml(source) {
+            if (!source || !SOURCE_LABELS[source]) return '';
+            return `<span class="source-badge ${source}"><span class="source-dot ${source}"></span>${SOURCE_LABELS[source]}</span>`;
+        }
+
         function renderNews() {
             const container = document.getElementById('newsList');
 
@@ -324,7 +378,7 @@
                     <div style="text-align: center; padding: 60px 20px; color: var(--text-tertiary);">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-bottom: 16px; opacity: 0.5;"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path></svg>
                         <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Новини не знайдено</div>
-                        <div style="font-size: 14px;">Спробуйте обрати іншу категорію</div>
+                        <div style="font-size: 14px;">Спробуйте обрати інший фільтр або джерело</div>
                     </div>
                 `;
                 return;
@@ -333,14 +387,28 @@
             container.innerHTML = newsData.map(news => `
                 <div class="news-card" onclick="openNews(${news.id})">
                     <div class="news-card-header">
-                        <span class="news-category ${news.category}">${news.category}</span>
-                        <span class="news-time">${news.time}</span>
+                        <span class="news-category ${news.category}">${CATEGORY_LABELS[news.category] || news.category}</span>
+                        ${sourceBadgeHtml(news.source)}
+                        <span class="news-time" style="margin-left:auto;">${news.time}</span>
                     </div>
                     <div class="news-card-title">${escapeHtml(news.title)}</div>
-                    <div class="news-card-excerpt">${escapeHtml(news.excerpt || '')}</div>
+                    ${news.excerpt ? `<div class="news-card-excerpt">${escapeHtml(news.excerpt)}</div>` : ''}
                     ${news.imageUrl ? `<img src="${news.imageUrl}" class="news-card-image" alt="" onerror="this.style.display='none'">` : ''}
                 </div>
             `).join('');
+        }
+
+        async function collectNews() {
+            const btn = document.getElementById('collectNowBtn');
+            if (!btn || btn.disabled) return;
+            btn.disabled = true;
+            btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:4px;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Збираємо...`;
+            try {
+                await fetch('/api/admin/news/collect', { method: 'POST', credentials: 'include' });
+                await loadNews();
+            } catch(e) {}
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Оновити зараз`;
         }
 
         function escapeHtml(text) {
@@ -432,13 +500,21 @@
             }
         }
 
-        // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
+        // Category filter buttons
+        document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                currentFilter = btn.dataset.filter;
-                loadNews(currentFilter);
+                loadNews(btn.dataset.filter, currentSource);
+            });
+        });
+
+        // Source filter buttons
+        document.querySelectorAll('.filter-btn[data-source]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn[data-source]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                loadNews(currentFilter, btn.dataset.source);
             });
         });
 
@@ -472,6 +548,9 @@
                     if (user.role === 'admin' || user.role === 'moderator') {
                         const el = document.getElementById('adminNavLink');
                         if (el) el.classList.remove('admin-hidden');
+                        // Show "collect now" button for admins
+                        const collectBtn = document.getElementById('collectNowBtn');
+                        if (collectBtn) collectBtn.style.display = '';
                     }
                 }
             } catch (error) {

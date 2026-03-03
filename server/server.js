@@ -19,6 +19,7 @@ const { initTelegramBot }                      = require('./services/telegram');
 const { getSSLCredentials }                    = require('./utils/ssl');
 const { startCollector, stopCollector }        = require('./services/candleCollector');
 const { startBackupSchedule, stopBackupSchedule } = require('./services/backup');
+const { startNewsCollector, stopNewsCollector }   = require('./services/newsCollector');
 
 async function createApp() {
     // 1. Load persisted settings
@@ -207,6 +208,9 @@ async function startServer() {
     // Start backup schedule
     startBackupSchedule();
 
+    // Start exchange news collector
+    startNewsCollector();
+
     // Start HTTP server
     server.listen(PORT, HOST, () => {
         console.log(`HTTP  server listening on http://${HOST}:${PORT}`);
@@ -228,6 +232,7 @@ async function startServer() {
         console.log(`\n${signal} received — shutting down gracefully`);
         stopCollector();
         stopBackupSchedule();
+        stopNewsCollector();
         saveDatabase();
         server.close(() => process.exit(0));
         setTimeout(() => process.exit(1), 5000);

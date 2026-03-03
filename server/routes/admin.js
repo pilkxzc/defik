@@ -770,13 +770,21 @@ function formatTimeAgo(dateString) {
 
 router.get('/api/news', (req, res) => {
     try {
-        const { category, limit = 50 } = req.query;
+        const { category, source, limit = 50 } = req.query;
         let sql    = 'SELECT n.*, u.full_name as author_name FROM news n LEFT JOIN users u ON n.created_by = u.id WHERE n.is_published = 1';
         const params = [];
 
         if (category && category !== 'all') {
             sql += ' AND n.category = ?';
             params.push(category);
+        }
+        if (source && source !== 'all') {
+            if (source === 'manual') {
+                sql += ' AND (n.source IS NULL OR n.source = "")';
+            } else {
+                sql += ' AND n.source = ?';
+                params.push(source);
+            }
         }
         sql += ' ORDER BY n.created_at DESC LIMIT ?';
         params.push(parseInt(limit));
@@ -786,12 +794,24 @@ router.get('/api/news', (req, res) => {
             news: news.map(n => ({
                 id: n.id, title: n.title, excerpt: n.excerpt, content: n.content,
                 category: n.category, imageUrl: n.image_url, authorName: n.author_name,
+                source: n.source || null,
                 createdAt: n.created_at, time: formatTimeAgo(n.created_at)
             }))
         });
     } catch (error) {
         console.error('Get news error:', error);
         res.status(500).json({ error: 'Failed to fetch news' });
+    }
+});
+
+// Manual trigger for admins
+router.post('/api/admin/news/collect', requireAuth, requireRole('admin', 'moderator'), async (req, res) => {
+    try {
+        const { collectNow } = require('../services/newsCollector');
+        await collectNow();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
