@@ -6752,6 +6752,10 @@
                         const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
                         const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#10B981' : '#EF4444');
 
+                        // Invisible hitbox rect for easier clicking
+                        const HIT = 14; // half-size of hitbox in px
+                        const hitbox = { type: 'rect', attrs: { x: c.x - HIT, y: c.y - HIT, width: HIT * 2, height: HIT * 2 }, styles: { style: 'fill', color: 'transparent', borderSize: 0 } };
+
                         // Grouped → diamond (ромб) shape drawn with lines
                         if (count > 1) {
                             const dsz = 8;
@@ -6761,7 +6765,9 @@
                             const bottom = { x: c.x,       y: cy + dsz };
                             const left   = { x: c.x - dsz, y: cy };
                             const ls = { color: '#8B5CF6', size: 1.5 };
+                            const dHit = { type: 'rect', attrs: { x: c.x - HIT, y: cy - HIT, width: HIT * 2, height: HIT * 2 }, styles: { style: 'fill', color: 'transparent', borderSize: 0 } };
                             return [
+                                dHit,
                                 { type: 'line', attrs: { coordinates: [top, right] }, styles: ls },
                                 { type: 'line', attrs: { coordinates: [right, bottom] }, styles: ls },
                                 { type: 'line', attrs: { coordinates: [bottom, left] }, styles: ls },
@@ -6784,6 +6790,7 @@
                             const br  = { x: c.x + sz, y: baseY };
                             const ls = { color, size: 1.5 };
                             return [
+                                hitbox,
                                 { type: 'line', attrs: { coordinates: [tip, bl] }, styles: ls },
                                 { type: 'line', attrs: { coordinates: [bl, br] }, styles: ls },
                                 { type: 'line', attrs: { coordinates: [br, tip] }, styles: ls },
@@ -6792,6 +6799,7 @@
                             // Exit → hollow circle, center at price
                             const r = 5;
                             return [
+                                hitbox,
                                 { type: 'circle', attrs: { x: c.x, y: c.y, r }, styles: { style: 'stroke_fill', color: alphaFill, borderColor: color, borderSize: 1.5 } },
                             ];
                         }
@@ -7505,7 +7513,7 @@
                     if (barTime === null) return;
                     const isLong  = m.positionSide === 'LONG' ? true : m.positionSide === 'SHORT' ? false : (m.side === 'LONG' || m.side === 'BUY');
                     const isEntry = m.isEntry !== false && (m.isEntry === true || Math.abs(m.pnl || 0) < 0.0001);
-                    const enriched = { ...m, _isLong: isLong, _isEntry: isEntry, _isBuy: isEntry ? isLong : !isLong };
+                    const enriched = { ...m, _isLong: isLong, _isEntry: isEntry, _isBuy: isLong };
                     if (!barGroups.has(barTime)) barGroups.set(barTime, []);
                     barGroups.get(barTime).push(enriched);
                 });
@@ -7522,7 +7530,7 @@
                     const count    = group.length;
                     const _isLong  = !allShort;
                     const _isEntry = allEntry ? true : (allExit ? false : true);
-                    const isBuy    = _isEntry ? _isLong : !_isLong;
+                    const isBuy    = _isLong;
 
                     // Per-type visibility filter
                     if (count > 1) {
@@ -7599,7 +7607,7 @@
                 const isLong  = trade.side === 'LONG' || trade.side === 'BUY';
                 const isEntry = trade._isEntry !== undefined ? trade._isEntry
                     : (trade.isEntry !== false && (trade.isEntry === true || Math.abs(trade.pnl || 0) < 0.0001));
-                const isBuy   = trade._isBuy !== undefined ? trade._isBuy : (isEntry ? isLong : !isLong);
+                const isBuy   = trade._isBuy !== undefined ? trade._isBuy : isLong;
                 const pnl     = parseFloat(trade.pnl || 0);
                 const price   = parseFloat(trade.price || 0);
                 const qty     = parseFloat(trade.qty || 0);

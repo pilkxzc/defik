@@ -265,6 +265,7 @@ async function initDatabase() {
 
     try { db.run('ALTER TABLE bot_trades ADD COLUMN binance_trade_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_trades ADD COLUMN binance_close_trade_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE bot_trades ADD COLUMN position_side TEXT'); } catch(e) {}
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_trades_binance_id ON bot_trades(bot_id, binance_trade_id) WHERE binance_trade_id IS NOT NULL'); } catch(e) {}
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_trades_close_id ON bot_trades(bot_id, binance_close_trade_id) WHERE binance_close_trade_id IS NOT NULL'); } catch(e) {}
 

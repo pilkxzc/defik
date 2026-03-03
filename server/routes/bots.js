@@ -174,7 +174,7 @@ function updateBotStats(botId) {
 function repairOrphanedTrades(botId) {
     // Standalone closed trades: inserted as closed with no matching open (binance_close_trade_id set, no binance_trade_id)
     const standaloneClosedIds = dbAll(
-        `SELECT id, symbol, side, opened_at, closed_at, pnl, binance_close_trade_id
+        `SELECT id, symbol, side, position_side, opened_at, closed_at, pnl, binance_close_trade_id
          FROM bot_trades
          WHERE bot_id = ? AND status = 'closed'
            AND (binance_trade_id IS NULL OR binance_trade_id = '')
@@ -185,7 +185,7 @@ function repairOrphanedTrades(botId) {
 
     // Orphaned open trades: inserted as open but never closed
     const orphanedOpens = dbAll(
-        `SELECT id, symbol, side, opened_at, binance_trade_id
+        `SELECT id, symbol, side, position_side, opened_at, binance_trade_id
          FROM bot_trades
          WHERE bot_id = ? AND status = 'open'
            AND (binance_trade_id IS NOT NULL AND binance_trade_id != '')
@@ -197,13 +197,24 @@ function repairOrphanedTrades(botId) {
 
     let fixed = 0;
     for (const closed of standaloneClosedIds) {
-        // Find an orphaned open with matching symbol and opposite side, opened before the close
-        const openSide = closed.side === 'SELL' ? 'BUY' : 'SELL';
-        const match = orphanedOpens.find(o =>
-            o.symbol === closed.symbol &&
-            o.side === openSide &&
-            o.opened_at <= closed.opened_at
-        );
+        // In Hedge Mode: match by same position_side (LONG open + LONG close)
+        // In One-Way Mode: match by opposite side (BUY open + SELL close)
+        const closedPosSide = closed.position_side;
+        let match;
+        if (closedPosSide === 'LONG' || closedPosSide === 'SHORT') {
+            match = orphanedOpens.find(o =>
+                o.symbol === closed.symbol &&
+                (o.position_side || o.side) === closedPosSide &&
+                o.opened_at <= closed.opened_at
+            );
+        } else {
+            const openSide = closed.side === 'SELL' ? 'BUY' : 'SELL';
+            match = orphanedOpens.find(o =>
+                o.symbol === closed.symbol &&
+                o.side === openSide &&
+                o.opened_at <= closed.opened_at
+            );
+        }
         if (match) {
             // Merge: update the open entry to become the complete closed trade
             dbRun(
@@ -308,26 +319,59 @@ async function syncBinanceTrades(botId) {
                     if (!exists) {
                         const pnl       = parseFloat(t.realizedPnl) || 0;
                         const tradeTime = new Date(t.time).toISOString();
+                        const posSide   = t.positionSide || 'BOTH'; // LONG, SHORT, or BOTH
 
-                        if (pnl !== 0) {
-                            const openSide = t.side === 'SELL' ? 'BUY' : 'SELL';
-                            const openRow  = dbGet(
-                                'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
-                                [botId, t.symbol, openSide, 'open']
-                            );
+                        // Determine the position side for matching
+                        // Hedge mode: positionSide is LONG or SHORT
+                        // One-way mode: positionSide is BOTH
+                        const isBuy = t.side === 'BUY';
+                        let isEntry;
+                        if (posSide === 'LONG')       isEntry = isBuy;    // LONG+BUY=open, LONG+SELL=close
+                        else if (posSide === 'SHORT')  isEntry = !isBuy;   // SHORT+SELL=open, SHORT+BUY=close
+                        else                           isEntry = pnl === 0; // BOTH: use pnl
+
+                        // The side we store = position side (LONG/SHORT), not order side (BUY/SELL)
+                        const storeSide = posSide === 'LONG' ? 'LONG' :
+                                          posSide === 'SHORT' ? 'SHORT' :
+                                          (isBuy ? 'BUY' : 'SELL');
+
+                        if (!isEntry && pnl !== 0) {
+                            // This is an exit fill — find matching open trade
+                            // In hedge mode, match by position_side; in one-way, match by opposite side
+                            let openRow;
+                            if (posSide === 'LONG' || posSide === 'SHORT') {
+                                openRow = dbGet(
+                                    'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND position_side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
+                                    [botId, t.symbol, posSide, 'open']
+                                );
+                                // Fallback: try matching by side field for older records without position_side
+                                if (!openRow) {
+                                    openRow = dbGet(
+                                        'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
+                                        [botId, t.symbol, storeSide, 'open']
+                                    );
+                                }
+                            } else {
+                                const openSide = isBuy ? 'SELL' : 'BUY';
+                                openRow = dbGet(
+                                    'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
+                                    [botId, t.symbol, openSide, 'open']
+                                );
+                            }
                             if (openRow) {
                                 dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?',
                                     ['closed', pnl, tradeTime, tradeId, openRow.id]);
                             } else {
                                 dbRun(
-                                    'INSERT INTO bot_trades (bot_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                    [botId, tradeId, t.symbol, t.side, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime]
+                                    'INSERT INTO bot_trades (bot_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                    [botId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide]
                                 );
                             }
                         } else {
+                            // Entry fill
                             dbRun(
-                                'INSERT INTO bot_trades (bot_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                [botId, tradeId, t.symbol, t.side, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime]
+                                'INSERT INTO bot_trades (bot_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [botId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide]
                             );
                         }
                         totalSaved++;
@@ -368,14 +412,28 @@ async function reconcileOpenTrades(botId) {
 
         // Fetch current Binance positions (use cache — only 8s TTL)
         const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
-        const activePositions = new Set(
-            (binData.positions || [])
-                .filter(p => parseFloat(p.positionAmt) !== 0)
-                .map(p => p.symbol)
-        );
+        // Build a set of active position keys: "SYMBOL:SIDE" for hedge mode
+        const activePositionKeys = new Set();
+        const activeSymbols = new Set();
+        (binData.positions || [])
+            .filter(p => parseFloat(p.positionAmt) !== 0)
+            .forEach(p => {
+                activeSymbols.add(p.symbol);
+                const side = parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT';
+                activePositionKeys.add(`${p.symbol}:${side}`);
+            });
 
-        // Find open trades in DB where Binance has no active position
-        const orphaned = openTrades.filter(t => !activePositions.has(t.symbol));
+        // Find open trades in DB where Binance has no matching active position
+        const orphaned = openTrades.filter(t => {
+            const posSide = t.position_side || t.side;
+            // If we know the position side, check specific side
+            if (posSide === 'LONG' || posSide === 'SHORT') {
+                return !activePositionKeys.has(`${t.symbol}:${posSide}`);
+            }
+            // Fallback: BUY = LONG, SELL = SHORT
+            const mappedSide = (posSide === 'BUY') ? 'LONG' : 'SHORT';
+            return !activePositionKeys.has(`${t.symbol}:${mappedSide}`);
+        });
         if (orphaned.length === 0) return 0;
 
         console.log(`[Bot ${botId}] reconcileOpenTrades: ${orphaned.length} orphaned open trades`);
@@ -402,11 +460,18 @@ async function reconcileOpenTrades(botId) {
 
                 for (const trade of trades) {
                     const openMs = new Date(trade.opened_at).getTime() || 0;
+                    const tradePosSide = trade.position_side || trade.side;
 
                     // Find the best closing fill: pnl≠0, happened after this trade opened
-                    // Prefer the one closest in time to the open (first close)
+                    // In Hedge Mode, also match positionSide to avoid cross-matching LONG/SHORT
                     const closingFill = fills
-                        .filter(f => f.time > openMs && parseFloat(f.realizedPnl) !== 0)
+                        .filter(f => {
+                            if (f.time <= openMs || parseFloat(f.realizedPnl) === 0) return false;
+                            if (tradePosSide === 'LONG' || tradePosSide === 'SHORT') {
+                                return f.positionSide === tradePosSide;
+                            }
+                            return true;
+                        })
                         .sort((a, b) => a.time - b.time)[0]; // earliest close after open
 
                     if (closingFill) {
