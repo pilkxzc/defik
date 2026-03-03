@@ -804,15 +804,11 @@ router.get('/api/news', (req, res) => {
     }
 });
 
-// Manual trigger for admins
-router.post('/api/admin/news/collect', requireAuth, requireRole('admin', 'moderator'), async (req, res) => {
-    try {
-        const { collectNow } = require('../services/newsCollector');
-        await collectNow();
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+// Manual trigger — responds immediately, runs in background
+router.post('/api/admin/news/collect', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    res.json({ success: true, message: 'Збір запущено у фоні' });
+    const { collectNow } = require('../services/newsCollector');
+    collectNow().catch(err => console.error('[NewsCollector] Manual collect error:', err));
 });
 
 router.get('/api/news/:id', (req, res) => {
