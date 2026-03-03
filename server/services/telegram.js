@@ -172,6 +172,45 @@ async function initTelegramBot() {
             }
         });
 
+        // ── Channel post listener ─────────────────────────────────────────────
+        // Fires when the bot is admin in a Telegram channel and a post is sent.
+        // Saves the post to tg_posts table and broadcasts to all connected clients.
+        telegramBot.on('channel_post', (msg) => {
+            const text       = msg.text || msg.caption || '';
+            const photo      = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
+            const channelId  = msg.chat.id.toString();
+            const channelTitle = msg.chat.title || 'Telegram Channel';
+            const createdAt  = new Date(msg.date * 1000).toISOString();
+
+            try {
+                const result = dbRun(
+                    `INSERT OR IGNORE INTO tg_posts
+                        (message_id, channel_id, channel_title, text, photo_file_id, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [msg.message_id, channelId, channelTitle, text, photo, createdAt]
+                );
+                saveDatabase();
+
+                const post = {
+                    id:            result.lastInsertRowid,
+                    message_id:    msg.message_id,
+                    channel_id:    channelId,
+                    channel_title: channelTitle,
+                    text,
+                    photo_file_id: photo,
+                    created_at:    createdAt,
+                };
+
+                // Broadcast to ALL connected Socket.IO clients
+                const { getIo } = require('../socket');
+                getIo()?.emit('tg_channel_post', post);
+
+                console.log(`[Telegram] Channel post saved: ${channelId} #${msg.message_id}`);
+            } catch (err) {
+                console.error('[Telegram] channel_post error:', err.message);
+            }
+        });
+
         // Suppress Telegram 409 spam: happens briefly on server restart when two
         // instances race. The old one dies within ~30s and polling resumes normally.
         let lastPollingError = 0;

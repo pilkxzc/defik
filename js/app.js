@@ -233,6 +233,16 @@ function initSocketIO() {
     socket.on('disconnect', () => {
         console.log('Disconnected from notification server');
     });
+
+    // Telegram channel post broadcast — show toast on any page
+    socket.on('tg_channel_post', (post) => {
+        const preview = post.text
+            ? post.text.substring(0, 90) + (post.text.length > 90 ? '…' : '')
+            : 'Новий пост у каналі';
+        showToast('info', '📢 Yamato Legends', preview, 8000, '📢');
+        // Dispatch for community page real-time feed update
+        document.dispatchEvent(new CustomEvent('tg_channel_post', { detail: post }));
+    });
 }
 
 // ==================== NOTIFICATION PANEL ====================

@@ -94,6 +94,7 @@ async function createApp() {
     app.use(require('./routes/orders'));
     app.use(require('./routes/admin'));
     app.use(require('./routes/history'));
+    app.use(require('./routes/community'));
 
     // 5. HTML page routes
     const pages = path.join(__dirname, '..', 'page');

@@ -8,8 +8,8 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=robot" />
-<style>.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:24px;line-height:1;color:inherit;display:inline-flex;align-items:center;justify-content:center;}</style>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=robot" />
+    <style>.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:24px;line-height:1;color:inherit;display:inline-flex;align-items:center;justify-content:center;}</style>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
 
@@ -24,52 +24,38 @@
             grid-row: 2;
             display: flex;
             flex-direction: column;
-            gap: var(--gap-md);
+            gap: 24px;
             overflow-y: auto;
             overflow-x: hidden;
             scrollbar-width: none;
-            padding-bottom: 20px;
+            padding-bottom: 32px;
         }
-
         .main-content::-webkit-scrollbar { display: none; }
 
         /* ── Page header ── */
-        .page-header {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
+        .page-header { display: flex; flex-direction: column; gap: 6px; }
         .page-title {
-            font-size: 28px;
-            font-weight: 700;
+            font-size: 26px; font-weight: 700;
             background: linear-gradient(135deg, #fff 0%, #a1a1a1 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
-
-        .page-subtitle {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
+        .page-subtitle { color: var(--text-secondary); font-size: 14px; }
 
         /* ── Social cards grid ── */
         .social-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: var(--gap-md);
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
         }
 
         .social-card {
             background: var(--surface);
             border-radius: var(--radius-lg);
-            border: 1px solid rgba(255,255,255,0.05);
-            padding: 28px 24px;
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 24px 20px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            box-shadow: var(--shadow-card);
+            gap: 16px;
             transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
             text-decoration: none;
             cursor: pointer;
@@ -83,150 +69,254 @@
             inset: 0;
             opacity: 0;
             transition: opacity 0.3s;
+            pointer-events: none;
         }
-
-        .social-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 16px 40px rgba(0,0,0,0.5);
-        }
-
+        .social-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.45); }
         .social-card:hover::before { opacity: 1; }
 
-        /* Brand colours */
+        /* Brand colors */
         .card-telegram  { --brand: #229ED9; }
         .card-instagram { --brand: #E1306C; }
         .card-youtube   { --brand: #FF0000; }
         .card-tiktok    { --brand: #FFFFFF; }
 
-        .social-card:hover { border-color: var(--brand); }
-        .social-card::before { background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--brand) 8%, transparent), transparent 70%); }
-
-        .card-top {
-            display: flex;
-            align-items: center;
-            gap: 16px;
+        .social-card:hover { border-color: var(--brand, rgba(255,255,255,0.15)); }
+        .social-card::before {
+            background: radial-gradient(ellipse at top left,
+                rgba(255,255,255,0.04) 0%, transparent 70%);
         }
+        .card-telegram::before  { background: radial-gradient(ellipse at top left, rgba(34,158,217,0.08) 0%, transparent 70%); }
+        .card-instagram::before { background: radial-gradient(ellipse at top left, rgba(225,48,108,0.08) 0%, transparent 70%); }
+        .card-youtube::before   { background: radial-gradient(ellipse at top left, rgba(255,0,0,0.08) 0%, transparent 70%); }
+        .card-tiktok::before    { background: radial-gradient(ellipse at top left, rgba(255,255,255,0.05) 0%, transparent 70%); }
+
+        .card-top { display: flex; align-items: center; gap: 14px; }
 
         .card-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: var(--radius-md);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 24px;
+            width: 48px; height: 48px;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; font-size: 22px;
         }
+        .card-telegram  .card-icon { background: rgba(34,158,217,0.12); color: #229ED9; }
+        .card-instagram .card-icon { background: rgba(225,48,108,0.12); color: #E1306C; }
+        .card-youtube   .card-icon { background: rgba(255,0,0,0.12);    color: #FF0000; }
+        .card-tiktok    .card-icon { background: rgba(255,255,255,0.07); color: #FFFFFF; }
 
-        .card-telegram  .card-icon { background: rgba(34,158,217,0.15); color: #229ED9; }
-        .card-instagram .card-icon { background: rgba(225,48,108,0.15); color: #E1306C; }
-        .card-youtube   .card-icon { background: rgba(255,0,0,0.15);    color: #FF0000; }
-        .card-tiktok    .card-icon { background: rgba(255,255,255,0.08); color: #FFFFFF; }
-
-        .card-name {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-
-        .card-handle {
-            font-size: 13px;
-            color: var(--text-tertiary);
-            margin-top: 2px;
-        }
+        .card-name   { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+        .card-handle { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 
         .card-description {
-            font-size: 13px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-            flex: 1;
+            font-size: 13px; color: var(--text-secondary);
+            line-height: 1.6; flex: 1;
         }
 
-        .card-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+        .card-footer { display: flex; align-items: center; justify-content: space-between; }
 
         .card-stat {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--text-tertiary);
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; color: var(--text-tertiary);
         }
-
         .card-stat-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--brand);
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--brand, #10B981);
         }
 
         .card-btn {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: var(--radius-full);
-            border: 1px solid var(--brand);
-            background: color-mix(in srgb, var(--brand) 10%, transparent);
-            color: var(--brand);
-            font-size: 12px;
-            font-weight: 700;
-            font-family: inherit;
+            display: flex; align-items: center; gap: 5px;
+            padding: 7px 14px;
+            border-radius: 100px;
+            border: 1px solid var(--brand, rgba(255,255,255,0.15));
+            background: transparent;
+            color: var(--brand, var(--text-secondary));
+            font-size: 12px; font-weight: 700; font-family: inherit;
             cursor: pointer;
             transition: background 0.2s, transform 0.15s;
             text-decoration: none;
         }
+        .card-btn:hover { background: rgba(255,255,255,0.06); transform: scale(1.02); }
+        .card-btn svg { width: 11px; height: 11px; stroke-width: 2.5; }
 
-        .card-btn:hover {
-            background: color-mix(in srgb, var(--brand) 20%, transparent);
-            transform: scale(1.03);
-        }
+        /* ── Telegram Feed ── */
+        .tg-section { display: flex; flex-direction: column; gap: 16px; }
 
-        .card-btn svg {
-            width: 12px;
-            height: 12px;
-            stroke-width: 2.5;
-        }
-
-        /* ── Banner ── */
-        .community-banner {
-            background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(140,168,255,0.08) 100%);
-            border: 1px solid rgba(16,185,129,0.2);
-            border-radius: var(--radius-xl);
-            padding: 32px;
+        .tg-section-header {
             display: flex;
             align-items: center;
-            gap: 24px;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .tg-section-title {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 18px; font-weight: 700; color: var(--text-primary);
+        }
+        .tg-section-title svg { color: #229ED9; flex-shrink: 0; }
+
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px;
+            background: rgba(16,185,129,0.12);
+            border: 1px solid rgba(16,185,129,0.25);
+            border-radius: 100px;
+            font-size: 11px; font-weight: 700; color: #10B981;
+            letter-spacing: 0.04em;
+        }
+        .live-badge::before {
+            content: '';
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #10B981;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
         }
 
-        .banner-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: var(--radius-lg);
-            background: rgba(16,185,129,0.15);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .tg-subscribe-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 18px;
+            border-radius: 100px;
+            background: rgba(34,158,217,0.12);
+            border: 1px solid rgba(34,158,217,0.3);
+            color: #229ED9;
+            font-size: 13px; font-weight: 700; font-family: inherit;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.15s;
             flex-shrink: 0;
-            color: #10B981;
+        }
+        .tg-subscribe-btn:hover { background: rgba(34,158,217,0.2); transform: scale(1.02); }
+        .tg-subscribe-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+        .tg-feed {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
         }
 
-        .banner-text h2 {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 6px;
+        .tg-post-card {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .tg-post-card:hover { border-color: rgba(34,158,217,0.25); transform: translateY(-1px); }
+        .tg-post-card.new-post {
+            animation: slideDown 0.4s cubic-bezier(0.16,1,0.3,1);
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-12px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        .banner-text p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
+        .tg-post-header {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .tg-channel-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: rgba(34,158,217,0.15);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; overflow: hidden;
+        }
+        .tg-channel-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .tg-channel-name {
+            font-size: 14px; font-weight: 700; color: var(--text-primary);
+        }
+        .tg-post-time {
+            font-size: 12px; color: var(--text-tertiary);
+        }
+
+        .tg-post-image {
+            width: 100%; border-radius: 12px;
+            max-height: 260px; object-fit: cover;
+            display: block;
+        }
+
+        .tg-post-text {
+            font-size: 14px; color: var(--text-secondary);
+            line-height: 1.65;
+            flex: 1;
+            /* max 5 lines */
+            display: -webkit-box;
+            -webkit-line-clamp: 7;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .tg-post-footer {
+            display: flex; align-items: center; justify-content: flex-end;
+        }
+        .tg-open-btn {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 12px; font-weight: 700; color: #229ED9;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 100px;
+            border: 1px solid rgba(34,158,217,0.25);
+            transition: background 0.2s;
+        }
+        .tg-open-btn:hover { background: rgba(34,158,217,0.1); }
+        .tg-open-btn svg { width: 11px; height: 11px; }
+
+        /* Loading / Empty */
+        .tg-skeleton {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        .tg-skel-card {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .skel { background: rgba(255,255,255,0.05); border-radius: 8px; animation: shimmer 1.5s ease-in-out infinite; }
+        .skel-h { height: 14px; }
+        .skel-sm { height: 10px; width: 60%; }
+        .skel-line { height: 12px; }
+        @keyframes shimmer {
+            0%,100% { opacity: 0.5; } 50% { opacity: 1; }
+        }
+
+        .tg-empty {
+            grid-column: 1 / -1;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 14px;
+            padding: 48px 24px;
+            text-align: center;
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: var(--radius-xl);
+        }
+        .tg-empty-icon {
+            width: 56px; height: 56px;
+            border-radius: 16px;
+            background: rgba(34,158,217,0.1);
+            display: flex; align-items: center; justify-content: center;
+            color: #229ED9;
+        }
+        .tg-empty h3 { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+        .tg-empty p  { font-size: 13px; color: var(--text-secondary); line-height: 1.6; max-width: 360px; }
+        .tg-empty code {
+            display: inline-block;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 2px 8px;
+            font-size: 13px; font-family: monospace; color: #10B981;
         }
 
         /* ── Mobile ── */
+        @media (max-width: 1200px) {
+            .social-grid { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 768px) {
             body {
                 padding: 0;
@@ -235,21 +325,24 @@
             .app-container {
                 grid-template-columns: 1fr !important;
                 grid-template-rows: auto 1fr !important;
-                gap: 0;
-                border-radius: 0;
+                gap: 0; border-radius: 0;
             }
             .header-bar { grid-column: 1 !important; grid-row: 1 !important; }
             .main-content {
-                grid-column: 1 !important;
-                grid-row: 2 !important;
-                padding: 12px;
+                grid-column: 1 !important; grid-row: 2 !important;
+                padding: 12px; gap: 16px;
             }
             .page-title { font-size: 22px; }
-            .social-grid { grid-template-columns: 1fr !important; gap: 12px; }
-            .social-card { padding: 24px 20px; border-radius: 20px; }
+            .social-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .social-card { padding: 18px 14px; gap: 12px; }
+            .card-description { display: none; }
+            .tg-feed { grid-template-columns: 1fr; }
+            .tg-skeleton { grid-template-columns: 1fr; }
+            .tg-section-header { flex-wrap: wrap; }
         }
         @media (max-width: 480px) {
-            .social-card { padding: 20px 16px; border-radius: 16px; }
+            .social-grid { grid-template-columns: 1fr; }
+            .tg-subscribe-btn span { display: none; }
         }
     </style>
     <link rel="stylesheet" href="/css/variables.css">
@@ -305,128 +398,246 @@
 
         <section class="main-content">
 
-            <!-- Banner -->
-            <div class="community-banner">
-                <div class="banner-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                </div>
-                <div class="banner-text">
-                    <h2>Приєднуйся до спільноти Yamato</h2>
-                    <p>Отримуй торгові сигнали, навчайся у досвідчених трейдерів та будь завжди в курсі останніх оновлень платформи.</p>
-                </div>
+            <!-- Page Header -->
+            <div class="page-header">
+                <div class="page-title">Спільнота</div>
+                <div class="page-subtitle">Слідкуй за нами, отримуй сигнали та будь в курсі подій</div>
             </div>
 
             <!-- Social cards -->
             <div class="social-grid">
 
-                <!-- Telegram канал -->
-                <div class="social-card card-telegram" onclick="openLink('https://t.me/+Bf85Gs-LpSUyNmFi')">
+                <!-- Telegram -->
+                <a class="social-card card-telegram" href="https://t.me/+Bf85Gs-LpSUyNmFi" target="_blank" rel="noopener noreferrer">
                     <div class="card-top">
                         <div class="card-icon">
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/></svg>
                         </div>
                         <div>
-                            <div class="card-name">Telegram канал</div>
+                            <div class="card-name">Telegram</div>
                             <div class="card-handle">Yamato Legends</div>
                         </div>
                     </div>
-                    <p class="card-description">Торгові сигнали, аналіз ринку та оновлення платформи в реальному часі. Підписуйся щоб нічого не пропустити.</p>
+                    <p class="card-description">Торгові сигнали, аналіз ринку та оновлення платформи в реальному часі.</p>
                     <div class="card-footer">
-                        <div class="card-stat">
-                            <div class="card-stat-dot"></div>
-                            Активний канал
-                        </div>
-                        <a class="card-btn" href="https://t.me/+Bf85Gs-LpSUyNmFi" target="_blank" rel="noopener noreferrer">
+                        <div class="card-stat"><div class="card-stat-dot"></div>Активний</div>
+                        <span class="card-btn">
                             Підписатись
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
-                        </a>
+                        </span>
                     </div>
-                </div>
-
+                </a>
 
                 <!-- Instagram -->
-                <div class="social-card card-instagram" onclick="openLink('https://www.instagram.com/yamato.legends_/')">
+                <a class="social-card card-instagram" href="https://www.instagram.com/yamato.legends_/" target="_blank" rel="noopener noreferrer">
                     <div class="card-top">
                         <div class="card-icon">
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
                         </div>
                         <div>
                             <div class="card-name">Instagram</div>
                             <div class="card-handle">@yamato.legends_</div>
                         </div>
                     </div>
-                    <p class="card-description">Контент про трейдинг, успішні угоди наших користувачів та новини крипто-ринку у форматі сторіс та постів.</p>
+                    <p class="card-description">Контент про трейдинг, успішні угоди та новини крипто-ринку.</p>
                     <div class="card-footer">
-                        <div class="card-stat">
-                            <div class="card-stat-dot"></div>
-                            Нові пости щодня
-                        </div>
-                        <a class="card-btn" href="https://www.instagram.com/yamato.legends_/" target="_blank" rel="noopener noreferrer">
+                        <div class="card-stat"><div class="card-stat-dot"></div>Пости щодня</div>
+                        <span class="card-btn">
                             Підписатись
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
-                        </a>
+                        </span>
                     </div>
-                </div>
+                </a>
 
                 <!-- YouTube -->
-                <div class="social-card card-youtube" onclick="openLink('https://www.youtube.com/@YamatoLegends1')">
+                <a class="social-card card-youtube" href="https://www.youtube.com/@YamatoLegends1" target="_blank" rel="noopener noreferrer">
                     <div class="card-top">
                         <div class="card-icon">
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                         </div>
                         <div>
                             <div class="card-name">YouTube</div>
                             <div class="card-handle">@YamatoLegends1</div>
                         </div>
                     </div>
-                    <p class="card-description">Навчальні відео, огляди ринку, розбори стратегій та гайди по платформі Yamato. Стань кращим трейдером разом з нами.</p>
+                    <p class="card-description">Навчальні відео, огляди ринку та гайди по платформі Yamato.</p>
                     <div class="card-footer">
-                        <div class="card-stat">
-                            <div class="card-stat-dot"></div>
-                            Відео щотижня
-                        </div>
-                        <a class="card-btn" href="https://www.youtube.com/@YamatoLegends1" target="_blank" rel="noopener noreferrer">
-                            Підписатись
+                        <div class="card-stat"><div class="card-stat-dot"></div>Відео щотижня</div>
+                        <span class="card-btn">
+                            Дивитись
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
-                        </a>
+                        </span>
                     </div>
-                </div>
+                </a>
 
                 <!-- TikTok -->
-                <div class="social-card card-tiktok" onclick="openLink('https://www.tiktok.com/@yamatolegends')">
+                <a class="social-card card-tiktok" href="https://www.tiktok.com/@yamatolegends" target="_blank" rel="noopener noreferrer">
                     <div class="card-top">
                         <div class="card-icon">
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.75a8.21 8.21 0 0 0 4.8 1.54V6.82a4.85 4.85 0 0 1-1.03-.13z"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.75a8.21 8.21 0 0 0 4.8 1.54V6.82a4.85 4.85 0 0 1-1.03-.13z"/></svg>
                         </div>
                         <div>
                             <div class="card-name">TikTok</div>
                             <div class="card-handle">@yamatolegends</div>
                         </div>
                     </div>
-                    <p class="card-description">Короткі відео про крипто-трейдинг, швидкі лайфхаки та тренди ринку. Навчання у форматі 60 секунд.</p>
+                    <p class="card-description">Короткі відео про крипто-трейдинг та тренди ринку.</p>
                     <div class="card-footer">
-                        <div class="card-stat">
-                            <div class="card-stat-dot"></div>
-                            Контент щодня
-                        </div>
-                        <a class="card-btn" href="https://www.tiktok.com/@yamatolegends" target="_blank" rel="noopener noreferrer">
+                        <div class="card-stat"><div class="card-stat-dot"></div>Контент щодня</div>
+                        <span class="card-btn">
                             Дивитись
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>
-                        </a>
+                        </span>
                     </div>
-                </div>
+                </a>
 
             </div>
+
+            <!-- Telegram Live Feed -->
+            <div class="tg-section">
+                <div class="tg-section-header">
+                    <div class="tg-section-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/></svg>
+                        Telegram канал
+                        <span class="live-badge">Live</span>
+                    </div>
+                    <a class="tg-subscribe-btn" href="https://t.me/+Bf85Gs-LpSUyNmFi" target="_blank" rel="noopener noreferrer">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/></svg>
+                        <span>Підписатись на канал</span>
+                    </a>
+                </div>
+
+                <div id="tgFeed" class="tg-feed">
+                    <!-- Skeleton loading -->
+                    <div class="tg-skeleton">
+                        <div class="tg-skel-card">
+                            <div style="display:flex;gap:10px;align-items:center"><div class="skel" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="skel skel-h" style="width:55%"></div><div class="skel skel-sm"></div></div></div>
+                            <div style="display:flex;flex-direction:column;gap:8px"><div class="skel skel-line"></div><div class="skel skel-line" style="width:85%"></div><div class="skel skel-line" style="width:70%"></div></div>
+                        </div>
+                        <div class="tg-skel-card">
+                            <div style="display:flex;gap:10px;align-items:center"><div class="skel" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="skel skel-h" style="width:55%"></div><div class="skel skel-sm"></div></div></div>
+                            <div style="display:flex;flex-direction:column;gap:8px"><div class="skel skel-line"></div><div class="skel skel-line" style="width:90%"></div><div class="skel skel-line" style="width:60%"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </section>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/js/app.js"></script>
     <script>
-        function openLink(url) {
-            window.open(url, '_blank', 'noopener,noreferrer');
+        // ── Helpers ──────────────────────────────────────────────────────────────
+        function escHtml(s) {
+            return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
+        function fmtText(t) {
+            return escHtml(t).replace(/\n/g, '<br>');
+        }
+        function timeAgo(dateStr) {
+            const diff = Date.now() - new Date(dateStr).getTime();
+            const min  = Math.floor(diff / 60000);
+            const hr   = Math.floor(min / 60);
+            const day  = Math.floor(hr / 24);
+            if (min < 1)  return 'щойно';
+            if (min < 60) return `${min} хв тому`;
+            if (hr  < 24) return `${hr} год тому`;
+            if (day < 7)  return `${day} дн тому`;
+            return new Date(dateStr).toLocaleDateString('uk', { day:'numeric', month:'short' });
+        }
+
+        // ── Render ───────────────────────────────────────────────────────────────
+        let _posts = [];
+
+        function renderPost(post, isNew = false) {
+            const photoHtml = post.photo_file_id
+                ? `<img src="/api/community/tg-photo/${encodeURIComponent(post.photo_file_id)}"
+                        class="tg-post-image" loading="lazy"
+                        onerror="this.style.display='none'">`
+                : '';
+            const textHtml = post.text ? `<div class="tg-post-text">${fmtText(post.text)}</div>` : '';
+
+            return `
+                <div class="tg-post-card${isNew ? ' new-post' : ''}">
+                    <div class="tg-post-header">
+                        <div class="tg-channel-avatar">
+                            <img src="/logo.svg" alt="Yamato">
+                        </div>
+                        <div style="flex:1; min-width:0;">
+                            <div class="tg-channel-name">Yamato Legends</div>
+                            <div class="tg-post-time">${timeAgo(post.created_at)}</div>
+                        </div>
+                    </div>
+                    ${photoHtml}
+                    ${textHtml}
+                    <div class="tg-post-footer">
+                        <a href="https://t.me/+Bf85Gs-LpSUyNmFi" target="_blank" rel="noopener" class="tg-open-btn">
+                            Відкрити в Telegram
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        </a>
+                    </div>
+                </div>`;
+        }
+
+        function renderFeed() {
+            const feed = document.getElementById('tgFeed');
+            if (!_posts.length) {
+                feed.innerHTML = `
+                    <div class="tg-empty">
+                        <div class="tg-empty-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/></svg>
+                        </div>
+                        <h3>Пости ще не з'явились</h3>
+                        <p>Щоб бачити пости тут у реальному часі, додайте бота
+                        <code>@Yamatonotificationbot</code> у ваш Telegram канал як адміна.</p>
+                        <a class="tg-subscribe-btn" href="https://t.me/+Bf85Gs-LpSUyNmFi" target="_blank" rel="noopener" style="margin-top:4px">
+                            Підписатись на канал
+                        </a>
+                    </div>`;
+                return;
+            }
+            feed.innerHTML = _posts.map(p => renderPost(p)).join('');
+        }
+
+        async function loadTgPosts() {
+            try {
+                const res  = await fetch('/api/community/tg-posts?limit=20');
+                const data = await res.json();
+                _posts = data.posts || [];
+            } catch {
+                _posts = [];
+            }
+            renderFeed();
+        }
+
+        // ── Real-time new post ────────────────────────────────────────────────────
+        document.addEventListener('tg_channel_post', (e) => {
+            const post = e.detail;
+            _posts.unshift(post);
+            if (_posts.length > 20) _posts.pop();
+
+            const feed = document.getElementById('tgFeed');
+            const newCard = document.createElement('div');
+            newCard.innerHTML = renderPost(post, true);
+            const firstChild = newCard.firstElementChild;
+            if (firstChild) {
+                // If currently showing empty state, re-render fully
+                if (feed.querySelector('.tg-empty') || feed.querySelector('.tg-skeleton')) {
+                    renderFeed();
+                } else {
+                    feed.insertBefore(firstChild, feed.firstChild);
+                    // Remove last card if overflow
+                    const cards = feed.querySelectorAll('.tg-post-card');
+                    if (cards.length > 20) cards[cards.length - 1].remove();
+                }
+            }
+        });
+
+        // ── Init ─────────────────────────────────────────────────────────────────
+        loadTgPosts();
     </script>
+
 <!-- Mobile Bottom Nav -->
 <nav class="m-bottom-nav" id="mobileNav" style="display:none;">
     <a href="/dashboard" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>

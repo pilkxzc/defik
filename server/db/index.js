@@ -81,6 +81,19 @@ async function initDatabase() {
     try { db.run('ALTER TABLE news ADD COLUMN external_id TEXT DEFAULT NULL'); } catch(e) {}
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS tg_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER NOT NULL,
+            channel_id TEXT NOT NULL,
+            channel_title TEXT DEFAULT '',
+            text TEXT DEFAULT '',
+            photo_file_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(channel_id, message_id)
+        )
+    `);
+
+    db.run(`
         CREATE TABLE IF NOT EXISTS bot_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
