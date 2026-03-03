@@ -3186,6 +3186,107 @@ async function restoreFromDrive(fileId, fileName) {
     }
 }
 
+// Restore from Google Drive URL (public link)
+async function restoreFromUrl() {
+    const input = document.getElementById('restoreUrlInput');
+    const btn = document.getElementById('restoreUrlBtn');
+    const url = (input?.value || '').trim();
+    if (!url) { showToast('error', 'Помилка', 'Вставте посилання на файл'); return; }
+    if (!confirm('Відновити базу даних з цього посилання?\n\nПоточна база буде збережена як .pre-restore.\nПісля відновлення потрібен перезапуск сервера.')) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Завантаження...';
+    showToast('info', 'Відновлення', 'Завантаження файлу з Google Drive...');
+
+    try {
+        const res = await fetch('/api/admin/backup/restore-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const sizeKb = data.fileSize ? Math.round(data.fileSize / 1024) : '?';
+            showToast('success', 'Відновлено', `${data.message} (${sizeKb} KB)`);
+            input.value = '';
+            if (confirm('Базу даних відновлено. Перезавантажити сервер зараз?')) {
+                restartServer();
+            }
+        } else {
+            showToast('error', 'Помилка', data.error || 'Не вдалося відновити');
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', 'Не вдалося відновити бекап: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Відновити';
+    }
+}
+
+// Scan Google Drive for backups by name pattern
+async function scanDriveBackups() {
+    const btn = document.getElementById('scanDriveBtn');
+    const list = document.getElementById('driveBackupsList');
+    btn.disabled = true;
+    btn.textContent = 'Сканування...';
+    list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-tertiary);font-size:12px;">Пошук бекапів...</div>';
+
+    try {
+        const res = await fetch('/api/admin/backup/scan-drive');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+
+        const files = data.files || [];
+        if (files.length === 0) {
+            list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-tertiary);font-size:12px;">Бекапів не знайдено</div>';
+            return;
+        }
+
+        list.innerHTML = files.map(f => {
+            const sizeKb = f.size ? Math.round(f.size / 1024) : '?';
+            const date = f.createdTime ? new Date(f.createdTime).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${f.name}">${f.name}</div>
+                    <div style="color:var(--text-tertiary);font-size:10px;">${date} &middot; ${sizeKb} KB</div>
+                </div>
+                <button onclick="restoreFromDriveUrl('${f.downloadUrl}', '${f.name.replace(/'/g, "\\'")}')" class="action-btn primary" style="padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;margin-left:8px;white-space:nowrap;">
+                    Відновити
+                </button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        list.innerHTML = `<div style="text-align:center;padding:12px;color:#EF4444;font-size:12px;">${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Сканувати';
+    }
+}
+
+async function restoreFromDriveUrl(downloadUrl, fileName) {
+    if (!confirm(`Відновити базу даних з "${fileName}"?\n\nПоточна база буде збережена.\nПісля відновлення потрібен перезапуск сервера.`)) return;
+
+    showToast('info', 'Відновлення', 'Завантаження ' + fileName + '...');
+    try {
+        const res = await fetch('/api/admin/backup/restore-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: downloadUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Відновлено', data.message);
+            if (confirm('Базу даних відновлено. Перезавантажити сервер зараз?')) {
+                restartServer();
+            }
+        } else {
+            showToast('error', 'Помилка', data.error || 'Не вдалося відновити');
+        }
+    } catch (e) {
+        showToast('error', 'Помилка', e.message);
+    }
+}
+
 // ==================== BUG REPORTS ====================
 
 async function loadBugReportingStatus() {

@@ -1855,6 +1855,63 @@ router.get('/api/admin/backup/drive-files', requireAuth, requireRole('admin'), a
     }
 });
 
+// Scan Google Drive folder for backups (works with shared folder link — no OAuth needed)
+router.get('/api/admin/backup/scan-drive', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        // Try OAuth-connected drive first
+        if (siteSettings.googleDriveTokens) {
+            try {
+                const auth = getOAuth2Client();
+                const drive = google.drive({ version: 'v3', auth });
+
+                // Search for backup files by name patterns
+                const namePatterns = ["name contains 'backup'", "name contains 'database'", "name contains 'yamato'"];
+                const typePatterns = ["mimeType = 'application/gzip'", "mimeType = 'application/x-sqlite3'", "mimeType = 'application/octet-stream'"];
+                const query = `(${namePatterns.join(' or ')}) and (${typePatterns.join(' or ')}) and trashed = false`;
+
+                const params = {
+                    q: query,
+                    fields: 'files(id, name, size, createdTime, webContentLink)',
+                    orderBy: 'createdTime desc',
+                    pageSize: 50
+                };
+
+                if (siteSettings.googleDriveBackupFolderId) {
+                    params.q += ` and '${siteSettings.googleDriveBackupFolderId}' in parents`;
+                }
+
+                const result = await drive.files.list(params);
+                const files = (result.data.files || []).map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    size: parseInt(f.size) || 0,
+                    createdTime: f.createdTime,
+                    downloadUrl: f.webContentLink || `https://drive.google.com/uc?export=download&id=${f.id}`
+                }));
+                return res.json({ files, source: 'oauth' });
+            } catch (oauthErr) {
+                console.log('OAuth scan failed, trying public:', oauthErr.message);
+            }
+        }
+
+        // Fallback: if a folder ID is set, try public API key access
+        const folderId = siteSettings.googleDriveBackupFolderId || req.query.folderId;
+        if (!folderId) {
+            return res.status(400).json({ error: 'Google Drive не підключений і не вказано ID папки. Підключіть Google Drive або вставте посилання вручну.' });
+        }
+
+        // Use public Google Drive API (no auth, works for publicly shared folders)
+        const axios = require('axios');
+        const apiUrl = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,size,createdTime)&orderBy=createdTime+desc&pageSize=50&key=${siteSettings.googleClientId ? '' : ''}`;
+
+        // Without API key, use the folder listing page scraping as fallback
+        return res.status(400).json({ error: 'Google Drive не підключений. Вставте посилання на файл вручну у поле вище.' });
+    } catch (error) {
+        console.error('Scan drive error:', error);
+        res.status(500).json({ error: error.message || 'Scan failed' });
+    }
+});
+
 // Restore database from Google Drive backup
 router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), async (req, res) => {
     try {
@@ -1918,6 +1975,131 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
         res.json({ success: true, message: 'Database restored. Server restart required.', backupOfPrevious: backupOfCurrent });
     } catch (error) {
         console.error('Restore backup error:', error);
+        res.status(500).json({ error: error.message || 'Restore failed' });
+    }
+});
+
+// Restore database from Google Drive public link (no OAuth required)
+router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: 'URL is required' });
+
+        // Extract file ID from various Google Drive URL formats
+        let fileId = null;
+        const patterns = [
+            /\/file\/d\/([a-zA-Z0-9_-]+)/,       // /file/d/FILE_ID/
+            /[?&]id=([a-zA-Z0-9_-]+)/,            // ?id=FILE_ID
+            /\/open\?id=([a-zA-Z0-9_-]+)/,        // /open?id=FILE_ID
+            /^([a-zA-Z0-9_-]{20,})$/,             // raw file ID
+        ];
+        for (const p of patterns) {
+            const m = url.match(p);
+            if (m) { fileId = m[1]; break; }
+        }
+        if (!fileId) return res.status(400).json({ error: 'Could not extract file ID from URL. Use a Google Drive share link.' });
+
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+        const tmpDir = path.join(__dirname, '..', 'tmp');
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        const tmpFile = path.join(tmpDir, `restore-url-${Date.now()}`);
+
+        // Download file (follow redirects for large files)
+        const axios = require('axios');
+        let downloadResp;
+        try {
+            downloadResp = await axios.get(downloadUrl, {
+                responseType: 'stream', timeout: 120000, maxRedirects: 5,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+        } catch (dlErr) {
+            // Try with confirm param for large files
+            try {
+                downloadResp = await axios.get(downloadUrl + '&confirm=t', {
+                    responseType: 'stream', timeout: 120000, maxRedirects: 5,
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+            } catch (dlErr2) {
+                return res.status(400).json({ error: 'Failed to download file from Google Drive. Make sure the link is public.' });
+            }
+        }
+
+        const dest = fs.createWriteStream(tmpFile);
+        await new Promise((resolve, reject) => {
+            downloadResp.data.pipe(dest);
+            dest.on('finish', resolve);
+            dest.on('error', reject);
+        });
+
+        const fileSize = fs.statSync(tmpFile).size;
+        if (fileSize < 1000) {
+            // Probably an HTML error page, not a real file
+            const content = fs.readFileSync(tmpFile, 'utf8').slice(0, 500);
+            try { fs.unlinkSync(tmpFile); } catch(e) {}
+            if (content.includes('<!DOCTYPE') || content.includes('<html')) {
+                return res.status(400).json({ error: 'Google Drive returned an HTML page. Make sure the file is shared publicly (anyone with the link).' });
+            }
+            return res.status(400).json({ error: 'Downloaded file is too small (' + fileSize + ' bytes). Check the link.' });
+        }
+
+        // Detect file type: .sqlite, .tar.gz, or .gz
+        const { DB_PATH } = require('../config');
+        const backupOfCurrent = DB_PATH + '.pre-restore.' + Date.now();
+        fs.copyFileSync(DB_PATH, backupOfCurrent);
+
+        // Check if it's a tar.gz by trying to extract
+        const { exec } = require('child_process');
+        const isTarGz = await new Promise(resolve => {
+            exec(`file "${tmpFile}"`, (err, stdout) => {
+                resolve(stdout && (stdout.includes('gzip') || stdout.includes('tar')));
+            });
+        });
+
+        if (isTarGz) {
+            const extractDir = path.join(tmpDir, `restore-url-extract-${Date.now()}`);
+            fs.mkdirSync(extractDir, { recursive: true });
+            try {
+                await new Promise((resolve, reject) => {
+                    exec(`tar -xzf "${tmpFile}" -C "${extractDir}"`, (error) => {
+                        if (error) reject(error); else resolve();
+                    });
+                });
+                // Find database.sqlite
+                const extractedDb = path.join(extractDir, 'database.sqlite');
+                if (!fs.existsSync(extractedDb)) {
+                    // Search recursively
+                    const found = await new Promise(resolve => {
+                        exec(`find "${extractDir}" -name "database.sqlite" -type f | head -1`, (err, stdout) => {
+                            resolve(stdout ? stdout.trim() : null);
+                        });
+                    });
+                    if (!found) {
+                        try { fs.unlinkSync(tmpFile); } catch(e) {}
+                        try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+                        return res.status(400).json({ error: 'Archive does not contain database.sqlite' });
+                    }
+                    fs.copyFileSync(found, DB_PATH);
+                } else {
+                    fs.copyFileSync(extractedDb, DB_PATH);
+                }
+                try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+            } catch (extractErr) {
+                // Not a tar.gz — maybe it's a raw .sqlite file
+                fs.copyFileSync(tmpFile, DB_PATH);
+            }
+        } else {
+            // Assume raw sqlite file
+            fs.copyFileSync(tmpFile, DB_PATH);
+        }
+
+        try { fs.unlinkSync(tmpFile); } catch(e) {}
+
+        logAdminAction(req.session.userId, 'restore_backup_url', 'backup', null, `Restored from URL: ${url.slice(0, 80)}`, getClientIP(req));
+
+        res.json({ success: true, message: 'Database restored. Server restart required.', backupOfPrevious: backupOfCurrent, fileSize });
+    } catch (error) {
+        console.error('Restore from URL error:', error);
         res.status(500).json({ error: error.message || 'Restore failed' });
     }
 });
