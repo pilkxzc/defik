@@ -4906,9 +4906,11 @@
 
         // ==================== POSITION BLOCKS (History by Positions) ====================
 
+        let _lastPositionBlocks = []; // stored for chart highlight on click
+
         function buildPositionBlocks(trades) {
             // Group trades into position blocks per symbol
-            // A block starts when positionAmt goes from 0 to non-zero, ends when it returns to ~0
+            // Uses status + pnl to identify entry vs exit (works for both LONG and SHORT)
             const bySymbol = {};
             trades.forEach(t => {
                 const sym = t.symbol || t.pair || currentSymbol;
@@ -4923,16 +4925,30 @@
                 let netQty = 0;
 
                 symTrades.forEach(t => {
-                    blockTrades.push(t);
                     const qty = parseFloat(t.quantity || t.qty || 0);
-                    const side = (t.side || '').toUpperCase();
-                    const isClose = t.status === 'closed' || side === 'SELL' || side === 'SHORT_EXIT';
-                    const isEntry = side === 'BUY' || side === 'LONG' || side === 'LONG_ENTRY';
+                    const pnl = parseFloat(t.pnl || 0);
+                    const isStandalone = t.status === 'closed' && pnl !== 0 && t.openedAt === t.closedAt;
+                    const isEntry = t.status === 'open' || (t.status !== 'closed' && pnl === 0);
+                    const isExit = t.status === 'closed' && pnl !== 0 && !isStandalone;
 
+                    if (isStandalone) {
+                        // Standalone closed trade — its own complete block
+                        if (blockTrades.length > 0) {
+                            const b = buildBlock(sym, blockTrades);
+                            b.isOpen = true;
+                            blocks.push(b);
+                            blockTrades = [];
+                            netQty = 0;
+                        }
+                        blocks.push(buildBlock(sym, [t]));
+                        return;
+                    }
+
+                    blockTrades.push(t);
                     if (isEntry) netQty += qty;
-                    else if (isClose) netQty = Math.max(0, netQty - qty);
+                    else if (isExit) netQty = Math.max(0, netQty - qty);
 
-                    // Close block when position returns to ~0 or on last trade
+                    // Close block when position returns to ~0
                     if (netQty < 0.0001 && blockTrades.length > 0) {
                         blocks.push(buildBlock(sym, blockTrades));
                         blockTrades = [];
@@ -4955,23 +4971,83 @@
 
         function buildBlock(sym, trades) {
             const totalPnl = trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
-            const entries = trades.filter(t => {
-                const side = (t.side || '').toUpperCase();
-                return side === 'BUY' || side === 'LONG';
+
+            // Identify entries and exits by status/pnl, not by side
+            const entries = [];
+            const exits = [];
+            const isStandalone = trades.length === 1 && trades[0].status === 'closed'
+                && parseFloat(trades[0].pnl || 0) !== 0 && trades[0].openedAt === trades[0].closedAt;
+
+            trades.forEach(t => {
+                const pnl = parseFloat(t.pnl || 0);
+                if (isStandalone) {
+                    exits.push(t);
+                } else if (t.status === 'open' || (t.status !== 'closed' && pnl === 0)) {
+                    entries.push(t);
+                } else if (t.status === 'closed' && pnl !== 0) {
+                    exits.push(t);
+                }
             });
-            const exits = trades.filter(t => {
-                const side = (t.side || '').toUpperCase();
-                return side === 'SELL' || side === 'SHORT';
-            });
-            const avgEntry = entries.length > 0
-                ? entries.reduce((s, t) => s + parseFloat(t.entryPrice || t.price || 0), 0) / entries.length : 0;
-            const avgExit = exits.length > 0
-                ? exits.reduce((s, t) => s + parseFloat(t.exitPrice || t.price || 0), 0) / exits.length : 0;
-            const totalQty = entries.reduce((s, t) => s + parseFloat(t.quantity || t.qty || 0), 0);
+
+            // Determine side from entries, or from standalone exit (opposite of side)
+            let side;
+            if (entries.length > 0) {
+                const entrySide = (entries[0].side || '').toUpperCase();
+                side = (entrySide === 'BUY' || entrySide === 'LONG') ? 'LONG' : 'SHORT';
+            } else if (isStandalone) {
+                const exitSide = (trades[0].side || '').toUpperCase();
+                side = (exitSide === 'BUY') ? 'SHORT' : 'LONG';
+            } else {
+                side = 'LONG';
+            }
+
+            // Avg entry price (weighted by qty)
+            let avgEntry = 0;
+            if (entries.length > 0) {
+                let totalWt = 0, sumWt = 0;
+                entries.forEach(t => {
+                    const q = parseFloat(t.quantity || t.qty || 0);
+                    const p = parseFloat(t.entryPrice || t.price || 0);
+                    sumWt += p * q;
+                    totalWt += q;
+                });
+                avgEntry = totalWt > 0 ? sumWt / totalWt : 0;
+            } else if (isStandalone) {
+                const t = trades[0];
+                const p = parseFloat(t.exitPrice || t.price || 0);
+                const pnl = parseFloat(t.pnl || 0);
+                const q = parseFloat(t.quantity || t.qty || 0);
+                if (q > 0) {
+                    avgEntry = side === 'LONG' ? p - pnl / q : p + pnl / q;
+                }
+            }
+
+            // Avg exit price
+            let avgExit = 0;
+            if (exits.length > 0) {
+                let totalWt = 0, sumWt = 0;
+                exits.forEach(t => {
+                    const q = parseFloat(t.quantity || t.qty || 0);
+                    let p = parseFloat(t.exitPrice || 0);
+                    if (!p || p === 0) {
+                        const ep = parseFloat(t.entryPrice || t.price || 0);
+                        const pnl = parseFloat(t.pnl || 0);
+                        if (ep > 0 && q > 0) {
+                            p = side === 'LONG' ? ep + pnl / q : ep - pnl / q;
+                        } else {
+                            p = parseFloat(t.price || 0);
+                        }
+                    }
+                    sumWt += p * q;
+                    totalWt += q;
+                });
+                avgExit = totalWt > 0 ? sumWt / totalWt : 0;
+            }
+
+            const totalQty = (entries.length > 0 ? entries : exits).reduce((s, t) => s + parseFloat(t.quantity || t.qty || 0), 0);
             const startTime = parseUTC(trades[0].openedAt || trades[0].closedAt);
             const endTime = parseUTC(trades[trades.length - 1].closedAt || trades[trades.length - 1].openedAt);
             const durationMs = endTime - startTime;
-            const side = entries.length >= exits.length ? 'LONG' : 'SHORT';
 
             return { sym, trades, totalPnl, avgEntry, avgExit, totalQty, startTime, endTime, durationMs, side, isOpen: false };
         }
@@ -4995,6 +5071,7 @@
             }
 
             const blocks = buildPositionBlocks(allLoadedTrades);
+            _lastPositionBlocks = blocks;
             const countEl = document.getElementById('posBlockCount');
             if (countEl) countEl.textContent = blocks.length;
 
@@ -5083,6 +5160,109 @@
         function togglePositionBlockDetail(row, idx) {
             const detail = row.querySelector('.pos-block-detail');
             if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+
+            // Highlight position block on chart
+            const block = _lastPositionBlocks[idx];
+            if (block) highlightPositionBlock(block);
+        }
+
+        function highlightPositionBlock(block) {
+            clearTradeHighlight(false);
+            if (!klChart || klinesData.length < 2) return;
+
+            const isLong = block.side === 'LONG';
+            const entryColor = isLong ? userTheme.colors.long : userTheme.colors.short;
+            const pnlColor = block.totalPnl >= 0 ? userTheme.colors.tp || userTheme.colors.long : '#F97316';
+            const fmtP = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
+
+            // Entry price level
+            if (block.avgEntry > 0) {
+                try {
+                    const id = klChart.createOverlay({
+                        name: 'priceLevel', groupId: 'highlight', lock: true,
+                        points: [{ value: block.avgEntry }],
+                        extendData: { color: entryColor, text: `Entry $${fmtP(block.avgEntry)}` },
+                    });
+                    const oid = Array.isArray(id) ? id[0] : id;
+                    if (oid) highlightOverlayIds.push(oid);
+                } catch(e) {}
+            }
+
+            // Exit price level
+            if (block.avgExit > 0) {
+                try {
+                    const id = klChart.createOverlay({
+                        name: 'priceLevel', groupId: 'highlight', lock: true,
+                        points: [{ value: block.avgExit }],
+                        extendData: { color: pnlColor, text: `Exit $${fmtP(block.avgExit)}` },
+                    });
+                    const oid = Array.isArray(id) ? id[0] : id;
+                    if (oid) highlightOverlayIds.push(oid);
+                } catch(e) {}
+            }
+
+            // Entry marker at first trade's candle
+            if (block.startTime) {
+                const barTime = snapToBar(Math.floor(block.startTime / 1000));
+                if (barTime !== null) {
+                    try {
+                        const id = klChart.createOverlay({
+                            name: 'tradeMarker', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: barTime * 1000, value: block.avgEntry || 0 }],
+                            extendData: { isBuy: isLong },
+                        });
+                        const oid = Array.isArray(id) ? id[0] : id;
+                        if (oid) highlightOverlayIds.push(oid);
+                    } catch(e) {}
+                }
+            }
+
+            // Exit marker at last trade's candle
+            if (block.endTime && block.avgExit > 0) {
+                const barTime = snapToBar(Math.floor(block.endTime / 1000));
+                if (barTime !== null) {
+                    try {
+                        const id = klChart.createOverlay({
+                            name: 'tradeMarker', groupId: 'highlight', lock: true,
+                            points: [{ timestamp: barTime * 1000, value: block.avgExit }],
+                            extendData: { isBuy: !isLong },
+                        });
+                        const oid = Array.isArray(id) ? id[0] : id;
+                        if (oid) highlightOverlayIds.push(oid);
+                    } catch(e) {}
+                }
+            }
+
+            // Scroll chart to midpoint of position timeframe
+            const midTime = block.startTime && block.endTime
+                ? Math.floor((block.startTime + block.endTime) / 2000)
+                : block.startTime ? Math.floor(block.startTime / 1000) : null;
+            if (midTime) {
+                const barTime = snapToBar(midTime);
+                if (barTime !== null) {
+                    try { klChart.scrollToTimestamp(barTime * 1000, 300); } catch(e) {}
+                }
+            }
+
+            // Show position info in tradeInfoOverlay
+            const pnlSign = block.totalPnl >= 0 ? '+' : '';
+            const pnlC = block.totalPnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
+            const startDt = block.startTime ? new Date(block.startTime) : null;
+            const endDt = block.endTime ? new Date(block.endTime) : null;
+            const dtFmt = { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' };
+            document.getElementById('tioTitle').textContent = `${isLong ? '↑ LONG' : '↓ SHORT'} ${block.sym.replace('USDT', '')}`;
+            document.getElementById('tioBody').innerHTML = `
+                <div class="tio-row"><span class="tio-label">Відкрито</span><span class="tio-value">${startDt ? startDt.toLocaleString('uk-UA', dtFmt) : '—'}</span></div>
+                ${endDt ? `<div class="tio-row"><span class="tio-label">Закрито</span><span class="tio-value">${endDt.toLocaleString('uk-UA', dtFmt)}</span></div>` : ''}
+                <div class="tio-row"><span class="tio-label">Вхід</span><span class="tio-value">${block.avgEntry > 0 ? '$' + fmtP(block.avgEntry) : '—'}</span></div>
+                <div class="tio-row"><span class="tio-label">Вихід</span><span class="tio-value">${block.avgExit > 0 ? '$' + fmtP(block.avgExit) : '—'}</span></div>
+                <div class="tio-row"><span class="tio-label">Кіл.</span><span class="tio-value">${block.totalQty.toFixed(4)}</span></div>
+                <div class="tio-row"><span class="tio-label">Угод</span><span class="tio-value">${block.trades.length}</span></div>
+                <div class="tio-row"><span class="tio-label">PNL</span><span class="tio-value" style="color:${pnlC}">${pnlSign}$${Math.abs(block.totalPnl).toFixed(2)}</span></div>
+                ${block.durationMs > 0 ? `<div class="tio-row"><span class="tio-label">Тривалість</span><span class="tio-value">${formatDuration(block.durationMs)}</span></div>` : ''}
+                ${block.isOpen ? `<div class="tio-row"><span class="tio-label">Статус</span><span class="tio-value" style="color:#F59E0B">OPEN</span></div>` : ''}
+            `;
+            document.getElementById('tradeInfoOverlay').style.display = 'block';
         }
 
         // ==================== DASHBOARD CONSTRUCTOR (Phase 9) ====================
