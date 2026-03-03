@@ -4269,7 +4269,7 @@
 
         // ==================== THEME SYSTEM (Phase 1) ====================
         const defaultTheme = {
-            colors: { long: '#10B981', short: '#EF4444', limit: '#8B5CF6', stop: '#F59E0B', tp: '#06B6D4', canceled: '#6B7280' },
+            colors: { long: '#10B981', short: '#EF4444', limit: '#8B5CF6', stop: '#3B82F6', tp: '#3B82F6', canceled: '#6B7280' },
             candles: { upBody: '#2BD9C0', downBody: '#FF4D4F', upBorder: '#1FA88F', downBorder: '#CC3D3F', upWick: '#1FA88F', downWick: '#CC3D3F' },
             chart: { background: '#141414', gridColor: 'rgba(255, 255, 255, 0.03)', textColor: '#A1A1A1', watermarkEnabled: true, watermarkText: 'YAMATO', watermarkColor: 'rgba(255,255,255,0.07)' }
         };
@@ -5400,7 +5400,7 @@
             standard: {
                 label: 'Стандартний',
                 desc: 'Класичний стиль',
-                colors: { long: '#10B981', short: '#EF4444', limit: '#8B5CF6', stop: '#F59E0B', tp: '#06B6D4', canceled: '#6B7280' },
+                colors: { long: '#10B981', short: '#EF4444', limit: '#8B5CF6', stop: '#3B82F6', tp: '#3B82F6', canceled: '#6B7280' },
                 candles: { upBody: '#2BD9C0', downBody: '#FF4D4F', upBorder: '#1FA88F', downBorder: '#CC3D3F', upWick: '#1FA88F', downWick: '#CC3D3F' },
                 chart: { background: '#141414', gridColor: 'rgba(255,255,255,0.03)', textColor: '#A1A1A1', watermarkEnabled: true, watermarkText: 'YAMATO', watermarkColor: 'rgba(255,255,255,0.04)' },
                 panelBg: '#141414'
@@ -6889,13 +6889,23 @@
 
                         const figs = [];
 
-                        // Line: solid for entry position, short-dash for stop, long-dash for limit/tp
+                        // Line styles per type
                         if (type === 'entry') {
                             figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { color, size: 1.5 } });
-                        } else if (type === 'stop') {
-                            figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
-                                        styles: { style: 'dashed', color, size: 1, dashedValue: [2, 5] } });
+                        } else if (type === 'stop' || type === 'tp') {
+                            // Wavy (sinusoidal) line for stop/tp
+                            const waveAmp = 3;      // amplitude in px
+                            const waveLen = 16;     // wavelength in px
+                            const step = 4;         // segment resolution
+                            const pts = [];
+                            for (let x = 0; x <= w; x += step) {
+                                pts.push({ x, y: y + Math.sin((x / waveLen) * Math.PI * 2) * waveAmp });
+                            }
+                            for (let i = 0; i < pts.length - 1; i++) {
+                                figs.push({ type: 'line', attrs: { coordinates: [pts[i], pts[i + 1]] },
+                                            styles: { color, size: 1.2 } });
+                            }
                         } else {
                             figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { style: 'dashed', color, size: 1, dashedValue: [6, 4] } });
