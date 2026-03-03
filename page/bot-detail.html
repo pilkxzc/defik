@@ -7766,6 +7766,12 @@
                     updateToggleButtons();
                 }
 
+                // Live trades count update
+                if (data.tradesCount !== undefined) {
+                    const countEl = document.getElementById('tradesCount');
+                    if (countEl) countEl.textContent = data.tradesCount;
+                }
+
                 // Add/update open-position entry marker on chart
                 applyPositionMarker(data.positions || data.position);
 

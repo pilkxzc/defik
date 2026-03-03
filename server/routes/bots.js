@@ -859,7 +859,8 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
             stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
             takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
             canceledOrders: orderHistory.map(o => ({ orderId: o.order_id, side: o.side, price: parseFloat(o.price), stopPrice: o.stop_price ? parseFloat(o.stop_price) : null, quantity: parseFloat(o.quantity), type: o.type, canceledAt: o.canceled_at })),
-            displaySettings: JSON.parse(bot.display_settings || '{}')
+            displaySettings: JSON.parse(bot.display_settings || '{}'),
+            tradesCount: (dbGet('SELECT COUNT(*) as c FROM bot_trades WHERE bot_id = ?', [bot.id]) || {}).c || 0
         });
 
         // Background trade sync (fire-and-forget)
