@@ -268,4 +268,18 @@ async function sendLoginCode(telegramId, code) {
 
 function getTelegramBot() { return telegramBot; }
 
-module.exports = { initTelegramBot, sendTelegramNotification, sendLoginCode, getTelegramBot };
+// Send message to all admin users who have linked Telegram
+async function notifyAdmins(title, message, icon = '⚠️') {
+    if (!telegramBot) return;
+    try {
+        const admins = require('../db').dbAll("SELECT telegram_id FROM users WHERE role = 'admin' AND telegram_id IS NOT NULL AND telegram_verified = 1");
+        const text = `${icon} *${title}*\n\n${message}`;
+        for (const a of admins) {
+            try { await telegramBot.sendMessage(a.telegram_id, text, { parse_mode: 'Markdown' }); } catch(e) {}
+        }
+    } catch (err) {
+        console.error('notifyAdmins error:', err.message);
+    }
+}
+
+module.exports = { initTelegramBot, sendTelegramNotification, sendLoginCode, getTelegramBot, notifyAdmins };

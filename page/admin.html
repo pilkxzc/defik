@@ -1717,14 +1717,31 @@
                             </div>
                         </div>
 
-                        <!-- Manual Backup Trigger -->
+                        <!-- Backup Status + History -->
                         <div class="stat-card" style="padding: 24px;">
-                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                <span style="font-size: 16px; font-weight: 700;">Історія бекапів</span>
+                                <span style="font-size: 16px; font-weight: 700;">Статус бекапів</span>
                             </div>
-                            <div id="backupHistoryList" style="max-height: 300px; overflow-y: auto;">
-                                <div style="text-align: center; color: var(--text-tertiary); padding: 20px;">Завантаження...</div>
+
+                            <!-- Next backup countdown -->
+                            <div id="backupCountdown" style="padding: 14px 16px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 12px; margin-bottom: 16px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">Наступний бекап</span>
+                                    <span id="backupCountdownValue" style="font-size: 14px; font-weight: 700; color: #10B981;">—</span>
+                                </div>
+                            </div>
+
+                            <!-- Last backup status -->
+                            <div id="lastBackupStatus" style="padding: 14px 16px; background: var(--surface-secondary); border-radius: 12px; margin-bottom: 16px;">
+                                <div style="font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Останній бекап</div>
+                                <div id="lastBackupInfo" style="font-size: 13px; color: var(--text-primary);">Завантаження...</div>
+                            </div>
+
+                            <!-- History list -->
+                            <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Історія</div>
+                            <div id="backupHistoryList" style="max-height: 250px; overflow-y: auto;">
+                                <div style="text-align: center; color: var(--text-tertiary); padding: 20px; font-size: 12px;">Завантаження...</div>
                             </div>
                         </div>
                     </div>

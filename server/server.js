@@ -182,6 +182,8 @@ async function createApp() {
     app.get('/bot-stats/:id', (req, res) => res.sendFile(path.join(pages, 'bot-stats.html')));
     app.get('/loadingdachbot', (req, res) => res.sendFile(path.join(pages, 'loadingdachbot.html')));
 
+    app.get('/emergency',    (req, res) => res.sendFile(path.join(pages, 'emergency.html')));
+
     // 404 — must be last
     app.use((req, res) => res.status(404).sendFile(path.join(pages, '404erors.html')));
 

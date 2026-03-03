@@ -2984,41 +2984,96 @@ async function triggerBackup() {
     }
 }
 
+let _backupCountdownInterval = null;
+
 async function loadBackupHistory() {
     try {
         const res = await fetch('/api/admin/backup/history');
-        const history = await res.json();
+        const data = await res.json();
+        const history = data.history || data;
         const container = document.getElementById('backupHistoryList');
 
-        if (!history.length) {
-            container.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: 20px;">Немає бекапів</div>';
+        // Update countdown timer
+        updateBackupCountdown(data.nextBackupAt, data.backupEnabled);
+
+        // Update last backup status
+        const lastInfo = document.getElementById('lastBackupInfo');
+        if (lastInfo && history.length > 0) {
+            const last = history[0];
+            const statusIcon = last.status === 'success' ? '&#10003;' : last.status === 'failed' ? '&#10007;' : '&#8987;';
+            const statusColor = last.status === 'success' ? '#10B981' : last.status === 'failed' ? '#EF4444' : '#F59E0B';
+            const size = last.size_bytes ? Math.round(last.size_bytes / 1024 / 1024 * 10) / 10 + ' MB' : '—';
+            const date = last.created_at ? new Date(last.created_at).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+            const errMsg = last.status === 'failed' && last.error_message ? `<div style="color:#EF4444;font-size:11px;margin-top:4px;">${last.error_message}</div>` : '';
+            lastInfo.innerHTML = `<span style="color:${statusColor};font-weight:700;">${statusIcon}</span> ${date} &middot; ${size} &middot; ${last.triggered_by || 'manual'}${errMsg}`;
+        } else if (lastInfo) {
+            lastInfo.textContent = 'Бекапів ще не було';
+        }
+
+        if (!Array.isArray(history) || !history.length) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-tertiary); padding: 12px; font-size: 12px;">Немає бекапів</div>';
             return;
         }
 
-        container.innerHTML = history.map(b => {
+        container.innerHTML = history.slice(0, 20).map(b => {
             const status = b.status === 'success'
-                ? '<span style="color: #10B981; font-weight: 600;">Успіх</span>'
+                ? '<span style="color: #10B981; font-weight: 600;">&#10003;</span>'
                 : b.status === 'failed'
-                    ? '<span style="color: #EF4444; font-weight: 600;">Помилка</span>'
-                    : '<span style="color: #F59E0B; font-weight: 600;">В процесі</span>';
+                    ? '<span style="color: #EF4444; font-weight: 600;">&#10007;</span>'
+                    : '<span style="color: #F59E0B; font-weight: 600;">&#8987;</span>';
 
-            const size = b.size_bytes ? (b.size_bytes / 1024).toFixed(1) + ' KB' : '—';
-            const date = b.created_at ? new Date(b.created_at).toLocaleString('uk-UA') : '—';
+            const size = b.size_bytes ? (b.size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '—';
+            const date = b.created_at ? new Date(b.created_at).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
 
-            return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;">
-                <div>
-                    <div style="font-weight: 600; margin-bottom: 2px;">${b.filename || '—'}</div>
-                    <div style="color: var(--text-tertiary); font-size: 11px;">${date} · ${b.triggered_by}</div>
+            return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    ${status}
+                    <div>
+                        <div style="font-weight: 600; color: var(--text-primary);">${date}</div>
+                        <div style="color: var(--text-tertiary); font-size: 10px;">${b.triggered_by || 'manual'} &middot; ${size}</div>
+                    </div>
                 </div>
-                <div style="text-align: right;">
-                    <div>${status}</div>
-                    <div style="color: var(--text-tertiary); font-size: 11px;">${size}</div>
-                </div>
+                ${b.status === 'failed' ? `<span style="color:#EF4444;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(b.error_message||'').replace(/"/g,'&quot;')}">${b.error_message || ''}</span>` : ''}
             </div>`;
         }).join('');
     } catch (e) {
         console.error('Failed to load backup history:', e);
     }
+}
+
+function updateBackupCountdown(nextBackupAt, enabled) {
+    const el = document.getElementById('backupCountdownValue');
+    const container = document.getElementById('backupCountdown');
+    if (!el || !container) return;
+
+    if (_backupCountdownInterval) clearInterval(_backupCountdownInterval);
+
+    if (!enabled || !nextBackupAt) {
+        el.textContent = 'Вимкнено';
+        el.style.color = 'var(--text-tertiary)';
+        container.style.borderColor = 'rgba(255,255,255,0.06)';
+        container.style.background = 'var(--surface-secondary)';
+        return;
+    }
+
+    const nextTime = new Date(nextBackupAt).getTime();
+
+    function tick() {
+        const diff = nextTime - Date.now();
+        if (diff <= 0) {
+            el.textContent = 'Зараз...';
+            el.style.color = '#F59E0B';
+            return;
+        }
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        el.textContent = `${h}год ${String(m).padStart(2,'0')}хв ${String(s).padStart(2,'0')}с`;
+        el.style.color = '#10B981';
+    }
+
+    tick();
+    _backupCountdownInterval = setInterval(tick, 1000);
 }
 
 // ==================== SERVER MANAGEMENT ====================

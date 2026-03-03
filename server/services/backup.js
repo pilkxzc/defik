@@ -68,6 +68,16 @@ async function createBackupArchive() {
         if (fs.existsSync(candlesPath)) {
             archive.file(candlesPath, { name: 'candles.sqlite' });
         }
+        // SSL certificates
+        const sslDir = path.join(path.dirname(DB_PATH), 'ssl');
+        if (fs.existsSync(sslDir)) {
+            archive.directory(sslDir, 'ssl');
+        }
+        // Uploads (avatars, bug reports, etc.)
+        const uploadsDir = path.join(path.dirname(DB_PATH), '..', 'uploads');
+        if (fs.existsSync(uploadsDir)) {
+            archive.directory(uploadsDir, 'uploads');
+        }
 
         archive.finalize();
     });
@@ -150,8 +160,12 @@ function startBackupSchedule() {
         try {
             const result = await performBackup('scheduled');
             console.log(`[Backup] Scheduled backup completed: ${result.filename}`);
+            const { notifyAdmins } = require('./telegram');
+            notifyAdmins('Бекап завершено', `Файл: \`${result.filename}\`\nРозмір: ${Math.round(result.size / 1024)} KB`, '✅');
         } catch (error) {
             console.error('[Backup] Scheduled backup failed:', error.message);
+            const { notifyAdmins } = require('./telegram');
+            notifyAdmins('Бекап провалився!', `Автоматичний бекап не вдалося створити.\n\nПомилка: ${error.message}`, '🚨');
         }
     });
 

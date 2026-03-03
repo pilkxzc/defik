@@ -1,6 +1,8 @@
 'use strict';
 const express = require('express');
 const bcrypt  = require('bcryptjs');
+const fs      = require('fs');
+const path    = require('path');
 const router  = express.Router();
 
 const { dbGet, dbAll, dbRun, saveDatabase } = require('../db');
@@ -12,6 +14,44 @@ const { logAdminAction }                    = require('../services/notifications
 
 function createNotification(...args) {
     return require('../services/notifications').createNotification(...args);
+}
+
+// Helper: restore all known files + directories from an extracted backup folder
+function restoreFromExtractDir(extractDir) {
+    const { DB_PATH, SESSIONS_PATH, SETTINGS_PATH } = require('../config');
+    const serverDir = path.dirname(DB_PATH);
+    const projectDir = path.join(serverDir, '..');
+    const restored = [];
+
+    // Individual files
+    const filesToRestore = [
+        { name: 'database.sqlite', dest: DB_PATH },
+        { name: 'sessions.json', dest: SESSIONS_PATH },
+        { name: 'settings.json', dest: SETTINGS_PATH },
+        { name: 'candles.sqlite', dest: path.join(serverDir, 'candles.sqlite') },
+    ];
+    for (const f of filesToRestore) {
+        const src = path.join(extractDir, f.name);
+        if (fs.existsSync(src)) {
+            fs.copyFileSync(src, f.dest);
+            restored.push(f.name);
+        }
+    }
+
+    // Directories
+    const dirsToRestore = [
+        { name: 'ssl', dest: path.join(serverDir, 'ssl') },
+        { name: 'uploads', dest: path.join(projectDir, 'uploads') },
+    ];
+    for (const d of dirsToRestore) {
+        const src = path.join(extractDir, d.name);
+        if (fs.existsSync(src) && fs.statSync(src).isDirectory()) {
+            fs.cpSync(src, d.dest, { recursive: true });
+            restored.push(d.name + '/');
+        }
+    }
+
+    return restored;
 }
 
 // ==================== STATS ====================
@@ -1724,17 +1764,30 @@ router.post('/api/admin/backup/trigger', requireAuth, requireRole('admin'), asyn
     }
 });
 
-// Get backup history
+// Get backup history + status (next backup time, recent status)
 router.get('/api/admin/backup/history', requireAuth, requireRole('admin'), (req, res) => {
     const history = dbAll('SELECT * FROM backup_history ORDER BY created_at DESC LIMIT 50');
-    res.json(history);
+
+    // Calculate next backup time
+    let nextBackupAt = null;
+    if (siteSettings.googleDriveBackupEnabled && siteSettings.googleDriveTokens) {
+        const time = siteSettings.googleDriveBackupTime || '03:00';
+        const [h, m] = time.split(':').map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+            const now = new Date();
+            const next = new Date(now);
+            next.setHours(h, m, 0, 0);
+            if (next <= now) next.setDate(next.getDate() + 1);
+            nextBackupAt = next.toISOString();
+        }
+    }
+
+    res.json({ history, nextBackupAt, backupEnabled: !!siteSettings.googleDriveBackupEnabled, backupTime: siteSettings.googleDriveBackupTime || '03:00' });
 });
 
 // ==================== SERVER MANAGEMENT ====================
 
 const { exec, spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
 
 // Restart server via PM2
 router.post('/api/admin/server/restart', requireAuth, requireRole('admin'), (req, res) => {
@@ -1951,32 +2004,15 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
             });
         });
 
-        // Restore all known files from archive
+        // Backup current files & restore all from archive
         const { DB_PATH, SESSIONS_PATH, SETTINGS_PATH } = require('../config');
-        const serverDir = path.dirname(DB_PATH);
         const ts = Date.now();
-
-        // Backup current files
         const backupOfCurrent = DB_PATH + '.pre-restore.' + ts;
         if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, backupOfCurrent);
-        if (fs.existsSync(SESSIONS_PATH)) fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.pre-restore.' + ts);
-        if (fs.existsSync(SETTINGS_PATH)) fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.pre-restore.' + ts);
+        if (fs.existsSync(SESSIONS_PATH)) try { fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.pre-restore.' + ts); } catch(e) {}
+        if (fs.existsSync(SETTINGS_PATH)) try { fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.pre-restore.' + ts); } catch(e) {}
 
-        const filesToRestore = [
-            { name: 'database.sqlite', dest: DB_PATH },
-            { name: 'sessions.json', dest: SESSIONS_PATH },
-            { name: 'settings.json', dest: SETTINGS_PATH },
-            { name: 'candles.sqlite', dest: path.join(serverDir, 'candles.sqlite') },
-        ];
-
-        const restored = [];
-        for (const f of filesToRestore) {
-            const src = path.join(extractDir, f.name);
-            if (fs.existsSync(src)) {
-                fs.copyFileSync(src, f.dest);
-                restored.push(f.name);
-            }
-        }
+        const restored = restoreFromExtractDir(extractDir);
 
         if (restored.length === 0) {
             try { fs.unlinkSync(tmpFile); } catch(e) {}
@@ -1984,7 +2020,6 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
             return res.status(400).json({ error: 'Архів не містить жодного відомого файлу' });
         }
 
-        // Cleanup temp files
         try { fs.unlinkSync(tmpFile); } catch(e) {}
         try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
 
@@ -2063,14 +2098,13 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
 
         // Detect file type: .sqlite, .tar.gz, or .gz
         const { DB_PATH, SESSIONS_PATH, SETTINGS_PATH } = require('../config');
-        const serverDir = path.dirname(DB_PATH);
         const ts = Date.now();
 
         // Backup current files before restoring
         const backupOfCurrent = DB_PATH + '.pre-restore.' + ts;
         if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, backupOfCurrent);
-        if (fs.existsSync(SESSIONS_PATH)) fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.pre-restore.' + ts);
-        if (fs.existsSync(SETTINGS_PATH)) fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.pre-restore.' + ts);
+        if (fs.existsSync(SESSIONS_PATH)) try { fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.pre-restore.' + ts); } catch(e) {}
+        if (fs.existsSync(SETTINGS_PATH)) try { fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.pre-restore.' + ts); } catch(e) {}
 
         const { exec } = require('child_process');
         const isTarGz = await new Promise(resolve => {
@@ -2079,7 +2113,7 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
             });
         });
 
-        const restored = [];
+        let restored = [];
 
         if (isTarGz) {
             const extractDir = path.join(tmpDir, `restore-url-extract-${ts}`);
@@ -2091,29 +2125,7 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
                     });
                 });
 
-                // Restore all known files from archive
-                const filesToRestore = [
-                    { name: 'database.sqlite', dest: DB_PATH },
-                    { name: 'sessions.json', dest: SESSIONS_PATH },
-                    { name: 'settings.json', dest: SETTINGS_PATH },
-                    { name: 'candles.sqlite', dest: path.join(serverDir, 'candles.sqlite') },
-                ];
-
-                for (const f of filesToRestore) {
-                    let src = path.join(extractDir, f.name);
-                    if (!fs.existsSync(src)) {
-                        // Search recursively
-                        const found = await new Promise(resolve => {
-                            exec(`find "${extractDir}" -name "${f.name}" -type f | head -1`, (err, stdout) => {
-                                resolve(stdout ? stdout.trim() : null);
-                            });
-                        });
-                        if (found) src = found;
-                        else continue;
-                    }
-                    fs.copyFileSync(src, f.dest);
-                    restored.push(f.name);
-                }
+                restored = restoreFromExtractDir(extractDir);
 
                 if (restored.length === 0) {
                     try { fs.unlinkSync(tmpFile); } catch(e) {}
@@ -2123,12 +2135,10 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
 
                 try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
             } catch (extractErr) {
-                // Not a tar.gz — maybe it's a raw .sqlite file
                 fs.copyFileSync(tmpFile, DB_PATH);
                 restored.push('database.sqlite (raw)');
             }
         } else {
-            // Assume raw sqlite file
             fs.copyFileSync(tmpFile, DB_PATH);
             restored.push('database.sqlite (raw)');
         }
@@ -2140,6 +2150,118 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
         res.json({ success: true, message: `Відновлено: ${restored.join(', ')}. Потрібен перезапуск сервера.`, backupOfPrevious: backupOfCurrent, fileSize, restored });
     } catch (error) {
         console.error('Restore from URL error:', error);
+        res.status(500).json({ error: error.message || 'Restore failed' });
+    }
+});
+
+// ==================== EMERGENCY RESTORE (no auth, secret key) ====================
+
+router.post('/api/emergency/restore', async (req, res) => {
+    try {
+        const { EMERGENCY_KEY, DB_PATH, SESSIONS_PATH, SETTINGS_PATH } = require('../config');
+        const { key, url } = req.body;
+
+        if (!key || key !== EMERGENCY_KEY) {
+            return res.status(403).json({ error: 'Невірний аварійний ключ' });
+        }
+        if (!url) return res.status(400).json({ error: 'URL is required' });
+
+        // Extract file ID from Google Drive URL
+        let fileId = null;
+        const patterns = [
+            /\/file\/d\/([a-zA-Z0-9_-]+)/,
+            /[?&]id=([a-zA-Z0-9_-]+)/,
+            /\/open\?id=([a-zA-Z0-9_-]+)/,
+            /^([a-zA-Z0-9_-]{20,})$/,
+        ];
+        for (const p of patterns) {
+            const m = url.match(p);
+            if (m) { fileId = m[1]; break; }
+        }
+        if (!fileId) return res.status(400).json({ error: 'Could not extract file ID from URL' });
+
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+        const tmpDir = path.join(__dirname, '..', 'tmp');
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+        const tmpFile = path.join(tmpDir, `emergency-restore-${Date.now()}`);
+
+        const axios = require('axios');
+        let downloadResp;
+        try {
+            downloadResp = await axios.get(downloadUrl, {
+                responseType: 'stream', timeout: 120000, maxRedirects: 5,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+        } catch {
+            try {
+                downloadResp = await axios.get(downloadUrl + '&confirm=t', {
+                    responseType: 'stream', timeout: 120000, maxRedirects: 5,
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+            } catch {
+                return res.status(400).json({ error: 'Не вдалося завантажити файл з Google Drive' });
+            }
+        }
+
+        const dest = fs.createWriteStream(tmpFile);
+        await new Promise((resolve, reject) => {
+            downloadResp.data.pipe(dest);
+            dest.on('finish', resolve);
+            dest.on('error', reject);
+        });
+
+        const fileSize = fs.statSync(tmpFile).size;
+        if (fileSize < 1000) {
+            const content = fs.readFileSync(tmpFile, 'utf8').slice(0, 500);
+            try { fs.unlinkSync(tmpFile); } catch(e) {}
+            if (content.includes('<!DOCTYPE') || content.includes('<html')) {
+                return res.status(400).json({ error: 'Google Drive повернув HTML. Переконайтеся що файл є публічним.' });
+            }
+            return res.status(400).json({ error: `Файл занадто малий (${fileSize} bytes)` });
+        }
+
+        const ts = Date.now();
+
+        // Backup whatever exists
+        if (fs.existsSync(DB_PATH)) try { fs.copyFileSync(DB_PATH, DB_PATH + '.emergency.' + ts); } catch(e) {}
+        if (fs.existsSync(SESSIONS_PATH)) try { fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.emergency.' + ts); } catch(e) {}
+        if (fs.existsSync(SETTINGS_PATH)) try { fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.emergency.' + ts); } catch(e) {}
+
+        const { exec } = require('child_process');
+        const isTarGz = await new Promise(resolve => {
+            exec(`file "${tmpFile}"`, (err, stdout) => {
+                resolve(stdout && (stdout.includes('gzip') || stdout.includes('tar')));
+            });
+        });
+
+        const restored = [];
+
+        if (isTarGz) {
+            const extractDir = path.join(tmpDir, `emergency-extract-${ts}`);
+            fs.mkdirSync(extractDir, { recursive: true });
+            try {
+                await new Promise((resolve, reject) => {
+                    exec(`tar -xzf "${tmpFile}" -C "${extractDir}"`, (error) => {
+                        if (error) reject(error); else resolve();
+                    });
+                });
+                restored.push(...restoreFromExtractDir(extractDir));
+                try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+            } catch {
+                fs.copyFileSync(tmpFile, DB_PATH);
+                restored.push('database.sqlite (raw)');
+            }
+        } else {
+            fs.copyFileSync(tmpFile, DB_PATH);
+            restored.push('database.sqlite (raw)');
+        }
+
+        try { fs.unlinkSync(tmpFile); } catch(e) {}
+
+        console.log(`[EMERGENCY RESTORE] Files restored: ${restored.join(', ')} from ${url.slice(0, 80)}`);
+        res.json({ success: true, message: `Аварійне відновлення: ${restored.join(', ')}. Перезапустіть сервер!`, restored });
+    } catch (error) {
+        console.error('Emergency restore error:', error);
         res.status(500).json({ error: error.message || 'Restore failed' });
     }
 });

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamato — Аварійне відновлення</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #080808;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: #141414;
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 24px;
+            padding: 40px 36px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 8px;
+        }
+        .header-icon {
+            width: 48px; height: 48px;
+            background: rgba(239,68,68,0.12);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+        }
+        h1 { font-size: 20px; font-weight: 700; }
+        .sub {
+            color: #A1A1A1;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 28px;
+            margin-top: 4px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #A1A1A1;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        input {
+            width: 100%;
+            background: #1C1C1C;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            margin-bottom: 16px;
+        }
+        input:focus { border-color: #EF4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+        input::placeholder { color: #636363; }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+            color: #fff;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            display: none;
+        }
+        .status.error { display: block; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #FCA5A5; }
+        .status.success { display: block; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); color: #6EE7B7; }
+        .status.loading { display: block; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); color: #93C5FD; }
+        .warning {
+            margin-top: 20px;
+            padding: 12px 14px;
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.15);
+            border-radius: 10px;
+            font-size: 11px;
+            color: #FCD34D;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <div class="header-icon">&#9888;</div>
+        <h1>Аварійне відновлення</h1>
+    </div>
+    <p class="sub">Використовуйте цю сторінку якщо база даних пошкоджена і ви не можете увійти в адмін панель.</p>
+
+    <label>Аварійний ключ</label>
+    <input type="password" id="keyInput" placeholder="Введіть аварійний ключ">
+
+    <label>Посилання на бекап (Google Drive)</label>
+    <input type="text" id="urlInput" placeholder="https://drive.google.com/file/d/...">
+
+    <button class="btn" id="restoreBtn" onclick="doRestore()">Відновити базу даних</button>
+
+    <div class="status" id="status"></div>
+
+    <div class="warning">
+        Після відновлення потрібен перезапуск сервера. Поточні файли будуть збережені з суфіксом .emergency перед заміною.
+    </div>
+</div>
+
+<script>
+async function doRestore() {
+    const key = document.getElementById('keyInput').value.trim();
+    const url = document.getElementById('urlInput').value.trim();
+    const btn = document.getElementById('restoreBtn');
+    const status = document.getElementById('status');
+
+    if (!key) { showStatus('error', 'Введіть аварійний ключ'); return; }
+    if (!url) { showStatus('error', 'Вставте посилання на бекап'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Завантаження...';
+    showStatus('loading', 'Завантаження та відновлення бекапу... Це може зайняти кілька хвилин.');
+
+    try {
+        const res = await fetch('/api/emergency/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, url })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const files = data.restored ? data.restored.join(', ') : '';
+            showStatus('success', data.message + (files ? '\n\nВідновлені файли: ' + files : ''));
+            btn.textContent = 'Готово!';
+        } else {
+            showStatus('error', data.error || 'Не вдалося відновити');
+            btn.disabled = false;
+            btn.textContent = 'Відновити базу даних';
+        }
+    } catch (e) {
+        showStatus('error', 'Помилка з\'єднання: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Відновити базу даних';
+    }
+}
+
+function showStatus(type, msg) {
+    const el = document.getElementById('status');
+    el.className = 'status ' + type;
+    el.textContent = msg;
+}
+</script>
+</body>
+</html>
