@@ -523,13 +523,45 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                    bs.total_trades, bs.winning_trades
             FROM bots b LEFT JOIN bot_stats bs ON bs.bot_id = b.id ORDER BY b.id
         `);
-        const toCard = b => ({
-            id: b.id, name: b.name, is_active: !!b.is_active,
-            symbol: b.selected_symbol || '',
-            profit: b.profit || 0, investment: b.investment || 0, mode: b.mode,
-            winRate: b.total_trades > 0 ? Math.round((b.winning_trades / b.total_trades) * 100) : null,
-            totalTrades: b.total_trades || 0,
+
+        // For each bot: get last trade time + currently active symbol (last opened/closed)
+        const botActivity = {};
+        bots.forEach(b => {
+            const lastTrade = dbGet(
+                `SELECT symbol, COALESCE(closed_at, opened_at) as last_time
+                 FROM bot_trades WHERE bot_id = ?
+                 ORDER BY COALESCE(closed_at, opened_at) DESC LIMIT 1`,
+                [b.id]
+            );
+            const openTrade = dbGet(
+                `SELECT symbol FROM bot_trades WHERE bot_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1`,
+                [b.id]
+            );
+            botActivity[b.id] = {
+                lastTradeAt: lastTrade?.last_time || null,
+                activeSymbol: openTrade?.symbol || lastTrade?.symbol || null,
+                hasOpenTrade: !!openTrade
+            };
         });
+
+        const toCard = b => {
+            const act = botActivity[b.id] || {};
+            // Real status: active = is_active AND had a trade within last 5 minutes OR has an open trade
+            const lastMs = act.lastTradeAt ? new Date(act.lastTradeAt).getTime() : 0;
+            const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+            const isReallyActive = !!b.is_active && (act.hasOpenTrade || lastMs > fiveMinAgo);
+            return {
+                id: b.id, name: b.name, is_active: !!b.is_active,
+                realStatus: isReallyActive ? 'live' : (b.is_active ? 'idle' : 'off'),
+                symbol: b.selected_symbol || '',
+                activeSymbol: act.activeSymbol || b.selected_symbol || '',
+                hasOpenTrade: act.hasOpenTrade || false,
+                lastTradeAt: act.lastTradeAt || null,
+                profit: b.profit || 0, investment: b.investment || 0, mode: b.mode,
+                winRate: b.total_trades > 0 ? Math.round((b.winning_trades / b.total_trades) * 100) : null,
+                totalTrades: b.total_trades || 0,
+            };
+        };
         const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));
         const uncat = bots.filter(b => !b.category_id);
         if (uncat.length) tree.push({ id: null, name: 'Інші', color: '#6B7280', icon: 'folder', bots: uncat.map(toCard) });

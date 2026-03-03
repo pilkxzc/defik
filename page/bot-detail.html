@@ -5238,9 +5238,10 @@
         async function reconcileAndRenderPositions() {
             renderPositionBlocks(); // render immediately with current data
 
-            // Load all remaining trade pages so positions are complete
+            // Load all remaining trade pages so positions are complete (with delay to avoid 429)
             while (tradeHistoryHasMore && !tradeHistoryLoading) {
                 await loadFullTradeHistory();
+                if (tradeHistoryHasMore) await new Promise(r => setTimeout(r, 300));
             }
             if (allLoadedTrades.length > 0) renderPositionBlocks();
 
@@ -5257,6 +5258,7 @@
                     await loadFullTradeHistory(true);
                     while (tradeHistoryHasMore && !tradeHistoryLoading) {
                         await loadFullTradeHistory();
+                        if (tradeHistoryHasMore) await new Promise(r => setTimeout(r, 300));
                     }
                     renderPositionBlocks();
                 }
@@ -9440,7 +9442,7 @@
         // ==================== FULL TRADE HISTORY ====================
 
         let tradeHistoryOffset = 0;
-        const TRADES_PER_PAGE = 30;
+        const TRADES_PER_PAGE = 100;
         let tradeHistoryLoading = false;
         let tradeHistoryHasMore = true;
         let tradeHistoryLoaded = false;
@@ -9548,7 +9550,8 @@
 
             } catch (err) {
                 console.error('Trade history error:', err);
-                document.getElementById('tradesContent').innerHTML = `<div style="padding:16px;color:var(--accent-primary)">Error: ${err.message}</div>`;
+                // Stop pagination loop on error (especially 429 rate limit)
+                tradeHistoryHasMore = false;
             } finally {
                 tradeHistoryLoading = false;
             }

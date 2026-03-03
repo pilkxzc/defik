@@ -585,10 +585,31 @@
             flex-shrink: 0;
         }
 
+        .bot-status-dot.live {
+            background: var(--color-up);
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+            animation: pulse 1.5s infinite;
+        }
+
+        .bot-status-dot.idle {
+            background: #F59E0B;
+            box-shadow: 0 0 4px rgba(245, 158, 11, 0.3);
+        }
+
         .bot-status-dot.active {
             background: var(--color-up);
             box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
             animation: pulse 1.5s infinite;
+        }
+
+        .bot-live-pair {
+            font-size: 9px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .bot-live-pair.trading {
+            color: var(--color-up);
         }
 
         .bot-mode-pill {
@@ -1438,13 +1459,21 @@
             const modeLabel = isLive ? 'LIVE' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
 
+            // Real status: 'live' = actively trading, 'idle' = active but no recent trades, 'off' = inactive
+            const statusClass = b.realStatus || (b.is_active ? 'active' : '');
+            const pairName = (b.activeSymbol || b.symbol || '').replace(/USDT|BUSD/gi, '');
+            const pairHtml = pairName
+                ? `<span class="bot-live-pair${b.hasOpenTrade ? ' trading' : ''}">${pairName}${b.hasOpenTrade ? ' ●' : ''}</span>`
+                : '';
+
             return `
                 <div class="bot-list-item${_selectedBotId === b.id ? ' selected' : ''}" data-bot-id="${b.id}">
-                    <span class="bot-status-dot${b.is_active ? ' active' : ''}"></span>
+                    <span class="bot-status-dot ${statusClass}"></span>
                     <div class="bot-list-item-info">
                         <div class="bot-list-item-name">${b.name}</div>
                         <div class="bot-list-item-sub">
                             <span class="bot-mode-pill ${modePillClass}">${modeLabel}</span>
+                            ${pairHtml}
                         </div>
                     </div>
                     <div class="bot-list-item-pnl ${pnlClass}">${pnlStr}</div>
@@ -1461,13 +1490,24 @@
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
             const mainHref = `/bot-stats/${b.id}`;
             const mainText = _isAdmin ? 'Дашборд' : 'Статистика';
-            const statusBadge = b.is_active
-                ? '<span class="status-badge status-active">АКТИВНИЙ</span>'
-                : '<span class="status-badge status-inactive">НЕАКТИВНИЙ</span>';
+            let statusBadge;
+            if (b.realStatus === 'live') {
+                statusBadge = '<span class="status-badge status-active">LIVE ●</span>';
+            } else if (b.realStatus === 'idle') {
+                statusBadge = '<span class="status-badge" style="background:rgba(245,158,11,0.15);color:#F59E0B;">ОЧІКУЄ</span>';
+            } else if (b.is_active) {
+                statusBadge = '<span class="status-badge status-active">АКТИВНИЙ</span>';
+            } else {
+                statusBadge = '<span class="status-badge status-inactive">НЕАКТИВНИЙ</span>';
+            }
 
+            const activeS = (b.activeSymbol || '').toUpperCase();
             const tickers = b.symbol
-                ? b.symbol.split(',').slice(0, 8).map(s =>
-                    `<span class="ticker-chip">${s.trim().replace(/USDT|BUSD/gi,'')}</span>`).join('')
+                ? b.symbol.split(',').slice(0, 8).map(s => {
+                    const sym = s.trim();
+                    const isActive = sym.toUpperCase() === activeS;
+                    return `<span class="ticker-chip"${isActive ? ' style="border-color:var(--color-up);color:var(--color-up);"' : ''}>${sym.replace(/USDT|BUSD/gi,'')}${isActive && b.hasOpenTrade ? ' ●' : ''}</span>`;
+                }).join('')
                 : `<span class="ticker-chip" style="opacity:.3">—</span>`;
 
             return `
@@ -1507,12 +1547,20 @@
                         <div class="detail-value">${statusBadge}</div>
                     </div>
                     <div class="detail-item">
+                        <div class="detail-label">Пара</div>
+                        <div class="detail-value" style="${b.hasOpenTrade ? 'color:var(--color-up)' : ''}">${(b.activeSymbol || '—').replace(/USDT|BUSD/gi,'/USD')}${b.hasOpenTrade ? ' ●' : ''}</div>
+                    </div>
+                    <div class="detail-item">
                         <div class="detail-label">Win Rate</div>
                         <div class="detail-value">${win}</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Угоди</div>
                         <div class="detail-value">${b.totalTrades || 0}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Остання угода</div>
+                        <div class="detail-value" style="font-size:11px;">${b.lastTradeAt ? new Date(b.lastTradeAt).toLocaleString('uk-UA', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
                     </div>
                 </div>
                 <div class="detail-actions">
