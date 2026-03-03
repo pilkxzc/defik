@@ -3207,9 +3207,10 @@ async function restoreFromUrl() {
         const data = await res.json();
         if (data.success) {
             const sizeKb = data.fileSize ? Math.round(data.fileSize / 1024) : '?';
+            const filesInfo = data.restored ? data.restored.join(', ') : '';
             showToast('success', 'Відновлено', `${data.message} (${sizeKb} KB)`);
             input.value = '';
-            if (confirm('Базу даних відновлено. Перезавантажити сервер зараз?')) {
+            if (confirm(`${data.message}\n\nФайли: ${filesInfo}\nРозмір: ${sizeKb} KB\n\nПерезавантажити сервер зараз?`)) {
                 restartServer();
             }
         } else {
@@ -3275,8 +3276,9 @@ async function restoreFromDriveUrl(downloadUrl, fileName) {
         });
         const data = await res.json();
         if (data.success) {
+            const filesInfo = data.restored ? data.restored.join(', ') : '';
             showToast('success', 'Відновлено', data.message);
-            if (confirm('Базу даних відновлено. Перезавантажити сервер зараз?')) {
+            if (confirm(`${data.message}\n\nФайли: ${filesInfo}\n\nПерезавантажити сервер зараз?`)) {
                 restartServer();
             }
         } else {

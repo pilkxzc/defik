@@ -1951,28 +1951,46 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
             });
         });
 
-        // Find database.sqlite in extracted files
-        const extractedDb = path.join(extractDir, 'database.sqlite');
-        if (!fs.existsSync(extractedDb)) {
-            // Cleanup
-            try { fs.unlinkSync(tmpFile); } catch(e) {}
-            try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
-            return res.status(400).json({ error: 'Backup archive does not contain database.sqlite' });
+        // Restore all known files from archive
+        const { DB_PATH, SESSIONS_PATH, SETTINGS_PATH } = require('../config');
+        const serverDir = path.dirname(DB_PATH);
+        const ts = Date.now();
+
+        // Backup current files
+        const backupOfCurrent = DB_PATH + '.pre-restore.' + ts;
+        if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, backupOfCurrent);
+        if (fs.existsSync(SESSIONS_PATH)) fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.pre-restore.' + ts);
+        if (fs.existsSync(SETTINGS_PATH)) fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.pre-restore.' + ts);
+
+        const filesToRestore = [
+            { name: 'database.sqlite', dest: DB_PATH },
+            { name: 'sessions.json', dest: SESSIONS_PATH },
+            { name: 'settings.json', dest: SETTINGS_PATH },
+            { name: 'candles.sqlite', dest: path.join(serverDir, 'candles.sqlite') },
+        ];
+
+        const restored = [];
+        for (const f of filesToRestore) {
+            const src = path.join(extractDir, f.name);
+            if (fs.existsSync(src)) {
+                fs.copyFileSync(src, f.dest);
+                restored.push(f.name);
+            }
         }
 
-        // Replace current database
-        const { DB_PATH } = require('../config');
-        const backupOfCurrent = DB_PATH + '.pre-restore.' + Date.now();
-        fs.copyFileSync(DB_PATH, backupOfCurrent);
-        fs.copyFileSync(extractedDb, DB_PATH);
+        if (restored.length === 0) {
+            try { fs.unlinkSync(tmpFile); } catch(e) {}
+            try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+            return res.status(400).json({ error: 'Архів не містить жодного відомого файлу' });
+        }
 
         // Cleanup temp files
         try { fs.unlinkSync(tmpFile); } catch(e) {}
         try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
 
-        logAdminAction(req.session.userId, 'restore_backup', 'backup', null, `Restored from: ${fileName || fileId}`, getClientIP(req));
+        logAdminAction(req.session.userId, 'restore_backup', 'backup', null, `Restored from: ${fileName || fileId} | Files: ${restored.join(', ')}`, getClientIP(req));
 
-        res.json({ success: true, message: 'Database restored. Server restart required.', backupOfPrevious: backupOfCurrent });
+        res.json({ success: true, message: `Відновлено: ${restored.join(', ')}. Потрібен перезапуск сервера.`, backupOfPrevious: backupOfCurrent, restored });
     } catch (error) {
         console.error('Restore backup error:', error);
         res.status(500).json({ error: error.message || 'Restore failed' });
@@ -2044,11 +2062,16 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
         }
 
         // Detect file type: .sqlite, .tar.gz, or .gz
-        const { DB_PATH } = require('../config');
-        const backupOfCurrent = DB_PATH + '.pre-restore.' + Date.now();
-        fs.copyFileSync(DB_PATH, backupOfCurrent);
+        const { DB_PATH, SESSIONS_PATH, SETTINGS_PATH } = require('../config');
+        const serverDir = path.dirname(DB_PATH);
+        const ts = Date.now();
 
-        // Check if it's a tar.gz by trying to extract
+        // Backup current files before restoring
+        const backupOfCurrent = DB_PATH + '.pre-restore.' + ts;
+        if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, backupOfCurrent);
+        if (fs.existsSync(SESSIONS_PATH)) fs.copyFileSync(SESSIONS_PATH, SESSIONS_PATH + '.pre-restore.' + ts);
+        if (fs.existsSync(SETTINGS_PATH)) fs.copyFileSync(SETTINGS_PATH, SETTINGS_PATH + '.pre-restore.' + ts);
+
         const { exec } = require('child_process');
         const isTarGz = await new Promise(resolve => {
             exec(`file "${tmpFile}"`, (err, stdout) => {
@@ -2056,8 +2079,10 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
             });
         });
 
+        const restored = [];
+
         if (isTarGz) {
-            const extractDir = path.join(tmpDir, `restore-url-extract-${Date.now()}`);
+            const extractDir = path.join(tmpDir, `restore-url-extract-${ts}`);
             fs.mkdirSync(extractDir, { recursive: true });
             try {
                 await new Promise((resolve, reject) => {
@@ -2065,39 +2090,54 @@ router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), 
                         if (error) reject(error); else resolve();
                     });
                 });
-                // Find database.sqlite
-                const extractedDb = path.join(extractDir, 'database.sqlite');
-                if (!fs.existsSync(extractedDb)) {
-                    // Search recursively
-                    const found = await new Promise(resolve => {
-                        exec(`find "${extractDir}" -name "database.sqlite" -type f | head -1`, (err, stdout) => {
-                            resolve(stdout ? stdout.trim() : null);
+
+                // Restore all known files from archive
+                const filesToRestore = [
+                    { name: 'database.sqlite', dest: DB_PATH },
+                    { name: 'sessions.json', dest: SESSIONS_PATH },
+                    { name: 'settings.json', dest: SETTINGS_PATH },
+                    { name: 'candles.sqlite', dest: path.join(serverDir, 'candles.sqlite') },
+                ];
+
+                for (const f of filesToRestore) {
+                    let src = path.join(extractDir, f.name);
+                    if (!fs.existsSync(src)) {
+                        // Search recursively
+                        const found = await new Promise(resolve => {
+                            exec(`find "${extractDir}" -name "${f.name}" -type f | head -1`, (err, stdout) => {
+                                resolve(stdout ? stdout.trim() : null);
+                            });
                         });
-                    });
-                    if (!found) {
-                        try { fs.unlinkSync(tmpFile); } catch(e) {}
-                        try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
-                        return res.status(400).json({ error: 'Archive does not contain database.sqlite' });
+                        if (found) src = found;
+                        else continue;
                     }
-                    fs.copyFileSync(found, DB_PATH);
-                } else {
-                    fs.copyFileSync(extractedDb, DB_PATH);
+                    fs.copyFileSync(src, f.dest);
+                    restored.push(f.name);
                 }
+
+                if (restored.length === 0) {
+                    try { fs.unlinkSync(tmpFile); } catch(e) {}
+                    try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
+                    return res.status(400).json({ error: 'Архів не містить жодного відомого файлу (database.sqlite, settings.json, тощо)' });
+                }
+
                 try { fs.rmSync(extractDir, { recursive: true }); } catch(e) {}
             } catch (extractErr) {
                 // Not a tar.gz — maybe it's a raw .sqlite file
                 fs.copyFileSync(tmpFile, DB_PATH);
+                restored.push('database.sqlite (raw)');
             }
         } else {
             // Assume raw sqlite file
             fs.copyFileSync(tmpFile, DB_PATH);
+            restored.push('database.sqlite (raw)');
         }
 
         try { fs.unlinkSync(tmpFile); } catch(e) {}
 
-        logAdminAction(req.session.userId, 'restore_backup_url', 'backup', null, `Restored from URL: ${url.slice(0, 80)}`, getClientIP(req));
+        logAdminAction(req.session.userId, 'restore_backup_url', 'backup', null, `Restored from URL: ${url.slice(0, 80)} | Files: ${restored.join(', ')}`, getClientIP(req));
 
-        res.json({ success: true, message: 'Database restored. Server restart required.', backupOfPrevious: backupOfCurrent, fileSize });
+        res.json({ success: true, message: `Відновлено: ${restored.join(', ')}. Потрібен перезапуск сервера.`, backupOfPrevious: backupOfCurrent, fileSize, restored });
     } catch (error) {
         console.error('Restore from URL error:', error);
         res.status(500).json({ error: error.message || 'Restore failed' });

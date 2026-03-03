@@ -5,7 +5,7 @@ const archiver = require('archiver');
 const { google } = require('googleapis');
 const cron = require('node-cron');
 
-const { DB_PATH, SESSIONS_PATH, siteSettings, saveSettings } = require('../config');
+const { DB_PATH, SESSIONS_PATH, SETTINGS_PATH, siteSettings, saveSettings } = require('../config');
 const { dbRun, dbGet } = require('../db');
 const { getLocalTime } = require('../utils/time');
 
@@ -59,6 +59,14 @@ async function createBackupArchive() {
         }
         if (fs.existsSync(SESSIONS_PATH)) {
             archive.file(SESSIONS_PATH, { name: 'sessions.json' });
+        }
+        if (fs.existsSync(SETTINGS_PATH)) {
+            archive.file(SETTINGS_PATH, { name: 'settings.json' });
+        }
+        // Candles DB (market data)
+        const candlesPath = path.join(path.dirname(DB_PATH), 'candles.sqlite');
+        if (fs.existsSync(candlesPath)) {
+            archive.file(candlesPath, { name: 'candles.sqlite' });
         }
 
         archive.finalize();
