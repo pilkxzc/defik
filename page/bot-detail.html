@@ -4988,9 +4988,8 @@
         let _lastPositionBlocks = []; // stored for chart highlight on click
 
         function buildPositionBlocks(trades) {
-            // Each trade row = one round-trip (entry→exit in same DB row).
-            // `price` = entry price, `pnl` = realized P&L, `side` = BUY (LONG) or SELL (SHORT).
-            // Group trades that were concurrently open on the same symbol into one position block.
+            // Group consecutive same-side trades per symbol into position blocks.
+            // LONG+LONG+LONG = one block, when SHORT appears → new block, etc.
             const bySymbol = {};
             trades.forEach(t => {
                 const sym = t.symbol || t.pair || currentSymbol;
@@ -5003,31 +5002,33 @@
                 const symTrades = bySymbol[sym].slice().sort((a, b) =>
                     parseUTC(a.openedAt || a.closedAt) - parseUTC(b.openedAt || b.closedAt)
                 );
+
                 let blockTrades = [];
-                let blockCloseTime = 0; // latest closedAt in current block (ms)
+                let curSide = null;
+
+                function getSide(t) {
+                    const ps = (t.positionSide || t.position_side || '').toUpperCase();
+                    if (ps === 'LONG' || ps === 'SHORT') return ps;
+                    const s = (t.side || '').toUpperCase();
+                    return (s === 'BUY' || s === 'LONG') ? 'LONG' : 'SHORT';
+                }
 
                 symTrades.forEach(t => {
-                    const openMs  = parseUTC(t.openedAt || t.closedAt) || 0;
-                    const closeMs = parseUTC(t.closedAt) || 0;
-                    const isClosed = t.status === 'closed' && closeMs > 0;
-
-                    if (blockTrades.length === 0 || openMs <= blockCloseTime) {
-                        // Overlaps with current block → same position
+                    const side = getSide(t);
+                    if (blockTrades.length === 0 || side === curSide) {
                         blockTrades.push(t);
-                        blockCloseTime = isClosed
-                            ? Math.max(blockCloseTime, closeMs)
-                            : Infinity;
+                        curSide = side;
                     } else {
-                        // Opened after all previous closed → new position
+                        // Side changed → flush current block, start new
                         blocks.push(buildBlock(sym, blockTrades));
                         blockTrades = [t];
-                        blockCloseTime = isClosed ? closeMs : Infinity;
+                        curSide = side;
                     }
                 });
 
                 if (blockTrades.length > 0) {
                     const b = buildBlock(sym, blockTrades);
-                    if (blockCloseTime === Infinity || blockTrades.some(t => t.status === 'open')) {
+                    if (blockTrades.some(t => t.status === 'open')) {
                         b.isOpen = true;
                     }
                     blocks.push(b);
@@ -5192,6 +5193,45 @@
             }).join('');
 
             container.innerHTML = summaryHtml + `<div style="flex:1;overflow-y:auto;">${blocksHtml}</div>`;
+
+            // Draw position zones on chart (limit to recent 30 to avoid overload)
+            drawPositionBlockZones(allBlocks.slice(0, 30));
+        }
+
+        var _posBlockZoneIds = [];
+        function drawPositionBlockZones(blocks) {
+            if (!klChart) return;
+            // Remove old zones
+            _posBlockZoneIds.forEach(function(oid) {
+                try { klChart.removeOverlay({ id: oid }); } catch(e) {}
+            });
+            _posBlockZoneIds = [];
+
+            if (!blocks || blocks.length === 0) return;
+            if (!displaySettings.trades) return; // respect trades toggle
+
+            blocks.forEach(function(b) {
+                if (!b.startTime || !b.endTime) return;
+                // Use startTime of first trade and endTime of last trade (or now if open)
+                var t1 = b.startTime;
+                var t2 = b.isOpen ? Date.now() : b.endTime;
+                if (t1 >= t2) t2 = t1 + 60000; // min 1 min width
+
+                try {
+                    var id = klChart.createOverlay({
+                        name: 'positionZone',
+                        groupId: 'posZones',
+                        lock: true,
+                        points: [
+                            { timestamp: t1 },
+                            { timestamp: t2 }
+                        ],
+                        extendData: { side: b.side }
+                    });
+                    var oid = Array.isArray(id) ? id[0] : id;
+                    if (oid) _posBlockZoneIds.push(oid);
+                } catch(e) { console.warn('[posZone]', e); }
+            });
         }
 
         let _reconcileInFlight = false;
@@ -6946,6 +6986,30 @@
                               styles: { style:'fill', color: colorBase + '0.06)' }},
                             { type: 'line', attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
                               styles: { color: colorBase + '0.3)', size: 1, style: 'dashed' }},
+                        ];
+                    }
+                });
+                // Position block zone overlay (purple tinted area between two timestamps)
+                window.klinecharts.registerOverlay({
+                    name: 'positionZone',
+                    totalStep: 2,
+                    needDefaultPointFigure: false,
+                    needDefaultXAxisFigure: false,
+                    needDefaultYAxisFigure: false,
+                    createPointFigures({ overlay, coordinates, bounding }) {
+                        if (!coordinates || coordinates.length < 2) return [];
+                        const [c1, c2] = coordinates;
+                        const h = bounding?.height || 400;
+                        const ed = overlay.extendData || {};
+                        const isLong = ed.side === 'LONG';
+                        const baseColor = isLong ? '139,92,246' : '139,92,246'; // purple for both
+                        return [
+                            { type: 'rect', attrs: { x: Math.min(c1.x, c2.x), y: 0, width: Math.abs(c2.x - c1.x), height: h },
+                              styles: { style: 'fill', color: `rgba(${baseColor},0.06)` } },
+                            { type: 'line', attrs: { coordinates: [{ x: c1.x, y: 0 }, { x: c1.x, y: h }] },
+                              styles: { color: `rgba(${baseColor},0.25)`, size: 1, style: 'dashed', dashedValue: [3, 3] } },
+                            { type: 'line', attrs: { coordinates: [{ x: c2.x, y: 0 }, { x: c2.x, y: h }] },
+                              styles: { color: `rgba(${baseColor},0.25)`, size: 1, style: 'dashed', dashedValue: [3, 3] } },
                         ];
                     }
                 });
