@@ -183,6 +183,25 @@ function showToast(type, title, message, duration = 5000, icon = null) {
     return toast;
 }
 
+// ==================== NOTIFICATION SOUND ====================
+
+function playNotificationSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1047, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.3);
+    } catch (e) { /* audio not available */ }
+}
+
 // ==================== SOCKET.IO CLIENT ====================
 
 let socket = null;
@@ -210,18 +229,33 @@ function initSocketIO() {
     });
 
     socket.on('notification', (notification) => {
+        // Bot notifications get longer display time
+        const duration = notification.type === 'bot' ? 8000 : 5000;
+
         // Show toast
         showToast(
             notification.type,
             notification.title,
             notification.message,
-            5000,
+            duration,
             notification.icon
         );
+
+        // Play notification sound for important types
+        if (notification.type === 'bot' || notification.type === 'transaction') {
+            playNotificationSound();
+        }
 
         // Update notification count
         notificationCount++;
         updateNotificationBadge();
+
+        // Briefly animate the bell icon
+        const bell = document.getElementById('notificationBtn');
+        if (bell) {
+            bell.classList.add('notif-ring');
+            setTimeout(() => bell.classList.remove('notif-ring'), 600);
+        }
 
         // Refresh notification list if panel is open
         const panel = document.getElementById('notificationPanel');
@@ -291,6 +325,19 @@ function createNotificationPanel() {
             padding: 0 3px;
             border: 2px solid #080808;
             line-height: 1;
+        }
+        @keyframes bellRing {
+            0% { transform: rotate(0); }
+            15% { transform: rotate(14deg); }
+            30% { transform: rotate(-14deg); }
+            45% { transform: rotate(10deg); }
+            60% { transform: rotate(-10deg); }
+            75% { transform: rotate(4deg); }
+            100% { transform: rotate(0); }
+        }
+        .notif-ring svg {
+            animation: bellRing 0.6s ease;
+            color: #10B981;
         }
         #notificationPanel {
             position: fixed;

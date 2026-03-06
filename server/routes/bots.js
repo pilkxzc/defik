@@ -8,6 +8,7 @@ const { dbGet, dbAll, dbRun, saveDatabase } = require('../db');
 const { requireAuth, requireRole }          = require('../middleware/auth');
 const { getClientIP }                       = require('../utils/ip');
 const { sendUserNotification, getIo }       = require('../socket');
+const { createNotification }                = require('../services/notifications');
 
 // Rate-limit repetitive Binance API error logs (once per 60 s per error code)
 const _binanceErrLog = {};
@@ -373,6 +374,7 @@ async function syncBinanceTrades(botId) {
         console.log(`[Bot ${botId}] Syncing ${symbols.length} symbols`);
 
         let totalSaved = 0;
+        const newTrades = []; // Collect new trades for subscriber notifications
         for (const symbol of symbols) {
             try {
                 // Paginate backwards to fetch ALL historical trades (not just last 1000)
@@ -476,6 +478,14 @@ async function syncBinanceTrades(botId) {
                                 [botId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide]
                             );
                         }
+                        newTrades.push({
+                            symbol: t.symbol,
+                            side: storeSide,
+                            price: parseFloat(t.price),
+                            qty: parseFloat(t.qty),
+                            pnl,
+                            isEntry
+                        });
                         totalSaved++;
                     }
                 }
@@ -507,11 +517,77 @@ async function syncBinanceTrades(botId) {
         // Reconcile any remaining open trades against actual Binance positions
         const reconciled = await reconcileOpenTrades(botId);
 
+        // Notify subscribers about new trades
+        if (newTrades.length > 0) {
+            notifyBotSubscribers(botId, newTrades);
+        }
+
         console.log(`[Bot ${botId}] Sync complete: ${totalSaved} new, ${repaired} repaired, ${reconciled} reconciled`);
         return { saved: totalSaved, repaired, reconciled, symbols };
     } catch (err) {
         console.error('syncBinanceTrades error:', err.message);
         return { saved: 0, symbols: [] };
+    }
+}
+
+// Notify all active subscribers of a bot about new trades
+function notifyBotSubscribers(botId, newTrades) {
+    try {
+        const bot = dbGet('SELECT id, name FROM bots WHERE id = ?', [botId]);
+        if (!bot) return;
+
+        const subscribers = dbAll(
+            "SELECT user_id FROM bot_subscribers WHERE bot_id = ? AND status = 'active'",
+            [botId]
+        );
+        if (subscribers.length === 0) return;
+
+        // Group trades: count entries and exits
+        let entries = 0, exits = 0, totalPnl = 0;
+        const symbols = new Set();
+        for (const t of newTrades) {
+            symbols.add(t.symbol);
+            if (t.isEntry) entries++;
+            else { exits++; totalPnl += t.pnl; }
+        }
+
+        // Build notification message
+        const botName = bot.name || `Bot #${botId}`;
+        const symbolList = [...symbols].slice(0, 3).join(', ') + (symbols.size > 3 ? ` +${symbols.size - 3}` : '');
+        let title, message;
+
+        if (entries > 0 && exits === 0) {
+            title = `${botName} відкрив угоди`;
+            message = `${entries} нов${entries === 1 ? 'а угода' : 'их угод'} · ${symbolList}`;
+        } else if (exits > 0 && entries === 0) {
+            const pnlStr = totalPnl >= 0 ? `+$${totalPnl.toFixed(2)}` : `-$${Math.abs(totalPnl).toFixed(2)}`;
+            title = `${botName} закрив угоди`;
+            message = `${exits} угод закрито · PnL: ${pnlStr} · ${symbolList}`;
+        } else {
+            const pnlStr = totalPnl >= 0 ? `+$${totalPnl.toFixed(2)}` : `-$${Math.abs(totalPnl).toFixed(2)}`;
+            title = `${botName} — нова активність`;
+            message = `${entries} відкрито, ${exits} закрито · PnL: ${pnlStr} · ${symbolList}`;
+        }
+
+        // Send to each subscriber (respecting their notification settings)
+        for (const sub of subscribers) {
+            const settings = dbGet(
+                'SELECT * FROM bot_notification_settings WHERE user_id = ? AND bot_id = ?',
+                [sub.user_id, botId]
+            );
+
+            // If settings exist, check if the relevant notification type is enabled
+            if (settings) {
+                if (entries > 0 && !settings.notify_new_trade) continue;
+                if (exits > 0 && !settings.notify_close_trade) continue;
+            }
+
+            createNotification(sub.user_id, 'bot', title, message, '🤖');
+        }
+
+        console.log(`[Bot ${botId}] Notified ${subscribers.length} subscribers about ${newTrades.length} new trades`);
+    } catch (err) {
+        console.error(`[Bot ${botId}] Failed to notify subscribers:`, err.message);
     }
 }
 
