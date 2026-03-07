@@ -862,6 +862,7 @@
     let _dragStartViewStart = 0;
     let _mouseX = -1, _mouseY = -1;  // crosshair
     let _fetchingMore = false;
+    let _rafPending = false;
     // Price/time axis drag scaling
     let _priceAxisDrag = false;
     let _priceAxisStartY = 0;
@@ -1268,7 +1269,7 @@
             return padLeft + fIdx * candleW + candleW / 2;
         };
 
-        // ── All orders markers ──
+        // ── All orders markers (clustered) ──
         if (_showAllOrders && allOrders.length > 0) {
             const visStart = visible[0].time;
             const visEnd = visible[visible.length - 1].time;
@@ -1277,37 +1278,64 @@
                 const t = o.time || o.updateTime || 0;
                 return t >= visStart - intervalMs && t <= visEnd + intervalMs && o.orderId !== _chartOrder?.orderId;
             });
+
+            // Cluster orders within same candle (by time bucket)
+            const clusters = new Map();
             relevantOrders.forEach(o => {
                 const oTime = o.time || o.updateTime || 0;
-                // Use price where order was placed (limit price), fallback to avg/stop
-                const oPrice = parseFloat(o.price) > 0 ? parseFloat(o.price) : (o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : 0));
-                if (!oPrice || oPrice <= 0) return;
+                const bucket = Math.floor(oTime / intervalMs); // same candle = same bucket
+                const key = bucket + '_' + o.side;
+                if (!clusters.has(key)) clusters.set(key, []);
+                clusters.get(key).push(o);
+            });
+
+            clusters.forEach(group => {
+                // Use the first order's time, average price of the group
+                const rep = group[0];
+                const oTime = rep.time || rep.updateTime || 0;
                 const ox = timeToX(oTime);
                 if (ox < padLeft - 5 || ox > W - padRight + 5) return;
-                const oy = priceToY(oPrice);
+
+                // Average price of the cluster
+                let sumP = 0, cnt = 0;
+                group.forEach(o => {
+                    const p = parseFloat(o.price) > 0 ? parseFloat(o.price) : (o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : 0));
+                    if (p > 0) { sumP += p; cnt++; }
+                });
+                if (cnt === 0) return;
+                const avgP = sumP / cnt;
+                const oy = priceToY(avgP);
                 if (oy < padTop - 8 || oy > H - padBottom + 8) return;
-                const isBuy = o.side === 'BUY';
-                const isFilled = o.status === 'FILLED';
-                const markerColor = isBuy ? '#22D3EE' : '#F59E0B';
-                const alpha = isFilled ? '99' : '55';
+
+                const isBuy = rep.side === 'BUY';
+                const hasFilled = group.some(o => o.status === 'FILLED');
+                const mColor = isBuy ? '#22D3EE' : '#F59E0B';
+                const alpha = hasFilled ? '99' : '55';
+                const n = group.length;
 
                 // Triangle marker
-                ctx.fillStyle = markerColor + alpha;
+                ctx.fillStyle = mColor + alpha;
                 ctx.beginPath();
                 if (isBuy) {
-                    ctx.moveTo(ox, oy - 7); ctx.lineTo(ox - 4, oy); ctx.lineTo(ox + 4, oy);
+                    ctx.moveTo(ox, oy - 6); ctx.lineTo(ox - 4, oy); ctx.lineTo(ox + 4, oy);
                 } else {
-                    ctx.moveTo(ox, oy + 7); ctx.lineTo(ox - 4, oy); ctx.lineTo(ox + 4, oy);
+                    ctx.moveTo(ox, oy + 6); ctx.lineTo(ox - 4, oy); ctx.lineTo(ox + 4, oy);
                 }
                 ctx.fill();
 
-                // Short label (only when zoomed in enough)
-                if (candleW > 12) {
-                    ctx.font = '8px "JetBrains Mono", monospace';
-                    ctx.fillStyle = markerColor + alpha;
+                // Count badge if multiple orders in cluster
+                if (n > 1) {
+                    ctx.font = 'bold 8px "JetBrains Mono", monospace';
+                    ctx.fillStyle = mColor;
                     ctx.textAlign = 'center';
-                    const shortType = (o.type || '').replace('TAKE_PROFIT', 'TP').replace('STOP_MARKET', 'STP').replace('LIMIT', 'LMT').replace('MARKET', 'MKT').replace(/_/g, '');
-                    ctx.fillText(shortType, ox, isBuy ? oy - 10 : oy + 15);
+                    ctx.fillText(n + '', ox, isBuy ? oy - 9 : oy + 14);
+                } else if (candleW > 14) {
+                    // Single order — show type label when zoomed in
+                    ctx.font = '7px "JetBrains Mono", monospace';
+                    ctx.fillStyle = mColor + alpha;
+                    ctx.textAlign = 'center';
+                    const shortType = (rep.type || '').replace('TAKE_PROFIT', 'TP').replace('STOP_MARKET', 'STP').replace('LIMIT', 'LMT').replace('MARKET', 'MKT').replace(/_/g, '');
+                    ctx.fillText(shortType, ox, isBuy ? oy - 9 : oy + 14);
                 }
             });
         }
@@ -1502,7 +1530,7 @@
             if (_chartViewStart <= 5) fetchMoreKlines('left');
             if (_chartViewStart + _chartViewCount >= _chartKlines.length - 5) fetchMoreKlines('right');
         } else if (document.getElementById('chartOverlay').classList.contains('open') && _chartKlines.length > 0) {
-            drawChart();
+            if (!_rafPending) { _rafPending = true; requestAnimationFrame(() => { _rafPending = false; drawChart(); }); }
         }
     });
 
