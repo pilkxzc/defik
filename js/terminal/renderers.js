@@ -577,7 +577,7 @@ function toggleTradeGrouping() {
 function _groupMarkersByCandle(markers) {
     if (!markers || markers.length === 0) return [];
     // Determine candle interval in seconds from currentTF
-    const tfMap = { '1s':1, '2s':2, '5s':5, '15s':15, '30s':30, '1m':60, '3m':180, '5m':300, '15m':900, '30m':1800, '1h':3600, '2h':7200, '4h':14400, '1d':86400, '1w':604800 };
+    const tfMap = { '1s':1, '2s':2, '3s':3, '5s':5, '15s':15, '30s':30, '1m':60, '3m':180, '5m':300, '15m':900, '30m':1800, '1h':3600, '2h':7200, '4h':14400, '1d':86400, '1w':604800 };
     const ivSec = tfMap[currentTF] || 900;
     const buckets = {};
     for (const m of markers) {

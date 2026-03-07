@@ -64,16 +64,37 @@ async function fetchKlines(symbol, interval) {
         const intv = interval || currentTF;
 
         // Sub-minute intervals: fetch 1s klines from Binance directly and aggregate
-        if (intv === '1s') {
+        const subMinMap = { '1s': 1, '3s': 3, '5s': 5, '15s': 15, '30s': 30 };
+        if (subMinMap[intv]) {
             const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1s&limit=1000`;
             const resp = await fetch(url);
             if (resp.ok) {
                 const raw = await resp.json();
-                klineData = raw.map(k => ({
+                const oneSecCandles = raw.map(k => ({
                     time: Math.floor(k[0] / 1000), open: parseFloat(k[1]),
                     high: parseFloat(k[2]), low: parseFloat(k[3]),
                     close: parseFloat(k[4]), volume: parseFloat(k[5])
                 }));
+                const bucketSec = subMinMap[intv];
+                if (bucketSec === 1) {
+                    klineData = oneSecCandles;
+                } else {
+                    // Aggregate 1s candles into larger buckets
+                    const buckets = {};
+                    for (const c of oneSecCandles) {
+                        const key = Math.floor(c.time / bucketSec) * bucketSec;
+                        if (!buckets[key]) {
+                            buckets[key] = { time: key, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+                        } else {
+                            const b = buckets[key];
+                            b.high = Math.max(b.high, c.high);
+                            b.low = Math.min(b.low, c.low);
+                            b.close = c.close;
+                            b.volume += c.volume;
+                        }
+                    }
+                    klineData = Object.values(buckets).sort((a, b) => a.time - b.time);
+                }
                 return;
             }
         }
