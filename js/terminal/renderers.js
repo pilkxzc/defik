@@ -486,6 +486,34 @@ let _klineChart = null;
 let _klineMarkerGroup = 'trm-0';
 let _klineMarkerIdx = 0;
 let _klineMarkerRegistered = false;
+let _tradeGroupingEnabled = true;
+
+function toggleTradeGrouping() {
+    _tradeGroupingEnabled = !_tradeGroupingEnabled;
+    const btn = document.getElementById('indGroupTrades');
+    if (btn) btn.classList.toggle('active', _tradeGroupingEnabled);
+    renderLiveChart();
+}
+
+function _groupMarkersByCandle(markers) {
+    if (!markers || markers.length === 0) return [];
+    // Determine candle interval in seconds from currentTF
+    const tfMap = { '1s':1, '2s':2, '5s':5, '15s':15, '30s':30, '1m':60, '3m':180, '5m':300, '15m':900, '30m':1800, '1h':3600, '2h':7200, '4h':14400, '1d':86400, '1w':604800 };
+    const ivSec = tfMap[currentTF] || 900;
+    const buckets = {};
+    for (const m of markers) {
+        const bucket = Math.floor(m.time / ivSec) * ivSec;
+        const key = bucket + '_' + (m.isEntry ? 'entry' : 'exit');
+        if (!buckets[key]) buckets[key] = { time: bucket, side: m.side, price: 0, pnl: 0, isEntry: m.isEntry, qty: 0, count: 0, symbol: m.symbol, status: m.status };
+        const g = buckets[key];
+        g.qty += (m.qty || 0);
+        g.pnl += (m.pnl || 0);
+        g.count++;
+        // Weighted average price
+        g.price = g.count === 1 ? m.price : (g.price * (g.count - 1) + m.price) / g.count;
+    }
+    return Object.values(buckets).sort((a, b) => a.time - b.time);
+}
 
 function _scheduleChartRender() {
     // klinecharts handles its own render loop — just call renderLiveChart directly
@@ -600,7 +628,8 @@ function renderLiveChart() {
     _klineMarkerGroup = `trm-${++_klineMarkerIdx}`;
 
     if (tradeMarkers && tradeMarkers.length > 0) {
-        for (const m of tradeMarkers) {
+        const displayMarkers = _tradeGroupingEnabled ? _groupMarkersByCandle(tradeMarkers) : tradeMarkers;
+        for (const m of displayMarkers) {
             const isLongSide = m.side === 'LONG' || m.side === 'BUY';
             try {
                 chart.createOverlay({

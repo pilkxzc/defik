@@ -2231,19 +2231,7 @@ async function initializePage() {
             let statsNavLink = document.getElementById('statsNavLink');
 
             if (navSidebar && profileLink) {
-                // Inject statsNavLink if missing
-                if (!statsNavLink) {
-                    const sl = document.createElement('a');
-                    sl.href = '/bot-community-stats';
-                    sl.className = 'nav-item admin-nav-item admin-hidden';
-                    sl.id = 'statsNavLink';
-                    sl.title = 'Статистика спільноти';
-                    sl.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>';
-                    if (window.location.pathname === '/bot-community-stats') sl.classList.add('active');
-                    profileLink.before(sl);
-                    statsNavLink = sl;
-                }
-                // Inject adminNavLink if missing
+                // Inject adminNavLink if missing (goes right before profile)
                 if (!adminNavLink) {
                     const al = document.createElement('a');
                     al.href = '/admin';
@@ -2254,6 +2242,18 @@ async function initializePage() {
                     if (window.location.pathname === '/admin') al.classList.add('active');
                     profileLink.before(al);
                     adminNavLink = al;
+                }
+                // Inject statsNavLink if missing (goes right before admin)
+                if (!statsNavLink) {
+                    const sl = document.createElement('a');
+                    sl.href = '/bot-community-stats';
+                    sl.className = 'nav-item admin-nav-item admin-hidden';
+                    sl.id = 'statsNavLink';
+                    sl.title = 'Статистика спільноти';
+                    sl.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>';
+                    if (window.location.pathname === '/bot-community-stats') sl.classList.add('active');
+                    adminNavLink.before(sl);
+                    statsNavLink = sl;
                 }
             }
 
