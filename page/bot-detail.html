@@ -7009,7 +7009,7 @@
 
                         // Line styles per type
                         if (type === 'entry') {
-                            figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                            figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { color, size: 1.5 } });
                         } else if (type === 'stop' || type === 'tp') {
                             // Wavy zigzag line for stop/tp
@@ -7019,10 +7019,10 @@
                                 coords.push({ x, y: y + (coords.length % 2 === 0 ? -amp : amp) });
                             }
                             // Use polygon (open polyline) — single figure, much faster
-                            figs.push({ type: 'polygon', attrs: { coordinates: coords },
+                            figs.push({ type: 'polygon', ignoreEvent: true, attrs: { coordinates: coords },
                                         styles: { style: 'stroke', color, size: 1.2 } });
                         } else {
-                            figs.push({ type: 'line', attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                            figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { style: 'dashed', color, size: 1, dashedValue: [6, 4] } });
                         }
 
@@ -7033,11 +7033,11 @@
                         const lx = w - labelW - 4;
                         const ly = y - labelH / 2;
 
-                        figs.push({ type: 'rect', attrs: { x: lx, y: ly, width: labelW, height: labelH },
+                        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: lx, y: ly, width: labelW, height: labelH },
                                     styles: { style: 'fill', color: rgba(color, 0.16) } });
-                        figs.push({ type: 'rect', attrs: { x: lx, y: ly, width: labelW, height: labelH },
+                        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: lx, y: ly, width: labelW, height: labelH },
                                     styles: { style: 'stroke', color: rgba(color, 0.45), size: 0.5 } });
-                        figs.push({ type: 'text', attrs: { x: lx + padH, y, text, align: 'left', baseline: 'middle' },
+                        figs.push({ type: 'text', ignoreEvent: true, attrs: { x: lx + padH, y, text, align: 'left', baseline: 'middle' },
                                     styles: { color, size: fontSize, weight: '600' } });
 
                         return figs;
@@ -7058,11 +7058,11 @@
                         const w = (barSpace?.bar || 8) * 0.8;
                         const h = bounding?.height || 400;
                         return [
-                            { type: 'rect', attrs: { x: c.x - w*2.2, y: 0, width: w*4.4, height: h },
+                            { type: 'rect', ignoreEvent: true, attrs: { x: c.x - w*2.2, y: 0, width: w*4.4, height: h },
                               styles: { style:'fill', color: colorBase + '0.04)' }},
-                            { type: 'rect', attrs: { x: c.x - w*1.5, y: 0, width: w*3, height: h },
+                            { type: 'rect', ignoreEvent: true, attrs: { x: c.x - w*1.5, y: 0, width: w*3, height: h },
                               styles: { style:'fill', color: colorBase + '0.06)' }},
-                            { type: 'line', attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
+                            { type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
                               styles: { color: colorBase + '0.3)', size: 1, style: 'dashed' }},
                         ];
                     }
@@ -7082,11 +7082,11 @@
                         const isLong = ed.side === 'LONG';
                         const baseColor = isLong ? '139,92,246' : '139,92,246'; // purple for both
                         return [
-                            { type: 'rect', attrs: { x: Math.min(c1.x, c2.x), y: 0, width: Math.abs(c2.x - c1.x), height: h },
+                            { type: 'rect', ignoreEvent: true, attrs: { x: Math.min(c1.x, c2.x), y: 0, width: Math.abs(c2.x - c1.x), height: h },
                               styles: { style: 'fill', color: `rgba(${baseColor},0.06)` } },
-                            { type: 'line', attrs: { coordinates: [{ x: c1.x, y: 0 }, { x: c1.x, y: h }] },
+                            { type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: c1.x, y: 0 }, { x: c1.x, y: h }] },
                               styles: { color: `rgba(${baseColor},0.25)`, size: 1, style: 'dashed', dashedValue: [3, 3] } },
-                            { type: 'line', attrs: { coordinates: [{ x: c2.x, y: 0 }, { x: c2.x, y: h }] },
+                            { type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: c2.x, y: 0 }, { x: c2.x, y: h }] },
                               styles: { color: `rgba(${baseColor},0.25)`, size: 1, style: 'dashed', dashedValue: [3, 3] } },
                         ];
                     }
@@ -7108,11 +7108,11 @@
                         const h = bounding?.height || 400;
                         const lx = isEnd ? c.x - 32 : c.x + 4;
                         return [
-                            { type: 'rect', attrs: { x: c.x - 1, y: 0, width: 2, height: h },
+                            { type: 'rect', ignoreEvent: true, attrs: { x: c.x - 1, y: 0, width: 2, height: h },
                               styles: { style: 'fill', color: colorFill } },
-                            { type: 'line', attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
+                            { type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: c.x, y: 0 }, { x: c.x, y: h }] },
                               styles: { color, size: 1.5, style: 'dashed', dashedValue: [4, 3] } },
-                            { type: 'text', attrs: { x: lx, y: 14, text: label },
+                            { type: 'text', ignoreEvent: true, attrs: { x: lx, y: 14, text: label },
                               styles: { color, size: 10, family: 'inherit', weight: '700' } },
                         ];
                     }
@@ -7135,7 +7135,7 @@
                         const color = above ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
                         const barW = 24;
                         return [
-                            { type: 'rect', attrs: { x: c.x - barW/2, y: 0, width: barW, height: bounding?.height || 400 },
+                            { type: 'rect', ignoreEvent: true, attrs: { x: c.x - barW/2, y: 0, width: barW, height: bounding?.height || 400 },
                               styles: { style:'fill', color } }
                         ];
                     }
