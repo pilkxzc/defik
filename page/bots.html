@@ -747,16 +747,14 @@
 
         /* ── Coin action popup ── */
         .coin-popup {
-            position: absolute;
-            right: 0;
-            top: 100%;
+            position: fixed;
             background: var(--surface);
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.12);
             border-radius: 12px;
             padding: 6px;
-            min-width: 160px;
-            z-index: 200;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            min-width: 180px;
+            z-index: 99000;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
             opacity: 0;
             transform: translateY(-4px) scale(0.95);
             pointer-events: none;
@@ -1779,6 +1777,10 @@
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                     Підключити
                                 </div>
+                                <div class="coin-popup-item" onclick="event.stopPropagation(); closeCoinPopups(); window.location.href='/bot-stats/${b.id}?symbol=${sym}&tab=statistics'" style="color:var(--accent-blue);">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                                    Статистика
+                                </div>
                                 <div class="coin-popup-item stop${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('stop', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                                     Зупинити
@@ -1865,7 +1867,24 @@
             if (!popup) return;
             const wasOpen = popup.classList.contains('open');
             closeCoinPopups();
-            if (!wasOpen) popup.classList.add('open');
+            if (!wasOpen) {
+                // Position fixed popup near the gear button
+                const gear = popup.previousElementSibling || popup.parentElement.querySelector('.bot-coin-gear');
+                if (gear) {
+                    const rect = gear.getBoundingClientRect();
+                    popup.style.top = (rect.bottom + 4) + 'px';
+                    popup.style.right = (window.innerWidth - rect.right) + 'px';
+                    popup.style.left = 'auto';
+                    // If popup would go below viewport, show above
+                    popup.classList.add('open');
+                    const popupRect = popup.getBoundingClientRect();
+                    if (popupRect.bottom > window.innerHeight - 10) {
+                        popup.style.top = (rect.top - popupRect.height - 4) + 'px';
+                    }
+                } else {
+                    popup.classList.add('open');
+                }
+            }
         }
 
         function closeCoinPopups() {
@@ -2031,6 +2050,10 @@
                                         <div class="coin-popup-item start" onclick="event.stopPropagation(); closeCoinPopups(); window.location.href='/bot-stats/${b.id}?symbol=${sym}&tab=connect'">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                             Підключити
+                                        </div>
+                                        <div class="coin-popup-item" onclick="event.stopPropagation(); closeCoinPopups(); window.location.href='/bot-stats/${b.id}?symbol=${sym}&tab=statistics'" style="color:var(--accent-blue);">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                                            Статистика
                                         </div>
                                         <div class="coin-popup-item stop${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('stop', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
