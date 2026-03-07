@@ -2885,8 +2885,11 @@
             display: flex; align-items: center; gap: 4px;
             padding: 5px 12px; background: var(--bg-app,#080808);
             border-bottom: 1px solid rgba(255,255,255,0.06);
-            flex-shrink: 0; overflow: visible; position: relative; z-index: 50;
+            flex-shrink: 0; overflow-x: auto; overflow-y: visible;
+            position: relative; z-index: 50;
+            scrollbar-width: none; -webkit-overflow-scrolling: touch;
         }
+        .chart-indicators-bar::-webkit-scrollbar { display: none; }
         .ind-btn {
             display: flex; align-items: center; gap: 5px;
             padding: 5px 10px; background: rgba(255,255,255,0.04);
@@ -3059,7 +3062,7 @@
                         <span class="ind-badge" id="symBadge">0</span>
                         <svg class="ind-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
-                    <div class="ind-dropdown" id="symDropdownMenu" style="min-width:200px;max-height:320px;overflow-y:auto;"></div>
+                    <div class="ind-dropdown" id="symDropdownMenu" style="min-width:200px;"></div>
                 </div>
                 <div class="ind-sep"></div>
                 <!-- Indicators dropdown -->
@@ -8530,45 +8533,60 @@
             var vh = window.innerHeight;
             var m = 8; // margin from edges
 
-            // Make visible off-screen to measure
+            // Reset constraints so we can measure natural size
+            el.style.maxHeight = 'none';
+            el.style.position = 'fixed';
             el.style.visibility = 'hidden';
-            el.style.display = el.classList.contains('open') ? 'block' : (el.style.display || 'block');
+            el.style.display = 'block';
+            el.style.top = '0';
+            el.style.left = '0';
             var dw = el.offsetWidth;
             var dh = el.offsetHeight;
             el.style.visibility = '';
 
-            // Prefer below trigger
-            var top = r.bottom + 4;
-            var left = r.left;
+            // Available space below and above trigger
+            var spaceBelow = vh - r.bottom - 4 - m;
+            var spaceAbove = r.top - 4 - m;
 
-            // If goes below viewport, open above trigger
-            if (top + dh > vh - m) {
+            var top, availH;
+            if (dh <= spaceBelow) {
+                // Fits below
+                top = r.bottom + 4;
+                availH = spaceBelow;
+            } else if (dh <= spaceAbove) {
+                // Fits above
                 top = r.top - dh - 4;
-            }
-            // If still above viewport, pin to top
-            if (top < m) {
-                top = m;
-            }
-
-            // Clamp max-height to viewport
-            var maxH = vh - top - m;
-            if (top + dh > vh - m) {
-                el.style.maxHeight = maxH + 'px';
-                el.style.overflowY = 'auto';
+                availH = spaceAbove;
+            } else if (spaceBelow >= spaceAbove) {
+                // More space below — pin there and clamp
+                top = r.bottom + 4;
+                availH = spaceBelow;
             } else {
-                el.style.maxHeight = '';
+                // More space above — pin there and clamp
+                top = m;
+                availH = spaceAbove;
             }
 
-            // Horizontal: don't overflow right
-            if (left + dw > vw - m) {
-                left = vw - dw - m;
-            }
+            // Hard clamp: never exceed viewport
+            if (top < m) top = m;
+            if (top + availH > vh - m) availH = vh - top - m;
+
+            // Always enforce max-height
+            el.style.maxHeight = Math.max(100, availH) + 'px';
+            el.style.overflowY = 'auto';
+
+            // Horizontal positioning
+            var left = r.left;
+            // Don't overflow right
+            if (left + dw > vw - m) left = vw - dw - m;
             // Don't overflow left
-            if (left < m) {
+            if (left < m) left = m;
+            // If still too wide, clamp width too
+            if (dw > vw - m * 2) {
+                el.style.maxWidth = (vw - m * 2) + 'px';
                 left = m;
             }
 
-            el.style.position = 'fixed';
             el.style.top = top + 'px';
             el.style.left = left + 'px';
             el.style.zIndex = '99999';
@@ -8611,6 +8629,8 @@
                     el.style.left = '';
                     el.style.zIndex = '';
                     el.style.maxHeight = '';
+                    el.style.maxWidth = '';
+                    el.style.overflowY = '';
                 }
             });
         }
@@ -10444,19 +10464,15 @@
         // Panel manager dropdown
         function togglePanelManager() {
             const dd = document.getElementById('panelManagerDropdown');
-            dd.classList.toggle('open');
-            // Close on outside click
-            if (dd.classList.contains('open')) {
-                setTimeout(() => {
-                    document.addEventListener('click', closePanelManagerOutside, { once: true });
-                }, 10);
-            }
-        }
-        function closePanelManagerOutside(e) {
-            const dd = document.getElementById('panelManagerDropdown');
             const btn = document.getElementById('panelManagerBtn');
-            if (dd && !dd.contains(e.target) && !btn.contains(e.target)) {
+            if (!dd || !btn) return;
+            var wasOpen = dd.classList.contains('open');
+            if (wasOpen) {
+                closeAllDropdowns();
                 dd.classList.remove('open');
+            } else {
+                dd.classList.add('open');
+                openDropdownSafe(dd, btn);
             }
         }
 
