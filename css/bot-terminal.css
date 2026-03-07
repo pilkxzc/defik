@@ -242,12 +242,16 @@ body { font-family: var(--font-sans); background: var(--bg-app); color: var(--te
     border-top: 8px solid #F59E0B;
 }
 .chart-legend-marker.exit-profit {
-    width: 7px; height: 7px; background: #10B981;
-    transform: rotate(45deg); border: none;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(16,185,129,0.15); border: 1.5px solid #10B981;
 }
 .chart-legend-marker.exit-loss {
-    width: 7px; height: 7px; background: #EF4444;
-    transform: rotate(45deg); border: none;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(239,68,68,0.15); border: 1.5px solid #EF4444;
+}
+.chart-legend-marker.grouped {
+    width: 8px; height: 8px; border: 1.5px solid #8B5CF6;
+    transform: rotate(45deg); background: transparent;
 }
 
 /* ── KPI grid ── */
