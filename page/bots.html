@@ -680,9 +680,7 @@
         /* Coins hover tooltip */
         .bot-coins-tooltip {
             display: none;
-            position: absolute;
-            bottom: calc(100% + 8px);
-            left: 0;
+            position: fixed;
             background: var(--surface);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 10px;
@@ -690,11 +688,12 @@
             font-size: 11px;
             color: var(--text-primary);
             white-space: nowrap;
-            z-index: 100;
+            z-index: 9999;
             box-shadow: 0 6px 20px rgba(0,0,0,0.4);
             min-width: 140px;
+            pointer-events: none;
         }
-        .bot-list-item-sub:hover .bot-coins-tooltip {
+        .bot-coins-tooltip.visible {
             display: block;
             animation: tooltipIn 0.15s ease-out;
         }
@@ -1919,17 +1918,6 @@
                 pairHtml += `<span class="bot-live-pair bot-pair-more">+${extraCount}</span>`;
             }
 
-            // Build tooltip with all coins and their status
-            const tooltipHtml = allCoins.map(c => {
-                const sym = (c.symbol || c).replace(/USDT|BUSD/gi, '');
-                const hasOpen = c.hasOpenTrade || false;
-                return `<div class="bot-coins-tooltip-item">
-                    <span class="bot-coins-tooltip-dot ${hasOpen ? 'active' : 'inactive'}"></span>
-                    <span>${sym}/USDT</span>
-                    <span class="bot-coins-tooltip-status" style="color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? 'Live' : 'Очікує'}</span>
-                </div>`;
-            }).join('');
-
             const isLiveTrading = b.realStatus === 'live';
 
             // Build coins submenu
@@ -2030,9 +2018,8 @@
                 <div class="bot-list-item${_selectedBotId === b.id ? ' selected' : ''}${isLiveTrading ? ' is-live' : ''}" data-bot-id="${b.id}" style="position:relative;">
                     <div class="bot-list-item-info">
                         <div class="bot-list-item-name">${b.name}</div>
-                        <div class="bot-list-item-sub">
+                        <div class="bot-list-item-sub" data-tooltip-coins='${JSON.stringify(allCoins.map(c => ({s:(c.symbol||c).replace(/USDT|BUSD/gi,""),a:!!c.hasOpenTrade})))}'>
                             ${pairHtml}
-                            ${allCoins.length > 0 ? `<div class="bot-coins-tooltip">${tooltipHtml}</div>` : ''}
                         </div>
                     </div>
                     <div class="bot-list-item-pnl ${pnlClass}">${pnlStr}</div>
@@ -2805,7 +2792,46 @@
         <span>Профіль</span>
     </a>
 </nav>
+<div class="bot-coins-tooltip" id="coinsTooltip"></div>
 <script>
 (function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})();
+
+// ── Coins tooltip (fixed, above item) ──
+(function() {
+    const tip = document.getElementById('coinsTooltip');
+    let hideTimer = null;
+
+    document.addEventListener('mouseenter', function(e) {
+        const sub = e.target.closest('.bot-list-item-sub[data-tooltip-coins]');
+        if (!sub) return;
+        clearTimeout(hideTimer);
+
+        const coins = JSON.parse(sub.dataset.tooltipCoins);
+        if (!coins.length) return;
+
+        tip.innerHTML = coins.map(c =>
+            `<div class="bot-coins-tooltip-item">
+                <span class="bot-coins-tooltip-dot ${c.a ? 'active' : 'inactive'}"></span>
+                <span>${c.s}/USDT</span>
+                <span class="bot-coins-tooltip-status" style="color:${c.a ? 'var(--color-up)' : 'var(--text-tertiary)'};">${c.a ? 'Live' : 'Очікує'}</span>
+            </div>`
+        ).join('');
+
+        const rect = sub.getBoundingClientRect();
+        tip.classList.add('visible');
+
+        const tipH = tip.offsetHeight;
+        let top = rect.top - tipH - 6;
+        if (top < 4) top = rect.bottom + 6; // fallback below if no space above
+        tip.style.top = top + 'px';
+        tip.style.left = rect.left + 'px';
+    }, true);
+
+    document.addEventListener('mouseleave', function(e) {
+        const sub = e.target.closest('.bot-list-item-sub[data-tooltip-coins]');
+        if (!sub) return;
+        hideTimer = setTimeout(() => tip.classList.remove('visible'), 100);
+    }, true);
+})();
 </script>
 </body></html>
