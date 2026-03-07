@@ -907,6 +907,15 @@
             cursor: pointer;
             position: relative;
         }
+        .detail-coin-chevron {
+            color: var(--text-tertiary);
+            flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
+        .detail-coin-row.expanded .detail-coin-chevron {
+            transform: rotate(180deg);
+            color: var(--text-secondary);
+        }
         .coin-action-icon {
             display: flex;
             align-items: center;
@@ -2552,7 +2561,7 @@
                             const coinId = 'detail-coin-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
                             const popupId = 'coin-popup-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
                             return `<div class="detail-coin-wrap" data-coin-active="${hasOpen ? '1' : '0'}">
-                                <div class="detail-coin-row" onclick="document.getElementById('${coinId}').classList.toggle('open'); trackEvent('coin_click', ${b.id}, '${sym}')">
+                                <div class="detail-coin-row" onclick="document.getElementById('${coinId}').classList.toggle('open'); this.classList.toggle('expanded'); trackEvent('coin_click', ${b.id}, '${sym}')">
                                     <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
                                     <a class="coin-action-icon" href="/bot-stats/${b.id}?symbol=${sym}&tab=overview" onclick="event.stopPropagation()" title="Графік">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -2563,6 +2572,7 @@
                                     <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
                                     <span style="font-size:11px;font-weight:600;color:${coinPnlClass};">${coinPnlStr}</span>
                                     <span style="font-size:11px;font-weight:600;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? '● Live' : 'Очікує'}</span>
+                                    <svg class="detail-coin-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                                 </div>
                                 <div id="${coinId}" class="detail-coin-stats">
                                     <div class="detail-coin-stats-row">
