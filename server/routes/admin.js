@@ -1117,7 +1117,7 @@ function isDbSessionValid(session) {
 
 // Middleware: require db_access flag OR be main admin (with 2FA/key session, 5min TTL)
 function requireDbAccess(req, res, next) {
-    const user = dbGet('SELECT email, db_access FROM users WHERE id = ?', [req.session.userId]);
+    const user = dbGet('SELECT email, db_access, permissions FROM users WHERE id = ?', [req.session.userId]);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
     if (user.email === ADMIN_EMAIL) {
@@ -1128,7 +1128,10 @@ function requireDbAccess(req, res, next) {
         return next();
     }
 
-    if (user.db_access) return next();
+    // Check granular permissions first, fallback to legacy db_access
+    let perms = {};
+    try { perms = JSON.parse(user.permissions || '{}'); } catch {}
+    if (perms.database || user.db_access) return next();
     return res.status(403).json({ error: 'db_access_denied', message: 'Доступ до бази даних заборонено. Зверніться до головного адміністратора.' });
 }
 
@@ -1166,48 +1169,93 @@ router.post('/api/admin/db-access/lock', requireAuth, requireRole('admin'), (req
     res.json({ success: true });
 });
 
-// Get list of admins with their db_access status (main admin only)
+// All available permissions
+const ADMIN_PERMISSIONS = {
+    database:    { label: 'База даних',    description: 'Доступ до браузера бази даних' },
+    backup:      { label: 'Бекапи',        description: 'Створення та відновлення бекапів' },
+    users:       { label: 'Користувачі',   description: 'Управління користувачами (бан, роль, баланс)' },
+    bots:        { label: 'Боти',          description: 'Управління ботами всіх користувачів' },
+    settings:    { label: 'Налаштування',  description: 'Зміна налаштувань сайту' },
+    analytics:   { label: 'Аналітика',     description: 'Перегляд аналітики та логів' },
+    bug_reports: { label: 'Баг-репорти',   description: 'Перегляд та обробка баг-репортів' },
+    transactions:{ label: 'Транзакції',    description: 'Перегляд транзакцій користувачів' }
+};
+
+function _getUserPermissions(user) {
+    if (user.email === ADMIN_EMAIL) return null; // main admin — all perms
+    try { return JSON.parse(user.permissions || '{}'); } catch { return {}; }
+}
+
+// Get list of admins with their permissions (main admin only)
 router.get('/api/admin/db-access/users', requireAuth, requireRole('admin'), (req, res) => {
     if (!isMainAdmin(req.session.userId)) {
         return res.status(403).json({ error: 'Only the main admin can manage database access' });
     }
-    const admins = dbAll("SELECT id, email, full_name, role, db_access FROM users WHERE role IN ('admin', 'moderator') ORDER BY id");
-    res.json({ admins: admins.map(a => ({ ...a, db_access: !!a.db_access, isMainAdmin: a.email === ADMIN_EMAIL })) });
+    const admins = dbAll("SELECT id, email, full_name, role, db_access, permissions FROM users WHERE role IN ('admin', 'moderator') ORDER BY id");
+    res.json({
+        admins: admins.map(a => {
+            let perms = {};
+            try { perms = JSON.parse(a.permissions || '{}'); } catch {}
+            return {
+                id: a.id, email: a.email, full_name: a.full_name, role: a.role,
+                db_access: !!a.db_access, permissions: perms,
+                isMainAdmin: a.email === ADMIN_EMAIL
+            };
+        }),
+        availablePermissions: ADMIN_PERMISSIONS
+    });
 });
 
-// Grant/revoke db access (main admin only, requires 2FA or access key)
-router.post('/api/admin/db-access/toggle', requireAuth, requireRole('admin'), (req, res) => {
+// Toggle a single permission for an admin (main admin only, requires verification)
+router.post('/api/admin/db-access/toggle', requireAuth, requireRole('admin'), async (req, res) => {
     if (!isMainAdmin(req.session.userId)) {
         return res.status(403).json({ error: 'Only the main admin can manage database access' });
     }
 
-    const { userId, grant, totpCode, accessKey } = req.body;
-    if (!userId || grant === undefined) {
+    const { userId, permission, grant, totpCode, accessKey, useSession } = req.body;
+    if (!userId || !permission) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Verify via 2FA or access key
-    const mainUser = dbGet('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
-    if (!_verifyAdminAuth(mainUser, totpCode, accessKey)) {
-        return res.status(401).json({ error: 'Невірний код або ключ доступу' });
+    // Allow using existing verified session (from passkey or previous verify)
+    if (useSession && isDbSessionValid(req.session)) {
+        // Session is valid — no additional auth needed
+    } else {
+        // Verify via 2FA or access key
+        const mainUser = dbGet('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
+        if (!_verifyAdminAuth(mainUser, totpCode, accessKey)) {
+            return res.status(401).json({ error: 'Невірний код або ключ доступу' });
+        }
+        // Set session so subsequent toggles don't need re-auth
+        req.session.dbVerified = true;
+        req.session.dbVerifiedAt = Date.now();
     }
 
-    // Toggle access
-    const target = dbGet('SELECT id, email, full_name, role FROM users WHERE id = ?', [userId]);
+    const target = dbGet('SELECT id, email, full_name, role, permissions FROM users WHERE id = ?', [userId]);
     if (!target || !['admin', 'moderator'].includes(target.role)) {
         return res.status(404).json({ error: 'Admin user not found' });
     }
     if (target.email === ADMIN_EMAIL) {
-        return res.status(400).json({ error: 'Головний адмін завжди має доступ' });
+        return res.status(400).json({ error: 'Головний адмін завжди має всі дозволи' });
+    }
+    if (!ADMIN_PERMISSIONS[permission]) {
+        return res.status(400).json({ error: 'Unknown permission' });
     }
 
-    dbRun('UPDATE users SET db_access = ? WHERE id = ?', [grant ? 1 : 0, userId]);
+    let perms = {};
+    try { perms = JSON.parse(target.permissions || '{}'); } catch {}
+    perms[permission] = !!grant;
+
+    // Also keep legacy db_access in sync
+    const newDbAccess = perms.database ? 1 : 0;
+
+    dbRun('UPDATE users SET permissions = ?, db_access = ? WHERE id = ?', [JSON.stringify(perms), newDbAccess, userId]);
     saveDatabase();
 
-    logAdminAction(req.session.userId, 'DB_ACCESS_TOGGLE', 'users', userId,
-        `${grant ? 'Granted' : 'Revoked'} DB access for ${target.email}`, getClientIP(req));
+    logAdminAction(req.session.userId, 'PERMISSION_TOGGLE', 'users', userId,
+        `${grant ? 'Granted' : 'Revoked'} permission "${permission}" for ${target.email}`, getClientIP(req));
 
-    res.json({ success: true, userId, dbAccess: !!grant });
+    res.json({ success: true, userId, permission, granted: !!grant });
 });
 
 // Verify 2FA or access key for database session (main admin self-access)

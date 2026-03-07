@@ -2101,72 +2101,108 @@ async function loadAccessTab() {
 
 function _renderAccessTab(admins, status) {
     const container = document.getElementById('accessTabContent');
+
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.trim().split(/\s+/);
+        return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0,2).toUpperCase();
+    };
+
     container.innerHTML = `
-        <!-- Access key management -->
-        <div style="background:var(--surface-secondary,#1a1a1a);border-radius:14px;padding:20px;margin-bottom:24px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-                <span style="font-weight:700;font-size:15px;">Ключ доступу</span>
-                <span style="font-size:12px;color:${status.hasAccessKey ? '#10B981' : 'var(--text-tertiary)'};font-weight:600;margin-left:auto;">${status.hasAccessKey ? 'Активний' : 'Не встановлено'}</span>
+    <div class="acc-page">
+        <!-- Section 1: Access Key -->
+        <div class="acc-section">
+            <div class="acc-section-head">
+                <div class="acc-section-icon" style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.15);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                </div>
+                <div>
+                    <div class="acc-section-title">Ключ доступу</div>
+                </div>
+                <div style="margin-left:auto;">
+                    <span class="acc-key-status ${status.hasAccessKey ? 'active' : 'inactive'}">
+                        <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+                        ${status.hasAccessKey ? 'Активний' : 'Не встановлено'}
+                    </span>
+                </div>
             </div>
-            <p style="color:var(--text-tertiary);font-size:13px;margin-bottom:14px;">
-                Альтернатива 2FA для доступу до бази даних та бекапів.
+            <p class="acc-section-desc">
+                Спеціальний ключ для доступу до бази даних та бекапів — альтернатива 2FA-коду. Використовуйте його як пароль при вході до захищених розділів.
             </p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button id="accGenKeyBtn" style="padding:10px 18px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:10px;color:#10B981;font-size:13px;font-weight:700;cursor:pointer;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="acc-btn green" id="accGenKeyBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Згенерувати новий
                 </button>
-                <button id="accDelKeyBtn" style="padding:10px 18px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:10px;color:#EF4444;font-size:13px;font-weight:700;cursor:pointer;">
-                    Видалити
-                </button>
+                ${status.hasAccessKey ? `
+                <button class="acc-btn red" id="accDelKeyBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Видалити ключ
+                </button>` : ''}
             </div>
-            <div id="accKeyResult" style="display:none;margin-top:14px;"></div>
-            <div id="accKeyTotpArea" style="display:none;margin-top:14px;">
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <input type="text" id="accKeyTotpCode" maxlength="6" placeholder="2FA код"
-                        style="flex:1;max-width:180px;padding:10px 14px;background:var(--bg-app,#080808);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:white;font-size:14px;text-align:center;letter-spacing:4px;font-weight:600;outline:none;"
-                        inputmode="numeric">
-                    <button id="accKeyTotpSubmit" style="padding:10px 16px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:700;font-size:13px;cursor:pointer;">
-                        OK
-                    </button>
+            <div id="accKeyResult" style="display:none;margin-top:16px;"></div>
+            <div class="acc-confirm-row" id="accKeyTotpArea">
+                <div class="acc-confirm-label">Введіть 2FA-код для підтвердження:</div>
+                <div class="acc-input-row">
+                    <input type="text" class="acc-code-input" id="accKeyTotpCode" maxlength="6" placeholder="000000" inputmode="numeric" autocomplete="off">
+                    <button class="acc-btn primary" id="accKeyTotpSubmit">Підтвердити</button>
                 </div>
-                <p id="accKeyError" style="color:#EF4444;font-size:11px;margin-top:6px;display:none;"></p>
+                <p class="acc-error" id="accKeyError"></p>
             </div>
         </div>
 
-        <!-- Admin list -->
-        <div style="margin-bottom:8px;">
-            <span style="color:var(--text-secondary);font-size:14px;font-weight:700;">Адміністратори</span>
-        </div>
-        <div id="accAdminList">
-            ${admins.map(a => `
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface-secondary,#1a1a1a);border-radius:12px;margin-bottom:8px;">
-                    <div>
-                        <div style="font-weight:600;font-size:14px;">${_escHtml(a.full_name)}</div>
-                        <div style="color:var(--text-tertiary);font-size:12px;">${_escHtml(a.email)} · ${a.role}${a.isMainAdmin ? ' · Головний' : ''}</div>
+        <!-- Section 2: Admins with DB access -->
+        <div class="acc-section">
+            <div class="acc-section-head">
+                <div class="acc-section-icon" style="background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.15);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div>
+                    <div class="acc-section-title">Доступ адміністраторів</div>
+                </div>
+                <div style="margin-left:auto;font-size:12px;color:var(--text-tertiary);font-weight:600;">
+                    ${admins.filter(a => a.db_access || a.isMainAdmin).length} / ${admins.length}
+                </div>
+            </div>
+            <p class="acc-section-desc">
+                Керуйте доступом інших адміністраторів до бази даних та бекапів. Головний адміністратор завжди має повний доступ.
+            </p>
+
+            <div id="accAdminList">
+                ${admins.map(a => `
+                <div class="acc-user-card" data-uid="${a.id}">
+                    <div class="acc-user-avatar">${getInitials(a.full_name)}</div>
+                    <div class="acc-user-info">
+                        <div class="acc-user-name">
+                            ${_escHtml(a.full_name)}
+                            ${a.isMainAdmin ? '<span class="acc-badge main">Головний</span>' : ''}
+                        </div>
+                        <div class="acc-user-meta">${_escHtml(a.email)}</div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <span style="font-size:12px;font-weight:600;color:${a.db_access ? '#10B981' : '#EF4444'};">${a.db_access ? 'Є доступ' : 'Немає'}</span>
+                    <div class="acc-user-actions">
+                        <span class="acc-badge ${a.db_access || a.isMainAdmin ? 'granted' : 'denied'}">
+                            ${a.isMainAdmin ? 'Повний доступ' : a.db_access ? 'Є доступ' : 'Немає доступу'}
+                        </span>
                         ${!a.isMainAdmin ? `
-                        <button class="acc-toggle-btn" data-user-id="${a.id}" data-grant="${a.db_access ? 0 : 1}"
-                            style="padding:8px 14px;background:${a.db_access ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)'};border:1px solid ${a.db_access ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'};border-radius:8px;color:${a.db_access ? '#EF4444' : '#10B981'};font-size:12px;font-weight:700;cursor:pointer;">
+                        <button class="acc-btn ${a.db_access ? 'red' : 'green'} acc-toggle-btn" data-user-id="${a.id}" data-grant="${a.db_access ? 0 : 1}" data-name="${_escHtml(a.full_name)}">
                             ${a.db_access ? 'Забрати' : 'Надати'}
                         </button>` : ''}
                     </div>
-                </div>
-            `).join('')}
-        </div>
-        <div id="accToggleArea" style="margin-top:16px;display:none;">
-            <p id="accToggleLabel" style="color:var(--text-secondary);font-size:13px;margin-bottom:8px;font-weight:600;"></p>
-            <div style="display:flex;gap:10px;align-items:center;">
-                <input type="text" id="accToggleCode" maxlength="6" placeholder="2FA код або ключ"
-                    style="flex:1;max-width:220px;padding:12px 16px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:white;font-size:14px;text-align:center;letter-spacing:2px;font-weight:600;outline:none;">
-                <button id="accToggleConfirm" style="padding:12px 20px;background:var(--accent-primary);border:none;border-radius:10px;color:white;font-weight:700;font-size:13px;cursor:pointer;">
-                    Підтвердити
-                </button>
+                </div>`).join('')}
             </div>
-            <p id="accToggleError" style="color:#EF4444;font-size:12px;margin-top:8px;display:none;"></p>
+
+            <!-- Inline confirmation for toggle (appears below list) -->
+            <div class="acc-confirm-row" id="accToggleArea">
+                <div class="acc-confirm-label" id="accToggleLabel"></div>
+                <div class="acc-input-row">
+                    <input type="text" class="acc-code-input" id="accToggleCode" maxlength="64" placeholder="2FA код або ключ" autocomplete="off">
+                    <button class="acc-btn primary" id="accToggleConfirm">Підтвердити</button>
+                    <button class="acc-btn red" id="accToggleCancel" style="padding:10px 14px;">Скасувати</button>
+                </div>
+                <p class="acc-error" id="accToggleError"></p>
+            </div>
         </div>
+    </div>
     `;
 
     // Wire up access key management
@@ -2175,20 +2211,23 @@ function _renderAccessTab(admins, status) {
 
     document.getElementById('accGenKeyBtn').addEventListener('click', () => {
         _accKeyAction = 'generate';
-        keyTotpArea.style.display = 'block';
+        keyTotpArea.classList.add('show');
         document.getElementById('accKeyTotpCode').value = '';
         document.getElementById('accKeyTotpCode').focus();
         document.getElementById('accKeyError').style.display = 'none';
         document.getElementById('accKeyResult').style.display = 'none';
     });
 
-    document.getElementById('accDelKeyBtn').addEventListener('click', () => {
-        _accKeyAction = 'delete';
-        keyTotpArea.style.display = 'block';
-        document.getElementById('accKeyTotpCode').value = '';
-        document.getElementById('accKeyTotpCode').focus();
-        document.getElementById('accKeyError').style.display = 'none';
-    });
+    const delBtn = document.getElementById('accDelKeyBtn');
+    if (delBtn) {
+        delBtn.addEventListener('click', () => {
+            _accKeyAction = 'delete';
+            keyTotpArea.classList.add('show');
+            document.getElementById('accKeyTotpCode').value = '';
+            document.getElementById('accKeyTotpCode').focus();
+            document.getElementById('accKeyError').style.display = 'none';
+        });
+    }
 
     document.getElementById('accKeyTotpSubmit').addEventListener('click', async () => {
         const code = document.getElementById('accKeyTotpCode').value.trim();
@@ -2205,40 +2244,52 @@ function _renderAccessTab(admins, status) {
             const data = await res.json();
             if (!res.ok) { errEl.textContent = data.error || 'Помилка'; errEl.style.display = 'block'; return; }
 
-            keyTotpArea.style.display = 'none';
+            keyTotpArea.classList.remove('show');
             const resultEl = document.getElementById('accKeyResult');
             if (_accKeyAction === 'generate') {
                 resultEl.innerHTML = `
-                    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:12px;">
-                        <p style="color:#10B981;font-size:12px;font-weight:700;margin-bottom:8px;">Новий ключ згенеровано! Збережіть його:</p>
-                        <code style="display:block;background:var(--bg-app,#080808);padding:10px;border-radius:6px;font-size:14px;font-weight:600;color:white;word-break:break-all;user-select:all;">${_escHtml(data.key)}</code>
-                        <p style="color:var(--text-tertiary);font-size:11px;margin-top:8px;">Цей ключ більше не буде показаний.</p>
+                    <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:12px;padding:16px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            <span style="color:#10B981;font-size:13px;font-weight:700;">Ключ згенеровано! Збережіть його зараз:</span>
+                        </div>
+                        <code style="display:block;background:var(--bg-app,#080808);padding:12px 16px;border-radius:10px;font-size:15px;font-weight:700;color:white;word-break:break-all;user-select:all;letter-spacing:1px;">${_escHtml(data.key)}</code>
+                        <p style="color:var(--text-tertiary);font-size:11px;margin-top:10px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                            Цей ключ більше не буде показаний. Збережіть його в безпечному місці.
+                        </p>
                     </div>
                 `;
                 resultEl.style.display = 'block';
                 showNotification('Ключ доступу згенеровано', 'success');
             } else {
-                resultEl.innerHTML = '<p style="color:#EF4444;font-size:12px;font-weight:600;">Ключ видалено</p>';
-                resultEl.style.display = 'block';
                 showNotification('Ключ доступу видалено', 'success');
+                loadAccessTab();
             }
         } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
     });
 
     // Wire up admin toggle buttons
     let pendingUserId = null, pendingGrant = null;
+    const toggleArea = document.getElementById('accToggleArea');
 
     container.querySelectorAll('.acc-toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             pendingUserId = parseInt(btn.dataset.userId);
             pendingGrant = parseInt(btn.dataset.grant);
-            const area = document.getElementById('accToggleArea');
-            area.style.display = 'block';
-            document.getElementById('accToggleLabel').textContent = pendingGrant ? 'Надати доступ — підтвердіть:' : 'Забрати доступ — підтвердіть:';
+            const name = btn.dataset.name || '';
+            toggleArea.classList.add('show');
+            document.getElementById('accToggleLabel').textContent = pendingGrant
+                ? `Надати доступ для ${name} — введіть 2FA-код або ключ:`
+                : `Забрати доступ у ${name} — введіть 2FA-код або ключ:`;
             document.getElementById('accToggleCode').value = '';
             document.getElementById('accToggleCode').focus();
             document.getElementById('accToggleError').style.display = 'none';
         });
+    });
+
+    document.getElementById('accToggleCancel').addEventListener('click', () => {
+        toggleArea.classList.remove('show');
     });
 
     document.getElementById('accToggleConfirm').addEventListener('click', async () => {
@@ -2259,7 +2310,7 @@ function _renderAccessTab(admins, status) {
             const data = await res.json();
             if (!res.ok) { errEl.textContent = data.error || 'Помилка'; errEl.style.display = 'block'; return; }
             showNotification(pendingGrant ? 'Доступ надано' : 'Доступ відкликано', 'success');
-            loadAccessTab(); // Refresh
+            loadAccessTab();
         } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
     });
 }
