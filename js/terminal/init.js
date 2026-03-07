@@ -13,7 +13,15 @@ function fadeIn() {
         ls.style.opacity = '0';
         app.style.transition = 'opacity 0.5s ease 0.2s';
         app.style.opacity = '1';
-        setTimeout(() => { ls.style.display = 'none'; }, 600);
+        setTimeout(() => {
+            ls.style.display = 'none';
+            // Charts need visible container to measure dimensions — resize after fade-in
+            if (window._klineChart && typeof window._klineChart.resize === 'function') {
+                window._klineChart.resize();
+            }
+            renderLiveChart();
+            renderEquityChart();
+        }, 700);
     }, remaining);
 }
 
