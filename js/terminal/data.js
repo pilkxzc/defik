@@ -66,10 +66,19 @@ async function fetchKlines(symbol, interval) {
         // Sub-minute intervals: fetch 1s klines from Binance directly and aggregate
         const subMinMap = { '1s': 1, '3s': 3, '5s': 5, '15s': 15, '30s': 30 };
         if (subMinMap[intv]) {
-            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1s&limit=1000`;
-            const resp = await fetch(url);
-            if (resp.ok) {
-                const raw = await resp.json();
+            let raw = null;
+            // Try Futures 1s first, then Spot 1s as fallback
+            try {
+                const r1 = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1s&limit=1000`);
+                if (r1.ok) raw = await r1.json();
+            } catch (e) { /* try spot */ }
+            if (!raw) {
+                try {
+                    const r2 = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1s&limit=1000`);
+                    if (r2.ok) raw = await r2.json();
+                } catch (e) { /* silent */ }
+            }
+            if (raw && raw.length > 0) {
                 const oneSecCandles = raw.map(k => ({
                     time: Math.floor(k[0] / 1000), open: parseFloat(k[1]),
                     high: parseFloat(k[2]), low: parseFloat(k[3]),
@@ -79,7 +88,6 @@ async function fetchKlines(symbol, interval) {
                 if (bucketSec === 1) {
                     klineData = oneSecCandles;
                 } else {
-                    // Aggregate 1s candles into larger buckets
                     const buckets = {};
                     for (const c of oneSecCandles) {
                         const key = Math.floor(c.time / bucketSec) * bucketSec;
@@ -95,8 +103,8 @@ async function fetchKlines(symbol, interval) {
                     }
                     klineData = Object.values(buckets).sort((a, b) => a.time - b.time);
                 }
-                return;
             }
+            return; // Never fall through to server for sub-minute
         }
 
         const res = await fetch(`/api/bots/${botId}/klines?symbol=${sym}&interval=${intv}&limit=500`, { credentials: 'include' });
