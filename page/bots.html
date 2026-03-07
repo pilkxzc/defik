@@ -614,6 +614,45 @@
         .bot-live-pair.trading {
             color: var(--color-up);
         }
+        .bot-pair-more {
+            cursor: help;
+            background: rgba(255,255,255,0.06);
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-size: 9px;
+            transition: all 0.15s;
+        }
+        .bot-pair-more:hover {
+            background: rgba(16,185,129,0.15);
+            color: var(--color-up);
+        }
+        .bot-list-item-sub {
+            position: relative;
+        }
+        /* Hover tooltip for +N */
+        .bot-pair-more::after {
+            content: attr(title);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 0;
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.15s, transform 0.15s;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .bot-pair-more:hover::after {
+            opacity: 1;
+            transform: translateY(0);
+        }
 
         /* ── Gear button on bot list item ── */
         .bot-list-gear {
@@ -1620,10 +1659,21 @@
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
 
             const statusClass = b.realStatus || 'off';
-            const pairName = (b.activeSymbol || b.symbol || '').replace(/USDT|BUSD/gi, '');
-            const pairHtml = pairName
-                ? `<span class="bot-live-pair${b.hasOpenTrade ? ' trading' : ''}">${pairName}${b.hasOpenTrade ? ' ●' : ''}</span>`
-                : '';
+            const allCoins = (b.instruments && b.instruments.length > 0)
+                ? b.instruments
+                : (b.symbol ? b.symbol.split(',').map(s => ({ symbol: s.trim(), hasOpenTrade: false })) : []);
+            const maxShow = 2;
+            const visibleCoins = allCoins.slice(0, maxShow);
+            const extraCount = allCoins.length - maxShow;
+            const allNames = allCoins.map(c => (c.symbol || c).replace(/USDT|BUSD/gi, '')).join(', ');
+            let pairHtml = visibleCoins.map(c => {
+                const sym = (c.symbol || c).replace(/USDT|BUSD/gi, '');
+                const hasOpen = c.hasOpenTrade || false;
+                return `<span class="bot-live-pair${hasOpen ? ' trading' : ''}">${sym}${hasOpen ? ' ●' : ''}</span>`;
+            }).join('');
+            if (extraCount > 0) {
+                pairHtml += `<span class="bot-live-pair bot-pair-more" title="${allNames}">+${extraCount}</span>`;
+            }
 
             const isLiveTrading = b.realStatus === 'live';
 
@@ -1758,11 +1808,15 @@
             }
 
             const activeS = (b.activeSymbol || '').toUpperCase();
-            const tickers = b.symbol
-                ? b.symbol.split(',').slice(0, 8).map(s => {
-                    const sym = s.trim();
+            const allCoins = (b.instruments && b.instruments.length > 0)
+                ? b.instruments
+                : (b.symbol ? b.symbol.split(',').map(s => ({ symbol: s.trim(), hasOpenTrade: false })) : []);
+            const tickers = allCoins.length > 0
+                ? allCoins.slice(0, 12).map(c => {
+                    const sym = c.symbol || c;
                     const isActive = sym.toUpperCase() === activeS;
-                    return `<span class="ticker-chip"${isActive ? ' style="border-color:var(--color-up);color:var(--color-up);"' : ''}>${sym.replace(/USDT|BUSD/gi,'')}${isActive && b.hasOpenTrade ? ' ●' : ''}</span>`;
+                    const hasOpen = c.hasOpenTrade || false;
+                    return `<span class="ticker-chip"${(isActive || hasOpen) ? ' style="border-color:var(--color-up);color:var(--color-up);"' : ''}>${sym.replace(/USDT|BUSD/gi,'')}${hasOpen ? ' ●' : ''}</span>`;
                 }).join('')
                 : `<span class="ticker-chip" style="opacity:.3">—</span>`;
 
