@@ -3244,16 +3244,16 @@
             <div class="chart-markers-legend" id="markersLegend">
                 <span class="cml-label">Маркери</span>
                 <div class="cml-chip" id="cml_entryLong" onclick="toggleMarkerType('entryLong')" title="Long вхід — натисніть щоб приховати">
-                    <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="4,1 0,7 8,7" fill="rgba(16,185,129,0.1)" stroke="#10B981" stroke-width="1.2"/></svg>Long вхід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="4,1 0,7 8,7" fill="rgba(34,211,238,0.15)" stroke="#22D3EE" stroke-width="1.2"/></svg>Long вхід
                 </div>
                 <div class="cml-chip" id="cml_exitLong" onclick="toggleMarkerType('exitLong')" title="Long вихід — натисніть щоб приховати">
-                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(16,185,129,0.1)" stroke="#10B981" stroke-width="1.2"/></svg>Long вихід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(34,211,238,0.15)" stroke="#22D3EE" stroke-width="1.2"/></svg>Long вихід
                 </div>
                 <div class="cml-chip" id="cml_entryShort" onclick="toggleMarkerType('entryShort')" title="Short вхід — натисніть щоб приховати">
-                    <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="4,7 0,1 8,1" fill="rgba(239,68,68,0.1)" stroke="#EF4444" stroke-width="1.2"/></svg>Short вхід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="4,7 0,1 8,1" fill="rgba(245,158,11,0.15)" stroke="#F59E0B" stroke-width="1.2"/></svg>Short вхід
                 </div>
                 <div class="cml-chip" id="cml_exitShort" onclick="toggleMarkerType('exitShort')" title="Short вихід — натисніть щоб приховати">
-                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(239,68,68,0.1)" stroke="#EF4444" stroke-width="1.2"/></svg>Short вихід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(245,158,11,0.15)" stroke="#F59E0B" stroke-width="1.2"/></svg>Short вихід
                 </div>
                 <div class="cml-chip" id="cml_grouped" onclick="toggleMarkerType('grouped')" title="Кілька угод на одній свічці — натисніть щоб приховати">
                     <svg width="9" height="9" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#8B5CF6"/></svg>Кілька
@@ -6834,7 +6834,8 @@
                         const count   = ed._count || 1;
                         const isLong  = ed._isLong !== undefined ? ed._isLong : ed.isBuy !== false;
                         const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
-                        const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#10B981' : '#EF4444');
+                        // Contrasting colors so markers don't blend with candles
+                        const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#22D3EE' : '#F59E0B');
 
                         // Invisible hitbox rect for easier clicking
                         const HIT = 14; // half-size of hitbox in px
@@ -6863,27 +6864,33 @@
                         // Long: below candle, Short: above candle
                         const below = isLong;
                         const sz = 6;
-                        const alphaFill = isLong ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
+                        const alphaFill = isLong ? 'rgba(34,211,238,0.15)' : 'rgba(245,158,11,0.15)';
 
                         if (isEntry) {
-                            // Entry → hollow triangle via lines, tip exactly at price
+                            // Entry → filled triangle, tip at price, with dark outline for contrast
                             const tipY = c.y;
                             const baseY = below ? tipY + sz * 2 : tipY - sz * 2;
                             const tip = { x: c.x, y: tipY };
                             const bl  = { x: c.x - sz, y: baseY };
                             const br  = { x: c.x + sz, y: baseY };
+                            // Dark outline behind
+                            const outLs = { color: 'rgba(0,0,0,0.6)', size: 3 };
                             const ls = { color, size: 1.5 };
                             return [
                                 hitbox,
+                                { type: 'line', attrs: { coordinates: [tip, bl] }, styles: outLs },
+                                { type: 'line', attrs: { coordinates: [bl, br] }, styles: outLs },
+                                { type: 'line', attrs: { coordinates: [br, tip] }, styles: outLs },
                                 { type: 'line', attrs: { coordinates: [tip, bl] }, styles: ls },
                                 { type: 'line', attrs: { coordinates: [bl, br] }, styles: ls },
                                 { type: 'line', attrs: { coordinates: [br, tip] }, styles: ls },
                             ];
                         } else {
-                            // Exit → hollow circle, center at price
+                            // Exit → circle with dark outline for contrast
                             const r = 5;
                             return [
                                 hitbox,
+                                { type: 'circle', attrs: { x: c.x, y: c.y, r: r + 1.5 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.5)' } },
                                 { type: 'circle', attrs: { x: c.x, y: c.y, r }, styles: { style: 'stroke_fill', color: alphaFill, borderColor: color, borderSize: 1.5 } },
                             ];
                         }
