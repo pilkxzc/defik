@@ -2228,7 +2228,6 @@ async function initializePage() {
             const profileLink = navSidebar ? navSidebar.querySelector('[href="/profile"]') : null;
 
             let adminNavLink = document.getElementById('adminNavLink');
-            let statsNavLink = document.getElementById('statsNavLink');
 
             if (navSidebar && profileLink) {
                 // Inject adminNavLink if missing (goes right before profile)
@@ -2239,26 +2238,14 @@ async function initializePage() {
                     al.id = 'adminNavLink';
                     al.title = 'Панель адміна';
                     al.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>';
-                    if (window.location.pathname.startsWith('/admin')) al.classList.add('active');
+                    if (window.location.pathname.startsWith('/admin') || window.location.pathname === '/bot-community-stats') al.classList.add('active');
                     profileLink.before(al);
                     adminNavLink = al;
-                }
-                // Inject statsNavLink if missing (goes right before admin)
-                if (!statsNavLink) {
-                    const sl = document.createElement('a');
-                    sl.href = '/bot-community-stats';
-                    sl.className = 'nav-item admin-nav-item admin-hidden';
-                    sl.id = 'statsNavLink';
-                    sl.title = 'Статистика спільноти';
-                    sl.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>';
-                    if (window.location.pathname === '/bot-community-stats') sl.classList.add('active');
-                    adminNavLink.before(sl);
-                    statsNavLink = sl;
                 }
             }
 
             // Show admin nav links for admin/moderator
-            [adminNavLink, statsNavLink].forEach(link => {
+            [adminNavLink].forEach(link => {
                 if (!link) return;
                 if (user.role === 'admin' || user.role === 'moderator') {
                     link.classList.remove('admin-hidden');
@@ -2976,6 +2963,7 @@ function _buildAdminFlyout(adminLink) {
         <a href="/admin/analytics" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Аналітика</a>
         <a href="/admin/backup" class="af-item" style="color:#10B981;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Бекапи</a>
         <a href="/admin/bug-reports" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>Баги</a>
+        <a href="/bot-community-stats" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>Статистика</a>
     `;
 
     // Inject styles once
