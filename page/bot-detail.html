@@ -7865,11 +7865,8 @@
 
                 // Update botIsRunning from server on every poll (catches runtime enable/disable)
                 if (typeof data.isActive === 'boolean') {
-                    const wasRunning = botIsRunning;
                     botIsRunning = data.isActive;
                     botStatusLoaded = true;
-                    // If bot just got disabled — clear lines immediately
-                    if (wasRunning && !botIsRunning) clearAllPriceLines();
                 }
 
                 console.log('[chart-data]', {
@@ -8253,9 +8250,16 @@
         function drawPriceLines(data) {
             lastChartData = data;
             if (!klChart || klinesData.length < 2) return;
+            // Only clear lines if bot is stopped AND there are no live orders/positions from Binance
             if (!demoMode && botStatusLoaded && !botIsRunning) {
-                clearAllPriceLines();
-                return;
+                const hasLiveData = (data.stopOrders?.length > 0) || (data.takeProfitOrders?.length > 0)
+                    || (data.limitOrders?.length > 0)
+                    || (data.positions?.some(p => p && p.entryPrice > 0))
+                    || (data.position && data.position.entryPrice > 0);
+                if (!hasLiveData) {
+                    clearAllPriceLines();
+                    return;
+                }
             }
 
             const desiredLines = new Map();
@@ -8760,9 +8764,7 @@
 
                 // Sync bot status from orders poll too
                 if (typeof data.isActive === 'boolean') {
-                    const wasRunning = botIsRunning;
                     botIsRunning = data.isActive;
-                    if (wasRunning && !botIsRunning) clearAllPriceLines();
                 }
 
                 data.limitOrders    = data.limitOrders    || [];
