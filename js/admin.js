@@ -59,19 +59,42 @@ async function initAdminPanel() {
     }
 }
 
+function _getTabFromUrl() {
+    // Support /admin/users, /admin/database, etc. Also fallback to hash for old links
+    const pathParts = window.location.pathname.split('/');
+    // pathParts: ['', 'admin', 'users'] or ['', 'admin']
+    if (pathParts.length >= 3 && pathParts[1] === 'admin' && pathParts[2]) {
+        return pathParts[2];
+    }
+    if (window.location.hash) {
+        return window.location.hash.replace('#', '');
+    }
+    return 'dashboard';
+}
+
 function setupEventListeners() {
-    // Tab switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    // Tab switching via links (prevent full reload, use pushState)
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const tab = btn.dataset.tab;
+            const url = tab === 'dashboard' ? '/admin' : `/admin/${tab}`;
+            history.pushState({ tab }, '', url);
+            switchTab(tab);
+        });
     });
 
-    // Hash-based tab from URL (e.g. /admin#users)
-    if (window.location.hash) {
-        const hashTab = window.location.hash.replace('#', '');
-        const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports'];
-        if (validTabs.includes(hashTab)) {
-            setTimeout(() => switchTab(hashTab), 100);
-        }
+    // Handle browser back/forward
+    window.addEventListener('popstate', (e) => {
+        const tab = (e.state && e.state.tab) ? e.state.tab : _getTabFromUrl();
+        switchTab(tab);
+    });
+
+    // Initial tab from URL
+    const initialTab = _getTabFromUrl();
+    const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports'];
+    if (validTabs.includes(initialTab) && initialTab !== 'dashboard') {
+        setTimeout(() => switchTab(initialTab), 100);
     }
 
     // User search
@@ -161,8 +184,15 @@ function setupEventListeners() {
 
 function switchTab(tabName) {
     // Update tab buttons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
+        // Keep special background for database and backup tabs even when not active
+        if (btn.dataset.tab === 'database' && !btn.classList.contains('active')) {
+            btn.style.background = 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)';
+        }
+        if (btn.dataset.tab === 'backup' && !btn.classList.contains('active')) {
+            btn.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+        }
     });
 
     // Update tab content
@@ -3646,15 +3676,15 @@ function escAdminHtml(s) {
 document.addEventListener('DOMContentLoaded', async function() {
     await initAdminPanel();
 
-    // Handle URL params for backup tab
+    // Handle URL params for drive connection callback
     const params = new URLSearchParams(window.location.search);
-    if (params.get('tab') === 'backup') {
+    if (params.get('drive') === 'connected') {
         switchTab('backup');
-        if (params.get('drive') === 'connected') {
-            showToast('success', 'Підключено', 'Google Drive підключено успішно!');
-        } else if (params.get('drive') === 'error') {
-            showToast('error', 'Помилка', 'Не вдалося підключити Google Drive');
-        }
-        window.history.replaceState({}, '', '/admin');
+        showToast('success', 'Підключено', 'Google Drive підключено успішно!');
+        window.history.replaceState({}, '', '/admin/backup');
+    } else if (params.get('drive') === 'error') {
+        switchTab('backup');
+        showToast('error', 'Помилка', 'Не вдалося підключити Google Drive');
+        window.history.replaceState({}, '', '/admin/backup');
     }
 });

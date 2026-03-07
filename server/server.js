@@ -111,6 +111,7 @@ async function createApp() {
     });
     app.get('/profile',      (req, res) => res.sendFile(path.join(pages, 'profile.html')));
     app.get('/admin',        (req, res) => res.sendFile(path.join(pages, 'admin.html')));
+    app.get('/admin/:tab',   (req, res) => res.sendFile(path.join(pages, 'admin.html')));
     app.get('/bot/:id', (req, res) => {
         // 1. Не залогінений → на логін
         if (!req.session || !req.session.userId) {

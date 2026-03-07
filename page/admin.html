@@ -210,6 +210,9 @@
             font-size: 14px;
             cursor: pointer;
             transition: 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
         }
 
         .tab-btn.active {
@@ -1141,20 +1144,20 @@
             <div id="adminPanel" style="display: none; flex-direction: column; flex: 1; overflow: hidden;">
                 <!-- Tabs -->
                 <div class="tabs-container">
-                    <button class="tab-btn active" data-tab="dashboard">Дашборд</button>
-                    <button class="tab-btn" data-tab="users">Користувачі</button>
-                    <button class="tab-btn" data-tab="database" style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);">База даних</button>
-                    <button class="tab-btn" data-tab="subscriptions">Підписки</button>
-                    <button class="tab-btn" data-tab="transactions">Транзакції</button>
-                    <button class="tab-btn" data-tab="bots">Боти</button>
-                    <button class="tab-btn" data-tab="news">Новини</button>
-                    <button class="tab-btn" data-tab="audit">Журнал аудиту</button>
-                    <button class="tab-btn" data-tab="analytics">Аналітика</button>
-                    <button class="tab-btn" data-tab="backup" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%);">Бекапи</button>
-                    <button class="tab-btn" data-tab="bug-reports" id="bugReportsTabBtn">
+                    <a class="tab-btn active" href="/admin" data-tab="dashboard">Дашборд</a>
+                    <a class="tab-btn" href="/admin/users" data-tab="users">Користувачі</a>
+                    <a class="tab-btn" href="/admin/database" data-tab="database" style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);">База даних</a>
+                    <a class="tab-btn" href="/admin/subscriptions" data-tab="subscriptions">Підписки</a>
+                    <a class="tab-btn" href="/admin/transactions" data-tab="transactions">Транзакції</a>
+                    <a class="tab-btn" href="/admin/bots" data-tab="bots">Боти</a>
+                    <a class="tab-btn" href="/admin/news" data-tab="news">Новини</a>
+                    <a class="tab-btn" href="/admin/audit" data-tab="audit">Журнал аудиту</a>
+                    <a class="tab-btn" href="/admin/analytics" data-tab="analytics">Аналітика</a>
+                    <a class="tab-btn" href="/admin/backup" data-tab="backup" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%);">Бекапи</a>
+                    <a class="tab-btn" href="/admin/bug-reports" data-tab="bug-reports" id="bugReportsTabBtn">
                         Звіти про помилки
                         <span id="bugReportsBadge" style="display:none;background:#EF4444;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:6px;vertical-align:middle;line-height:16px;"></span>
-                    </button>
+                    </a>
                 </div>
 
                 <!-- Dashboard Tab -->
