@@ -7215,9 +7215,18 @@
                     .catch(() => { if (klChart) klChart.applyMoreData([], true); });
             });
 
-            // Keep watermark in sync with resize (attach observer only once)
+            // Keep chart + watermark in sync with container resize
             if (!_klResizeObserver) {
-                _klResizeObserver = new ResizeObserver(() => updateWatermark());
+                var _klResizeTimer = null;
+                _klResizeObserver = new ResizeObserver(() => {
+                    // Immediate watermark update
+                    updateWatermark();
+                    // Debounced chart resize for performance
+                    clearTimeout(_klResizeTimer);
+                    _klResizeTimer = setTimeout(() => {
+                        if (klChart && typeof klChart.resize === 'function') klChart.resize();
+                    }, 50);
+                });
                 _klResizeObserver.observe(container);
             }
         }
