@@ -408,6 +408,13 @@
             <button class="chart-tf-btn" data-tf="4h">4h</button>
             <button class="chart-tf-btn" data-tf="1d">1d</button>
         </div>
+        <button class="chart-tf-btn" id="chartShowAllOrders" style="margin-left:12px;gap:4px;display:inline-flex;align-items:center;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Ордери
+        </button>
+        <button class="chart-tf-btn" id="chartResetView" style="margin-left:4px;" title="Центрувати на ордер">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+        </button>
         <div style="flex:1;"></div>
         <span id="chartOHLC" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);"></span>
     </div>
@@ -765,12 +772,21 @@
     };
 
     // ═══════════════════════════════════════════
-    //  ORDER CHART OVERLAY
+    //  INTERACTIVE CHART OVERLAY
     // ═══════════════════════════════════════════
     let _chartOrder = null;
     let _chartTF = '15m';
-    let _chartKlines = [];
+    let _chartKlines = [];       // full kline buffer
+    let _showAllOrders = true;   // toggle for showing all orders
+    let _chartViewStart = 0;     // viewport: first visible kline index
+    let _chartViewCount = 200;   // viewport: number of visible klines
+    let _isDragging = false;
+    let _dragStartX = 0;
+    let _dragStartViewStart = 0;
+    let _mouseX = -1, _mouseY = -1;  // crosshair
+    let _fetchingMore = false;
     const _tfMs = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+    const padTop = 24, padBottom = 30, padLeft = 8, padRight = 76;
 
     window.showOrderByIdx = function(idx) {
         if (filteredOrders[idx]) showOrderDetail(filteredOrders[idx]);
@@ -778,8 +794,7 @@
 
     window.showOrderDetail = function(o) {
         _chartOrder = o;
-        const overlay = document.getElementById('chartOverlay');
-        overlay.classList.add('open');
+        document.getElementById('chartOverlay').classList.add('open');
 
         // Title
         const isBuy = o.side === 'BUY';
@@ -810,11 +825,15 @@
         `;
 
         // Set active TF button
-        document.querySelectorAll('.chart-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
+        document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
+        // Update all-orders toggle
+        const allBtn = document.getElementById('chartShowAllOrders');
+        allBtn.classList.toggle('active', _showAllOrders);
 
         loadChartKlines();
     };
 
+    // ── Fetch klines ──
     async function loadChartKlines() {
         if (!_chartOrder) return;
         const loader = document.getElementById('chartLoading');
@@ -825,28 +844,82 @@
         const intervalMs = _tfMs[_chartTF] || 900000;
         const sym = o.symbol || symbol;
 
-        // 100 bars before + order bar + 100 bars after
-        const startTime = orderTime - 100 * intervalMs;
-        const endTime = orderTime + 100 * intervalMs;
+        // Fetch 500 bars centered on order
+        const startTime = orderTime - 250 * intervalMs;
+        const endTime = orderTime + 250 * intervalMs;
 
         try {
-            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${endTime}&limit=201`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Binance error');
-            const raw = await res.json();
-            _chartKlines = raw.map(k => ({
-                time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]),
-                low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5])
-            }));
+            // Fetch two batches to get ~500 bars
+            const [r1, r2] = await Promise.all([
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=500`),
+                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=500`)
+            ]);
+            const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+            const parseK = k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] });
+            // Merge and deduplicate by time
+            const map = new Map();
+            (d1 || []).forEach(k => { const p = parseK(k); map.set(p.time, p); });
+            (d2 || []).forEach(k => { const p = parseK(k); map.set(p.time, p); });
+            _chartKlines = [...map.values()].sort((a, b) => a.time - b.time);
         } catch (e) {
             console.error('Chart klines error:', e);
             _chartKlines = [];
         }
 
         loader.style.display = 'none';
+
+        // Center viewport on order
+        centerOnOrder();
         drawChart();
     }
 
+    function centerOnOrder() {
+        if (!_chartOrder || _chartKlines.length === 0) return;
+        const orderTime = _chartOrder.time || _chartOrder.updateTime || 0;
+        let orderIdx = 0;
+        let minDist = Infinity;
+        _chartKlines.forEach((k, i) => {
+            const d = Math.abs(k.time - orderTime);
+            if (d < minDist) { minDist = d; orderIdx = i; }
+        });
+        _chartViewCount = Math.min(200, _chartKlines.length);
+        _chartViewStart = Math.max(0, Math.min(orderIdx - Math.floor(_chartViewCount / 2), _chartKlines.length - _chartViewCount));
+    }
+
+    // ── Fetch more klines when panning to edges ──
+    async function fetchMoreKlines(direction) {
+        if (_fetchingMore || _chartKlines.length === 0) return;
+        _fetchingMore = true;
+        const intervalMs = _tfMs[_chartTF] || 900000;
+        const sym = (_chartOrder?.symbol) || symbol;
+        try {
+            let url;
+            if (direction === 'left') {
+                const earliest = _chartKlines[0].time;
+                url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&endTime=${earliest - 1}&limit=500`;
+            } else {
+                const latest = _chartKlines[_chartKlines.length - 1].time;
+                url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${latest + 1}&limit=500`;
+            }
+            const res = await fetch(url);
+            const raw = await res.json();
+            if (raw && raw.length > 0) {
+                const newK = raw.map(k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+                const map = new Map();
+                _chartKlines.forEach(k => map.set(k.time, k));
+                newK.forEach(k => map.set(k.time, k));
+                const oldLen = _chartKlines.length;
+                _chartKlines = [...map.values()].sort((a, b) => a.time - b.time);
+                if (direction === 'left') {
+                    _chartViewStart += (_chartKlines.length - oldLen);
+                }
+                drawChart();
+            }
+        } catch (e) { console.error('Fetch more klines:', e); }
+        _fetchingMore = false;
+    }
+
+    // ── Draw ──
     function drawChart() {
         const wrap = document.getElementById('chartWrap');
         const canvas = document.getElementById('chartCanvas');
@@ -860,43 +933,38 @@
         const ctx = canvas.getContext('2d');
         ctx.scale(dpr, dpr);
 
-        // Background
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, W, H);
 
-        const klines = _chartKlines;
-        if (klines.length === 0) {
+        if (_chartKlines.length === 0) {
             ctx.fillStyle = '#636363';
             ctx.font = '13px "Plus Jakarta Sans", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Немає даних для цього таймфрейму', W / 2, H / 2);
+            ctx.fillText('Немає даних', W / 2, H / 2);
             return;
         }
 
-        // Layout
-        const padTop = 20, padBottom = 28, padLeft = 8, padRight = 72;
+        // Visible klines
+        const vs = Math.max(0, Math.floor(_chartViewStart));
+        const vc = Math.min(_chartViewCount, _chartKlines.length - vs);
+        const visible = _chartKlines.slice(vs, vs + vc);
+        if (visible.length === 0) return;
+
         const chartW = W - padLeft - padRight;
         const chartH = H - padTop - padBottom;
-        const candleW = Math.max(1, chartW / klines.length);
-        const bodyW = Math.max(1, candleW * 0.7);
+        const candleW = Math.max(2, chartW / visible.length);
+        const bodyW = Math.max(1, candleW * 0.65);
 
-        // Price range
+        // Price range from visible klines
         let minP = Infinity, maxP = -Infinity;
-        klines.forEach(k => { if (k.low < minP) minP = k.low; if (k.high > maxP) maxP = k.high; });
-
-        // Add order price to range
-        const orderPrice = _chartOrder.avgPrice > 0 ? _chartOrder.avgPrice : (_chartOrder.stopPrice > 0 ? _chartOrder.stopPrice : _chartOrder.price);
-        if (orderPrice > 0) {
-            minP = Math.min(minP, orderPrice * 0.999);
-            maxP = Math.max(maxP, orderPrice * 1.001);
-        }
-
+        visible.forEach(k => { if (k.low < minP) minP = k.low; if (k.high > maxP) maxP = k.high; });
+        const margin = (maxP - minP) * 0.05 || 1;
+        minP -= margin; maxP += margin;
         const range = maxP - minP || 1;
-        const pxPerPrice = chartH / range;
-        const priceToY = p => padTop + (maxP - p) * pxPerPrice;
+        const priceToY = p => padTop + (maxP - p) / range * chartH;
         const idxToX = i => padLeft + i * candleW + candleW / 2;
 
-        // Grid lines
+        // Grid
         const gridLines = 6;
         ctx.strokeStyle = 'rgba(255,255,255,0.04)';
         ctx.lineWidth = 1;
@@ -912,56 +980,79 @@
         }
 
         // Time labels
-        const timeStep = Math.max(1, Math.floor(klines.length / 8));
+        const timeStep = Math.max(1, Math.floor(visible.length / 8));
         ctx.fillStyle = '#4a4a4a';
         ctx.font = '9px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
-        for (let i = 0; i < klines.length; i += timeStep) {
-            const dt = new Date(klines[i].time);
+        for (let i = 0; i < visible.length; i += timeStep) {
+            const dt = new Date(visible[i].time);
             const label = _chartTF === '1d'
-                ? dt.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
-                : dt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+                ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' })
+                : dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
             ctx.fillText(label, idxToX(i), H - 6);
         }
 
         // Candles
-        klines.forEach((k, i) => {
+        visible.forEach((k, i) => {
             const x = idxToX(i);
             const isUp = k.close >= k.open;
             const color = isUp ? '#10B981' : '#EF4444';
-
-            // Wick
             ctx.strokeStyle = color;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(Math.round(x) + 0.5, Math.round(priceToY(k.high)));
             ctx.lineTo(Math.round(x) + 0.5, Math.round(priceToY(k.low)));
             ctx.stroke();
-
-            // Body
             const yOpen = priceToY(k.open);
             const yClose = priceToY(k.close);
             const bodyTop = Math.min(yOpen, yClose);
             const bodyH = Math.max(1, Math.abs(yClose - yOpen));
             if (isUp) {
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(Math.round(x - bodyW / 2) + 0.5, Math.round(bodyTop) + 0.5, Math.round(bodyW), Math.round(bodyH));
+                ctx.strokeStyle = color; ctx.lineWidth = 1;
+                ctx.strokeRect(Math.round(x - bodyW/2)+0.5, Math.round(bodyTop)+0.5, Math.round(bodyW), Math.round(bodyH));
             } else {
                 ctx.fillStyle = color;
-                ctx.fillRect(Math.round(x - bodyW / 2), Math.round(bodyTop), Math.round(bodyW), Math.round(bodyH));
+                ctx.fillRect(Math.round(x - bodyW/2), Math.round(bodyTop), Math.round(bodyW), Math.round(bodyH));
             }
         });
 
-        // ── Order marker ──
+        // ── All orders markers ──
+        if (_showAllOrders && allOrders.length > 0) {
+            const visStart = visible[0].time;
+            const visEnd = visible[visible.length - 1].time;
+            const intervalMs = _tfMs[_chartTF] || 900000;
+            const relevantOrders = allOrders.filter(o => {
+                const t = o.time || o.updateTime || 0;
+                return t >= visStart - intervalMs && t <= visEnd + intervalMs && o.orderId !== _chartOrder?.orderId;
+            });
+            relevantOrders.forEach(o => {
+                const oTime = o.time || o.updateTime || 0;
+                let closestIdx = -1, dist = Infinity;
+                visible.forEach((k, i) => { const d = Math.abs(k.time - oTime); if (d < dist) { dist = d; closestIdx = i; } });
+                if (closestIdx < 0) return;
+                const oPrice = o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : o.price);
+                if (!oPrice || oPrice <= 0) return;
+                const ox = idxToX(closestIdx);
+                const oy = priceToY(oPrice);
+                if (oy < padTop - 5 || oy > H - padBottom + 5) return;
+                const isBuy = o.side === 'BUY';
+                // Small triangle
+                ctx.fillStyle = isBuy ? 'rgba(34,211,238,0.5)' : 'rgba(245,158,11,0.5)';
+                ctx.beginPath();
+                if (isBuy) {
+                    ctx.moveTo(ox, oy - 6); ctx.lineTo(ox - 4, oy + 2); ctx.lineTo(ox + 4, oy + 2);
+                } else {
+                    ctx.moveTo(ox, oy + 6); ctx.lineTo(ox - 4, oy - 2); ctx.lineTo(ox + 4, oy - 2);
+                }
+                ctx.fill();
+            });
+        }
+
+        // ── Main order marker (highlighted) ──
         const orderTime = _chartOrder.time || _chartOrder.updateTime || 0;
-        // Find closest candle
-        let orderIdx = -1;
-        let minDist = Infinity;
-        klines.forEach((k, i) => {
-            const dist = Math.abs(k.time - orderTime);
-            if (dist < minDist) { minDist = dist; orderIdx = i; }
-        });
+        const orderPrice = _chartOrder.avgPrice > 0 ? _chartOrder.avgPrice : (_chartOrder.stopPrice > 0 ? _chartOrder.stopPrice : _chartOrder.price);
+        let orderIdx = -1, minDist = Infinity;
+        visible.forEach((k, i) => { const d = Math.abs(k.time - orderTime); if (d < minDist) { minDist = d; orderIdx = i; } });
 
         if (orderIdx >= 0 && orderPrice > 0) {
             const ox = idxToX(orderIdx);
@@ -972,99 +1063,175 @@
             ctx.setLineDash([4, 4]);
             ctx.strokeStyle = 'rgba(196,181,253,0.4)';
             ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(Math.round(ox) + 0.5, padTop);
-            ctx.lineTo(Math.round(ox) + 0.5, H - padBottom);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(Math.round(ox)+0.5, padTop); ctx.lineTo(Math.round(ox)+0.5, H - padBottom); ctx.stroke();
             ctx.setLineDash([]);
 
             // Horizontal price line
             ctx.setLineDash([3, 3]);
             ctx.strokeStyle = isBuy ? 'rgba(34,211,238,0.5)' : 'rgba(245,158,11,0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padLeft, Math.round(oy) + 0.5);
-            ctx.lineTo(W - padRight, Math.round(oy) + 0.5);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(padLeft, Math.round(oy)+0.5); ctx.lineTo(W - padRight, Math.round(oy)+0.5); ctx.stroke();
             ctx.setLineDash([]);
 
-            // Price label on right axis
+            // Price label
             ctx.fillStyle = isBuy ? '#22D3EE' : '#F59E0B';
-            const priceLabel = '$' + fmtPrice(orderPrice);
+            const pLabel = '$' + fmtPrice(orderPrice);
             ctx.font = 'bold 10px "JetBrains Mono", monospace';
-            const labelW = ctx.measureText(priceLabel).width + 8;
-            ctx.fillRect(W - padRight + 2, oy - 8, labelW, 16);
-            ctx.fillStyle = '#0a0a0a';
-            ctx.textAlign = 'left';
-            ctx.fillText(priceLabel, W - padRight + 6, oy + 4);
+            const lw = ctx.measureText(pLabel).width + 8;
+            ctx.fillRect(W - padRight + 2, oy - 8, lw, 16);
+            ctx.fillStyle = '#0a0a0a'; ctx.textAlign = 'left';
+            ctx.fillText(pLabel, W - padRight + 6, oy + 4);
 
-            // Order marker — diamond
-            ctx.save();
-            ctx.translate(ox, oy);
-            ctx.rotate(Math.PI / 4);
-            ctx.fillStyle = isBuy ? 'rgba(34,211,238,0.2)' : 'rgba(245,158,11,0.2)';
+            // Diamond marker
+            ctx.save(); ctx.translate(ox, oy); ctx.rotate(Math.PI / 4);
+            ctx.fillStyle = isBuy ? 'rgba(34,211,238,0.25)' : 'rgba(245,158,11,0.25)';
             ctx.strokeStyle = isBuy ? '#22D3EE' : '#F59E0B';
             ctx.lineWidth = 2;
-            const ds = 8;
-            ctx.fillRect(-ds, -ds, ds * 2, ds * 2);
-            ctx.strokeRect(-ds, -ds, ds * 2, ds * 2);
+            ctx.fillRect(-9, -9, 18, 18); ctx.strokeRect(-9, -9, 18, 18);
             ctx.restore();
 
-            // Label above marker
+            // Label
             ctx.fillStyle = isBuy ? '#22D3EE' : '#F59E0B';
             ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(_chartOrder.side + ' ' + (_chartOrder.type || '').replace(/_/g, ' '), ox, oy - 16);
-
-            // Time label below
-            const orderDt = new Date(orderTime);
-            const timeLabel = orderDt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            ctx.fillStyle = '#C4B5FD';
-            ctx.font = '9px "JetBrains Mono", monospace';
-            ctx.fillText(timeLabel, ox, H - padBottom + 14);
+            ctx.fillText(_chartOrder.side + ' ' + (_chartOrder.type || '').replace(/_/g, ' '), ox, oy - 18);
         }
 
-        // Store for crosshair
-        canvas._chartData = { klines, padTop, padBottom, padLeft, padRight, chartW, chartH, candleW, minP, maxP, range, priceToY, idxToX };
+        // ── Crosshair ──
+        if (_mouseX >= padLeft && _mouseX <= W - padRight && _mouseY >= padTop && _mouseY <= H - padBottom && !_isDragging) {
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 1;
+            // Vertical
+            ctx.beginPath(); ctx.moveTo(Math.round(_mouseX)+0.5, padTop); ctx.lineTo(Math.round(_mouseX)+0.5, H - padBottom); ctx.stroke();
+            // Horizontal
+            ctx.beginPath(); ctx.moveTo(padLeft, Math.round(_mouseY)+0.5); ctx.lineTo(W - padRight, Math.round(_mouseY)+0.5); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Crosshair price label
+            const crossPrice = maxP - (_mouseY - padTop) / chartH * range;
+            ctx.fillStyle = '#2a2a2a';
+            const cpLabel = '$' + fmtPrice(crossPrice);
+            ctx.font = '10px "JetBrains Mono", monospace';
+            const cpw = ctx.measureText(cpLabel).width + 8;
+            ctx.fillRect(W - padRight + 2, _mouseY - 8, cpw, 16);
+            ctx.fillStyle = '#ccc'; ctx.textAlign = 'left';
+            ctx.fillText(cpLabel, W - padRight + 6, _mouseY + 3);
+
+            // OHLCV info
+            const crossIdx = Math.floor((_mouseX - padLeft) / candleW);
+            if (crossIdx >= 0 && crossIdx < visible.length) {
+                const k = visible[crossIdx];
+                const isUp = k.close >= k.open;
+                const color = isUp ? '#10B981' : '#EF4444';
+                const dt = new Date(k.time);
+                const dateStr = dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
+                document.getElementById('chartCrosshair').innerHTML =
+                    `<span style="color:var(--text-tertiary);">${dateStr}</span>` +
+                    `<span>O <span style="color:${color};">${fmtPrice(k.open)}</span></span>` +
+                    `<span>H <span style="color:${color};">${fmtPrice(k.high)}</span></span>` +
+                    `<span>L <span style="color:${color};">${fmtPrice(k.low)}</span></span>` +
+                    `<span>C <span style="color:${color};">${fmtPrice(k.close)}</span></span>` +
+                    `<span style="color:var(--text-tertiary);">V ${k.volume >= 1000 ? (k.volume/1000).toFixed(1)+'k' : k.volume.toFixed(1)}</span>`;
+            }
+        } else if (!_isDragging) {
+            document.getElementById('chartCrosshair').innerHTML = '';
+        }
+
+        // Store metadata
+        canvas._chart = { visible, vs, vc, candleW, chartW, chartH, minP, maxP, range, priceToY, idxToX };
     }
 
-    // Crosshair
+    // ── Mouse interaction ──
     const chartCanvas = document.getElementById('chartCanvas');
-    chartCanvas.addEventListener('mousemove', function(e) {
-        const data = this._chartData;
-        if (!data) return;
-        const rect = this.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        const idx = Math.floor((mx - data.padLeft) / data.candleW);
-        if (idx < 0 || idx >= data.klines.length) {
-            document.getElementById('chartCrosshair').innerHTML = '';
-            return;
-        }
-        const k = data.klines[idx];
-        const isUp = k.close >= k.open;
-        const color = isUp ? '#10B981' : '#EF4444';
-        const dt = new Date(k.time);
-        const dateStr = dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
-        document.getElementById('chartCrosshair').innerHTML =
-            `<span style="color:var(--text-tertiary);">${dateStr}</span>` +
-            `<span>O <span style="color:${color};">${fmtPrice(k.open)}</span></span>` +
-            `<span>H <span style="color:${color};">${fmtPrice(k.high)}</span></span>` +
-            `<span>L <span style="color:${color};">${fmtPrice(k.low)}</span></span>` +
-            `<span>C <span style="color:${color};">${fmtPrice(k.close)}</span></span>` +
-            `<span style="color:var(--text-tertiary);">V ${k.volume >= 1000 ? (k.volume/1000).toFixed(1)+'k' : k.volume.toFixed(1)}</span>`;
-    });
-    chartCanvas.addEventListener('mouseleave', () => {
-        document.getElementById('chartCrosshair').innerHTML = '';
+
+    chartCanvas.addEventListener('mousedown', function(e) {
+        if (e.button !== 0) return;
+        _isDragging = true;
+        _dragStartX = e.clientX;
+        _dragStartViewStart = _chartViewStart;
+        chartCanvas.style.cursor = 'grabbing';
     });
 
+    window.addEventListener('mousemove', function(e) {
+        const rect = chartCanvas.getBoundingClientRect();
+        _mouseX = e.clientX - rect.left;
+        _mouseY = e.clientY - rect.top;
+
+        if (_isDragging && _chartKlines.length > 0) {
+            const dx = e.clientX - _dragStartX;
+            const W = rect.width;
+            const chartW = W - padLeft - padRight;
+            const candleW = Math.max(2, chartW / _chartViewCount);
+            const shift = -dx / candleW;
+            _chartViewStart = Math.max(0, Math.min(_dragStartViewStart + shift, _chartKlines.length - _chartViewCount));
+            drawChart();
+            // Fetch more when near edge
+            if (_chartViewStart <= 5) fetchMoreKlines('left');
+            if (_chartViewStart + _chartViewCount >= _chartKlines.length - 5) fetchMoreKlines('right');
+        } else if (document.getElementById('chartOverlay').classList.contains('open') && _chartKlines.length > 0) {
+            drawChart();
+        }
+    });
+
+    window.addEventListener('mouseup', function() {
+        if (_isDragging) {
+            _isDragging = false;
+            chartCanvas.style.cursor = 'crosshair';
+        }
+    });
+
+    chartCanvas.addEventListener('mouseleave', () => {
+        _mouseX = -1; _mouseY = -1;
+        if (!_isDragging && _chartKlines.length > 0) drawChart();
+    });
+
+    // Zoom
+    chartCanvas.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        if (_chartKlines.length === 0) return;
+        const delta = e.deltaY > 0 ? 1.1 : 0.9;
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const chartW = rect.width - padLeft - padRight;
+        const frac = (mx - padLeft) / chartW; // 0..1 position of mouse in chart
+
+        const newCount = Math.max(20, Math.min(_chartKlines.length, Math.round(_chartViewCount * delta)));
+        const dCount = newCount - _chartViewCount;
+        _chartViewStart = Math.max(0, Math.min(_chartViewStart - Math.round(dCount * frac), _chartKlines.length - newCount));
+        _chartViewCount = newCount;
+        drawChart();
+
+        // Fetch more when zoomed out near edges
+        if (_chartViewStart <= 5) fetchMoreKlines('left');
+        if (_chartViewStart + _chartViewCount >= _chartKlines.length - 5) fetchMoreKlines('right');
+    }, { passive: false });
+
+    // Set cursor
+    chartCanvas.style.cursor = 'crosshair';
+
     // TF buttons
-    document.querySelectorAll('.chart-tf-btn').forEach(btn => {
+    document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(btn => {
+        if (!btn.dataset.tf) return;
         btn.addEventListener('click', () => {
             _chartTF = btn.dataset.tf;
-            document.querySelectorAll('.chart-tf-btn').forEach(b => b.classList.toggle('active', b === btn));
+            document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(b => {
+                if (b.dataset.tf) b.classList.toggle('active', b === btn);
+            });
             loadChartKlines();
         });
+    });
+
+    // Toggle all orders
+    document.getElementById('chartShowAllOrders').addEventListener('click', function() {
+        _showAllOrders = !_showAllOrders;
+        this.classList.toggle('active', _showAllOrders);
+        if (_chartKlines.length > 0) drawChart();
+    });
+
+    // Reset view (center on order)
+    document.getElementById('chartResetView').addEventListener('click', function() {
+        centerOnOrder();
+        drawChart();
     });
 
     // Close
