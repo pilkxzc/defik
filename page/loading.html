@@ -36,6 +36,8 @@
             perspective: 1200px;
             position: relative;
             z-index: 10;
+            transform-style: preserve-3d;
+            will-change: transform, opacity;
         }
 
         
@@ -302,14 +304,63 @@
 
         
         document.addEventListener('mousemove', (e) => {
-            const x = (e.clientX / window.innerWidth - 0.5) * 2; 
+            const x = (e.clientX / window.innerWidth - 0.5) * 2;
             const y = (e.clientY / window.innerHeight - 0.5) * 2;
-            
+
             const cube = document.getElementById('cube');
-            
-            
-            
+
+
+
             document.querySelector('.scene').style.transform = `rotateY(${x * 20}deg) rotateX(${y * -20}deg)`;
+        });
+
+        // ── Fly-in animation triggered by parent ──
+        window.addEventListener('message', (e) => {
+            if (e.data !== 'cube-fly') return;
+
+            const scene = document.querySelector('.scene');
+            const cube = document.getElementById('cube');
+            const meta = document.querySelector('.meta-layer');
+            const floaters = document.querySelectorAll('.floater');
+
+            // Stop normal rotation
+            cube.style.animation = 'none';
+
+            // Hide meta & floaters
+            if (meta) { meta.style.transition = 'opacity 0.3s'; meta.style.opacity = '0'; }
+            floaters.forEach(f => { f.style.transition = 'opacity 0.3s'; f.style.opacity = '0'; });
+
+            const dur = 1000;
+            const start = performance.now();
+            let lastAngle = 0;
+
+            function flyFrame(now) {
+                const t = Math.min((now - start) / dur, 1);
+                // Easing: ease-in (accelerate)
+                const ease = t * t * t;
+
+                // Spin accelerates: 0→720deg
+                const spin = ease * 720;
+                // Sin-wave lateral drift
+                const sinX = Math.sin(t * Math.PI * 3) * (1 - t) * 80;
+                // Vertical drift (slight upward)
+                const sinY = -t * 40;
+                // Scale: 1 → 3
+                const scale = 1 + ease * 2;
+                // Perspective approach
+                const tz = ease * 800;
+                // Opacity fades in last 30%
+                const opacity = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+
+                scene.style.transform = `perspective(600px) translateX(${sinX}px) translateY(${sinY}px) translateZ(${tz}px) scale(${scale})`;
+                scene.style.opacity = opacity;
+                cube.style.transform = `rotateX(${-15 + spin * 0.3}deg) rotateY(${spin}deg) rotateZ(${5 + spin * 0.1}deg)`;
+
+                if (t < 1) {
+                    requestAnimationFrame(flyFrame);
+                }
+            }
+            requestAnimationFrame(flyFrame);
         });
 
     </script>

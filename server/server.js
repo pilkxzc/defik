@@ -187,6 +187,7 @@ async function createApp() {
     app.get('/bot-stats/:id', (req, res) => res.sendFile(path.join(pages, 'bot-stats.html')));
     app.get('/bot-community-stats', (req, res) => res.sendFile(path.join(pages, 'bot-community-stats.html')));
     app.get('/loadingdachbot', (req, res) => res.sendFile(path.join(pages, 'loadingdachbot.html')));
+    app.get('/loadingcube', (req, res) => res.sendFile(path.join(pages, 'loading.html')));
 
     app.get('/emergency',    (req, res) => res.sendFile(path.join(pages, 'emergency.html')));
 
