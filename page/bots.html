@@ -1691,7 +1691,6 @@
                     <div class="bot-list-item-info">
                         <div class="bot-list-item-name">${b.name}</div>
                         <div class="bot-list-item-sub">
-                            <span class="bot-mode-pill ${modePillClass}">${modeLabel}</span>
                             ${pairHtml}
                         </div>
                     </div>
@@ -1744,11 +1743,6 @@
         }
 
         function renderBotDetail(b) {
-            const isLive = b.mode === 'bot';
-            const modeLabel = isLive ? 'REAL' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
-            const modePillClass = isLive ? 'mode-live' : 'mode-paper';
-            const mainHref = `/bot-stats/${b.id}`;
-            const mainText = _isAdmin ? 'Дашборд' : 'Статистика';
             let statusBadge;
             if (b.realStatus === 'live') {
                 statusBadge = '<span class="status-badge status-active">В ПОЗИЦІЇ ●</span>';
@@ -1774,7 +1768,6 @@
                     <div class="detail-header-left">
                         <div class="detail-bot-name">${b.name}</div>
                         <div class="detail-header-meta">
-                            <span class="bot-mode-pill ${modePillClass}">${modeLabel}</span>
                             ${statusBadge}
                         </div>
                     </div>
@@ -1819,13 +1812,20 @@
                         }).join('')}
                     </div>
                 </div>` : ''}
-                <div class="detail-actions">
-                    ${_isAdmin ? `<a class="card-action-btn" href="/bot/${b.id}">Редагувати</a>` : ''}
-                    <button class="card-action-btn btn-danger" onclick="if(confirm('Видалити бота?')) deleteBot(${b.id})">Видалити</button>
-                    <a class="card-action-btn btn-blue" href="${mainHref}">${mainText}</a>
-                    <button class="card-action-btn" onclick="cloneBot(${b.id})">Дублювати</button>
-                    <button class="card-action-btn ${b.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleBotActive(${b.id}, ${b.is_active ? 'false' : 'true'})">${b.is_active ? 'Деактивувати' : 'Активувати'}</button>
-                </div>`;
+                ${_isAdmin ? `<div class="detail-actions">
+                    <a class="card-action-btn btn-success" href="/bot/${b.id}">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Графік Live
+                    </a>
+                    <button class="card-action-btn btn-blue" onclick="window.location.href='/bot-stats/${b.id}'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Статистика
+                    </button>
+                    <button class="card-action-btn btn-danger" onclick="if(confirm('Видалити бота «${b.name}»?')) deleteBot(${b.id})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Видалити
+                    </button>
+                </div>` : ''}`;
         }
 
         function selectBot(botId) {
