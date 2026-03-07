@@ -746,7 +746,14 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
         const botOpenSymbols = {};
         const botSymbolStats = {};
         bots.forEach(b => {
-            botInstruments[b.id] = dbAll('SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ?', [b.id]).map(r => r.symbol);
+            // Get symbols from trades
+            const tradedSymbols = dbAll('SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ?', [b.id]).map(r => r.symbol);
+            // Get configured symbols from selected_symbol field
+            const configuredSymbols = (b.selected_symbol || '').split(',').map(s => s.trim()).filter(Boolean);
+            // Merge: configured first, then any traded symbols not in config
+            const allSymbols = [...new Set([...configuredSymbols, ...tradedSymbols])];
+            botInstruments[b.id] = allSymbols;
+
             const openSyms = dbAll("SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ? AND status = 'open'", [b.id]);
             botOpenSymbols[b.id] = new Set(openSyms.map(r => r.symbol));
             const stats = dbAll(`SELECT symbol, COALESCE(SUM(pnl), 0) as pnl, COUNT(*) as trades, SUM(quantity * price) as volume FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
