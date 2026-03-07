@@ -1047,6 +1047,17 @@ router.get('/api/bots/analytics/stats', requireAuth, requireRole('admin', 'moder
     }
 });
 
+// Simple bot info (no Binance call)
+router.get('/api/bots/:id/info', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        res.json(bot);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch bot' });
+    }
+});
+
 router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
     try {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);

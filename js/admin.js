@@ -65,6 +65,15 @@ function setupEventListeners() {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
 
+    // Hash-based tab from URL (e.g. /admin#users)
+    if (window.location.hash) {
+        const hashTab = window.location.hash.replace('#', '');
+        const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports'];
+        if (validTabs.includes(hashTab)) {
+            setTimeout(() => switchTab(hashTab), 100);
+        }
+    }
+
     // User search
     const userSearch = document.getElementById('userSearch');
     let searchTimeout;
