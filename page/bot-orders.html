@@ -189,25 +189,71 @@
         .page-btn.active { background: rgba(139,92,246,0.15); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
         .page-btn:disabled { opacity: 0.3; cursor: default; }
 
-        /* Order detail panel */
-        .order-detail-overlay {
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-            z-index: 1000; backdrop-filter: blur(4px);
+        /* Order chart overlay */
+        .chart-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            z-index: 1000; backdrop-filter: blur(6px);
+            flex-direction: column;
         }
-        .order-detail-overlay.open { display: flex; align-items: center; justify-content: center; }
-        .order-detail-panel {
-            background: var(--surface); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px; padding: 24px; width: 420px; max-width: 90vw;
-            max-height: 80vh; overflow-y: auto;
+        .chart-overlay.open { display: flex; }
+        .chart-overlay-header {
+            display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
         }
-        .order-detail-panel h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
-        .detail-label { color: var(--text-tertiary); }
-        .detail-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; }
-        .detail-close {
-            position: absolute; top: 16px; right: 16px; width: 28px; height: 28px;
-            border-radius: 50%; border: none; background: rgba(255,255,255,0.06);
-            color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+        .chart-overlay-close {
+            width: 32px; height: 32px; border-radius: 50%; border: none;
+            background: rgba(255,255,255,0.06); color: var(--text-secondary);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: 0.15s;
+        }
+        .chart-overlay-close:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+        .chart-overlay-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .chart-tf-group { display: flex; gap: 3px; margin-left: 16px; }
+        .chart-tf-btn {
+            padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03); color: var(--text-secondary);
+            font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'JetBrains Mono', monospace;
+            transition: 0.15s;
+        }
+        .chart-tf-btn:hover { background: rgba(255,255,255,0.06); }
+        .chart-tf-btn.active { background: rgba(139,92,246,0.2); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
+        .chart-overlay-body {
+            display: flex; flex: 1; min-height: 0; overflow: hidden;
+        }
+        .chart-canvas-wrap {
+            flex: 1; position: relative; min-width: 0;
+        }
+        .chart-canvas-wrap canvas {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+        }
+        .chart-loading {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.4); z-index: 2;
+        }
+        .chart-loading::after {
+            content: ''; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.08);
+            border-top-color: #C4B5FD; border-radius: 50%; animation: spin 0.7s linear infinite;
+        }
+        .chart-info-panel {
+            width: 260px; flex-shrink: 0; padding: 16px; overflow-y: auto;
+            border-left: 1px solid rgba(255,255,255,0.08);
+            scrollbar-width: none;
+        }
+        .chart-info-panel::-webkit-scrollbar { display: none; }
+        .chart-info-panel h4 { font-size: 12px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .info-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
+        .info-label { color: var(--text-tertiary); }
+        .info-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .chart-crosshair-info {
+            position: absolute; top: 8px; left: 12px; z-index: 3;
+            font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);
+            pointer-events: none; display: flex; gap: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .chart-overlay-body { flex-direction: column; }
+            .chart-info-panel { width: auto; max-height: 200px; border-left: none; border-top: 1px solid rgba(255,255,255,0.08); }
+            .chart-tf-group { flex-wrap: wrap; }
         }
 
         /* Responsive */
@@ -300,6 +346,7 @@
                 <table class="orders-tbl">
                     <thead>
                         <tr>
+                            <th style="width:32px;"></th>
                             <th class="sortable active-sort desc" data-sort="time">Дата</th>
                             <th class="sortable" data-sort="orderId">Order ID</th>
                             <th class="sortable" data-sort="symbol">Символ</th>
@@ -312,7 +359,7 @@
                         </tr>
                     </thead>
                     <tbody id="ordersBody">
-                        <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+                        <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -321,9 +368,30 @@
     </div>
 </div>
 
-<!-- Order Detail Overlay -->
-<div class="order-detail-overlay" id="orderOverlay">
-    <div class="order-detail-panel" id="orderPanel" style="position:relative;"></div>
+<!-- Order Chart Overlay -->
+<div class="chart-overlay" id="chartOverlay">
+    <div class="chart-overlay-header">
+        <button class="chart-overlay-close" id="chartClose">&times;</button>
+        <div class="chart-overlay-title" id="chartTitle"></div>
+        <div class="chart-tf-group" id="chartTfGroup">
+            <button class="chart-tf-btn" data-tf="1m">1m</button>
+            <button class="chart-tf-btn" data-tf="5m">5m</button>
+            <button class="chart-tf-btn active" data-tf="15m">15m</button>
+            <button class="chart-tf-btn" data-tf="1h">1h</button>
+            <button class="chart-tf-btn" data-tf="4h">4h</button>
+            <button class="chart-tf-btn" data-tf="1d">1d</button>
+        </div>
+        <div style="flex:1;"></div>
+        <span id="chartOHLC" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);"></span>
+    </div>
+    <div class="chart-overlay-body">
+        <div class="chart-canvas-wrap" id="chartWrap">
+            <canvas id="chartCanvas"></canvas>
+            <div class="chart-loading" id="chartLoading" style="display:none;"></div>
+            <div class="chart-crosshair-info" id="chartCrosshair"></div>
+        </div>
+        <div class="chart-info-panel" id="chartInfoPanel"></div>
+    </div>
 </div>
 
 <!-- Mobile nav -->
@@ -397,7 +465,7 @@
             applyFilters();
         } catch (e) {
             document.getElementById('ordersBody').innerHTML =
-                '<tr><td colspan="9" class="empty-state">Помилка завантаження ордерів</td></tr>';
+                '<tr><td colspan="10" class="empty-state">Помилка завантаження ордерів</td></tr>';
         }
     }
 
@@ -487,7 +555,7 @@
     function renderTable() {
         const body = document.getElementById('ordersBody');
         if (filteredOrders.length === 0) {
-            body.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+            body.innerHTML = `<tr><td colspan="10"><div class="empty-state">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 <div>Ордерів не знайдено</div>
             </div></td></tr>`;
@@ -500,7 +568,7 @@
         const start = (currentPage - 1) * perPage;
         const pageOrders = filteredOrders.slice(start, start + perPage);
 
-        body.innerHTML = pageOrders.map(o => {
+        body.innerHTML = pageOrders.map((o, pi) => {
             const isBuy = o.side === 'BUY';
             const badgeSide = isBuy ? 'badge-long' : 'badge-short';
             const statusCls = o.status === 'FILLED' ? 'badge-filled'
@@ -513,7 +581,8 @@
             const dt = o.time ? new Date(o.time) : (o.updateTime ? new Date(o.updateTime) : null);
             const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
             const orderType = (o.type || '\u2014').replace(/_/g, ' ');
-            return `<tr style="cursor:pointer;" onclick="showOrderDetail(${JSON.stringify(o).replace(/"/g, '&quot;')})">
+            return `<tr style="cursor:pointer;" onclick="showOrderByIdx(${start + pi})">
+                <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
                 <td class="mono" style="font-size:10px;" title="${o.orderId}">${o.orderId}</td>
                 <td class="mono">${(o.symbol || '').replace('USDT', '')}</td>
@@ -551,38 +620,324 @@
         document.querySelector('.orders-table-wrap')?.scrollTo(0, 0);
     };
 
-    // Order detail
+    // ═══════════════════════════════════════════
+    //  ORDER CHART OVERLAY
+    // ═══════════════════════════════════════════
+    let _chartOrder = null;
+    let _chartTF = '15m';
+    let _chartKlines = [];
+    const _tfMs = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+
+    window.showOrderByIdx = function(idx) {
+        if (filteredOrders[idx]) showOrderDetail(filteredOrders[idx]);
+    };
+
     window.showOrderDetail = function(o) {
-        const panel = document.getElementById('orderPanel');
+        _chartOrder = o;
+        const overlay = document.getElementById('chartOverlay');
+        overlay.classList.add('open');
+
+        // Title
         const isBuy = o.side === 'BUY';
         const badgeSide = isBuy ? 'badge-long' : 'badge-short';
         const statusCls = o.status === 'FILLED' ? 'badge-filled' : o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : o.status === 'EXPIRED' ? 'badge-expired' : 'badge-type';
-        const dt = o.time ? new Date(o.time) : null;
-        const updDt = o.updateTime ? new Date(o.updateTime) : null;
-        const fmtDt = d => d ? d.toLocaleDateString('uk-UA') + ' ' + d.toLocaleTimeString('uk-UA') : '\u2014';
+        document.getElementById('chartTitle').innerHTML =
+            `<span class="${badgeSide}">${o.side}</span>` +
+            `<span class="badge-type">${(o.type || '').replace(/_/g, ' ')}</span>` +
+            `<span class="${statusCls}">${o.status}</span>` +
+            `<span style="color:var(--text-secondary);font-size:12px;">#${o.orderId}</span>`;
 
-        panel.innerHTML = `
-            <button class="detail-close" onclick="document.getElementById('orderOverlay').classList.remove('open')">&times;</button>
-            <h3><span class="${badgeSide}">${o.side}</span> <span class="badge-type">${(o.type || '').replace(/_/g, ' ')}</span> <span class="${statusCls}">${o.status}</span></h3>
-            <div class="detail-row"><span class="detail-label">Order ID</span><span class="detail-value">${o.orderId}</span></div>
-            <div class="detail-row"><span class="detail-label">Символ</span><span class="detail-value">${o.symbol}</span></div>
-            <div class="detail-row"><span class="detail-label">Ціна</span><span class="detail-value">$${fmtPrice(o.price)}</span></div>
-            ${o.stopPrice > 0 ? `<div class="detail-row"><span class="detail-label">Stop ціна</span><span class="detail-value">$${fmtPrice(o.stopPrice)}</span></div>` : ''}
-            ${o.avgPrice > 0 ? `<div class="detail-row"><span class="detail-label">Сер. ціна</span><span class="detail-value">$${fmtPrice(o.avgPrice)}</span></div>` : ''}
-            <div class="detail-row"><span class="detail-label">К-сть</span><span class="detail-value">${parseFloat(o.quantity || 0).toFixed(4)}</span></div>
-            <div class="detail-row"><span class="detail-label">Виконано</span><span class="detail-value">${parseFloat(o.executedQty || 0).toFixed(4)}</span></div>
-            <div class="detail-row"><span class="detail-label">Створено</span><span class="detail-value" style="font-size:11px;">${fmtDt(dt)}</span></div>
-            <div class="detail-row"><span class="detail-label">Оновлено</span><span class="detail-value" style="font-size:11px;">${fmtDt(updDt)}</span></div>
+        // Info panel
+        const fmtDt = d => d ? new Date(d).toLocaleDateString('uk-UA') + ' ' + new Date(d).toLocaleTimeString('uk-UA') : '\u2014';
+        document.getElementById('chartInfoPanel').innerHTML = `
+            <h4>Деталі ордеру</h4>
+            <div class="info-row"><span class="info-label">Order ID</span><span class="info-value">${o.orderId}</span></div>
+            <div class="info-row"><span class="info-label">Символ</span><span class="info-value">${o.symbol}</span></div>
+            <div class="info-row"><span class="info-label">Сторона</span><span class="info-value"><span class="${badgeSide}">${o.side}</span></span></div>
+            <div class="info-row"><span class="info-label">Тип</span><span class="info-value">${(o.type || '').replace(/_/g, ' ')}</span></div>
+            <div class="info-row"><span class="info-label">Ціна</span><span class="info-value">$${fmtPrice(o.price)}</span></div>
+            ${o.stopPrice > 0 ? `<div class="info-row"><span class="info-label">Stop ціна</span><span class="info-value">$${fmtPrice(o.stopPrice)}</span></div>` : ''}
+            ${o.avgPrice > 0 ? `<div class="info-row"><span class="info-label">Сер. ціна</span><span class="info-value">$${fmtPrice(o.avgPrice)}</span></div>` : ''}
+            <div class="info-row"><span class="info-label">К-сть</span><span class="info-value">${parseFloat(o.quantity || 0).toFixed(4)}</span></div>
+            <div class="info-row"><span class="info-label">Виконано</span><span class="info-value">${parseFloat(o.executedQty || 0).toFixed(4)}</span></div>
+            <div class="info-row"><span class="info-label">Статус</span><span class="info-value"><span class="${statusCls}">${o.status}</span></span></div>
+            <div class="info-row"><span class="info-label">Створено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.time)}</span></div>
+            <div class="info-row"><span class="info-label">Оновлено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.updateTime)}</span></div>
         `;
-        document.getElementById('orderOverlay').classList.add('open');
+
+        // Set active TF button
+        document.querySelectorAll('.chart-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
+
+        loadChartKlines();
     };
 
-    // Close overlay
-    document.getElementById('orderOverlay').addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('open');
+    async function loadChartKlines() {
+        if (!_chartOrder) return;
+        const loader = document.getElementById('chartLoading');
+        loader.style.display = 'flex';
+
+        const o = _chartOrder;
+        const orderTime = o.time || o.updateTime || Date.now();
+        const intervalMs = _tfMs[_chartTF] || 900000;
+        const sym = o.symbol || symbol;
+
+        // 100 bars before + order bar + 100 bars after
+        const startTime = orderTime - 100 * intervalMs;
+        const endTime = orderTime + 100 * intervalMs;
+
+        try {
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${endTime}&limit=201`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Binance error');
+            const raw = await res.json();
+            _chartKlines = raw.map(k => ({
+                time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]),
+                low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5])
+            }));
+        } catch (e) {
+            console.error('Chart klines error:', e);
+            _chartKlines = [];
+        }
+
+        loader.style.display = 'none';
+        drawChart();
+    }
+
+    function drawChart() {
+        const wrap = document.getElementById('chartWrap');
+        const canvas = document.getElementById('chartCanvas');
+        const dpr = window.devicePixelRatio || 1;
+        const W = wrap.clientWidth;
+        const H = wrap.clientHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        // Background
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(0, 0, W, H);
+
+        const klines = _chartKlines;
+        if (klines.length === 0) {
+            ctx.fillStyle = '#636363';
+            ctx.font = '13px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Немає даних для цього таймфрейму', W / 2, H / 2);
+            return;
+        }
+
+        // Layout
+        const padTop = 20, padBottom = 28, padLeft = 8, padRight = 72;
+        const chartW = W - padLeft - padRight;
+        const chartH = H - padTop - padBottom;
+        const candleW = Math.max(1, chartW / klines.length);
+        const bodyW = Math.max(1, candleW * 0.7);
+
+        // Price range
+        let minP = Infinity, maxP = -Infinity;
+        klines.forEach(k => { if (k.low < minP) minP = k.low; if (k.high > maxP) maxP = k.high; });
+
+        // Add order price to range
+        const orderPrice = _chartOrder.avgPrice > 0 ? _chartOrder.avgPrice : (_chartOrder.stopPrice > 0 ? _chartOrder.stopPrice : _chartOrder.price);
+        if (orderPrice > 0) {
+            minP = Math.min(minP, orderPrice * 0.999);
+            maxP = Math.max(maxP, orderPrice * 1.001);
+        }
+
+        const range = maxP - minP || 1;
+        const pxPerPrice = chartH / range;
+        const priceToY = p => padTop + (maxP - p) * pxPerPrice;
+        const idxToX = i => padLeft + i * candleW + candleW / 2;
+
+        // Grid lines
+        const gridLines = 6;
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        for (let i = 0; i <= gridLines; i++) {
+            const y = Math.round(padTop + (chartH / gridLines) * i) + 0.5;
+            ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(W - padRight, y); ctx.stroke();
+            const price = maxP - (range / gridLines) * i;
+            ctx.fillStyle = '#4a4a4a';
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('$' + fmtPrice(price), W - padRight + 6, y + 3);
+        }
+
+        // Time labels
+        const timeStep = Math.max(1, Math.floor(klines.length / 8));
+        ctx.fillStyle = '#4a4a4a';
+        ctx.font = '9px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        for (let i = 0; i < klines.length; i += timeStep) {
+            const dt = new Date(klines[i].time);
+            const label = _chartTF === '1d'
+                ? dt.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })
+                : dt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+            ctx.fillText(label, idxToX(i), H - 6);
+        }
+
+        // Candles
+        klines.forEach((k, i) => {
+            const x = idxToX(i);
+            const isUp = k.close >= k.open;
+            const color = isUp ? '#10B981' : '#EF4444';
+
+            // Wick
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(Math.round(x) + 0.5, Math.round(priceToY(k.high)));
+            ctx.lineTo(Math.round(x) + 0.5, Math.round(priceToY(k.low)));
+            ctx.stroke();
+
+            // Body
+            const yOpen = priceToY(k.open);
+            const yClose = priceToY(k.close);
+            const bodyTop = Math.min(yOpen, yClose);
+            const bodyH = Math.max(1, Math.abs(yClose - yOpen));
+            if (isUp) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(Math.round(x - bodyW / 2) + 0.5, Math.round(bodyTop) + 0.5, Math.round(bodyW), Math.round(bodyH));
+            } else {
+                ctx.fillStyle = color;
+                ctx.fillRect(Math.round(x - bodyW / 2), Math.round(bodyTop), Math.round(bodyW), Math.round(bodyH));
+            }
+        });
+
+        // ── Order marker ──
+        const orderTime = _chartOrder.time || _chartOrder.updateTime || 0;
+        // Find closest candle
+        let orderIdx = -1;
+        let minDist = Infinity;
+        klines.forEach((k, i) => {
+            const dist = Math.abs(k.time - orderTime);
+            if (dist < minDist) { minDist = dist; orderIdx = i; }
+        });
+
+        if (orderIdx >= 0 && orderPrice > 0) {
+            const ox = idxToX(orderIdx);
+            const oy = priceToY(orderPrice);
+            const isBuy = _chartOrder.side === 'BUY';
+
+            // Vertical dashed line
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(196,181,253,0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(Math.round(ox) + 0.5, padTop);
+            ctx.lineTo(Math.round(ox) + 0.5, H - padBottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Horizontal price line
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = isBuy ? 'rgba(34,211,238,0.5)' : 'rgba(245,158,11,0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padLeft, Math.round(oy) + 0.5);
+            ctx.lineTo(W - padRight, Math.round(oy) + 0.5);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Price label on right axis
+            ctx.fillStyle = isBuy ? '#22D3EE' : '#F59E0B';
+            const priceLabel = '$' + fmtPrice(orderPrice);
+            ctx.font = 'bold 10px "JetBrains Mono", monospace';
+            const labelW = ctx.measureText(priceLabel).width + 8;
+            ctx.fillRect(W - padRight + 2, oy - 8, labelW, 16);
+            ctx.fillStyle = '#0a0a0a';
+            ctx.textAlign = 'left';
+            ctx.fillText(priceLabel, W - padRight + 6, oy + 4);
+
+            // Order marker — diamond
+            ctx.save();
+            ctx.translate(ox, oy);
+            ctx.rotate(Math.PI / 4);
+            ctx.fillStyle = isBuy ? 'rgba(34,211,238,0.2)' : 'rgba(245,158,11,0.2)';
+            ctx.strokeStyle = isBuy ? '#22D3EE' : '#F59E0B';
+            ctx.lineWidth = 2;
+            const ds = 8;
+            ctx.fillRect(-ds, -ds, ds * 2, ds * 2);
+            ctx.strokeRect(-ds, -ds, ds * 2, ds * 2);
+            ctx.restore();
+
+            // Label above marker
+            ctx.fillStyle = isBuy ? '#22D3EE' : '#F59E0B';
+            ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(_chartOrder.side + ' ' + (_chartOrder.type || '').replace(/_/g, ' '), ox, oy - 16);
+
+            // Time label below
+            const orderDt = new Date(orderTime);
+            const timeLabel = orderDt.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            ctx.fillStyle = '#C4B5FD';
+            ctx.font = '9px "JetBrains Mono", monospace';
+            ctx.fillText(timeLabel, ox, H - padBottom + 14);
+        }
+
+        // Store for crosshair
+        canvas._chartData = { klines, padTop, padBottom, padLeft, padRight, chartW, chartH, candleW, minP, maxP, range, priceToY, idxToX };
+    }
+
+    // Crosshair
+    const chartCanvas = document.getElementById('chartCanvas');
+    chartCanvas.addEventListener('mousemove', function(e) {
+        const data = this._chartData;
+        if (!data) return;
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const idx = Math.floor((mx - data.padLeft) / data.candleW);
+        if (idx < 0 || idx >= data.klines.length) {
+            document.getElementById('chartCrosshair').innerHTML = '';
+            return;
+        }
+        const k = data.klines[idx];
+        const isUp = k.close >= k.open;
+        const color = isUp ? '#10B981' : '#EF4444';
+        const dt = new Date(k.time);
+        const dateStr = dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
+        document.getElementById('chartCrosshair').innerHTML =
+            `<span style="color:var(--text-tertiary);">${dateStr}</span>` +
+            `<span>O <span style="color:${color};">${fmtPrice(k.open)}</span></span>` +
+            `<span>H <span style="color:${color};">${fmtPrice(k.high)}</span></span>` +
+            `<span>L <span style="color:${color};">${fmtPrice(k.low)}</span></span>` +
+            `<span>C <span style="color:${color};">${fmtPrice(k.close)}</span></span>` +
+            `<span style="color:var(--text-tertiary);">V ${k.volume >= 1000 ? (k.volume/1000).toFixed(1)+'k' : k.volume.toFixed(1)}</span>`;
+    });
+    chartCanvas.addEventListener('mouseleave', () => {
+        document.getElementById('chartCrosshair').innerHTML = '';
+    });
+
+    // TF buttons
+    document.querySelectorAll('.chart-tf-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _chartTF = btn.dataset.tf;
+            document.querySelectorAll('.chart-tf-btn').forEach(b => b.classList.toggle('active', b === btn));
+            loadChartKlines();
+        });
+    });
+
+    // Close
+    document.getElementById('chartClose').addEventListener('click', () => {
+        document.getElementById('chartOverlay').classList.remove('open');
+        _chartOrder = null;
+    });
+    document.getElementById('chartOverlay').addEventListener('click', function(e) {
+        if (e.target === this) { this.classList.remove('open'); _chartOrder = null; }
     });
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') document.getElementById('orderOverlay').classList.remove('open');
+        if (e.key === 'Escape') { document.getElementById('chartOverlay').classList.remove('open'); _chartOrder = null; }
+    });
+
+    // Resize
+    window.addEventListener('resize', () => {
+        if (_chartOrder && _chartKlines.length > 0) drawChart();
     });
 
     // Sortable headers
