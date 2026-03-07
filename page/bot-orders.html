@@ -189,10 +189,10 @@
         .page-btn.active { background: rgba(139,92,246,0.15); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
         .page-btn:disabled { opacity: 0.3; cursor: default; }
 
-        /* Chart modal backdrop */
+        /* Chart modal backdrop (transparent — no dimming) */
         .chart-backdrop {
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-            z-index: 999; backdrop-filter: blur(2px);
+            display: none; position: fixed; inset: 0;
+            z-index: 999; pointer-events: none;
         }
         .chart-backdrop.open { display: block; }
         /* Order chart modal */
@@ -230,6 +230,17 @@
             transition: 0.15s; flex-shrink: 0;
         }
         .chart-fullscreen-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+        .chart-pin-btn {
+            width: 28px; height: 28px; border-radius: 50%; border: none;
+            background: rgba(255,255,255,0.06); color: var(--text-secondary);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: 0.15s; flex-shrink: 0;
+        }
+        .chart-pin-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+        .chart-pin-btn.pinned { background: rgba(139,92,246,0.2); color: #C4B5FD; }
+        .chart-overlay.pinned { border-color: rgba(139,92,246,0.3); }
+        .chart-overlay.pinned .chart-overlay-header { cursor: default; }
+        .chart-overlay.pinned .chart-resize-handle { display: none; }
         .chart-overlay-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
         .chart-tf-group { display: flex; gap: 2px; margin-left: 12px; flex-shrink: 0; flex-wrap: wrap; max-width: 420px; }
         .chart-tf-btn {
@@ -468,6 +479,9 @@
         </button>
         <div style="flex:1;"></div>
         <span id="chartOHLC" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);"></span>
+        <button class="chart-pin-btn" id="chartPinBtn" title="Закріпити вікно">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76z"/></svg>
+        </button>
         <button class="chart-fullscreen-btn" id="chartFullscreenBtn" title="На весь екран">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
         </button>
@@ -834,6 +848,7 @@
     let _chartKlines = [];       // full kline buffer
     let _showAllOrders = true;   // toggle for showing all orders
     let _showOrderLevels = true; // toggle for order price levels
+    let _chartPinned = false;    // pin: lock drag/resize
     let _chartViewStart = 0;     // viewport: first visible kline index
     let _chartViewCount = 200;   // viewport: number of visible klines
     let _isDragging = false;
@@ -841,6 +856,14 @@
     let _dragStartViewStart = 0;
     let _mouseX = -1, _mouseY = -1;  // crosshair
     let _fetchingMore = false;
+    // Price/time axis drag scaling
+    let _priceAxisDrag = false;
+    let _priceAxisStartY = 0;
+    let _priceAxisStartScale = 1;
+    let _priceScale = 1;       // 1 = auto, <1 = zoomed in price, >1 = zoomed out
+    let _timeAxisDrag = false;
+    let _timeAxisStartX = 0;
+    let _timeAxisStartCount = 200;
     const _tfMs = {
         '1s': 1000, '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000,
         '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '8h': 28800000, '12h': 43200000,
@@ -917,6 +940,7 @@
     // ── Fetch klines ──
     async function loadChartKlines() {
         if (!_chartOrder) return;
+        _priceScale = 1; // reset price zoom on new load
         const loader = document.getElementById('chartLoading');
         loader.style.display = 'flex';
 
@@ -1017,6 +1041,18 @@
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, W, H);
 
+        // Axis zones (subtle bg)
+        ctx.fillStyle = '#0d0d0d';
+        ctx.fillRect(W - padRight, 0, padRight, H); // price axis
+        ctx.fillRect(0, H - padBottom, W, padBottom); // time axis
+        // Separator lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(W - padRight + 0.5, 0); ctx.lineTo(W - padRight + 0.5, H);
+        ctx.moveTo(0, H - padBottom + 0.5); ctx.lineTo(W, H - padBottom + 0.5);
+        ctx.stroke();
+
         if (_chartKlines.length === 0) {
             ctx.fillStyle = '#636363';
             ctx.font = '13px "Plus Jakarta Sans", sans-serif';
@@ -1036,11 +1072,18 @@
         const candleW = Math.max(2, chartW / visible.length);
         const bodyW = Math.max(1, candleW * 0.65);
 
-        // Price range from visible klines
+        // Price range from visible klines (with _priceScale)
         let minP = Infinity, maxP = -Infinity;
         visible.forEach(k => { if (k.low < minP) minP = k.low; if (k.high > maxP) maxP = k.high; });
         const margin = (maxP - minP) * 0.05 || 1;
         minP -= margin; maxP += margin;
+        // Apply price scale: >1 = more range (zoomed out), <1 = less range (zoomed in)
+        if (_priceScale !== 1) {
+            const mid = (maxP + minP) / 2;
+            const half = (maxP - minP) / 2 * _priceScale;
+            maxP = mid + half;
+            minP = mid - half;
+        }
         const range = maxP - minP || 1;
         const priceToY = p => padTop + (maxP - p) / range * chartH;
         const idxToX = i => padLeft + i * candleW + candleW / 2;
@@ -1272,6 +1315,31 @@
 
     chartCanvas.addEventListener('mousedown', function(e) {
         if (e.button !== 0) return;
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const W = rect.width;
+        const H = rect.height;
+
+        // Price axis drag (right side)
+        if (mx >= W - padRight) {
+            _priceAxisDrag = true;
+            _priceAxisStartY = e.clientY;
+            _priceAxisStartScale = _priceScale;
+            chartCanvas.style.cursor = 'ns-resize';
+            e.preventDefault();
+            return;
+        }
+        // Time axis drag (bottom)
+        if (my >= H - padBottom) {
+            _timeAxisDrag = true;
+            _timeAxisStartX = e.clientX;
+            _timeAxisStartCount = _chartViewCount;
+            chartCanvas.style.cursor = 'ew-resize';
+            e.preventDefault();
+            return;
+        }
+
         _isDragging = true;
         _dragStartX = e.clientX;
         _dragStartViewStart = _chartViewStart;
@@ -1282,6 +1350,29 @@
         const rect = chartCanvas.getBoundingClientRect();
         _mouseX = e.clientX - rect.left;
         _mouseY = e.clientY - rect.top;
+
+        // Price axis drag — scale vertically
+        if (_priceAxisDrag) {
+            const dy = e.clientY - _priceAxisStartY;
+            const factor = Math.pow(1.005, dy); // drag down = zoom out, up = zoom in
+            _priceScale = Math.max(0.1, Math.min(10, _priceAxisStartScale * factor));
+            drawChart();
+            return;
+        }
+
+        // Time axis drag — scale horizontally
+        if (_timeAxisDrag && _chartKlines.length > 0) {
+            const dx = e.clientX - _timeAxisStartX;
+            const factor = Math.pow(1.005, dx); // drag right = zoom out, left = zoom in
+            const newCount = Math.max(20, Math.min(_chartKlines.length, Math.round(_timeAxisStartCount * factor)));
+            const dCount = newCount - _chartViewCount;
+            _chartViewStart = Math.max(0, Math.min(_chartViewStart - Math.round(dCount * 0.5), _chartKlines.length - newCount));
+            _chartViewCount = newCount;
+            drawChart();
+            if (_chartViewStart <= 5) fetchMoreKlines('left');
+            if (_chartViewStart + _chartViewCount >= _chartKlines.length - 5) fetchMoreKlines('right');
+            return;
+        }
 
         if (_isDragging && _chartKlines.length > 0) {
             const dx = e.clientX - _dragStartX;
@@ -1300,15 +1391,32 @@
     });
 
     window.addEventListener('mouseup', function() {
-        if (_isDragging) {
+        if (_isDragging || _priceAxisDrag || _timeAxisDrag) {
             _isDragging = false;
+            _priceAxisDrag = false;
+            _timeAxisDrag = false;
             chartCanvas.style.cursor = 'crosshair';
+        }
+    });
+
+    // Dynamic cursor based on position
+    chartCanvas.addEventListener('mousemove', function(e) {
+        if (_isDragging || _priceAxisDrag || _timeAxisDrag) return;
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        if (mx >= rect.width - padRight) {
+            this.style.cursor = 'ns-resize';
+        } else if (my >= rect.height - padBottom) {
+            this.style.cursor = 'ew-resize';
+        } else {
+            this.style.cursor = 'crosshair';
         }
     });
 
     chartCanvas.addEventListener('mouseleave', () => {
         _mouseX = -1; _mouseY = -1;
-        if (!_isDragging && _chartKlines.length > 0) drawChart();
+        if (!_isDragging && !_priceAxisDrag && !_timeAxisDrag && _chartKlines.length > 0) drawChart();
     });
 
     // Zoom
@@ -1331,6 +1439,16 @@
         if (_chartViewStart <= 5) fetchMoreKlines('left');
         if (_chartViewStart + _chartViewCount >= _chartKlines.length - 5) fetchMoreKlines('right');
     }, { passive: false });
+
+    // Double-click on price axis resets price scale
+    chartCanvas.addEventListener('dblclick', function(e) {
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        if (mx >= rect.width - padRight) {
+            _priceScale = 1;
+            drawChart();
+        }
+    });
 
     // Set cursor
     chartCanvas.style.cursor = 'crosshair';
@@ -1361,8 +1479,9 @@
         if (_chartKlines.length > 0) drawChart();
     });
 
-    // Reset view (center on order)
+    // Reset view (center on order + reset price scale)
     document.getElementById('chartResetView').addEventListener('click', function() {
+        _priceScale = 1;
         centerOnOrder();
         drawChart();
     });
@@ -1374,7 +1493,6 @@
         _chartOrder = null;
     }
     document.getElementById('chartClose').addEventListener('click', closeChart);
-    document.getElementById('chartBackdrop').addEventListener('click', closeChart);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
 
     // Fullscreen toggle
@@ -1398,6 +1516,13 @@
         setTimeout(() => { if (_chartKlines.length > 0) drawChart(); }, 50);
     });
 
+    // Pin toggle
+    document.getElementById('chartPinBtn').addEventListener('click', function() {
+        _chartPinned = !_chartPinned;
+        this.classList.toggle('pinned', _chartPinned);
+        document.getElementById('chartOverlay').classList.toggle('pinned', _chartPinned);
+    });
+
     // Drag modal by header
     let _modalDragging = false, _modalDragOX = 0, _modalDragOY = 0;
     document.getElementById('chartHeader').addEventListener('dblclick', function(e) {
@@ -1405,7 +1530,7 @@
         document.getElementById('chartFullscreenBtn').click();
     });
     document.getElementById('chartHeader').addEventListener('mousedown', function(e) {
-        if (e.target.closest('button') || e.target.closest('.chart-tf-group') || _chartFullscreen) return;
+        if (e.target.closest('button') || e.target.closest('.chart-tf-group') || _chartFullscreen || _chartPinned) return;
         _modalDragging = true;
         const overlay = document.getElementById('chartOverlay');
         const rect = overlay.getBoundingClientRect();
@@ -1425,7 +1550,7 @@
     // Resize handle
     let _modalResizing = false, _resizeStartX = 0, _resizeStartY = 0, _resizeStartW = 0, _resizeStartH = 0;
     document.getElementById('chartResizeHandle').addEventListener('mousedown', function(e) {
-        if (_chartFullscreen) return;
+        if (_chartFullscreen || _chartPinned) return;
         _modalResizing = true;
         const overlay = document.getElementById('chartOverlay');
         const rect = overlay.getBoundingClientRect();
