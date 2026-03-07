@@ -3020,7 +3020,6 @@
                         <div class="ws-status-dot" id="wsStatusDot"></div>
                         <span id="wsStatusText">Підключення</span>
                     </div>
-                    <div id="dbgLog" style="font-size:10px;color:#F59E0B;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:6px;max-width:340px;overflow:hidden;white-space:nowrap;font-family:monospace;display:none;"></div>
                     <!-- Hidden elements to prevent JS errors -->
                     <div id="symbolSearchContainer" style="display:none;"><input id="symbolSearchInput" type="hidden"><div id="symbolDropdown"></div></div>
                     <div id="livePrice" style="display:none;"></div>
@@ -6401,8 +6400,7 @@
                 if (data.user) {
                     isAdmin = data.user.role === 'admin' || data.user.role === 'moderator';
                     if (isAdmin) {
-                        const btn = document.getElementById('demoModeBtn');
-                        if (btn) btn.style.display = 'flex';
+                        // demo mode button hidden — not needed in production
                     }
                 }
             } catch (e) {}
@@ -9792,11 +9790,7 @@
 
         // Quick-switch symbol by clicking an instrument chip
         function _dbg(msg) {
-            const el = document.getElementById('dbgLog');
-            if (!el) return;
-            el.style.display = 'block';
-            el.textContent = msg;
-            console.log('[YamatoDBG]', msg);
+            // debug disabled
         }
 
         function changeSymbol(symbol) {
