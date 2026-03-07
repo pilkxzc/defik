@@ -6,10 +6,10 @@
     <style>
         :root {
             
-            --bg-red: #ea1b1b; 
+            --bg-main: #0A0A0A;
             --pixel-yellow: #f4c542;
-            --pixel-green: #3a7a44;
-            --pixel-dark: #1a1a1a;
+            --pixel-green: #10B981;
+            --pixel-dark: #E8E6E0;
             --pixel-light: #ffffff;
             --font-mono: 'Courier New', Courier, monospace;
         }
@@ -19,7 +19,7 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: var(--bg-red);
+            background-color: var(--bg-main);
             font-family: var(--font-mono);
             overflow: hidden;
             display: flex;
@@ -62,7 +62,7 @@
             line-height: 1;
             font-weight: bold;
             overflow: hidden;
-            border: 2px solid var(--pixel-dark);
+            border: 1px solid rgba(255,255,255,0.12);
             backface-visibility: hidden; 
         }
 
@@ -84,10 +84,10 @@
         }
 
         
-        .t-yellow { color: var(--pixel-yellow); background: var(--pixel-dark); }
-        .t-green { color: var(--pixel-green); background: var(--pixel-yellow); }
+        .t-yellow { color: var(--pixel-yellow); background: rgba(255,255,255,0.06); }
+        .t-green { color: var(--pixel-green); background: rgba(16,185,129,0.1); }
         .t-dark { color: var(--pixel-dark); background: transparent; }
-        .t-inv { color: var(--bg-red); background: var(--pixel-dark); }
+        .t-inv { color: var(--bg-main); background: var(--pixel-dark); }
 
         
         .meta-layer {
@@ -98,7 +98,7 @@
             flex-direction: column;
             gap: 10px;
             z-index: 5;
-            mix-blend-mode: multiply;
+            mix-blend-mode: screen;
         }
 
         .meta-line {
@@ -117,12 +117,12 @@
         .p-unit {
             width: 10px;
             height: 20px;
-            background: var(--pixel-dark);
+            background: var(--pixel-green);
         }
-        
+
         .p-unit.inactive {
             background: transparent;
-            border: 1px solid var(--pixel-dark);
+            border: 1px solid rgba(255,255,255,0.15);
         }
 
         
@@ -135,7 +135,7 @@
             pointer-events: none;
             opacity: 0.1;
             z-index: 1;
-            background-image: radial-gradient(var(--pixel-dark) 1px, transparent 1px);
+            background-image: radial-gradient(rgba(255,255,255,0.3) 1px, transparent 1px);
             background-size: 4px 4px;
         }
 
@@ -163,7 +163,7 @@
             position: absolute;
             font-size: 24px;
             font-weight: 900;
-            color: var(--pixel-dark);
+            color: rgba(255,255,255,0.15);
             opacity: 0.6;
             animation: float 10s infinite ease-in-out;
         }
