@@ -73,17 +73,6 @@ function _getTabFromUrl() {
 }
 
 function setupEventListeners() {
-    // Tab switching via links (prevent full reload, use pushState)
-    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const tab = btn.dataset.tab;
-            const url = tab === 'dashboard' ? '/admin' : `/admin/${tab}`;
-            history.pushState({ tab }, '', url);
-            switchTab(tab);
-        });
-    });
-
     // Handle browser back/forward
     window.addEventListener('popstate', (e) => {
         const tab = (e.state && e.state.tab) ? e.state.tab : _getTabFromUrl();
@@ -182,18 +171,26 @@ function setupEventListeners() {
     }
 }
 
+const _tabTitles = {
+    'dashboard': 'Дашборд',
+    'users': 'Користувачі',
+    'database': 'База даних',
+    'subscriptions': 'Підписки',
+    'transactions': 'Транзакції',
+    'bots': 'Боти',
+    'news': 'Новини',
+    'audit': 'Аудит',
+    'analytics': 'Аналітика',
+    'backup': 'Бекапи',
+    'bug-reports': 'Баг-репорти'
+};
+
 function switchTab(tabName) {
-    // Update tab buttons
-    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tabName);
-        // Keep special background for database and backup tabs even when not active
-        if (btn.dataset.tab === 'database' && !btn.classList.contains('active')) {
-            btn.style.background = 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)';
-        }
-        if (btn.dataset.tab === 'backup' && !btn.classList.contains('active')) {
-            btn.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
-        }
-    });
+    // Update header page title
+    const titleEl = document.getElementById('adminPageTitle');
+    if (titleEl) {
+        titleEl.textContent = '— ' + (_tabTitles[tabName] || tabName);
+    }
 
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => {
