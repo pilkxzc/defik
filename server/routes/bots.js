@@ -741,6 +741,15 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             };
         });
 
+        // Preload traded symbols and open trades per symbol for each bot
+        const botInstruments = {};
+        const botOpenSymbols = {};
+        bots.forEach(b => {
+            botInstruments[b.id] = dbAll('SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ?', [b.id]).map(r => r.symbol);
+            const openSyms = dbAll("SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ? AND status = 'open'", [b.id]);
+            botOpenSymbols[b.id] = new Set(openSyms.map(r => r.symbol));
+        });
+
         const toCard = b => {
             const act = botActivity[b.id] || {};
             const lastMs = act.lastTradeAt ? new Date(act.lastTradeAt).getTime() : 0;
@@ -762,6 +771,12 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 realStatus = 'stopped';
             }
 
+            // Build instruments with open status
+            const instruments = (botInstruments[b.id] || []).map(sym => ({
+                symbol: sym,
+                hasOpenTrade: botOpenSymbols[b.id]?.has(sym) || false
+            }));
+
             return {
                 id: b.id, name: b.name, is_active: !!b.is_active,
                 realStatus,
@@ -772,6 +787,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 profit: b.profit || 0, investment: b.investment || 0, mode: b.mode,
                 winRate: b.total_trades > 0 ? Math.round((b.winning_trades / b.total_trades) * 100) : null,
                 totalTrades: b.total_trades || 0,
+                instruments,
             };
         };
         const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));

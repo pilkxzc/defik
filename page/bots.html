@@ -615,6 +615,117 @@
             color: var(--color-up);
         }
 
+        /* ── Gear button on bot list item ── */
+        .bot-list-gear {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+            color: var(--text-tertiary);
+        }
+        .bot-list-gear:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-primary);
+        }
+
+        /* ── Bot coins submenu ── */
+        .bot-coins-panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .bot-coins-panel.open {
+            max-height: 400px;
+        }
+        .bot-coins-list {
+            padding: 4px 0;
+        }
+        .bot-coin-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px 8px 36px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            transition: background 0.15s;
+            cursor: default;
+        }
+        .bot-coin-item:hover {
+            background: rgba(255,255,255,0.03);
+        }
+        .bot-coin-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            flex-shrink: 0;
+        }
+        .bot-coin-dot.active {
+            background: var(--color-up);
+            box-shadow: 0 0 6px rgba(16,185,129,0.5);
+            animation: pulse 1.5s infinite;
+        }
+        .bot-coin-name {
+            font-weight: 600;
+            flex: 1;
+        }
+        .bot-coin-status {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+        }
+        .bot-coin-status.trading {
+            color: var(--color-up);
+        }
+        .bot-coin-gear {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+            color: var(--text-tertiary);
+        }
+        .bot-coin-gear:hover {
+            background: rgba(16,185,129,0.15);
+            border-color: rgba(16,185,129,0.3);
+            color: var(--color-up);
+        }
+
+        /* ── Live activity bar on bot item ── */
+        .bot-live-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--color-up), transparent);
+            animation: liveBarPulse 2s ease-in-out infinite;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .bot-list-item.is-live .bot-live-bar {
+            opacity: 1;
+        }
+        @keyframes liveBarPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
         .bot-mode-pill {
             display: inline-flex;
             align-items: center;
@@ -1423,9 +1534,26 @@
                     return;
                 }
 
+                // Remember which coin panels are open before re-render
+                const openPanels = new Set();
+                document.querySelectorAll('.bot-coins-panel.open').forEach(p => {
+                    const id = p.id.replace('botCoins_', '');
+                    openPanels.add(id);
+                });
+
                 // Render compact list cards
                 const html = _allBots.map(b => renderBotListCard(b)).join('');
                 document.getElementById('botsList').innerHTML = html;
+
+                // Restore open coin panels
+                openPanels.forEach(id => {
+                    const panel = document.getElementById('botCoins_' + id);
+                    if (panel) {
+                        panel.classList.add('open');
+                        const gear = panel.previousElementSibling?.querySelector('.bot-list-gear');
+                        if (gear) gear.style.transform = 'rotate(180deg)';
+                    }
+                });
 
                 // Update summary card totals
                 const activeBots = _allBots.filter(b => b.is_active);
@@ -1468,8 +1596,34 @@
                 ? `<span class="bot-live-pair${b.hasOpenTrade ? ' trading' : ''}">${pairName}${b.hasOpenTrade ? ' ●' : ''}</span>`
                 : '';
 
+            const isLiveTrading = b.realStatus === 'live';
+
+            // Build coins submenu
+            const coins = b.instruments || [];
+            let coinsHtml = '';
+            if (coins.length > 0) {
+                const coinItems = coins.map(c => {
+                    const sym = c.symbol || c;
+                    const hasOpen = c.hasOpenTrade || false;
+                    const displayName = sym.replace(/USDT|BUSD/gi, '/USDT');
+                    return `
+                        <div class="bot-coin-item">
+                            <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
+                            <span class="bot-coin-name">${displayName}</span>
+                            <span class="bot-coin-status${hasOpen ? ' trading' : ''}">${hasOpen ? 'В позиції' : 'Очікує'}</span>
+                            <div class="bot-coin-gear" onclick="event.stopPropagation(); window.location.href='/bot-stats/${b.id}?symbol=${sym}'" title="Налаштування ${displayName}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            </div>
+                        </div>`;
+                }).join('');
+                coinsHtml = `
+                    <div class="bot-coins-panel" id="botCoins_${b.id}">
+                        <div class="bot-coins-list">${coinItems}</div>
+                    </div>`;
+            }
+
             return `
-                <div class="bot-list-item${_selectedBotId === b.id ? ' selected' : ''}" data-bot-id="${b.id}">
+                <div class="bot-list-item${_selectedBotId === b.id ? ' selected' : ''}${isLiveTrading ? ' is-live' : ''}" data-bot-id="${b.id}" style="position:relative;">
                     <span class="bot-status-dot ${statusClass}"></span>
                     <div class="bot-list-item-info">
                         <div class="bot-list-item-name">${b.name}</div>
@@ -1479,7 +1633,23 @@
                         </div>
                     </div>
                     <div class="bot-list-item-pnl ${pnlClass}">${pnlStr}</div>
-                </div>`;
+                    <div class="bot-list-gear" onclick="event.stopPropagation(); toggleBotCoins(${b.id})" title="Показати монети">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="bot-live-bar"></div>
+                </div>${coinsHtml}`;
+        }
+
+        function toggleBotCoins(botId) {
+            const panel = document.getElementById('botCoins_' + botId);
+            if (!panel) return;
+            panel.classList.toggle('open');
+            // Rotate chevron
+            const item = panel.previousElementSibling;
+            const gear = item?.querySelector('.bot-list-gear');
+            if (gear) {
+                gear.style.transform = panel.classList.contains('open') ? 'rotate(180deg)' : '';
+            }
         }
 
         function renderBotDetail(b) {
@@ -1610,6 +1780,8 @@
             if (!botsList) return;
 
             botsList.addEventListener('click', function(e) {
+                // Ignore clicks on gear buttons and coin panel items
+                if (e.target.closest('.bot-list-gear') || e.target.closest('.bot-coin-gear') || e.target.closest('.bot-coins-panel')) return;
                 const item = e.target.closest('.bot-list-item');
                 if (!item) return;
                 const botId = Number(item.dataset.botId);
@@ -1675,9 +1847,20 @@
             }
         }
 
+        // Auto-refresh bot list every 15 seconds to catch live status changes
+        let _botsRefreshTimer = null;
+        function startBotsAutoRefresh() {
+            stopBotsAutoRefresh();
+            _botsRefreshTimer = setInterval(() => loadBotsTree(), 15000);
+        }
+        function stopBotsAutoRefresh() {
+            if (_botsRefreshTimer) { clearInterval(_botsRefreshTimer); _botsRefreshTimer = null; }
+        }
+
         // Add click handlers
         document.addEventListener('DOMContentLoaded', async function() {
             loadBotsTree();
+            startBotsAutoRefresh();
 
             const createBtn = document.querySelector('.btn-create');
 
@@ -1717,6 +1900,23 @@
     </script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/js/app.js"></script>
+    <script>
+    // Listen for bot notifications to instantly refresh the list
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkSocket = setInterval(() => {
+            if (typeof io !== 'undefined' && window.YamatoApp) {
+                clearInterval(checkSocket);
+                const s = io({ withCredentials: true });
+                s.on('notification', (n) => {
+                    if (n.type === 'bot') {
+                        // Immediately refresh bot list when bot activity notification arrives
+                        if (typeof loadBotsTree === 'function') loadBotsTree();
+                    }
+                });
+            }
+        }, 500);
+    });
+    </script>
 <!-- Mobile Bottom Nav -->
 <nav class="m-bottom-nav" id="mobileNav" style="display:none;">
     <a href="/dashboard" class="m-nav-tab">
