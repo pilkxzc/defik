@@ -7094,6 +7094,10 @@
                     needDefaultPointFigure: false,
                     needDefaultXAxisFigure: false,
                     needDefaultYAxisFigure: false,
+                    performEventPressedMove: false,
+                    performEventMoveForDrawing: false,
+                    onDrawStart: () => false,
+                    onPressedMove: () => false,
                     createPointFigures({ overlay, coordinates, bounding }) {
                         const c = coordinates?.[0];
                         if (!c) return [];
@@ -8638,10 +8642,9 @@
                 }
             }
 
-            // Fill overlay
-            try { klChart.removeOverlay({ groupId: fillOverlayGroup }); } catch(e) {}
+            // Fill background indicator
+            try { klChart.removeIndicator('candle_pane', 'EMA_FILL_BG'); } catch(e) {}
             if (indState.fill && klinesData.length > EMA_PERIOD) {
-                fillOverlayGroup = 'ind-fill-' + Date.now();
                 drawEmaFillOverlay();
             }
 
@@ -8673,17 +8676,33 @@
         }
 
         function drawEmaFillOverlay() {
-            const emaVals = calcEMA(EMA_PERIOD);
-            for (let i = 1; i < emaVals.length; i += 3) {
-                const above = klinesData[i]?.close > emaVals[i].ema;
-                try {
-                    klChart.createOverlay({
-                        name: 'emaFillSegment', groupId: fillOverlayGroup, lock: true,
-                        points: [{ timestamp: emaVals[i].time * 1000, value: emaVals[i].ema }],
-                        extendData: { above },
-                    });
-                } catch(e) {}
-            }
+            // Use a single custom indicator instead of hundreds of overlays
+            // This prevents blocking chart scroll/zoom interactions
+            try {
+                window.klinecharts.registerIndicator({
+                    name: 'EMA_FILL_BG',
+                    shortName: '',
+                    figures: [],
+                    calc: (kLineDataList) => kLineDataList.map(() => ({})),
+                    draw: ({ ctx, visibleRange, bounding, xAxis, kLineDataList }) => {
+                        if (!kLineDataList || kLineDataList.length < EMA_PERIOD) return;
+                        const emaVals = calcEMA(EMA_PERIOD);
+                        if (!emaVals.length) return;
+                        const h = bounding.height;
+                        for (let i = visibleRange.from; i < visibleRange.to; i++) {
+                            if (i < 1 || i >= emaVals.length || i >= kLineDataList.length) continue;
+                            const bar = kLineDataList[i];
+                            if (!bar) continue;
+                            const above = bar.close > emaVals[i].ema;
+                            const x = xAxis.convertToPixel(i);
+                            const barW = Math.max(xAxis.convertToPixel(1) - xAxis.convertToPixel(0), 4);
+                            ctx.fillStyle = above ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
+                            ctx.fillRect(x - barW / 2, 0, barW, h);
+                        }
+                    }
+                });
+            } catch(e) { /* already registered */ }
+            klChart.createIndicator({ name: 'EMA_FILL_BG' }, true, { id: 'candle_pane' });
         }
 
         function drawSignalMarkers() {
