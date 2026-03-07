@@ -398,8 +398,19 @@ body { font-family: var(--font-sans); background: var(--bg-app); color: var(--te
     font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--text-tertiary); font-weight: 600; text-align: left;
     padding: 10px 14px; border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; background: var(--surface);
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
 }
+.trades-tbl th.sortable {
+    cursor: pointer; user-select: none; transition: color 0.15s;
+    white-space: nowrap;
+}
+.trades-tbl th.sortable::after {
+    content: '⇅'; margin-left: 4px; opacity: 0.3; font-size: 9px;
+}
+.trades-tbl th.sortable:hover { color: var(--text-secondary); }
+.trades-tbl th.sortable.active-sort { color: #C4B5FD; }
+.trades-tbl th.sortable.active-sort.asc::after { content: '↑'; opacity: 0.8; }
+.trades-tbl th.sortable.active-sort.desc::after { content: '↓'; opacity: 0.8; }
 .trades-tbl td { font-size: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.1s; }
 .trades-tbl tr:hover td { background: rgba(139,92,246,0.04); }
 .trades-tbl .mono { font-family: var(--font-mono); }

@@ -863,6 +863,34 @@ function renderLiveChart() {
 }
 
 // ═══════════════════════════════════════════
+//  TABLE SORTING
+// ═══════════════════════════════════════════
+const _sortState = {
+    trades:    { key: 'date', dir: 'desc' },
+    orders:    { key: 'date', dir: 'desc' },
+    positions: { key: 'startedAt', dir: 'desc' },
+};
+
+function _toggleSort(table, key) {
+    const s = _sortState[table];
+    if (s.key === key) {
+        s.dir = s.dir === 'desc' ? 'asc' : 'desc';
+    } else {
+        s.key = key;
+        s.dir = 'desc';
+    }
+    // Update header classes
+    const tableEl = table === 'trades' ? 'recentTradesTable' : table === 'orders' ? 'orderHistoryTable' : 'positionHistoryTable';
+    document.querySelectorAll(`#${tableEl} th.sortable`).forEach(th => {
+        th.classList.remove('active-sort', 'asc', 'desc');
+        if (th.dataset.sort === key) {
+            th.classList.add('active-sort', s.dir);
+        }
+    });
+    _rerenderActiveTradesTab();
+}
+
+// ═══════════════════════════════════════════
 //  RECENT TRADES TABLE (with filters)
 // ═══════════════════════════════════════════
 let _tradesSideFilter = 'all'; // 'all' | 'long' | 'short'
@@ -884,11 +912,28 @@ function _getFilteredTradesForTable() {
         trades = trades.filter(t => new Date(t.closedAt || t.openedAt).getTime() >= cutoff);
     }
 
-    // Sort by date (newest first)
+    // Sort
+    const s = _sortState.trades;
+    const dir = s.dir === 'asc' ? 1 : -1;
     trades.sort((a, b) => {
-        const da = new Date(b.closedAt || b.openedAt).getTime();
-        const db = new Date(a.closedAt || a.openedAt).getTime();
-        return da - db;
+        let va, vb;
+        switch (s.key) {
+            case 'symbol':   va = a.symbol || ''; vb = b.symbol || ''; return dir * va.localeCompare(vb);
+            case 'side':     va = isLong(a) ? 1 : 0; vb = isLong(b) ? 1 : 0; break;
+            case 'type':     va = a.type || ''; vb = b.type || ''; return dir * va.localeCompare(vb);
+            case 'price':    va = a.price || 0; vb = b.price || 0; break;
+            case 'quantity': va = a.quantity || 0; vb = b.quantity || 0; break;
+            case 'pnl':      va = pnlOf(a); vb = pnlOf(b); break;
+            case 'id':       va = a.binanceTradeId || a.id || 0; vb = b.binanceTradeId || b.id || 0; break;
+            case 'duration':
+                va = a.closedAt && a.openedAt ? new Date(a.closedAt) - new Date(a.openedAt) : 0;
+                vb = b.closedAt && b.openedAt ? new Date(b.closedAt) - new Date(b.openedAt) : 0;
+                break;
+            default: // date
+                va = new Date(a.closedAt || a.openedAt).getTime();
+                vb = new Date(b.closedAt || b.openedAt).getTime();
+        }
+        return dir * (va - vb);
     });
 
     return trades;

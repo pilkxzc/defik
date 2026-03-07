@@ -380,15 +380,15 @@
                         <table class="trades-tbl" id="recentTradesTable">
                             <thead>
                                 <tr>
-                                    <th>Символ</th>
-                                    <th>Сторона</th>
-                                    <th>Тип</th>
-                                    <th>Ціна</th>
-                                    <th>К-сть</th>
-                                    <th>PnL</th>
-                                    <th>ID</th>
-                                    <th>Тривалість</th>
-                                    <th>Дата</th>
+                                    <th class="sortable" data-sort="symbol">Символ</th>
+                                    <th class="sortable" data-sort="side">Сторона</th>
+                                    <th class="sortable" data-sort="type">Тип</th>
+                                    <th class="sortable" data-sort="price">Ціна</th>
+                                    <th class="sortable" data-sort="quantity">К-сть</th>
+                                    <th class="sortable" data-sort="pnl">PnL</th>
+                                    <th class="sortable" data-sort="id">ID</th>
+                                    <th class="sortable" data-sort="duration">Тривалість</th>
+                                    <th class="sortable active-sort desc" data-sort="date">Дата</th>
                                 </tr>
                             </thead>
                             <tbody id="recentTradesBody"></tbody>
@@ -400,15 +400,15 @@
                         <table class="trades-tbl" id="orderHistoryTable">
                             <thead>
                                 <tr>
-                                    <th>Order ID</th>
-                                    <th>Символ</th>
-                                    <th>Сторона</th>
-                                    <th>Тип</th>
-                                    <th>Ціна</th>
-                                    <th>К-сть</th>
-                                    <th>Виконано</th>
-                                    <th>Статус</th>
-                                    <th>Дата</th>
+                                    <th class="sortable" data-sort="orderId">Order ID</th>
+                                    <th class="sortable" data-sort="symbol">Символ</th>
+                                    <th class="sortable" data-sort="side">Сторона</th>
+                                    <th class="sortable" data-sort="type">Тип</th>
+                                    <th class="sortable" data-sort="price">Ціна</th>
+                                    <th class="sortable" data-sort="quantity">К-сть</th>
+                                    <th class="sortable" data-sort="executed">Виконано</th>
+                                    <th class="sortable" data-sort="status">Статус</th>
+                                    <th class="sortable active-sort desc" data-sort="date">Дата</th>
                                 </tr>
                             </thead>
                             <tbody id="orderHistoryBody"></tbody>
@@ -420,16 +420,16 @@
                         <table class="trades-tbl" id="positionHistoryTable">
                             <thead>
                                 <tr>
-                                    <th>Символ</th>
-                                    <th>Сторона</th>
-                                    <th>Угод</th>
-                                    <th>К-сть</th>
-                                    <th>Вхід</th>
-                                    <th>Вихід</th>
-                                    <th>PnL</th>
-                                    <th>Статус</th>
-                                    <th>Відкрито</th>
-                                    <th>Закрито</th>
+                                    <th class="sortable" data-sort="symbol">Символ</th>
+                                    <th class="sortable" data-sort="side">Сторона</th>
+                                    <th class="sortable" data-sort="tradeCount">Угод</th>
+                                    <th class="sortable" data-sort="totalQty">К-сть</th>
+                                    <th class="sortable" data-sort="avgEntry">Вхід</th>
+                                    <th class="sortable" data-sort="avgExit">Вихід</th>
+                                    <th class="sortable" data-sort="totalPnl">PnL</th>
+                                    <th class="sortable" data-sort="status">Статус</th>
+                                    <th class="sortable active-sort desc" data-sort="startedAt">Відкрито</th>
+                                    <th class="sortable" data-sort="endedAt">Закрито</th>
                                 </tr>
                             </thead>
                             <tbody id="positionHistoryBody"></tbody>
