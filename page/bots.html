@@ -895,6 +895,65 @@
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
 
+        /* ── Detail coin row ── */
+        .detail-coin-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--surface-secondary);
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+            cursor: pointer;
+            position: relative;
+        }
+        .coin-action-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-tertiary);
+            transition: all 0.15s;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .coin-action-icon:hover {
+            background: rgba(16,185,129,0.12);
+            border-color: rgba(16,185,129,0.3);
+            color: var(--color-up);
+        }
+        .coin-action-icon[title] {
+            position: relative;
+        }
+        .coin-action-icon[title]::after {
+            content: attr(title);
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
+            padding: 3px 7px;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.12s, transform 0.12s;
+        }
+        .coin-action-icon[title]:hover::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
         /* ── Detail coin expandable stats ── */
         .detail-coin-stats {
             max-height: 0;
@@ -2481,46 +2540,17 @@
                             const coinId = 'detail-coin-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
                             const popupId = 'coin-popup-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
                             return `<div class="detail-coin-wrap" data-coin-active="${hasOpen ? '1' : '0'}">
-                                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface-secondary);border-radius:10px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;position:relative;" onclick="document.getElementById('${coinId}').classList.toggle('open'); trackEvent('coin_click', ${b.id}, '${sym}')">
+                                <div class="detail-coin-row" onclick="document.getElementById('${coinId}').classList.toggle('open'); trackEvent('coin_click', ${b.id}, '${sym}')">
                                     <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
+                                    <a class="coin-action-icon" href="/bot-stats/${b.id}?symbol=${sym}&tab=overview" onclick="event.stopPropagation()" title="Графік">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                                    </a>
+                                    <a class="coin-action-icon" href="/bot-stats/${b.id}?symbol=${sym}&tab=statistics" onclick="event.stopPropagation()" title="Статистика">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                                    </a>
                                     <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
                                     <span style="font-size:11px;font-weight:600;color:${coinPnlClass};">${coinPnlStr}</span>
                                     <span style="font-size:11px;font-weight:600;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? '● Live' : 'Очікує'}</span>
-                                    <div class="bot-coin-gear" onclick="event.stopPropagation(); toggleCoinPopup('${popupId}')" title="Дії">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-                                    </div>
-                                    <div class="coin-popup" id="${popupId}">
-                                        <div class="coin-popup-item start" onclick="event.stopPropagation(); closeCoinPopups(); window.location.href='/bot-stats/${b.id}?symbol=${sym}&tab=connect'">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                            Підключити
-                                        </div>
-                                        <div class="coin-popup-item" onclick="event.stopPropagation(); closeCoinPopups(); window.location.href='/bot-stats/${b.id}?symbol=${sym}&tab=statistics'" style="color:var(--accent-blue);">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                                            Статистика
-                                        </div>
-                                        <div class="coin-popup-item stop${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('stop', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                                            Зупинити
-                                        </div>
-                                        <div class="coin-popup-item pause${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('pause', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
-                                            Пауза
-                                        </div>
-                                        ${_isAdmin ? `<div class="coin-popup-item ${hasOpen ? 'stop' : 'start'}" onclick="event.stopPropagation(); closeCoinPopups(); toggleBotForSymbol(${b.id}, '${sym}', ${hasOpen ? 'false' : 'true'})">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${hasOpen
-                                                ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
-                                                : '<polygon points="5 3 19 12 5 21 5 3"/>'
-                                            }</svg>
-                                            ${hasOpen ? 'Зупинити (адмін)' : 'Запустити (адмін)'}
-                                        </div>
-                                        <div class="coin-popup-item ${c.isVisible ? 'stop' : 'start'}" onclick="event.stopPropagation(); closeCoinPopups(); toggleSymbolVisibility(${b.id}, '${sym}', ${!c.isVisible})">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.isVisible
-                                                ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
-                                                : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
-                                            }</svg>
-                                            ${c.isVisible ? 'Приховати' : 'Показати'}
-                                        </div>` : ''}
-                                    </div>
                                 </div>
                                 <div id="${coinId}" class="detail-coin-stats">
                                     <div class="detail-coin-stats-row">
