@@ -721,6 +721,13 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             FROM bots b LEFT JOIN bot_stats bs ON bs.bot_id = b.id ORDER BY b.id
         `);
 
+        // Check which bots the current user is subscribed to
+        const userSubscriptions = new Set();
+        if (req.session.userId) {
+            const subs = dbAll("SELECT bot_id FROM bot_subscribers WHERE user_id = ? AND status = 'active'", [req.session.userId]);
+            subs.forEach(s => userSubscriptions.add(s.bot_id));
+        }
+
         // For each bot: get last trade time + currently active symbol (last opened/closed)
         const botActivity = {};
         bots.forEach(b => {
@@ -806,6 +813,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 winRate: b.total_trades > 0 ? Math.round((b.winning_trades / b.total_trades) * 100) : null,
                 totalTrades: b.total_trades || 0,
                 instruments,
+                isSubscribed: userSubscriptions.has(b.id),
             };
         };
         const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));

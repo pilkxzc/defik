@@ -786,7 +786,40 @@
         }
         .coin-popup-item.start { color: var(--color-up); }
         .coin-popup-item.stop { color: var(--color-down); }
+        .coin-popup-item.pause { color: #F59E0B; }
+        .coin-popup-item.disabled {
+            color: var(--text-tertiary) !important;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .coin-popup-item.disabled:hover {
+            background: none;
+            color: var(--text-tertiary) !important;
+        }
         .coin-popup-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+        .not-subscribed-tooltip {
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 6px);
+            transform: translateX(-50%);
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            z-index: 300;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            animation: tooltipFadeIn 0.2s ease;
+            pointer-events: none;
+        }
+        @keyframes tooltipFadeIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
 
         /* ── Detail coin expandable stats ── */
         .detail-coin-stats {
@@ -1746,12 +1779,20 @@
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                     Підключити
                                 </div>
+                                <div class="coin-popup-item stop${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('stop', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                    Зупинити
+                                </div>
+                                <div class="coin-popup-item pause${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('pause', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+                                    Пауза
+                                </div>
                                 ${_isAdmin ? `<div class="coin-popup-item ${hasOpen ? 'stop' : 'start'}" onclick="event.stopPropagation(); closeCoinPopups(); toggleBotForSymbol(${b.id}, '${sym}', ${hasOpen ? 'false' : 'true'})">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${hasOpen
                                         ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
                                         : '<polygon points="5 3 19 12 5 21 5 3"/>'
                                     }</svg>
-                                    ${hasOpen ? 'Зупинити' : 'Запустити'}
+                                    ${hasOpen ? 'Зупинити (адмін)' : 'Запустити (адмін)'}
                                 </div>` : ''}
                             </div>
                         </div>`;
@@ -1822,6 +1863,33 @@
 
         function closeCoinPopups() {
             document.querySelectorAll('.coin-popup.open').forEach(p => p.classList.remove('open'));
+            // Also remove any floating tooltips
+            document.querySelectorAll('.not-subscribed-tooltip').forEach(t => t.remove());
+        }
+
+        function showNotSubscribedPopup(el) {
+            // Remove any existing tooltip
+            document.querySelectorAll('.not-subscribed-tooltip').forEach(t => t.remove());
+            const tooltip = document.createElement('div');
+            tooltip.className = 'not-subscribed-tooltip';
+            tooltip.textContent = 'Спочатку підключіть бота, щоб керувати ним';
+            el.style.position = 'relative';
+            el.appendChild(tooltip);
+            setTimeout(() => tooltip.remove(), 3000);
+        }
+
+        function handleBotAction(action, botId, symbol) {
+            // For now just show a confirmation — actual API integration later
+            if (action === 'stop') {
+                if (confirm('Зупинити бота на ' + symbol.replace(/USDT|BUSD/gi, '/USDT') + '?')) {
+                    fetch('/api/bots/' + botId + '/unsubscribe', { method: 'POST', credentials: 'include' })
+                        .then(r => r.json())
+                        .then(() => location.reload())
+                        .catch(err => alert('Помилка: ' + err.message));
+                }
+            } else if (action === 'pause') {
+                alert('Функція паузи буде доступна найближчим часом');
+            }
         }
 
         // Close popups on outside click
@@ -1944,12 +2012,20 @@
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                             Підключити
                                         </div>
+                                        <div class="coin-popup-item stop${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('stop', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                            Зупинити
+                                        </div>
+                                        <div class="coin-popup-item pause${b.isSubscribed ? '' : ' disabled'}" onclick="event.stopPropagation(); ${b.isSubscribed ? `closeCoinPopups(); handleBotAction('pause', ${b.id}, '${sym}')` : `showNotSubscribedPopup(this)`}">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+                                            Пауза
+                                        </div>
                                         ${_isAdmin ? `<div class="coin-popup-item ${hasOpen ? 'stop' : 'start'}" onclick="event.stopPropagation(); closeCoinPopups(); toggleBotForSymbol(${b.id}, '${sym}', ${hasOpen ? 'false' : 'true'})">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${hasOpen
                                                 ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
                                                 : '<polygon points="5 3 19 12 5 21 5 3"/>'
                                             }</svg>
-                                            ${hasOpen ? 'Зупинити' : 'Запустити'}
+                                            ${hasOpen ? 'Зупинити (адмін)' : 'Запустити (адмін)'}
                                         </div>` : ''}
                                     </div>
                                 </div>
