@@ -53,6 +53,7 @@ async function initDatabase() {
     try { db.run('ALTER TABLE users ADD COLUMN telegram_username TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN google_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN google_avatar TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE users ADD COLUMN db_access INTEGER DEFAULT 0'); } catch(e) {}
 
     db.run(`
         CREATE TABLE IF NOT EXISTS backup_history (

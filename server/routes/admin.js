@@ -5,11 +5,12 @@ const fs      = require('fs');
 const path    = require('path');
 const router  = express.Router();
 
+const speakeasy = require('speakeasy');
 const { dbGet, dbAll, dbRun, saveDatabase } = require('../db');
 const { requireAuth, requireRole }          = require('../middleware/auth');
 const { getClientIP }                       = require('../utils/ip');
 const { getLocalTime, getLocalTimeDaysAgo } = require('../utils/time');
-const { siteSettings, saveSettings }        = require('../config');
+const { siteSettings, saveSettings, ADMIN_EMAIL } = require('../config');
 const { logAdminAction }                    = require('../services/notifications');
 
 function createNotification(...args) {
@@ -1087,6 +1088,108 @@ router.delete('/api/admin/users/:id/subscription', requireAuth, requireRole('adm
 
 // ==================== DATABASE BROWSER ====================
 
+// ==================== DB ACCESS CONTROL ====================
+
+// Check if user is the main admin (by ADMIN_EMAIL)
+function isMainAdmin(userId) {
+    const user = dbGet('SELECT email FROM users WHERE id = ?', [userId]);
+    return user && user.email === ADMIN_EMAIL;
+}
+
+// Middleware: require db_access flag OR be main admin
+function requireDbAccess(req, res, next) {
+    const user = dbGet('SELECT email, db_access FROM users WHERE id = ?', [req.session.userId]);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (user.email === ADMIN_EMAIL || user.db_access) return next();
+    return res.status(403).json({ error: 'db_access_denied', message: 'Доступ до бази даних заборонено. Зверніться до головного адміністратора.' });
+}
+
+// Check current user's db access status
+router.get('/api/admin/db-access/status', requireAuth, requireRole('admin'), (req, res) => {
+    const user = dbGet('SELECT email, db_access FROM users WHERE id = ?', [req.session.userId]);
+    const mainAdmin = user && user.email === ADMIN_EMAIL;
+    res.json({
+        hasAccess: mainAdmin || !!(user && user.db_access),
+        isMainAdmin: mainAdmin
+    });
+});
+
+// Get list of admins with their db_access status (main admin only)
+router.get('/api/admin/db-access/users', requireAuth, requireRole('admin'), (req, res) => {
+    if (!isMainAdmin(req.session.userId)) {
+        return res.status(403).json({ error: 'Only the main admin can manage database access' });
+    }
+    const admins = dbAll("SELECT id, email, full_name, role, db_access FROM users WHERE role IN ('admin', 'moderator') ORDER BY id");
+    res.json({ admins: admins.map(a => ({ ...a, db_access: !!a.db_access })) });
+});
+
+// Grant/revoke db access (main admin only, requires 2FA code)
+router.post('/api/admin/db-access/toggle', requireAuth, requireRole('admin'), (req, res) => {
+    if (!isMainAdmin(req.session.userId)) {
+        return res.status(403).json({ error: 'Only the main admin can manage database access' });
+    }
+
+    const { userId, grant, totpCode } = req.body;
+    if (!userId || grant === undefined || !totpCode) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Verify main admin's 2FA
+    const mainUser = dbGet('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
+    if (!mainUser || !mainUser.totp_enabled) {
+        return res.status(400).json({ error: 'Головний адмін повинен мати увімкнену 2FA для керування доступом до БД' });
+    }
+
+    const verified = speakeasy.totp.verify({
+        secret: mainUser.totp_secret, encoding: 'base32', token: totpCode, window: 2
+    });
+    if (!verified) {
+        return res.status(401).json({ error: 'Невірний 2FA код' });
+    }
+
+    // Toggle access
+    const target = dbGet('SELECT id, email, full_name, role FROM users WHERE id = ?', [userId]);
+    if (!target || !['admin', 'moderator'].includes(target.role)) {
+        return res.status(404).json({ error: 'Admin user not found' });
+    }
+    if (target.email === ADMIN_EMAIL) {
+        return res.status(400).json({ error: 'Головний адмін завжди має доступ' });
+    }
+
+    dbRun('UPDATE users SET db_access = ? WHERE id = ?', [grant ? 1 : 0, userId]);
+    saveDatabase();
+
+    logAdminAction(req.session.userId, 'DB_ACCESS_TOGGLE', 'users', userId,
+        `${grant ? 'Granted' : 'Revoked'} DB access for ${target.email}`, getClientIP(req));
+
+    res.json({ success: true, userId, dbAccess: !!grant });
+});
+
+// Verify 2FA for database session (main admin self-access)
+router.post('/api/admin/db-access/verify-2fa', requireAuth, requireRole('admin'), (req, res) => {
+    const { totpCode } = req.body;
+    if (!totpCode) return res.status(400).json({ error: 'Missing 2FA code' });
+
+    const user = dbGet('SELECT email, totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
+    if (!user || user.email !== ADMIN_EMAIL) {
+        return res.status(403).json({ error: 'Only main admin' });
+    }
+    if (!user.totp_enabled) {
+        return res.status(400).json({ error: 'Увімкніть 2FA в профілі для доступу до БД' });
+    }
+
+    const verified = speakeasy.totp.verify({
+        secret: user.totp_secret, encoding: 'base32', token: totpCode, window: 2
+    });
+    if (!verified) {
+        return res.status(401).json({ error: 'Невірний 2FA код' });
+    }
+
+    // Set session flag — valid for this session
+    req.session.dbVerified = true;
+    res.json({ success: true });
+});
+
 const ADMIN_TABLES = [
     'users', 'orders', 'transactions', 'bots', 'wallets',
     'activity_log', 'payment_methods', 'notifications',
@@ -1094,7 +1197,7 @@ const ADMIN_TABLES = [
     'user_permissions', 'portfolio_snapshots', 'bot_order_history'
 ];
 
-router.get('/api/admin/tables', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/api/admin/tables', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const tables = ADMIN_TABLES.map(name => {
             const countResult = dbGet(`SELECT COUNT(*) as count FROM ${name}`);
@@ -1107,7 +1210,7 @@ router.get('/api/admin/tables', requireAuth, requireRole('admin'), (req, res) =>
     }
 });
 
-router.get('/api/admin/tables/:name/schema', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/api/admin/tables/:name/schema', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const tableName = req.params.name;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
@@ -1126,7 +1229,7 @@ router.get('/api/admin/tables/:name/schema', requireAuth, requireRole('admin'), 
     }
 });
 
-router.get('/api/admin/tables/:name', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/api/admin/tables/:name', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const tableName = req.params.name;
         const { page = 1, limit = 50, search = '', sortBy = 'id', sortOrder = 'DESC' } = req.query;
@@ -1178,7 +1281,7 @@ router.get('/api/admin/tables/:name', requireAuth, requireRole('admin'), (req, r
     }
 });
 
-router.put('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), (req, res) => {
+router.put('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const { name: tableName, id: recordId } = req.params;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
@@ -1209,7 +1312,7 @@ router.put('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), (re
     }
 });
 
-router.post('/api/admin/tables/:name', requireAuth, requireRole('admin'), (req, res) => {
+router.post('/api/admin/tables/:name', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const tableName = req.params.name;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
@@ -1238,7 +1341,7 @@ router.post('/api/admin/tables/:name', requireAuth, requireRole('admin'), (req, 
     }
 });
 
-router.delete('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), (req, res) => {
+router.delete('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const { name: tableName, id: recordId } = req.params;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });

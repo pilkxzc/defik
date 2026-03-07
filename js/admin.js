@@ -222,7 +222,7 @@ function switchTab(tabName) {
             loadAuditLogs();
             break;
         case 'database':
-            loadDatabaseTables();
+            checkDbAccessAndLoad();
             break;
         case 'analytics':
             loadAnalytics();
@@ -1653,6 +1653,294 @@ let dbSortBy = 'id';
 let dbSortOrder = 'DESC';
 let dbColumns = [];
 let dbEditingCell = null;
+
+// ==================== DB ACCESS CONTROL ====================
+let _dbAccessGranted = false;
+let _dbIsMainAdmin = false;
+
+async function checkDbAccessAndLoad() {
+    const container = document.getElementById('tab-database');
+    try {
+        const res = await fetch('/api/admin/db-access/status');
+        const data = await res.json();
+        _dbIsMainAdmin = data.isMainAdmin;
+        _dbAccessGranted = data.hasAccess;
+
+        if (!data.hasAccess) {
+            _showDbAccessDenied(container);
+            return;
+        }
+
+        // Main admin needs 2FA verification per session
+        if (data.isMainAdmin) {
+            _showDb2FAVerify(container);
+            return;
+        }
+
+        // Has access (granted by main admin) — load directly
+        _showDbContent(container);
+        loadDatabaseTables();
+    } catch (err) {
+        console.error('DB access check failed:', err);
+        _showDbAccessDenied(container);
+    }
+}
+
+function _showDbAccessDenied(container) {
+    const existingOverlay = container.querySelector('.db-access-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'db-access-overlay';
+    overlay.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:40px;">
+            <div style="width:80px;height:80px;border-radius:20px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:24px;">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+            </div>
+            <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Доступ заборонено</h2>
+            <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:8px;">
+                Доступ до бази даних обмежений. Для отримання доступу зверніться до головного адміністратора.
+            </p>
+            <p style="color:var(--text-tertiary);font-size:12px;">
+                Тільки головний адмін може надати доступ через 2FA верифікацію.
+            </p>
+        </div>
+    `;
+    // Hide normal db content, show overlay
+    Array.from(container.children).forEach(ch => ch.style.display = 'none');
+    container.appendChild(overlay);
+    overlay.style.display = 'flex';
+}
+
+function _showDb2FAVerify(container) {
+    const existingOverlay = container.querySelector('.db-access-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'db-access-overlay';
+    overlay.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:40px;">
+            <div style="width:80px;height:80px;border-radius:20px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:24px;">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </div>
+            <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Верифікація 2FA</h2>
+            <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:24px;">
+                Введіть код з додатку автентифікації для доступу до бази даних.
+            </p>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <input type="text" id="db2faCode" maxlength="6" placeholder="000000"
+                    style="width:160px;padding:14px 20px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;font-size:20px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;"
+                    autocomplete="one-time-code" inputmode="numeric">
+                <button id="db2faSubmit" onclick="verifyDb2FA()"
+                    style="padding:14px 28px;background:var(--accent-primary);border:none;border-radius:12px;color:white;font-weight:700;font-size:14px;cursor:pointer;transition:0.2s;">
+                    Підтвердити
+                </button>
+            </div>
+            <p id="db2faError" style="color:#EF4444;font-size:13px;margin-top:12px;display:none;"></p>
+            <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);width:100%;max-width:400px;">
+                <button onclick="openDbAccessManagement()" style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;">
+                    Керувати доступом адмінів
+                </button>
+            </div>
+        </div>
+    `;
+    Array.from(container.children).forEach(ch => ch.style.display = 'none');
+    container.appendChild(overlay);
+    overlay.style.display = 'flex';
+
+    // Auto-submit on 6 digits
+    const input = document.getElementById('db2faCode');
+    input.addEventListener('input', () => {
+        if (input.value.length === 6) verifyDb2FA();
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') verifyDb2FA();
+    });
+    setTimeout(() => input.focus(), 100);
+}
+
+async function verifyDb2FA() {
+    const code = document.getElementById('db2faCode').value.trim();
+    const errEl = document.getElementById('db2faError');
+    if (!code || code.length < 6) {
+        errEl.textContent = 'Введіть 6-значний код';
+        errEl.style.display = 'block';
+        return;
+    }
+    try {
+        const res = await fetch('/api/admin/db-access/verify-2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ totpCode: code })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errEl.textContent = data.error || 'Помилка верифікації';
+            errEl.style.display = 'block';
+            document.getElementById('db2faCode').value = '';
+            document.getElementById('db2faCode').focus();
+            return;
+        }
+        // Success — show db content
+        const container = document.getElementById('tab-database');
+        _showDbContent(container);
+        loadDatabaseTables();
+    } catch (err) {
+        errEl.textContent = 'Помилка з\'єднання';
+        errEl.style.display = 'block';
+    }
+}
+
+function _showDbContent(container) {
+    const overlay = container.querySelector('.db-access-overlay');
+    if (overlay) overlay.remove();
+    Array.from(container.children).forEach(ch => ch.style.display = '');
+}
+
+async function openDbAccessManagement() {
+    // First verify 2FA if not already verified
+    const code = document.getElementById('db2faCode').value.trim();
+    if (!code || code.length < 6) {
+        const errEl = document.getElementById('db2faError');
+        errEl.textContent = 'Спочатку введіть 2FA код';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    // Verify 2FA first
+    try {
+        const verifyRes = await fetch('/api/admin/db-access/verify-2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ totpCode: code })
+        });
+        if (!verifyRes.ok) {
+            const d = await verifyRes.json();
+            const errEl = document.getElementById('db2faError');
+            errEl.textContent = d.error || 'Невірний код';
+            errEl.style.display = 'block';
+            return;
+        }
+    } catch(e) { return; }
+
+    // Load admin list
+    try {
+        const res = await fetch('/api/admin/db-access/users');
+        if (!res.ok) return;
+        const data = await res.json();
+        _showDbAccessModal(data.admins);
+    } catch(e) {
+        console.error('Failed to load db access users:', e);
+    }
+}
+
+function _showDbAccessModal(admins) {
+    let modal = document.getElementById('dbAccessModal');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'dbAccessModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100000;animation:fadeIn .2s ease;';
+    modal.innerHTML = `
+        <div style="background:var(--surface,#141414);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+                <h3 style="font-size:18px;font-weight:800;">Доступ до бази даних</h3>
+                <button onclick="document.getElementById('dbAccessModal').remove()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:20px;padding:4px 8px;">✕</button>
+            </div>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px;">
+                Керуйте доступом адмінів до браузера бази даних. Кожна зміна потребує вашого 2FA коду.
+            </p>
+            <div id="dbAccessList">
+                ${admins.map(a => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface-secondary,#1a1a1a);border-radius:12px;margin-bottom:8px;">
+                        <div>
+                            <div style="font-weight:600;font-size:14px;">${_escHtml(a.full_name)}</div>
+                            <div style="color:var(--text-tertiary);font-size:12px;">${_escHtml(a.email)} · ${a.role}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:12px;font-weight:600;color:${a.db_access ? '#10B981' : '#EF4444'};">${a.db_access ? 'Є доступ' : 'Немає'}</span>
+                            <button class="db-access-toggle-btn" data-user-id="${a.id}" data-grant="${a.db_access ? 0 : 1}"
+                                style="padding:8px 14px;background:${a.db_access ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)'};border:1px solid ${a.db_access ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'};border-radius:8px;color:${a.db_access ? '#EF4444' : '#10B981'};font-size:12px;font-weight:700;cursor:pointer;">
+                                ${a.db_access ? 'Забрати' : 'Надати'}
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <div id="dbAccessToggleArea" style="margin-top:16px;display:none;">
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <input type="text" id="dbAccessTotpCode" maxlength="6" placeholder="2FA код"
+                        style="flex:1;padding:12px 16px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:white;font-size:16px;text-align:center;letter-spacing:4px;font-weight:600;outline:none;"
+                        inputmode="numeric">
+                    <button id="dbAccessConfirmBtn" style="padding:12px 20px;background:var(--accent-primary);border:none;border-radius:10px;color:white;font-weight:700;font-size:13px;cursor:pointer;">
+                        Підтвердити
+                    </button>
+                </div>
+                <p id="dbAccessError" style="color:#EF4444;font-size:12px;margin-top:8px;display:none;"></p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    let pendingUserId = null, pendingGrant = null;
+
+    modal.querySelectorAll('.db-access-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            pendingUserId = parseInt(btn.dataset.userId);
+            pendingGrant = parseInt(btn.dataset.grant);
+            const area = document.getElementById('dbAccessToggleArea');
+            area.style.display = 'block';
+            document.getElementById('dbAccessTotpCode').value = '';
+            document.getElementById('dbAccessTotpCode').focus();
+            document.getElementById('dbAccessError').style.display = 'none';
+        });
+    });
+
+    document.getElementById('dbAccessConfirmBtn').addEventListener('click', async () => {
+        const code = document.getElementById('dbAccessTotpCode').value.trim();
+        const errEl = document.getElementById('dbAccessError');
+        if (!code || code.length < 6) {
+            errEl.textContent = 'Введіть 6-значний код';
+            errEl.style.display = 'block';
+            return;
+        }
+        try {
+            const res = await fetch('/api/admin/db-access/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: pendingUserId, grant: !!pendingGrant, totpCode: code })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                errEl.textContent = data.error || 'Помилка';
+                errEl.style.display = 'block';
+                return;
+            }
+            // Refresh modal
+            modal.remove();
+            const refreshRes = await fetch('/api/admin/db-access/users');
+            const refreshData = await refreshRes.json();
+            _showDbAccessModal(refreshData.admins);
+            showNotification(pendingGrant ? 'Доступ надано' : 'Доступ відкликано', 'success');
+        } catch (e) {
+            errEl.textContent = 'Помилка з\'єднання';
+            errEl.style.display = 'block';
+        }
+    });
+}
+
+function _escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
 
 // Load list of tables
 async function loadDatabaseTables() {
