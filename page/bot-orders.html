@@ -519,6 +519,12 @@
                 <div class="stat-card"><div class="stat-label">Збиткових</div><div class="stat-value" id="statTradesLoss" style="color:var(--color-down);">-</div></div>
                 <div class="stat-card"><div class="stat-label">Загальний PnL</div><div class="stat-value" id="statTradesPnl">-</div></div>
             </div>
+            <div class="toolbar" style="margin-bottom:0;">
+                <div class="search-box">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="tradesSearchInput" placeholder="Пошук по ID, символу, стороні...">
+                </div>
+            </div>
             <div class="orders-card">
                 <div class="orders-table-wrap">
                     <table class="orders-tbl">
@@ -552,6 +558,12 @@
                 <div class="stat-card"><div class="stat-label">Збиткових</div><div class="stat-value" id="statPosLoss" style="color:var(--color-down);">-</div></div>
                 <div class="stat-card"><div class="stat-label">Загальний PnL</div><div class="stat-value" id="statPosPnl">-</div></div>
             </div>
+            <div class="toolbar" style="margin-bottom:0;">
+                <div class="search-box">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="positionsSearchInput" placeholder="Пошук по символу, стороні, статусу...">
+                </div>
+            </div>
             <div class="orders-card">
                 <div class="orders-table-wrap">
                     <table class="orders-tbl">
@@ -584,6 +596,12 @@
                 <div class="stat-card"><div class="stat-label">Протерміновано</div><div class="stat-value" id="statUnfilledExpired">-</div></div>
                 <div class="stat-card"><div class="stat-label">Нові (висять)</div><div class="stat-value" id="statUnfilledNew" style="color:#8CA8FF;">-</div></div>
                 <div class="stat-card"><div class="stat-label">Всього</div><div class="stat-value" id="statUnfilledTotal">-</div></div>
+            </div>
+            <div class="toolbar" style="margin-bottom:0;">
+                <div class="search-box">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="unfilledSearchInput" placeholder="Пошук по ID, символу, типу, причині...">
+                </div>
             </div>
             <div class="orders-card">
                 <div class="orders-table-wrap">
@@ -901,6 +919,7 @@
     let tradesSortKey = 'openedAt', tradesSortDir = 'desc';
     let posSortKey = 'openedAt', posSortDir = 'desc';
     let tradesPage = 1, positionsPage = 1;
+    let tradesSearchQuery = '', positionsSearchQuery = '', unfilledSearchQuery = '';
 
     const viewIdMap = { orders: 'viewOrders', trades: 'viewTrades', positions: 'viewPositions', unfilled: 'viewUnfilled' };
     document.querySelectorAll('#viewTabs .view-tab').forEach(btn => {
@@ -933,6 +952,19 @@
     function renderTrades() {
         const body = document.getElementById('tradesBody');
         let trades = allTrades.slice();
+
+        // Search filter
+        if (tradesSearchQuery) {
+            const q = tradesSearchQuery.toLowerCase();
+            trades = trades.filter(t =>
+                String(t.id || '').toLowerCase().includes(q) ||
+                (t.symbol || '').toLowerCase().includes(q) ||
+                (t.side || '').toLowerCase().includes(q) ||
+                (t.positionSide || '').toLowerCase().includes(q) ||
+                (t.status || '').toLowerCase().includes(q) ||
+                String(parseFloat(t.pnl) || '').includes(q)
+            );
+        }
 
         // Sort
         const dir = tradesSortDir === 'asc' ? 1 : -1;
@@ -1065,6 +1097,19 @@
     function renderPositions() {
         const body = document.getElementById('positionsBody');
         let positions = allPositions.slice();
+
+        // Search filter
+        if (positionsSearchQuery) {
+            const q = positionsSearchQuery.toLowerCase();
+            positions = positions.filter(p =>
+                (p.symbol || '').toLowerCase().includes(q) ||
+                (p.side || '').toLowerCase().includes(q) ||
+                (p.status || '').toLowerCase().includes(q) ||
+                String(p.entryPrice || '').includes(q) ||
+                String(p.exitPrice || '').includes(q) ||
+                String(p.pnl || '').includes(q)
+            );
+        }
 
         const dir = posSortDir === 'asc' ? 1 : -1;
         positions.sort((a, b) => {
@@ -1199,6 +1244,19 @@
     function renderUnfilled() {
         const body = document.getElementById('unfilledBody');
         let orders = allOrders.filter(o => o.status === 'CANCELED' || o.status === 'EXPIRED' || o.status === 'NEW');
+
+        // Search filter
+        if (unfilledSearchQuery) {
+            const q = unfilledSearchQuery.toLowerCase();
+            orders = orders.filter(o =>
+                String(o.orderId || '').includes(q) ||
+                (o.symbol || '').toLowerCase().includes(q) ||
+                (o.side || '').toLowerCase().includes(q) ||
+                (o.type || '').toLowerCase().replace(/_/g, ' ').includes(q) ||
+                (o.status || '').toLowerCase().includes(q) ||
+                guessUnfilledReason(o).toLowerCase().includes(q)
+            );
+        }
 
         const canceled = orders.filter(o => o.status === 'CANCELED').length;
         const expired = orders.filter(o => o.status === 'EXPIRED').length;
@@ -2938,7 +2996,7 @@
         applyFilters();
     });
 
-    // Search
+    // Search — Orders
     let searchDebounce;
     document.getElementById('searchInput').addEventListener('input', function() {
         clearTimeout(searchDebounce);
@@ -2946,6 +3004,39 @@
             searchQuery = this.value.trim();
             currentPage = 1;
             applyFilters();
+        }, 200);
+    });
+
+    // Search — Trades
+    let tradesSearchDebounce;
+    document.getElementById('tradesSearchInput').addEventListener('input', function() {
+        clearTimeout(tradesSearchDebounce);
+        tradesSearchDebounce = setTimeout(() => {
+            tradesSearchQuery = this.value.trim();
+            tradesPage = 1;
+            renderTrades();
+        }, 200);
+    });
+
+    // Search — Positions
+    let posSearchDebounce;
+    document.getElementById('positionsSearchInput').addEventListener('input', function() {
+        clearTimeout(posSearchDebounce);
+        posSearchDebounce = setTimeout(() => {
+            positionsSearchQuery = this.value.trim();
+            positionsPage = 1;
+            renderPositions();
+        }, 200);
+    });
+
+    // Search — Unfilled
+    let unfilledSearchDebounce;
+    document.getElementById('unfilledSearchInput').addEventListener('input', function() {
+        clearTimeout(unfilledSearchDebounce);
+        unfilledSearchDebounce = setTimeout(() => {
+            unfilledSearchQuery = this.value.trim();
+            unfilledPage = 1;
+            renderUnfilled();
         }, 200);
     });
 
