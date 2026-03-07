@@ -2931,6 +2931,7 @@
             background: var(--surface, #1a1a1a); border: 1px solid rgba(255,255,255,0.08);
             border-radius: var(--radius-md, 16px); padding: 6px 0;
             min-width: 190px; z-index: 201; box-shadow: var(--shadow-card);
+            max-height: calc(100vh - 80px); overflow-y: auto;
         }
         .ind-dropdown.open { display: block; }
         .ind-dropdown-section {
@@ -3067,7 +3068,7 @@
                     <button class="ind-dropdown-trigger has-active" id="indDropdownTrigger" onclick="toggleIndDropdown()">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18 L7 10 L10 14 L14 6 L17 12 L21 8"/></svg>
                         Індикатори
-                        <span class="ind-badge" id="indBadge">1</span>
+                        <span class="ind-badge" id="indBadge" style="display:none;">0</span>
                         <svg class="ind-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
                     <div class="ind-dropdown" id="indDropdownMenu">
@@ -3089,7 +3090,7 @@
                         </button>
                         <div class="ind-dropdown-divider"></div>
                         <div class="ind-dropdown-section">Під-панелі</div>
-                        <button class="ind-dropdown-item ind-item-vol active" id="indVol" onclick="toggleIndicator('vol')">
+                        <button class="ind-dropdown-item ind-item-vol" id="indVol" onclick="toggleIndicator('vol')">
                             <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="12" width="3" height="9" rx="1"/><rect x="8.5" y="7" width="3" height="14" rx="1"/><rect x="14" y="4" width="3" height="17" rx="1"/><rect x="19.5" y="9" width="3" height="12" rx="1"/></svg>
                             Volume
@@ -8468,7 +8469,7 @@
         }
 
         // ===== CHART INDICATORS =====
-        const indState = { ema: false, boll: false, fill: false, vol: true, rsi: false, macd: false, signals: false, trades: true };
+        const indState = { ema: false, boll: false, fill: false, vol: false, rsi: false, macd: false, signals: false, trades: true };
         let emaIndicatorId = null;
         let bollIndicatorId = null;
         let volPaneId = null;
@@ -8506,6 +8507,36 @@
             if (trigger) trigger.classList.toggle('has-active', count > 0);
         }
 
+        // Clamp any dropdown/panel so it never extends beyond the viewport
+        function clampToViewport(el) {
+            if (!el) return;
+            // Reset any previous adjustments
+            el.style.maxHeight = '';
+            el.style.left = '';
+            el.style.right = '';
+            el.style.transform = '';
+            requestAnimationFrame(function() {
+                var rect = el.getBoundingClientRect();
+                var vw = window.innerWidth;
+                var vh = window.innerHeight;
+                var margin = 8;
+                // Clamp height so bottom doesn't exceed viewport
+                if (rect.bottom > vh - margin) {
+                    el.style.maxHeight = Math.max(120, vh - rect.top - margin) + 'px';
+                    el.style.overflowY = 'auto';
+                }
+                // Clamp left/right so it stays within viewport
+                if (rect.right > vw - margin) {
+                    var shift = rect.right - vw + margin;
+                    el.style.transform = 'translateX(-' + shift + 'px)';
+                }
+                if (rect.left < margin) {
+                    el.style.left = margin + 'px';
+                    el.style.right = 'auto';
+                }
+            });
+        }
+
         function toggleIndDropdown() {
             // Close symbols dropdown if open
             var symMenu = document.getElementById('symDropdownMenu');
@@ -8518,6 +8549,7 @@
             var isOpen = menu.classList.toggle('open');
             if (trigger) trigger.classList.toggle('open', isOpen);
             if (isOpen) {
+                clampToViewport(menu);
                 setTimeout(function() {
                     document.addEventListener('click', closeIndDropdownOutside);
                 }, 0);
@@ -9507,6 +9539,7 @@
             if (trigger) trigger.classList.toggle('open', isOpen);
             if (isOpen) {
                 updateSymbolsDropdown();
+                clampToViewport(menu);
                 setTimeout(() => {
                     document.addEventListener('click', closeSymDropdownOutside);
                 }, 0);
@@ -10615,6 +10648,7 @@
             dd.style.top = (r.bottom + 6) + 'px';
             dd.style.left = (r.left + r.width / 2) + 'px';
             dd.style.transform = 'translateX(-50%)';
+            clampToViewport(dd);
         }
     }
     // Close sub-tf dropdown when clicking outside
@@ -10664,6 +10698,7 @@
             }
             menu.style.display = isOpen ? 'none' : 'block';
             if (!isOpen) {
+                clampToViewport(menu);
                 setTimeout(function() {
                     document.addEventListener('click', function closeMenu(e) {
                         if (!e.target.closest('#drawingToolsMenu') && !e.target.closest('#drawingToolsBtn')) {
