@@ -62,6 +62,22 @@ async function fetchKlines(symbol, interval) {
     try {
         const sym = symbol || getSymbol();
         const intv = interval || currentTF;
+
+        // Sub-minute intervals: fetch 1s klines from Binance directly and aggregate
+        if (intv === '1s') {
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1s&limit=1000`;
+            const resp = await fetch(url);
+            if (resp.ok) {
+                const raw = await resp.json();
+                klineData = raw.map(k => ({
+                    time: Math.floor(k[0] / 1000), open: parseFloat(k[1]),
+                    high: parseFloat(k[2]), low: parseFloat(k[3]),
+                    close: parseFloat(k[4]), volume: parseFloat(k[5])
+                }));
+                return;
+            }
+        }
+
         const res = await fetch(`/api/bots/${botId}/klines?symbol=${sym}&interval=${intv}&limit=500`, { credentials: 'include' });
         if (res.ok) {
             const data = await res.json();
