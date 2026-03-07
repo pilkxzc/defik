@@ -775,9 +775,24 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
 
             const openSyms = dbAll("SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ? AND status = 'open'", [b.id]);
             botOpenSymbols[b.id] = new Set(openSyms.map(r => r.symbol));
-            const stats = dbAll(`SELECT symbol, COALESCE(SUM(pnl), 0) as pnl, COUNT(*) as trades, SUM(quantity * price) as volume FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
+            const stats = dbAll(`SELECT symbol,
+                COALESCE(SUM(pnl), 0) as pnl,
+                COUNT(*) as trades,
+                SUM(quantity * price) as volume,
+                SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
+                MIN(opened_at) as first_trade_at
+                FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
             const map = {};
-            stats.forEach(s => { map[s.symbol] = { pnl: s.pnl || 0, trades: s.trades || 0, volume: s.volume || 0 }; });
+            stats.forEach(s => {
+                map[s.symbol] = {
+                    pnl: s.pnl || 0,
+                    trades: s.trades || 0,
+                    volume: s.volume || 0,
+                    winRate: s.trades > 0 ? Math.round((s.wins / s.trades) * 100) : 0,
+                    commission: s.commission || 0,
+                    startDate: s.first_trade_at || null
+                };
+            });
             botSymbolStats[b.id] = map;
         });
 
@@ -803,6 +818,9 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             }
 
             // Build instruments with open status, stats, and visibility
+            // Parse trading_settings once per bot
+            let ts = {};
+            try { ts = JSON.parse(b.trading_settings || '{}'); } catch(e) {}
             const visMap = botSymbolVisibility[b.id] || {};
             const instruments = (botInstruments[b.id] || [])
                 .map(sym => {
@@ -814,10 +832,16 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                         pnl: st.pnl || 0,
                         trades: st.trades || 0,
                         volume: st.volume || 0,
+                        winRate: st.winRate || 0,
+                        commission: st.commission || 0,
+                        startDate: st.startDate || null,
                         isVisible: visible
                     };
                 })
                 .filter(inst => isAdmin || inst.isVisible);
+
+            // Uptime: time since bot creation
+            const createdAt = b.created_at || null;
 
             return {
                 id: b.id, name: b.name, is_active: !!b.is_active,
@@ -831,6 +855,10 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 totalTrades: b.total_trades || 0,
                 instruments,
                 isSubscribed: userSubscriptions.has(b.id),
+                createdAt,
+                leverage: ts.leverage || null,
+                spread: ts.spread || null,
+                balance: b.investment || 0,
             };
         };
         const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));

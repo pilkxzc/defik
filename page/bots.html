@@ -87,7 +87,7 @@
             overflow-y: auto;
             scrollbar-width: none;
             padding: 24px;
-            max-width: 420px;
+            max-width: 480px;
         }
         .bots-detail::-webkit-scrollbar { display: none; }
 
@@ -2371,10 +2371,31 @@
                                         <span>PNL</span><span style="color:${coinPnlClass};font-weight:700;">${coinPnlStr}</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
-                                        <span>Обʼєм</span><span>${volStr}</span>
+                                        <span>Win Rate</span><span style="color:${(c.winRate || 0) >= 50 ? 'var(--color-up)' : 'var(--color-down)'};font-weight:600;">${c.winRate || 0}%</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
                                         <span>Угоди</span><span>${c.trades || 0}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Обʼєм</span><span>${volStr}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Комісія</span><span style="color:var(--text-tertiary);">$${Math.abs(c.commission || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Дата запуску</span><span>${c.startDate ? new Date(c.startDate).toLocaleDateString('uk-UA') : '—'}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Час роботи</span><span>${c.startDate ? (() => { const d = Math.floor((Date.now() - new Date(c.startDate).getTime()) / 86400000); return d > 0 ? d + 'д' : '<1д'; })() : '—'}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Баланс бота</span><span>$${(b.balance || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Плече</span><span>${b.leverage ? b.leverage + 'x' : '—'}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Спред</span><span>${b.spread ? b.spread + '%' : '—'}</span>
                                     </div>
                                 </div>
                             </div>`;
