@@ -1096,21 +1096,33 @@ function isMainAdmin(userId) {
     return user && user.email === ADMIN_EMAIL;
 }
 
-// Middleware: require db_access flag OR be main admin
+// Middleware: require db_access flag OR be main admin (with 2FA session)
 function requireDbAccess(req, res, next) {
     const user = dbGet('SELECT email, db_access FROM users WHERE id = ?', [req.session.userId]);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    if (user.email === ADMIN_EMAIL || user.db_access) return next();
+
+    if (user.email === ADMIN_EMAIL) {
+        // Main admin must have verified 2FA this session
+        if (!req.session.dbVerified) {
+            return res.status(403).json({ error: 'db_2fa_required', message: 'Потрібна 2FA верифікація' });
+        }
+        return next();
+    }
+
+    if (user.db_access) return next();
     return res.status(403).json({ error: 'db_access_denied', message: 'Доступ до бази даних заборонено. Зверніться до головного адміністратора.' });
 }
 
 // Check current user's db access status
 router.get('/api/admin/db-access/status', requireAuth, requireRole('admin'), (req, res) => {
-    const user = dbGet('SELECT email, db_access FROM users WHERE id = ?', [req.session.userId]);
+    const user = dbGet('SELECT email, db_access, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
     const mainAdmin = user && user.email === ADMIN_EMAIL;
+    const dbVerified = !!req.session.dbVerified;
     res.json({
-        hasAccess: mainAdmin || !!(user && user.db_access),
-        isMainAdmin: mainAdmin
+        hasAccess: mainAdmin ? dbVerified : !!(user && user.db_access),
+        isMainAdmin: mainAdmin,
+        dbVerified,
+        has2FA: !!(user && user.totp_enabled)
     });
 });
 

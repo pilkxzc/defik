@@ -1666,14 +1666,23 @@ async function checkDbAccessAndLoad() {
         _dbIsMainAdmin = data.isMainAdmin;
         _dbAccessGranted = data.hasAccess;
 
-        if (!data.hasAccess) {
-            _showDbAccessDenied(container);
+        if (data.isMainAdmin) {
+            if (data.dbVerified) {
+                // Already verified this session
+                _showDbContent(container);
+                loadDatabaseTables();
+            } else if (!data.has2FA) {
+                // Main admin without 2FA enabled — show message
+                _showDb2FARequired(container);
+            } else {
+                // Needs 2FA verification
+                _showDb2FAVerify(container);
+            }
             return;
         }
 
-        // Main admin needs 2FA verification per session
-        if (data.isMainAdmin) {
-            _showDb2FAVerify(container);
+        if (!data.hasAccess) {
+            _showDbAccessDenied(container);
             return;
         }
 
@@ -1709,6 +1718,33 @@ function _showDbAccessDenied(container) {
         </div>
     `;
     // Hide normal db content, show overlay
+    Array.from(container.children).forEach(ch => ch.style.display = 'none');
+    container.appendChild(overlay);
+    overlay.style.display = 'flex';
+}
+
+function _showDb2FARequired(container) {
+    const existingOverlay = container.querySelector('.db-access-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'db-access-overlay';
+    overlay.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:40px;">
+            <div style="width:80px;height:80px;border-radius:20px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:24px;">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Потрібна 2FA</h2>
+            <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:24px;">
+                Для доступу до бази даних вам потрібно спочатку увімкнути двофакторну автентифікацію в налаштуваннях профілю.
+            </p>
+            <a href="/profile" style="padding:12px 28px;background:var(--accent-primary);border:none;border-radius:12px;color:white;font-weight:700;font-size:14px;text-decoration:none;display:inline-block;">
+                Перейти в профіль
+            </a>
+        </div>
+    `;
     Array.from(container.children).forEach(ch => ch.style.display = 'none');
     container.appendChild(overlay);
     overlay.style.display = 'flex';
