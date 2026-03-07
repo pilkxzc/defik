@@ -143,6 +143,17 @@ async function init() {
             })
         );
 
+        // Sortable table headers
+        document.querySelectorAll('.trades-tbl th.sortable[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const tableEl = th.closest('table');
+                let table = 'trades';
+                if (tableEl?.id === 'orderHistoryTable') table = 'orders';
+                else if (tableEl?.id === 'positionHistoryTable') table = 'positions';
+                _toggleSort(table, th.dataset.sort);
+            });
+        });
+
         // Chart timeframe buttons
         document.querySelectorAll('.chart-tf-btn[data-tf]').forEach(b =>
             b.addEventListener('click', () => setChartTF(b.dataset.tf))

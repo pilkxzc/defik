@@ -1007,6 +1007,24 @@ function _getFilteredOrders() {
         const cutoff = Date.now() - _tradesTimeFilter * 86400000;
         orders = orders.filter(o => (o.time || o.updateTime || 0) >= cutoff);
     }
+    // Sort
+    const s = _sortState.orders;
+    const dir = s.dir === 'asc' ? 1 : -1;
+    orders.sort((a, b) => {
+        let va, vb;
+        switch (s.key) {
+            case 'orderId':  va = a.orderId || 0; vb = b.orderId || 0; break;
+            case 'symbol':   return dir * (a.symbol || '').localeCompare(b.symbol || '');
+            case 'side':     return dir * (a.side || '').localeCompare(b.side || '');
+            case 'type':     return dir * (a.type || '').localeCompare(b.type || '');
+            case 'price':    va = a.avgPrice > 0 ? a.avgPrice : (a.stopPrice > 0 ? a.stopPrice : (a.price || 0)); vb = b.avgPrice > 0 ? b.avgPrice : (b.stopPrice > 0 ? b.stopPrice : (b.price || 0)); break;
+            case 'quantity': va = parseFloat(a.quantity || 0); vb = parseFloat(b.quantity || 0); break;
+            case 'executed': va = parseFloat(a.executedQty || 0); vb = parseFloat(b.executedQty || 0); break;
+            case 'status':   return dir * (a.status || '').localeCompare(b.status || '');
+            default: /* date */ va = a.time || a.updateTime || 0; vb = b.time || b.updateTime || 0;
+        }
+        return dir * (va - vb);
+    });
     return orders;
 }
 
@@ -1072,6 +1090,25 @@ function _getFilteredPositions() {
         const cutoff = Date.now() - _tradesTimeFilter * 86400000;
         positions = positions.filter(p => new Date(p.startedAt).getTime() >= cutoff);
     }
+    // Sort
+    const s = _sortState.positions;
+    const dir = s.dir === 'asc' ? 1 : -1;
+    positions.sort((a, b) => {
+        let va, vb;
+        switch (s.key) {
+            case 'symbol':    return dir * (a.symbol || '').localeCompare(b.symbol || '');
+            case 'side':      return dir * (a.side || '').localeCompare(b.side || '');
+            case 'tradeCount': va = a.tradeCount || 0; vb = b.tradeCount || 0; break;
+            case 'totalQty':  va = parseFloat(a.totalQty || 0); vb = parseFloat(b.totalQty || 0); break;
+            case 'avgEntry':  va = parseFloat(a.avgEntry || 0); vb = parseFloat(b.avgEntry || 0); break;
+            case 'avgExit':   va = parseFloat(a.avgExit || 0); vb = parseFloat(b.avgExit || 0); break;
+            case 'totalPnl':  va = parseFloat(a.totalPnl || 0); vb = parseFloat(b.totalPnl || 0); break;
+            case 'status':    va = a.isOpen ? 1 : 0; vb = b.isOpen ? 1 : 0; break;
+            case 'endedAt':   va = a.endedAt ? new Date(a.endedAt).getTime() : 0; vb = b.endedAt ? new Date(b.endedAt).getTime() : 0; break;
+            default: /* startedAt */ va = a.startedAt ? new Date(a.startedAt).getTime() : 0; vb = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+        }
+        return dir * (va - vb);
+    });
     return positions;
 }
 
