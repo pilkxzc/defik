@@ -9,19 +9,62 @@ function fadeIn() {
     setTimeout(() => {
         const ls = document.getElementById('loadingScreen');
         const app = document.getElementById('appContainer');
-        ls.style.transition = 'opacity 0.5s ease';
-        ls.style.opacity = '0';
-        app.style.transition = 'opacity 0.5s ease 0.2s';
-        app.style.opacity = '1';
-        setTimeout(() => {
-            ls.style.display = 'none';
-            // Charts need visible container to measure dimensions — resize after fade-in
-            if (window._klineChart && typeof window._klineChart.resize === 'function') {
-                window._klineChart.resize();
+
+        // ── Cube fly-in animation along sin curve ──
+        // The cube (inside iframe) scales up and flies toward the viewer,
+        // oscillating on a sin wave, then vanishes.
+        const iframe = ls.querySelector('iframe');
+        if (iframe) {
+            iframe.style.transformOrigin = 'center center';
+            iframe.style.willChange = 'transform, opacity';
+            const dur = 800; // ms
+            const start = performance.now();
+            function animateCubeFly(now) {
+                const t = Math.min((now - start) / dur, 1); // 0→1
+                // sin-based lateral oscillation (2 full waves)
+                const sinX = Math.sin(t * Math.PI * 4) * (1 - t) * 60;
+                // scale grows from 1 → 2.5
+                const scale = 1 + t * 1.5;
+                // translateZ: cube approaches the viewer
+                const tz = t * 600;
+                // opacity fades out in the last 40%
+                const opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+                iframe.style.transform = `perspective(800px) translateX(${sinX}px) translateZ(${tz}px) scale(${scale})`;
+                iframe.style.opacity = opacity;
+                if (t < 1) {
+                    requestAnimationFrame(animateCubeFly);
+                } else {
+                    // Animation done — fade out loading screen, fade in app
+                    ls.style.transition = 'opacity 0.3s ease';
+                    ls.style.opacity = '0';
+                    app.style.transition = 'opacity 0.5s ease 0.1s';
+                    app.style.opacity = '1';
+                    setTimeout(() => {
+                        ls.style.display = 'none';
+                        if (window._klineChart && typeof window._klineChart.resize === 'function') {
+                            window._klineChart.resize();
+                        }
+                        renderLiveChart();
+                        renderEquityChart();
+                    }, 500);
+                }
             }
-            renderLiveChart();
-            renderEquityChart();
-        }, 700);
+            requestAnimationFrame(animateCubeFly);
+        } else {
+            // Fallback if no iframe
+            ls.style.transition = 'opacity 0.5s ease';
+            ls.style.opacity = '0';
+            app.style.transition = 'opacity 0.5s ease 0.2s';
+            app.style.opacity = '1';
+            setTimeout(() => {
+                ls.style.display = 'none';
+                if (window._klineChart && typeof window._klineChart.resize === 'function') {
+                    window._klineChart.resize();
+                }
+                renderLiveChart();
+                renderEquityChart();
+            }, 700);
+        }
     }, remaining);
 }
 
