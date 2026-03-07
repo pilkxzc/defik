@@ -76,6 +76,9 @@ async function selectSymbol(sym) {
     currentSymbol = sym;
     renderSymbolSelector();
 
+    // Reset so applyNewData is used for fresh data
+    if (window._klineChart) window._klineChart._dataLoaded = false;
+
     // Reload symbol-dependent data
     await Promise.all([
         fetchKlines(sym, currentTF),
@@ -109,6 +112,8 @@ function setChartTF(tf) {
     document.querySelectorAll('.chart-tf-btn[data-tf]').forEach(b =>
         b.classList.toggle('active', b.dataset.tf === tf)
     );
+    // Reset so applyNewData is used for fresh data
+    if (window._klineChart) window._klineChart._dataLoaded = false;
     Promise.all([
         fetchKlines(getSymbol(), tf),
         fetchTradeMarkers(),

@@ -729,7 +729,15 @@ function renderLiveChart() {
         return { timestamp: k.time * 1000, open: +k.open, high: +k.high, low: +k.low, close: +k.close, volume: +(k.volume || 0) };
     });
 
-    chart.applyNewData(data);
+    if (!chart._dataLoaded) {
+        // First load — set all data and let chart auto-scroll to end
+        chart.applyNewData(data);
+        chart._dataLoaded = true;
+    } else {
+        // Subsequent updates — update last candle without resetting viewport
+        const last = data[data.length - 1];
+        if (last) chart.updateData(last);
+    }
 
     // Remove old trade marker overlays and redraw
     try { chart.removeOverlay({ groupId: _klineMarkerGroup }); } catch (e) { /* ok */ }
