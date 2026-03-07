@@ -2393,6 +2393,8 @@ async function initializePage() {
                                  path.includes('subscriptions') || path === '/subscriptions' ||
                                  path.includes('news') || path === '/news' ||
                                  path.includes('bot-detail') || path.startsWith('/bot/') ||
+                                 path.startsWith('/bot-orders') || path.startsWith('/bot-stats') ||
+                                 path === '/bot-community-stats' ||
                                  path.includes('community') || path === '/community' ||
                                  path.includes('admin') || path === '/admin' ||
                                  path === '/docs';
