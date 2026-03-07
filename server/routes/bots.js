@@ -1070,7 +1070,7 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
 
 router.patch('/api/bots/:id/settings', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
     try {
-        const { name, mode, displaySettings, community_visible } = req.body;
+        const { name, mode, displaySettings, community_visible, category_id, pair, type, account_type, selected_symbol, investment } = req.body;
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
@@ -1079,6 +1079,12 @@ router.patch('/api/bots/:id/settings', requireAuth, requireRole('admin', 'modera
         if (mode !== undefined)               { updates.push('mode = ?');               params.push(mode); }
         if (displaySettings !== undefined)    { updates.push('display_settings = ?');   params.push(JSON.stringify(displaySettings)); }
         if (community_visible !== undefined)  { updates.push('community_visible = ?');  params.push(community_visible ? 1 : 0); }
+        if (category_id !== undefined)        { updates.push('category_id = ?');        params.push(category_id); }
+        if (pair !== undefined)               { updates.push('pair = ?');               params.push(pair); }
+        if (type !== undefined)               { updates.push('type = ?');               params.push(type); }
+        if (account_type !== undefined)       { updates.push('account_type = ?');       params.push(account_type); }
+        if (selected_symbol !== undefined)    { updates.push('selected_symbol = ?');    params.push(selected_symbol); }
+        if (investment !== undefined)         { updates.push('investment = ?');         params.push(parseFloat(investment) || 0); }
 
         if (updates.length > 0) { params.push(req.params.id); dbRun(`UPDATE bots SET ${updates.join(', ')} WHERE id = ?`, params); }
 

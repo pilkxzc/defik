@@ -143,11 +143,13 @@
                         <button class="chart-tf-btn" data-tf="4h">4H</button>
                         <button class="chart-tf-btn" data-tf="1d">1D</button>
                         <button class="chart-tf-btn" data-tf="1w">1W</button>
-                        <span class="chart-hint">scroll: zoom &middot; drag: pan &middot; 2x click: reset</span>
+                        <button class="chart-tf-btn" id="chartExpandBtn" title="Розгорнути графік" style="margin-left:auto;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        </button>
                     </div>
                 </div>
                 <div class="card-body-np">
-                    <div class="chart-area" style="height:440px;">
+                    <div class="chart-area" id="chartArea" style="height:440px;transition:height .3s ease;">
                         <div id="liveChartCanvas" style="width:100%;height:100%;background:#141414;border-radius:8px;"></div>
                     </div>
                     <div class="chart-legend">
