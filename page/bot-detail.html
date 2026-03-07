@@ -3002,25 +3002,19 @@
             </a>
         </nav>
 
-        <!-- Header -->
-        <header class="header-bar">
-            <div class="header-left">
-                <span class="bot-title" id="botTitle">Завантаження...</span>
-                <span id="botModeBadge" style="display:none;"></span>
-            </div>
-
-            <!-- Hidden elements kept for JS compatibility -->
-            <div style="display:none;">
-                <button id="demoModeBtn"></button>
-                <button id="headerMoreBtn"></button>
-                <button id="subscribeBtn"><span id="subscribeBtnText"></span></button>
-                <button id="copyTradesBtn"></button>
-                <button id="notificationsBtn"></button>
-                <div id="headerMoreMenu"></div>
-                <div id="symbolSearchContainer"><input id="symbolSearchInput" type="hidden"><div id="symbolDropdown"></div></div>
-                <div id="livePrice"></div>
-            </div>
-        </header>
+        <!-- Hidden elements kept for JS compatibility -->
+        <div style="display:none;">
+            <span id="botTitle"></span>
+            <span id="botModeBadge"></span>
+            <button id="demoModeBtn"></button>
+            <button id="headerMoreBtn"></button>
+            <button id="subscribeBtn"><span id="subscribeBtnText"></span></button>
+            <button id="copyTradesBtn"></button>
+            <button id="notificationsBtn"></button>
+            <div id="headerMoreMenu"></div>
+            <div id="symbolSearchContainer"><input id="symbolSearchInput" type="hidden"><div id="symbolDropdown"></div></div>
+            <div id="livePrice"></div>
+        </div>
 
         <!-- Chart — klinecharts -->
         <div class="chart-container" id="chartContainer" style="position: relative; display:flex; flex-direction:column;">
@@ -3030,6 +3024,8 @@
                 <a href="/bots" class="ind-btn" title="Назад до ботів" style="text-decoration:none;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                 </a>
+                <!-- Bot title -->
+                <span id="botTitleToolbar" style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;padding:0 4px;"></span>
                 <div class="ind-sep"></div>
                 <!-- Timeframe buttons -->
                 <div class="interval-btns">
@@ -3177,6 +3173,11 @@
                         <button class="drawing-tool-item" style="color:var(--color-down);" onclick="clearAllUserDrawings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>Видалити всі</button>
                     </div>
                 </div>
+                <div class="ind-sep"></div>
+                <!-- Settings -->
+                <button class="ind-btn" onclick="openSettings()" title="Налаштування">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
                 <div class="ind-sep"></div>
                 <!-- WS Status -->
                 <div class="ws-status" style="margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);white-space:nowrap;">
@@ -7347,8 +7348,8 @@
                 if (!response.ok) throw new Error(data.error);
 
                 document.getElementById('botTitle').textContent = data.bot.name;
-                document.getElementById('botModeBadge').textContent = data.bot.mode === 'bot' ? 'НАЖИВО' : 'ТЕСТ';
-                document.getElementById('botModeBadge').className = `bot-mode-badge ${data.bot.mode === 'bot' ? 'live' : 'test'}`;
+                const tbt = document.getElementById('botTitleToolbar');
+                if (tbt) tbt.textContent = data.bot.name;
 
                 // Track bot running status to gate price line drawing
                 const wasRunning = botIsRunning;
@@ -8783,14 +8784,7 @@
         }
 
         async function refreshData() {
-            const btn = document.getElementById('refreshBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div> Завантаження...';
-
             await loadChartData(false);
-
-            btn.disabled = false;
-            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg> Оновити';
         }
 
         function toggleSymbolLock() {
