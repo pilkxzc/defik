@@ -9425,13 +9425,19 @@
             const svg = document.getElementById('equityChartSvg');
             if (!svg) return;
 
+            // Measure actual container size so chart adapts to any panel size
+            const wrap = svg.parentElement;
+            const W = wrap ? wrap.clientWidth - 20 : 360; // minus padding
+            const H = wrap ? wrap.clientHeight - 4 : 70;
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
             const now = Date.now();
             const filtered = [...allEquityTrades]
                 .filter(t => !equityPeriodDays || parseUTC(t.closedAt) >= now - equityPeriodDays * 86400000)
                 .sort((a, b) => parseUTC(a.closedAt) - parseUTC(b.closedAt));
 
             if (filtered.length < 2) {
-                svg.innerHTML = `<text x="180" y="40" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="11" font-family="Plus Jakarta Sans,sans-serif">${filtered.length === 0 ? 'Немає даних угод' : 'Потрібно більше угод'}</text>`;
+                svg.innerHTML = `<text x="${W/2}" y="${H/2+4}" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="11" font-family="Plus Jakarta Sans,sans-serif">${filtered.length === 0 ? 'Немає даних угод' : 'Потрібно більше угод'}</text>`;
                 return;
             }
 
@@ -9439,7 +9445,7 @@
             const pts = [0];
             filtered.forEach(t => { cumPnl += parseFloat(t.pnl || 0); pts.push(cumPnl); });
 
-            const W = 360, H = 70, pad = 8;
+            const pad = 8;
             const minY = Math.min(0, ...pts);
             const maxY = Math.max(0, ...pts);
             const range = maxY - minY || 1;
@@ -9455,8 +9461,8 @@
             const baseY = svgY(0).toFixed(1);
             const areaD = `M0,${baseY} ${pts.map((y,i) => `L${svgX(i).toFixed(1)},${svgY(y).toFixed(1)}`).join(' ')} L${W},${baseY} Z`;
             const sign = cumPnl >= 0 ? '+' : '';
-            const labelX = parseFloat(lx) > 280 ? parseFloat(lx) - 4 : parseFloat(lx) + 4;
-            const labelAnchor = parseFloat(lx) > 280 ? 'end' : 'start';
+            const labelX = parseFloat(lx) > W - 80 ? parseFloat(lx) - 4 : parseFloat(lx) + 4;
+            const labelAnchor = parseFloat(lx) > W - 80 ? 'end' : 'start';
             const labelY = parseFloat(ly) < 16 ? parseFloat(ly) + 14 : parseFloat(ly) - 4;
 
             svg.innerHTML = `
@@ -9473,6 +9479,18 @@
                 <text x="${labelX}" y="${labelY}" fill="${color}" font-size="9" font-family="Plus Jakarta Sans,sans-serif" font-weight="700" text-anchor="${labelAnchor}">${sign}$${cumPnl.toFixed(2)}</text>
             `;
         }
+
+        // Redraw equity chart when its container resizes (panel drag, window resize, etc.)
+        (function() {
+            var eqWrap = document.querySelector('.equity-chart-wrap');
+            if (eqWrap && typeof ResizeObserver !== 'undefined') {
+                var _eqRoTimer = null;
+                new ResizeObserver(function() {
+                    clearTimeout(_eqRoTimer);
+                    _eqRoTimer = setTimeout(drawEquityCurve, 80);
+                }).observe(eqWrap);
+            }
+        })();
 
         // Period button click handlers
         document.querySelectorAll('.eq-period').forEach(btn => {
@@ -10583,6 +10601,7 @@
 
             document.addEventListener('mouseup', () => {
                 if (resizing) {
+                    if (currentResizePanel && currentResizePanel.id === 'panelStats') drawEquityCurve();
                     resizing = false;
                     document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
                     document.body.style.cursor = '';
@@ -10594,6 +10613,7 @@
 
             document.addEventListener('touchend', () => {
                 if (resizing) {
+                    if (currentResizePanel && currentResizePanel.id === 'panelStats') drawEquityCurve();
                     resizing = false;
                     document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
                     savePanelSizes();
