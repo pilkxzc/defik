@@ -823,7 +823,11 @@ function renderLiveChart() {
     _klineMarkerGroup = `trm-${++_klineMarkerIdx}`;
 
     if (tradeMarkers && tradeMarkers.length > 0) {
-        const displayMarkers = _tradeGroupingEnabled ? _groupMarkersByCandle(tradeMarkers) : tradeMarkers;
+        // Filter markers to only those within the visible kline data range
+        const kStart = klineData.length > 0 ? (klineData[0].time || 0) : 0;
+        const kEnd = klineData.length > 0 ? (klineData[klineData.length - 1].time || Infinity) : Infinity;
+        const inRangeMarkers = kStart > 0 ? tradeMarkers.filter(m => m.time >= kStart && m.time <= kEnd) : tradeMarkers;
+        const displayMarkers = _tradeGroupingEnabled ? _groupMarkersByCandle(inRangeMarkers) : inRangeMarkers;
         for (const m of displayMarkers) {
             const isLongSide = m.side === 'LONG' || m.side === 'BUY';
             const pnl = m.pnl || 0;
