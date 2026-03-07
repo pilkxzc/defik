@@ -1128,12 +1128,14 @@ router.get('/api/admin/db-access/status', requireAuth, requireRole('admin'), (re
     const mainAdmin = user && user.email === ADMIN_EMAIL;
     const dbVerified = isDbSessionValid(req.session);
     const hasKey = !!(siteSettings.dbAccessKey);
+    const passkeys = mainAdmin ? dbAll('SELECT id FROM passkeys WHERE user_id = ?', [req.session.userId]) : [];
     res.json({
         hasAccess: mainAdmin ? dbVerified : !!(user && user.db_access),
         isMainAdmin: mainAdmin,
         dbVerified,
         has2FA: !!(user && user.totp_enabled),
-        hasAccessKey: hasKey
+        hasAccessKey: hasKey,
+        hasPasskeys: passkeys.length > 0
     });
 });
 
@@ -1212,6 +1214,61 @@ router.post('/api/admin/db-access/verify', requireAuth, requireRole('admin'), (r
     }
 
     // Set session flag with timestamp
+    req.session.dbVerified = true;
+    req.session.dbVerifiedAt = Date.now();
+    res.json({ success: true, expiresIn: DB_SESSION_TTL });
+});
+
+// Passkey challenge for DB access verification
+router.post('/api/admin/db-access/passkey-options', requireAuth, requireRole('admin'), (req, res) => {
+    const user = dbGet('SELECT email FROM users WHERE id = ?', [req.session.userId]);
+    if (!user || user.email !== ADMIN_EMAIL) {
+        return res.status(403).json({ error: 'Only main admin' });
+    }
+
+    const passkeys = dbAll('SELECT credential_id FROM passkeys WHERE user_id = ?', [req.session.userId]);
+    if (passkeys.length === 0) {
+        return res.status(400).json({ error: 'Немає зареєстрованих passkeys' });
+    }
+
+    const challenge = crypto.randomBytes(32).toString('base64url');
+    req.session.dbPasskeyChallenge = challenge;
+
+    res.json({
+        challenge,
+        timeout: 60000,
+        rpId: req.hostname === 'localhost' ? 'localhost' : req.hostname,
+        userVerification: 'preferred',
+        allowCredentials: passkeys.map(p => ({
+            id: p.credential_id, type: 'public-key',
+            transports: ['internal', 'hybrid', 'usb', 'ble', 'nfc']
+        }))
+    });
+});
+
+// Verify passkey for DB access
+router.post('/api/admin/db-access/passkey-verify', requireAuth, requireRole('admin'), (req, res) => {
+    const user = dbGet('SELECT email FROM users WHERE id = ?', [req.session.userId]);
+    if (!user || user.email !== ADMIN_EMAIL) {
+        return res.status(403).json({ error: 'Only main admin' });
+    }
+
+    const expectedChallenge = req.session.dbPasskeyChallenge;
+    if (!expectedChallenge) {
+        return res.status(400).json({ error: 'No passkey challenge in progress' });
+    }
+    delete req.session.dbPasskeyChallenge;
+
+    const { id } = req.body;
+    const passkey = dbGet('SELECT * FROM passkeys WHERE credential_id = ? AND user_id = ?', [id, req.session.userId]);
+    if (!passkey) {
+        return res.status(401).json({ error: 'Passkey не знайдено' });
+    }
+
+    // Update passkey usage
+    dbRun("UPDATE passkeys SET last_used_at = datetime('now'), counter = counter + 1 WHERE id = ?", [passkey.id]);
+
+    // Grant DB session
     req.session.dbVerified = true;
     req.session.dbVerifiedAt = Date.now();
     res.json({ success: true, expiresIn: DB_SESSION_TTL });

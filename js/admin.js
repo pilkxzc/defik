@@ -1683,10 +1683,10 @@ async function _checkSecureAccess(tabKey, containerId) {
                 _showSecureContent(tabKey, container);
                 _startSecureHeartbeat(tabKey, container);
                 return true;
-            } else if (!data.has2FA && !data.hasAccessKey) {
+            } else if (!data.has2FA && !data.hasAccessKey && !data.hasPasskeys) {
                 _showSecureNoAuth(tabKey, container);
             } else {
-                _showSecureVerify(tabKey, container, data.has2FA, data.hasAccessKey);
+                _showSecureVerify(tabKey, container, data.has2FA, data.hasAccessKey, data.hasPasskeys);
             }
             return false;
         }
@@ -1735,7 +1735,7 @@ function _startSecureHeartbeat(tabKey, container) {
             if (!res.ok) {
                 // Session expired
                 _stopSecureHeartbeat(tabKey);
-                _showSecureVerify(tabKey, container, true, true);
+                _showSecureVerify(tabKey, container, true, true, true);
                 showNotification('Сесія доступу закінчилась', 'warning');
             }
         } catch (e) { /* ignore */ }
@@ -1812,11 +1812,14 @@ function _showSecureNoAuth(tabKey, container) {
     overlay.style.display = 'flex';
 }
 
-function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
+function _showSecureVerify(tabKey, container, has2FA, hasAccessKey, hasPasskeys) {
     const existingOverlay = container.querySelector('.db-access-overlay');
     if (existingOverlay) existingOverlay.remove();
 
     const label = tabKey === 'database' ? 'бази даних' : 'бекапів';
+    // Determine default active tab
+    const defaultMode = has2FA ? '2fa' : hasPasskeys ? 'passkey' : 'key';
+
     const overlay = document.createElement('div');
     overlay.className = 'db-access-overlay';
     overlay.innerHTML = `
@@ -1828,18 +1831,19 @@ function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
             </div>
             <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Підтвердження доступу</h2>
             <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:4px;">
-                Введіть код для доступу до ${label}.
+                Підтвердіть свою особу для доступу до ${label}.
             </p>
             <p style="color:var(--text-tertiary);font-size:12px;margin-bottom:24px;">Сесія активна 5 хвилин</p>
 
             <!-- Tab switcher -->
             <div style="display:flex;gap:4px;background:var(--surface-secondary);border-radius:10px;padding:4px;margin-bottom:20px;" id="secVerifyTabs_${tabKey}">
-                ${has2FA ? `<button class="sv-tab active" data-mode="2fa" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;background:var(--accent-primary);color:white;">2FA код</button>` : ''}
-                ${hasAccessKey ? `<button class="sv-tab${!has2FA ? ' active' : ''}" data-mode="key" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;${has2FA ? 'background:transparent;color:var(--text-secondary);' : 'background:var(--accent-primary);color:white;'}">Ключ доступу</button>` : ''}
+                ${has2FA ? `<button class="sv-tab${defaultMode === '2fa' ? ' active' : ''}" data-mode="2fa" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;${defaultMode === '2fa' ? 'background:var(--accent-primary);color:white;' : 'background:transparent;color:var(--text-secondary);'}">2FA</button>` : ''}
+                ${hasPasskeys ? `<button class="sv-tab${defaultMode === 'passkey' ? ' active' : ''}" data-mode="passkey" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;${defaultMode === 'passkey' ? 'background:var(--accent-primary);color:white;' : 'background:transparent;color:var(--text-secondary);'}">Passkey</button>` : ''}
+                ${hasAccessKey ? `<button class="sv-tab${defaultMode === 'key' ? ' active' : ''}" data-mode="key" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;${defaultMode === 'key' ? 'background:var(--accent-primary);color:white;' : 'background:transparent;color:var(--text-secondary);'}">Ключ</button>` : ''}
             </div>
 
             <!-- 2FA input -->
-            <div id="secVerify2fa_${tabKey}" style="${has2FA ? '' : 'display:none;'}">
+            <div id="secVerify2fa_${tabKey}" style="${defaultMode === '2fa' ? '' : 'display:none;'}">
                 <div style="display:flex;gap:12px;align-items:center;">
                     <input type="text" id="secCode2fa_${tabKey}" maxlength="6" placeholder="000000"
                         style="width:160px;padding:14px 20px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;font-size:20px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;"
@@ -1851,8 +1855,20 @@ function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
                 </div>
             </div>
 
+            <!-- Passkey -->
+            <div id="secVerifyPasskey_${tabKey}" style="${defaultMode === 'passkey' ? '' : 'display:none;'}">
+                <button onclick="_submitSecureVerify('${tabKey}','passkey')" id="secPasskeyBtn_${tabKey}"
+                    style="padding:16px 36px;background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);border:none;border-radius:14px;color:white;font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:0.2s;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/><path d="M5 19.5C5.5 18 6 15 6 12"/><circle cx="12" cy="12" r="2"/>
+                        <path d="M21 12c0 3-2 6-4 8"/><path d="M15 6.2c1.5.7 2.8 2 3.5 3.5"/>
+                    </svg>
+                    Підтвердити Passkey
+                </button>
+            </div>
+
             <!-- Access Key input -->
-            <div id="secVerifyKey_${tabKey}" style="${!has2FA && hasAccessKey ? '' : 'display:none;'}">
+            <div id="secVerifyKey_${tabKey}" style="${defaultMode === 'key' ? '' : 'display:none;'}">
                 <div style="display:flex;gap:12px;align-items:center;">
                     <input type="password" id="secCodeKey_${tabKey}" placeholder="Ключ доступу"
                         style="width:240px;padding:14px 20px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;font-size:14px;font-weight:600;outline:none;">
@@ -1864,12 +1880,6 @@ function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
             </div>
 
             <p id="secVerifyError_${tabKey}" style="color:#EF4444;font-size:13px;margin-top:12px;display:none;"></p>
-
-            <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);width:100%;max-width:400px;">
-                <button onclick="openDbAccessManagement()" style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;">
-                    Керувати доступом адмінів
-                </button>
-            </div>
         </div>
     `;
     Array.from(container.children).forEach(ch => ch.style.display = 'none');
@@ -1888,9 +1898,15 @@ function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
             btn.style.color = 'white';
             btn.classList.add('active');
             const mode = btn.dataset.mode;
+            ['2fa', 'Passkey', 'Key'].forEach(s => {
+                const el = document.getElementById(`secVerify${s === '2fa' ? '2fa' : s}_${tabKey}`);
+                if (el) el.style.display = (mode === s.toLowerCase() || (s === '2fa' && mode === '2fa')) ? '' : 'none';
+            });
             const fa = document.getElementById(`secVerify2fa_${tabKey}`);
+            const pk = document.getElementById(`secVerifyPasskey_${tabKey}`);
             const key = document.getElementById(`secVerifyKey_${tabKey}`);
             if (fa) fa.style.display = mode === '2fa' ? '' : 'none';
+            if (pk) pk.style.display = mode === 'passkey' ? '' : 'none';
             if (key) key.style.display = mode === 'key' ? '' : 'none';
         });
     });
@@ -1904,19 +1920,92 @@ function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
         input2fa.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') _submitSecureVerify(tabKey, '2fa');
         });
-        if (has2FA) setTimeout(() => input2fa.focus(), 100);
+        if (defaultMode === '2fa') setTimeout(() => input2fa.focus(), 100);
     }
     const inputKey = document.getElementById(`secCodeKey_${tabKey}`);
     if (inputKey) {
         inputKey.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') _submitSecureVerify(tabKey, 'key');
         });
-        if (!has2FA && hasAccessKey) setTimeout(() => inputKey.focus(), 100);
+        if (defaultMode === 'key') setTimeout(() => inputKey.focus(), 100);
     }
 }
 
 async function _submitSecureVerify(tabKey, mode) {
     const errEl = document.getElementById(`secVerifyError_${tabKey}`);
+    errEl.style.display = 'none';
+
+    // Passkey flow — uses WebAuthn API
+    if (mode === 'passkey') {
+        try {
+            const btn = document.getElementById(`secPasskeyBtn_${tabKey}`);
+            if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+            // Get challenge from server
+            const optRes = await fetch('/api/admin/db-access/passkey-options', { method: 'POST' });
+            const options = await optRes.json();
+            if (!optRes.ok) {
+                errEl.textContent = options.error || 'Помилка passkey';
+                errEl.style.display = 'block';
+                if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+                return;
+            }
+
+            // Convert base64url to ArrayBuffer
+            options.challenge = _b64urlToBuffer(options.challenge);
+            if (options.allowCredentials) {
+                options.allowCredentials = options.allowCredentials.map(c => ({
+                    ...c, id: _b64urlToBuffer(c.id)
+                }));
+            }
+
+            // Trigger WebAuthn
+            const credential = await navigator.credentials.get({ publicKey: options });
+
+            // Send response to server
+            const verifyRes = await fetch('/api/admin/db-access/passkey-verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: credential.id,
+                    rawId: _bufferToB64url(credential.rawId),
+                    response: {
+                        authenticatorData: _bufferToB64url(credential.response.authenticatorData),
+                        clientDataJSON: _bufferToB64url(credential.response.clientDataJSON),
+                        signature: _bufferToB64url(credential.response.signature)
+                    },
+                    type: credential.type
+                })
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) {
+                errEl.textContent = verifyData.error || 'Passkey верифікація не вдалась';
+                errEl.style.display = 'block';
+                if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+                return;
+            }
+
+            // Success
+            const containerId = tabKey === 'database' ? 'tab-database' : 'tab-backup';
+            const cont = document.getElementById(containerId);
+            _showSecureContent(tabKey, cont);
+            _startSecureHeartbeat(tabKey, cont);
+            if (tabKey === 'database') loadDatabaseTables();
+            else loadBackupTab();
+            return;
+        } catch (err) {
+            if (err.name === 'NotAllowedError') {
+                errEl.textContent = 'Passkey скасовано';
+            } else {
+                errEl.textContent = 'Помилка Passkey: ' + (err.message || err);
+            }
+            errEl.style.display = 'block';
+            const btn = document.getElementById(`secPasskeyBtn_${tabKey}`);
+            if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+            return;
+        }
+    }
+
     let body = {};
 
     if (mode === '2fa') {
@@ -2198,6 +2287,22 @@ function _escHtml(str) {
     const d = document.createElement('div');
     d.textContent = str || '';
     return d.innerHTML;
+}
+
+function _b64urlToBuffer(b64url) {
+    const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+    const bin = atob(b64 + pad);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+}
+
+function _bufferToB64url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 // Load list of tables
