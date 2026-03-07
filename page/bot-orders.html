@@ -198,10 +198,10 @@
         /* Order chart modal */
         .chart-overlay {
             display: none; position: fixed;
-            top: 60px; left: 80px; width: 1000px; height: 600px;
-            min-width: 500px; min-height: 350px;
+            top: 60px; left: 80px; width: 680px; height: 420px;
+            min-width: 380px; min-height: 260px;
             background: #0e0e0e; border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
             z-index: 1000; flex-direction: column; overflow: hidden;
         }
         .chart-overlay.open { display: flex; }
@@ -211,38 +211,31 @@
             border-radius: 0; border: none;
         }
         .chart-overlay-header {
-            display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+            display: flex; align-items: center; gap: 6px; padding: 6px 10px;
             border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
-            cursor: grab; user-select: none;
+            cursor: grab; user-select: none; flex-wrap: wrap;
         }
         .chart-overlay-header:active { cursor: grabbing; }
         .chart-overlay-close {
-            width: 28px; height: 28px; border-radius: 50%; border: none;
+            width: 24px; height: 24px; border-radius: 50%; border: none;
             background: rgba(255,255,255,0.06); color: var(--text-secondary);
             cursor: pointer; display: flex; align-items: center; justify-content: center;
-            font-size: 16px; transition: 0.15s; flex-shrink: 0;
+            font-size: 14px; transition: 0.15s; flex-shrink: 0;
         }
         .chart-overlay-close:hover { background: rgba(239,68,68,0.2); color: #EF4444; }
-        .chart-fullscreen-btn {
-            width: 28px; height: 28px; border-radius: 50%; border: none;
+        .chart-fullscreen-btn, .chart-pin-btn, .chart-toggle-info-btn {
+            width: 24px; height: 24px; border-radius: 50%; border: none;
             background: rgba(255,255,255,0.06); color: var(--text-secondary);
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             transition: 0.15s; flex-shrink: 0;
         }
-        .chart-fullscreen-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
-        .chart-pin-btn {
-            width: 28px; height: 28px; border-radius: 50%; border: none;
-            background: rgba(255,255,255,0.06); color: var(--text-secondary);
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: 0.15s; flex-shrink: 0;
-        }
-        .chart-pin-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+        .chart-fullscreen-btn:hover, .chart-pin-btn:hover, .chart-toggle-info-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
         .chart-pin-btn.pinned { background: rgba(139,92,246,0.2); color: #C4B5FD; }
         .chart-overlay.pinned { border-color: rgba(139,92,246,0.3); }
         .chart-overlay.pinned .chart-overlay-header { cursor: default; }
         .chart-overlay.pinned .chart-resize-handle { display: none; }
-        .chart-overlay-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .chart-tf-group { display: flex; gap: 2px; margin-left: 12px; flex-shrink: 0; flex-wrap: wrap; max-width: 420px; }
+        .chart-overlay-title { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px; flex-shrink: 1; min-width: 0; overflow: hidden; }
+        .chart-tf-group { display: flex; gap: 1px; margin-left: 4px; flex-shrink: 0; flex-wrap: wrap; max-width: 380px; }
         .chart-tf-btn {
             padding: 3px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.06);
             background: rgba(255,255,255,0.03); color: var(--text-secondary);
@@ -269,29 +262,31 @@
             border-top-color: #C4B5FD; border-radius: 50%; animation: spin 0.7s linear infinite;
         }
         .chart-info-panel {
-            width: 240px; flex-shrink: 0; padding: 14px; overflow-y: auto;
+            width: 200px; flex-shrink: 0; padding: 10px; overflow-y: auto;
             border-left: 1px solid rgba(255,255,255,0.08);
-            scrollbar-width: none;
+            scrollbar-width: none; transition: width 0.2s, padding 0.2s, opacity 0.2s;
         }
+        .chart-info-panel.hidden { width: 0; padding: 0; opacity: 0; overflow: hidden; border: none; }
         .chart-info-panel::-webkit-scrollbar { display: none; }
-        .chart-info-panel h4 { font-size: 12px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-        .info-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
-        .info-label { color: var(--text-tertiary); }
-        .info-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .chart-info-panel h4 { font-size: 10px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .info-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 11px; }
+        .info-label { color: var(--text-tertiary); font-size: 10px; }
+        .info-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+        .chart-toggle-info-btn.active { background: rgba(139,92,246,0.2); color: #C4B5FD; }
         .chart-crosshair-info {
-            position: absolute; top: 8px; left: 12px; z-index: 3;
-            font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);
-            pointer-events: none; display: flex; gap: 12px;
+            position: absolute; top: 4px; left: 8px; z-index: 3;
+            font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);
+            pointer-events: none; display: flex; gap: 6px;
         }
         /* Resize handle */
         .chart-resize-handle {
-            position: absolute; bottom: 0; right: 0; width: 18px; height: 18px;
+            position: absolute; bottom: 0; right: 0; width: 14px; height: 14px;
             cursor: nwse-resize; z-index: 5;
         }
         .chart-resize-handle::after {
-            content: ''; position: absolute; bottom: 4px; right: 4px;
-            width: 8px; height: 8px; border-right: 2px solid rgba(255,255,255,0.15);
-            border-bottom: 2px solid rgba(255,255,255,0.15);
+            content: ''; position: absolute; bottom: 3px; right: 3px;
+            width: 6px; height: 6px; border-right: 2px solid rgba(255,255,255,0.12);
+            border-bottom: 2px solid rgba(255,255,255,0.12);
         }
         .chart-overlay.fullscreen .chart-resize-handle { display: none; }
 
@@ -466,24 +461,33 @@
             <button class="chart-tf-btn" data-tf="1w">1w</button>
             <button class="chart-tf-btn" data-tf="1M">1M</button>
         </div>
-        <button class="chart-tf-btn" id="chartShowAllOrders" style="margin-left:8px;gap:4px;display:inline-flex;align-items:center;" title="Показати всі ордери">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Ордери
-        </button>
-        <button class="chart-tf-btn" id="chartShowLevels" style="margin-left:4px;gap:4px;display:inline-flex;align-items:center;" title="Рівні ордеру (ціна, стоп, середня)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="6" x2="22" y2="6"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="18" x2="22" y2="18"/></svg>
-            Рівні
-        </button>
-        <button class="chart-tf-btn" id="chartResetView" style="margin-left:4px;" title="Центрувати на ордер">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
-        </button>
+        <div style="display:flex;gap:2px;margin-left:4px;flex-shrink:0;">
+            <button class="chart-tf-btn" id="chartShowAllOrders" style="gap:3px;display:inline-flex;align-items:center;" title="Всі ордери на графіку">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                All
+            </button>
+            <button class="chart-tf-btn" id="chartShowLevels" style="gap:3px;display:inline-flex;align-items:center;" title="Рівні ордеру">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="6" x2="22" y2="6"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="18" x2="22" y2="18"/></svg>
+                Lvl
+            </button>
+            <button class="chart-tf-btn" id="chartShowVolume" style="gap:3px;display:inline-flex;align-items:center;" title="Обсяг">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="14" width="4" height="8"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="10" width="4" height="12"/></svg>
+                Vol
+            </button>
+            <button class="chart-tf-btn" id="chartResetView" title="Центрувати">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+            </button>
+        </div>
         <div style="flex:1;"></div>
-        <span id="chartOHLC" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);"></span>
-        <button class="chart-pin-btn" id="chartPinBtn" title="Закріпити вікно">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76z"/></svg>
+        <span id="chartOHLC" style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);"></span>
+        <button class="chart-toggle-info-btn active" id="chartToggleInfo" title="Панель деталей">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        </button>
+        <button class="chart-pin-btn" id="chartPinBtn" title="Закріпити">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76z"/></svg>
         </button>
         <button class="chart-fullscreen-btn" id="chartFullscreenBtn" title="На весь екран">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
         </button>
     </div>
     <div class="chart-overlay-body">
@@ -848,6 +852,8 @@
     let _chartKlines = [];       // full kline buffer
     let _showAllOrders = true;   // toggle for showing all orders
     let _showOrderLevels = true; // toggle for order price levels
+    let _showVolume = false;     // toggle for volume bars
+    let _showInfoPanel = true;   // toggle info side panel
     let _chartPinned = false;    // pin: lock drag/resize
     let _chartViewStart = 0;     // viewport: first visible kline index
     let _chartViewCount = 200;   // viewport: number of visible klines
@@ -869,7 +875,7 @@
         '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '8h': 28800000, '12h': 43200000,
         '1d': 86400000, '3d': 259200000, '1w': 604800000, '1M': 2592000000
     };
-    const padTop = 24, padBottom = 30, padLeft = 8, padRight = 76;
+    const padTop = 18, padBottom = 22, padLeft = 6, padRight = 62;
 
     window.showOrderByIdx = function(idx) {
         if (filteredOrders[idx]) showOrderDetail(filteredOrders[idx]);
@@ -882,9 +888,9 @@
 
         const overlay = document.getElementById('chartOverlay');
         if (!wasOpen && !_chartFullscreen) {
-            // Center on screen
-            const w = Math.min(1000, window.innerWidth - 40);
-            const h = Math.min(600, window.innerHeight - 40);
+            // Center on screen — compact
+            const w = Math.min(680, window.innerWidth - 40);
+            const h = Math.min(420, window.innerHeight - 40);
             overlay.style.width = w + 'px';
             overlay.style.height = h + 'px';
             overlay.style.left = Math.max(0, (window.innerWidth - w) / 2) + 'px';
@@ -923,10 +929,11 @@
 
         // Set active TF button
         document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
-        const allBtn = document.getElementById('chartShowAllOrders');
-        allBtn.classList.toggle('active', _showAllOrders);
-        const levelsBtn = document.getElementById('chartShowLevels');
-        levelsBtn.classList.toggle('active', _showOrderLevels);
+        document.getElementById('chartShowAllOrders').classList.toggle('active', _showAllOrders);
+        document.getElementById('chartShowLevels').classList.toggle('active', _showOrderLevels);
+        document.getElementById('chartShowVolume').classList.toggle('active', _showVolume);
+        document.getElementById('chartToggleInfo').classList.toggle('active', _showInfoPanel);
+        document.getElementById('chartInfoPanel').classList.toggle('hidden', !_showInfoPanel);
 
         // If chart was already open with same symbol — just navigate, don't reload
         if (wasOpen && prevSymbol === o.symbol && _chartKlines.length > 0) {
@@ -1113,14 +1120,35 @@
         // Time labels
         const timeStep = Math.max(1, Math.floor(visible.length / 8));
         ctx.fillStyle = '#4a4a4a';
-        ctx.font = '9px "JetBrains Mono", monospace';
+        ctx.font = '8px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         for (let i = 0; i < visible.length; i += timeStep) {
             const dt = new Date(visible[i].time);
-            const label = _chartTF === '1d'
-                ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' })
-                : dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
-            ctx.fillText(label, idxToX(i), H - 6);
+            let label;
+            if (_chartTF === '1d' || _chartTF === '3d' || _chartTF === '1w' || _chartTF === '1M') {
+                label = dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' });
+            } else if (_chartTF === '1s') {
+                label = dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+            } else {
+                label = dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
+            }
+            ctx.fillText(label, idxToX(i), H - 5);
+        }
+
+        // Volume bars (behind candles)
+        if (_showVolume) {
+            let maxVol = 0;
+            visible.forEach(k => { if (k.volume > maxVol) maxVol = k.volume; });
+            if (maxVol > 0) {
+                const volH = chartH * 0.18; // 18% of chart height
+                visible.forEach((k, i) => {
+                    const x = idxToX(i);
+                    const isUp = k.close >= k.open;
+                    const bh = Math.max(1, (k.volume / maxVol) * volH);
+                    ctx.fillStyle = isUp ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+                    ctx.fillRect(Math.round(x - bodyW/2), H - padBottom - bh, Math.round(bodyW), bh);
+                });
+            }
         }
 
         // Candles
@@ -1146,6 +1174,28 @@
                 ctx.fillRect(Math.round(x - bodyW/2), Math.round(bodyTop), Math.round(bodyW), Math.round(bodyH));
             }
         });
+
+        // ── Current price line (last visible candle close) ──
+        const lastK = visible[visible.length - 1];
+        if (lastK) {
+            const cpY = priceToY(lastK.close);
+            const cpIsUp = lastK.close >= lastK.open;
+            if (cpY >= padTop && cpY <= H - padBottom) {
+                ctx.setLineDash([2, 2]);
+                ctx.strokeStyle = cpIsUp ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(padLeft, Math.round(cpY)+0.5); ctx.lineTo(W - padRight, Math.round(cpY)+0.5); ctx.stroke();
+                ctx.setLineDash([]);
+                // Price tag
+                ctx.fillStyle = cpIsUp ? '#10B981' : '#EF4444';
+                ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                const cpLbl = fmtPrice(lastK.close);
+                const cpLw = ctx.measureText(cpLbl).width + 6;
+                ctx.fillRect(W - padRight + 2, cpY - 7, cpLw, 14);
+                ctx.fillStyle = '#0a0a0a'; ctx.textAlign = 'left';
+                ctx.fillText(cpLbl, W - padRight + 5, cpY + 3);
+            }
+        }
 
         // ── Order price levels (limit, stop, avg) ──
         if (_showOrderLevels && _chartOrder) {
@@ -1206,27 +1256,45 @@
                 let closestIdx = -1, dist = Infinity;
                 visible.forEach((k, i) => { const d = Math.abs(k.time - oTime); if (d < dist) { dist = d; closestIdx = i; } });
                 if (closestIdx < 0) return;
-                const oPrice = o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : o.price);
+                // Use price where order was placed (limit price), fallback to avg/stop
+                const oPrice = parseFloat(o.price) > 0 ? parseFloat(o.price) : (o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : 0));
                 if (!oPrice || oPrice <= 0) return;
                 const ox = idxToX(closestIdx);
                 const oy = priceToY(oPrice);
-                if (oy < padTop - 5 || oy > H - padBottom + 5) return;
+                if (oy < padTop - 8 || oy > H - padBottom + 8) return;
                 const isBuy = o.side === 'BUY';
-                // Small triangle
-                ctx.fillStyle = isBuy ? 'rgba(34,211,238,0.5)' : 'rgba(245,158,11,0.5)';
+                const isFilled = o.status === 'FILLED';
+                const markerColor = isBuy ? '#22D3EE' : '#F59E0B';
+                const alpha = isFilled ? '99' : '55';
+
+                // Triangle marker
+                ctx.fillStyle = markerColor + alpha;
                 ctx.beginPath();
                 if (isBuy) {
-                    ctx.moveTo(ox, oy - 6); ctx.lineTo(ox - 4, oy + 2); ctx.lineTo(ox + 4, oy + 2);
+                    ctx.moveTo(ox, oy - 7); ctx.lineTo(ox - 4, oy); ctx.lineTo(ox + 4, oy);
                 } else {
-                    ctx.moveTo(ox, oy + 6); ctx.lineTo(ox - 4, oy - 2); ctx.lineTo(ox + 4, oy - 2);
+                    ctx.moveTo(ox, oy + 7); ctx.lineTo(ox - 4, oy); ctx.lineTo(ox + 4, oy);
                 }
                 ctx.fill();
+
+                // Short label (only when zoomed in enough)
+                if (candleW > 12) {
+                    ctx.font = '8px "JetBrains Mono", monospace';
+                    ctx.fillStyle = markerColor + alpha;
+                    ctx.textAlign = 'center';
+                    const shortType = (o.type || '').replace('TAKE_PROFIT', 'TP').replace('STOP_MARKET', 'STP').replace('LIMIT', 'LMT').replace('MARKET', 'MKT').replace(/_/g, '');
+                    ctx.fillText(shortType, ox, isBuy ? oy - 10 : oy + 15);
+                }
             });
         }
 
         // ── Main order marker (highlighted) ──
         const orderTime = _chartOrder.time || _chartOrder.updateTime || 0;
-        const orderPrice = _chartOrder.avgPrice > 0 ? _chartOrder.avgPrice : (_chartOrder.stopPrice > 0 ? _chartOrder.stopPrice : _chartOrder.price);
+        // Use the price where the order was actually placed
+        const oPlacePrice = parseFloat(_chartOrder.price) || 0;
+        const oFillPrice = parseFloat(_chartOrder.avgPrice) || 0;
+        const oStopP = parseFloat(_chartOrder.stopPrice) || 0;
+        const orderPrice = oPlacePrice > 0 ? oPlacePrice : (oFillPrice > 0 ? oFillPrice : oStopP);
         let orderIdx = -1, minDist = Infinity;
         visible.forEach((k, i) => { const d = Math.abs(k.time - orderTime); if (d < minDist) { minDist = d; orderIdx = i; } });
 
@@ -1234,42 +1302,59 @@
             const ox = idxToX(orderIdx);
             const oy = priceToY(orderPrice);
             const isBuy = _chartOrder.side === 'BUY';
+            const mColor = isBuy ? '#22D3EE' : '#F59E0B';
 
-            // Vertical dashed line
-            ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = 'rgba(196,181,253,0.4)';
+            // Vertical dashed line at order time
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = 'rgba(196,181,253,0.3)';
             ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(Math.round(ox)+0.5, padTop); ctx.lineTo(Math.round(ox)+0.5, H - padBottom); ctx.stroke();
             ctx.setLineDash([]);
 
             // Horizontal price line
             ctx.setLineDash([3, 3]);
-            ctx.strokeStyle = isBuy ? 'rgba(34,211,238,0.5)' : 'rgba(245,158,11,0.5)';
+            ctx.strokeStyle = mColor + '66';
             ctx.beginPath(); ctx.moveTo(padLeft, Math.round(oy)+0.5); ctx.lineTo(W - padRight, Math.round(oy)+0.5); ctx.stroke();
             ctx.setLineDash([]);
 
-            // Price label
-            ctx.fillStyle = isBuy ? '#22D3EE' : '#F59E0B';
+            // Price label on right axis
+            ctx.fillStyle = mColor;
+            ctx.font = 'bold 9px "JetBrains Mono", monospace';
             const pLabel = '$' + fmtPrice(orderPrice);
-            ctx.font = 'bold 10px "JetBrains Mono", monospace';
-            const lw = ctx.measureText(pLabel).width + 8;
-            ctx.fillRect(W - padRight + 2, oy - 8, lw, 16);
+            const lw = ctx.measureText(pLabel).width + 6;
+            ctx.fillRect(W - padRight + 2, oy - 7, lw, 14);
             ctx.fillStyle = '#0a0a0a'; ctx.textAlign = 'left';
-            ctx.fillText(pLabel, W - padRight + 6, oy + 4);
+            ctx.fillText(pLabel, W - padRight + 5, oy + 3);
 
             // Diamond marker
+            const ms = Math.min(7, Math.max(4, candleW * 0.5));
             ctx.save(); ctx.translate(ox, oy); ctx.rotate(Math.PI / 4);
-            ctx.fillStyle = isBuy ? 'rgba(34,211,238,0.25)' : 'rgba(245,158,11,0.25)';
-            ctx.strokeStyle = isBuy ? '#22D3EE' : '#F59E0B';
-            ctx.lineWidth = 2;
-            ctx.fillRect(-9, -9, 18, 18); ctx.strokeRect(-9, -9, 18, 18);
+            ctx.fillStyle = mColor + '33';
+            ctx.strokeStyle = mColor;
+            ctx.lineWidth = 1.5;
+            ctx.fillRect(-ms, -ms, ms*2, ms*2); ctx.strokeRect(-ms, -ms, ms*2, ms*2);
             ctx.restore();
 
-            // Label
-            ctx.fillStyle = isBuy ? '#22D3EE' : '#F59E0B';
-            ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+            // Label above/below
+            ctx.fillStyle = mColor;
+            ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(_chartOrder.side + ' ' + (_chartOrder.type || '').replace(/_/g, ' '), ox, oy - 18);
+            const shortType = (_chartOrder.type || '').replace('TAKE_PROFIT', 'TP').replace('STOP_MARKET', 'STOP').replace(/_/g, ' ');
+            ctx.fillText(_chartOrder.side + ' ' + shortType, ox, isBuy ? oy - ms - 6 : oy + ms + 12);
+
+            // If filled at a different price — show fill price as a small dot
+            if (oFillPrice > 0 && Math.abs(oFillPrice - orderPrice) / orderPrice > 0.0001) {
+                const fillY = priceToY(oFillPrice);
+                if (fillY >= padTop && fillY <= H - padBottom) {
+                    ctx.beginPath();
+                    ctx.arc(ox, fillY, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#10B981';
+                    ctx.fill();
+                    ctx.font = '8px "JetBrains Mono", monospace';
+                    ctx.fillStyle = '#10B981';
+                    ctx.fillText('fill $' + fmtPrice(oFillPrice), ox, fillY - 6);
+                }
+            }
         }
 
         // ── Crosshair ──
@@ -1286,12 +1371,12 @@
             // Crosshair price label
             const crossPrice = maxP - (_mouseY - padTop) / chartH * range;
             ctx.fillStyle = '#2a2a2a';
-            const cpLabel = '$' + fmtPrice(crossPrice);
-            ctx.font = '10px "JetBrains Mono", monospace';
-            const cpw = ctx.measureText(cpLabel).width + 8;
-            ctx.fillRect(W - padRight + 2, _mouseY - 8, cpw, 16);
+            const cpLabel2 = '$' + fmtPrice(crossPrice);
+            ctx.font = '9px "JetBrains Mono", monospace';
+            const cpw = ctx.measureText(cpLabel2).width + 6;
+            ctx.fillRect(W - padRight + 2, _mouseY - 7, cpw, 14);
             ctx.fillStyle = '#ccc'; ctx.textAlign = 'left';
-            ctx.fillText(cpLabel, W - padRight + 6, _mouseY + 3);
+            ctx.fillText(cpLabel2, W - padRight + 5, _mouseY + 3);
 
             // OHLCV info
             const crossIdx = Math.floor((_mouseX - padLeft) / candleW);
@@ -1300,14 +1385,16 @@
                 const isUp = k.close >= k.open;
                 const color = isUp ? '#10B981' : '#EF4444';
                 const dt = new Date(k.time);
-                const dateStr = dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
+                const dateStr = _chartTF === '1s'
+                    ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+                    : dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' });
                 document.getElementById('chartCrosshair').innerHTML =
                     `<span style="color:var(--text-tertiary);">${dateStr}</span>` +
-                    `<span>O <span style="color:${color};">${fmtPrice(k.open)}</span></span>` +
-                    `<span>H <span style="color:${color};">${fmtPrice(k.high)}</span></span>` +
-                    `<span>L <span style="color:${color};">${fmtPrice(k.low)}</span></span>` +
-                    `<span>C <span style="color:${color};">${fmtPrice(k.close)}</span></span>` +
-                    `<span style="color:var(--text-tertiary);">V ${k.volume >= 1000 ? (k.volume/1000).toFixed(1)+'k' : k.volume.toFixed(1)}</span>`;
+                    `<span>O<span style="color:${color};">${fmtPrice(k.open)}</span></span>` +
+                    `<span>H<span style="color:${color};">${fmtPrice(k.high)}</span></span>` +
+                    `<span>L<span style="color:${color};">${fmtPrice(k.low)}</span></span>` +
+                    `<span>C<span style="color:${color};">${fmtPrice(k.close)}</span></span>` +
+                    `<span style="color:var(--text-tertiary);">V${k.volume >= 1e6 ? (k.volume/1e6).toFixed(1)+'M' : k.volume >= 1000 ? (k.volume/1000).toFixed(1)+'k' : k.volume.toFixed(1)}</span>`;
             }
         } else if (!_isDragging) {
             document.getElementById('chartCrosshair').innerHTML = '';
@@ -1486,6 +1573,21 @@
         if (_chartKlines.length > 0) drawChart();
     });
 
+    // Toggle volume
+    document.getElementById('chartShowVolume').addEventListener('click', function() {
+        _showVolume = !_showVolume;
+        this.classList.toggle('active', _showVolume);
+        if (_chartKlines.length > 0) drawChart();
+    });
+
+    // Toggle info panel
+    document.getElementById('chartToggleInfo').addEventListener('click', function() {
+        _showInfoPanel = !_showInfoPanel;
+        this.classList.toggle('active', _showInfoPanel);
+        document.getElementById('chartInfoPanel').classList.toggle('hidden', !_showInfoPanel);
+        setTimeout(() => { if (_chartKlines.length > 0) drawChart(); }, 220);
+    });
+
     // Reset view (center on order + reset price scale)
     document.getElementById('chartResetView').addEventListener('click', function() {
         _priceScale = 1;
@@ -1568,8 +1670,8 @@
     window.addEventListener('mousemove', function(e) {
         if (_modalResizing) {
             const overlay = document.getElementById('chartOverlay');
-            const w = Math.max(500, _resizeStartW + (e.clientX - _resizeStartX));
-            const h = Math.max(350, _resizeStartH + (e.clientY - _resizeStartY));
+            const w = Math.max(380, _resizeStartW + (e.clientX - _resizeStartX));
+            const h = Math.max(260, _resizeStartH + (e.clientY - _resizeStartY));
             overlay.style.width = w + 'px';
             overlay.style.height = h + 'px';
             if (_chartKlines.length > 0) drawChart();
