@@ -933,6 +933,32 @@ router.post('/api/bots/binance', requireAuth, requireRole('admin', 'moderator'),
     }
 });
 
+// ── Emergency stop all bots (admin only) ──
+
+router.post('/api/bots/emergency-stop', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        // 1. Deactivate all bots
+        dbRun('UPDATE bots SET is_active = 0');
+
+        // 2. Remove all active subscriptions
+        const subs = dbAll("SELECT id, bot_id, user_id FROM bot_subscribers WHERE status = 'active'");
+        dbRun("UPDATE bot_subscribers SET status = 'stopped'");
+
+        // 3. Log the action
+        dbRun(
+            'INSERT INTO admin_audit_log (admin_id, action, details, created_at) VALUES (?, ?, ?, datetime(\'now\'))',
+            [req.session.userId, 'emergency_stop', JSON.stringify({ botsDeactivated: true, subscriptionsStopped: subs.length })]
+        );
+
+        console.warn(`[EMERGENCY STOP] Admin ${req.session.userId} stopped all bots. ${subs.length} subscriptions deactivated.`);
+
+        res.json({ ok: true, subscriptionsStopped: subs.length });
+    } catch (error) {
+        console.error('Emergency stop error:', error);
+        res.status(500).json({ error: 'Failed to execute emergency stop' });
+    }
+});
+
 // ── Symbol visibility (admin only, must be before :id routes) ──
 
 router.patch('/api/bots/symbol-visibility', requireAuth, requireRole('admin', 'moderator'), (req, res) => {

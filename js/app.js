@@ -2915,3 +2915,11 @@ window.openBotDetails = window.openBotDetails || function(botId) {
     script.defer = true;
     document.head.appendChild(script);
 })();
+
+// Emergency Stop — load on all pages (shows only for admins)
+(function() {
+    const script = document.createElement('script');
+    script.src = '/js/emergency-stop.js';
+    script.defer = true;
+    document.head.appendChild(script);
+})();
