@@ -6943,8 +6943,8 @@
                         const color = ed.color || '#888';
                         const figs = [];
 
-                        // Dashed line
-                        figs.push({ type: 'line', attrs: { coordinates: [c1, c2] }, styles: { style: 'dashed', color, size: 1.5, dashedValue: [4, 3] } });
+                        // Dashed line (ignoreEvent so it doesn't block chart scrolling)
+                        figs.push({ type: 'line', attrs: { coordinates: [c1, c2] }, styles: { style: 'dashed', color, size: 1.5, dashedValue: [4, 3] }, ignoreEvent: true });
 
                         // Shadow: long (green) → upward toward candles, short (red) → downward toward candles
                         const isLong = ed.isLong;
@@ -6958,6 +6958,7 @@
                             const rgb = color === '#10B981' ? '16,185,129' : '239,68,68';
                             figs.push({
                                 type: 'polygon',
+                                ignoreEvent: true,
                                 attrs: { coordinates: [
                                     { x: c1.x, y: c1.y + y1 }, { x: c2.x, y: c2.y + y1 },
                                     { x: c2.x, y: c2.y + y2 }, { x: c1.x, y: c1.y + y2 },
@@ -6968,12 +6969,12 @@
 
                         // Endpoint dots
                         if (ed.isFirst) {
-                            figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' } });
-                            figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 3 }, styles: { style: 'fill', color } });
+                            figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' }, ignoreEvent: true });
+                            figs.push({ type: 'circle', attrs: { x: c1.x, y: c1.y, r: 3 }, styles: { style: 'fill', color }, ignoreEvent: true });
                         }
                         if (ed.isLast) {
-                            figs.push({ type: 'circle', attrs: { x: c2.x, y: c2.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' } });
-                            figs.push({ type: 'circle', attrs: { x: c2.x, y: c2.y, r: 3 }, styles: { style: 'fill', color } });
+                            figs.push({ type: 'circle', attrs: { x: c2.x, y: c2.y, r: 4 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.55)' }, ignoreEvent: true });
+                            figs.push({ type: 'circle', attrs: { x: c2.x, y: c2.y, r: 3 }, styles: { style: 'fill', color }, ignoreEvent: true });
                         }
                         return figs;
                     }
@@ -7347,12 +7348,17 @@
                     openCount = isEntry ? 1 : 0;
                 }
             }
+            // Candle interval in seconds
+            const ivSec = klinesData.length > 1 ? klinesData[1].time - klinesData[0].time : 900;
+
             // Close last window
             if (curSide !== null) {
-                // If still has open entries, extend to last candle
-                const lastTime = openCount > 0 && klinesData.length > 0
-                    ? klinesData[klinesData.length - 1].time
-                    : curTo;
+                // If still has open entries, extend — but cap at 50 candle intervals past last trade
+                let lastTime = curTo;
+                if (openCount > 0 && klinesData.length > 0) {
+                    const chartEnd = klinesData[klinesData.length - 1].time;
+                    lastTime = Math.min(chartEnd, curTo + ivSec * 50);
+                }
                 posWindows.push({ from: curFrom, to: lastTime, trend: curSide === 'LONG' ? 1 : -1 });
             }
 
@@ -7362,8 +7368,6 @@
             const klinesEnd   = klinesData[klinesData.length - 1].time;
             const avgPrice    = klinesData.reduce((s, k) => s + k.close, 0) / klinesData.length;
             const lineOffset  = avgPrice * 0.0008;
-            // Candle interval in seconds (for gap-free inclusion of containing candle)
-            const ivSec = klinesData.length > 1 ? klinesData[1].time - klinesData[0].time : 900;
 
             const posWindowsRecent = posWindows
                 .filter(w => w.to >= klinesStart && w.from <= klinesEnd)
