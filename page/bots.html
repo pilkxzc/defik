@@ -2429,6 +2429,12 @@
                 el.classList.toggle('selected', Number(el.dataset.botId) === botId);
             });
 
+            // Remember which coin panels are open before re-render
+            const openPanels = new Set();
+            document.querySelectorAll('.detail-coin-stats.open').forEach(el => {
+                openPanels.add(el.id);
+            });
+
             const detailHtml = renderBotDetail(bot);
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
@@ -2436,12 +2442,17 @@
                 document.getElementById('botsDetailMobile').innerHTML = detailHtml;
                 const overlay = document.getElementById('botsDetailOverlay');
                 overlay.style.display = 'block';
-                // Force reflow for animation
                 overlay.offsetHeight;
                 overlay.classList.add('open');
             } else {
                 document.getElementById('botsDetail').innerHTML = detailHtml;
             }
+
+            // Restore open coin panels
+            openPanels.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('open');
+            });
         }
 
         function closeMobileDetail() {
