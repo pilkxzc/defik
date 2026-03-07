@@ -2061,6 +2061,18 @@
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                             <span class="bot-coin-name">Повне редагування</span>
                         </div>
+                        <a class="bot-coin-item" style="cursor:pointer;text-decoration:none;color:inherit;" href="/bot/${b.id}" onclick="event.stopPropagation()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-up)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            <span class="bot-coin-name" style="color:var(--color-up);">Графік Live</span>
+                        </a>
+                        <a class="bot-coin-item" style="cursor:pointer;text-decoration:none;color:inherit;" href="/bot-community-stats" onclick="event.stopPropagation()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            <span class="bot-coin-name" style="color:var(--accent-blue);">Статистика</span>
+                        </a>
+                        <div class="bot-coin-item" style="cursor:pointer;" onclick="event.stopPropagation(); if(confirm('Видалити бота «${b.name.replace(/'/g, "\\'")}»?')) deleteBot(${b.id})">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            <span class="bot-coin-name" style="color:#EF4444;">Видалити</span>
+                        </div>
                     </div>`;
             }
 
@@ -2524,7 +2536,7 @@
                         <div class="bots-filter-bar" style="padding:0;border:none;gap:3px;">
                             <button class="bots-filter-btn active" data-coin-filter="all" onclick="setCoinFilter('all',this)" style="padding:3px 8px;font-size:10px;">Усі</button>
                             <button class="bots-filter-btn" data-coin-filter="active" onclick="setCoinFilter('active',this)" style="padding:3px 8px;font-size:10px;"><span class="bots-filter-dot green"></span> Live</button>
-                            <button class="bots-filter-btn" data-coin-filter="inactive" onclick="setCoinFilter('inactive',this)" style="padding:3px 8px;font-size:10px;"><span class="bots-filter-dot red"></span> Очікує</button>
+                            <button class="bots-filter-btn" data-coin-filter="inactive" onclick="setCoinFilter('inactive',this)" style="padding:3px 8px;font-size:10px;"><span class="bots-filter-dot" style="background:var(--text-tertiary)"></span> Очікує</button>
                         </div>
                     </div>
                     <div id="detailCoinsList" style="display:flex;flex-direction:column;gap:4px;">
@@ -2588,20 +2600,7 @@
                         }).join('')}
                     </div>
                 </div>` : ''}
-                ${_isAdmin ? `<div class="detail-actions">
-                    <a class="card-action-btn btn-success" href="/bot/${b.id}">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Графік Live
-                    </a>
-                    <a class="card-action-btn btn-blue" href="/bot-community-stats">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                        Статистика
-                    </a>
-                    <button class="card-action-btn btn-danger" onclick="if(confirm('Видалити бота «${b.name}»?')) deleteBot(${b.id})">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        Видалити
-                    </button>
-                </div>` : ''}`;
+                `;
         }
 
         function selectBot(botId) {
