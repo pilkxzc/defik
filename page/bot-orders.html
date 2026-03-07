@@ -954,17 +954,21 @@
         const endTime = orderTime + 250 * intervalMs;
 
         try {
+            // 1s not available on futures — use spot API
+            const base = _chartTF === '1s'
+                ? 'https://api.binance.com/api/v3/klines'
+                : 'https://fapi.binance.com/fapi/v1/klines';
             // Fetch two batches to get ~500 bars
             const [r1, r2] = await Promise.all([
-                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=500`),
-                fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=500`)
+                fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=500`),
+                fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=500`)
             ]);
             const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
             const parseK = k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] });
-            // Merge and deduplicate by time
+            // Merge and deduplicate by time (handle error responses)
             const map = new Map();
-            (d1 || []).forEach(k => { const p = parseK(k); map.set(p.time, p); });
-            (d2 || []).forEach(k => { const p = parseK(k); map.set(p.time, p); });
+            if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+            if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
             _chartKlines = [...map.values()].sort((a, b) => a.time - b.time);
         } catch (e) {
             console.error('Chart klines error:', e);
@@ -997,18 +1001,21 @@
         _fetchingMore = true;
         const intervalMs = _tfMs[_chartTF] || 900000;
         const sym = (_chartOrder?.symbol) || symbol;
+        const base = _chartTF === '1s'
+            ? 'https://api.binance.com/api/v3/klines'
+            : 'https://fapi.binance.com/fapi/v1/klines';
         try {
             let url;
             if (direction === 'left') {
                 const earliest = _chartKlines[0].time;
-                url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&endTime=${earliest - 1}&limit=500`;
+                url = `${base}?symbol=${sym}&interval=${_chartTF}&endTime=${earliest - 1}&limit=500`;
             } else {
                 const latest = _chartKlines[_chartKlines.length - 1].time;
-                url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${latest + 1}&limit=500`;
+                url = `${base}?symbol=${sym}&interval=${_chartTF}&startTime=${latest + 1}&limit=500`;
             }
             const res = await fetch(url);
             const raw = await res.json();
-            if (raw && raw.length > 0) {
+            if (Array.isArray(raw) && raw.length > 0) {
                 const newK = raw.map(k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
                 const map = new Map();
                 _chartKlines.forEach(k => map.set(k.time, k));
