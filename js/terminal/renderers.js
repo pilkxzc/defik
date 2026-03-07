@@ -611,64 +611,67 @@ function _registerTradeMarkerOverlay() {
             createPointFigures({ overlay, coordinates }) {
                 const c = coordinates && coordinates[0];
                 if (!c) return [];
-                const data = overlay.extendData || {};
-                const isEntry = data.isEntry;
-                const isExit = data.isExit;
-                const isBuy = data.isBuy;
-                const figures = [];
+                const ed = overlay.extendData || {};
+                const count   = ed._count || 1;
+                const isLong  = ed._isLong !== undefined ? ed._isLong : ed.isBuy !== false;
+                const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
+                const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#22D3EE' : '#F59E0B');
+
+                // Invisible hitbox rect for easier clicking
+                const HIT = 14;
+                const hitbox = { type: 'rect', attrs: { x: c.x - HIT, y: c.y - HIT, width: HIT * 2, height: HIT * 2 }, styles: { style: 'fill', color: 'transparent', borderSize: 0 } };
+
+                // Grouped -> diamond with count
+                if (count > 1) {
+                    const dsz = 8;
+                    const cy = c.y - 8;
+                    const top    = { x: c.x,       y: cy - dsz };
+                    const right  = { x: c.x + dsz, y: cy };
+                    const bottom = { x: c.x,       y: cy + dsz };
+                    const left   = { x: c.x - dsz, y: cy };
+                    const ls = { color: '#8B5CF6', size: 1.5 };
+                    const dHit = { type: 'rect', attrs: { x: c.x - HIT, y: cy - HIT, width: HIT * 2, height: HIT * 2 }, styles: { style: 'fill', color: 'transparent', borderSize: 0 } };
+                    return [
+                        dHit,
+                        { type: 'line', attrs: { coordinates: [top, right] }, styles: ls },
+                        { type: 'line', attrs: { coordinates: [right, bottom] }, styles: ls },
+                        { type: 'line', attrs: { coordinates: [bottom, left] }, styles: ls },
+                        { type: 'line', attrs: { coordinates: [left, top] }, styles: ls },
+                        { type: 'text', attrs: { x: c.x, y: cy, text: String(count), align: 'center', baseline: 'middle' }, styles: { color: '#C4B5FD', size: 9, weight: '700', backgroundColor: 'transparent', borderColor: 'transparent', borderSize: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0, borderRadius: 0, family: 'Plus Jakarta Sans' } },
+                    ];
+                }
+
+                const below = isLong;
+                const sz = 6;
+                const alphaFill = isLong ? 'rgba(34,211,238,0.15)' : 'rgba(245,158,11,0.15)';
 
                 if (isEntry) {
-                    // Entry: triangle pointing at the candle
-                    const color = isBuy ? '#22D3EE' : '#F59E0B'; // cyan=long entry, amber=short entry
-                    const size = 7, offset = 14;
-                    let triCoords;
-                    if (isBuy) {
-                        // Triangle below candle pointing up
-                        const tipY = c.y + offset;
-                        triCoords = [
-                            { x: c.x,        y: tipY },
-                            { x: c.x - size, y: tipY + size * 1.5 },
-                            { x: c.x + size, y: tipY + size * 1.5 },
-                        ];
-                    } else {
-                        // Triangle above candle pointing down
-                        const tipY = c.y - offset;
-                        triCoords = [
-                            { x: c.x,        y: tipY },
-                            { x: c.x - size, y: tipY - size * 1.5 },
-                            { x: c.x + size, y: tipY - size * 1.5 },
-                        ];
-                    }
-                    // Glow shadow
-                    figures.push({ type: 'circle', attrs: { x: c.x, y: triCoords[0].y, r: size + 3 }, styles: { style: 'fill', color: color.replace(')', ',0.2)').replace('rgb', 'rgba').replace('#', '') }, ignoreEvent: true });
-                    figures.push({ type: 'polygon', attrs: { coordinates: triCoords }, styles: { style: 'fill', color }, ignoreEvent: true });
-                } else {
-                    // Exit: diamond shape
-                    const pnl = data.pnl || 0;
-                    const color = pnl >= 0 ? '#10B981' : '#EF4444';
-                    const size = 6, offset = 14;
-                    const cy = isBuy === false ? c.y + offset : c.y - offset;
-                    const diamondCoords = [
-                        { x: c.x,        y: cy - size },
-                        { x: c.x + size, y: cy },
-                        { x: c.x,        y: cy + size },
-                        { x: c.x - size, y: cy },
+                    // Entry: filled triangle, tip at price, with dark outline
+                    const tipY = c.y;
+                    const baseY = below ? tipY + sz * 2 : tipY - sz * 2;
+                    const tip = { x: c.x, y: tipY };
+                    const bl  = { x: c.x - sz, y: baseY };
+                    const br  = { x: c.x + sz, y: baseY };
+                    const outLs = { color: 'rgba(0,0,0,0.6)', size: 3 };
+                    const ls = { color, size: 1.5 };
+                    return [
+                        hitbox,
+                        { type: 'line', attrs: { coordinates: [tip, bl] }, styles: outLs },
+                        { type: 'line', attrs: { coordinates: [bl, br] }, styles: outLs },
+                        { type: 'line', attrs: { coordinates: [br, tip] }, styles: outLs },
+                        { type: 'line', attrs: { coordinates: [tip, bl] }, styles: ls },
+                        { type: 'line', attrs: { coordinates: [bl, br] }, styles: ls },
+                        { type: 'line', attrs: { coordinates: [br, tip] }, styles: ls },
                     ];
-                    figures.push({ type: 'polygon', attrs: { coordinates: diamondCoords }, styles: { style: 'fill', color }, ignoreEvent: true });
+                } else {
+                    // Exit: circle with dark outline
+                    const r = 5;
+                    return [
+                        hitbox,
+                        { type: 'circle', attrs: { x: c.x, y: c.y, r: r + 1.5 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.5)' } },
+                        { type: 'circle', attrs: { x: c.x, y: c.y, r }, styles: { style: 'stroke_fill', color: alphaFill, borderColor: color, borderSize: 1.5 } },
+                    ];
                 }
-
-                // Label with price/PnL
-                if (data.label) {
-                    const labelY = isEntry ? (isBuy ? c.y + 30 : c.y - 28) : (isBuy === false ? c.y + 30 : c.y - 28);
-                    figures.push({
-                        type: 'text',
-                        attrs: { x: c.x, y: labelY, text: data.label, align: 'center', baseline: 'middle' },
-                        styles: { style: 'fill', color: '#A1A1A1', size: 9, family: 'JetBrains Mono, monospace' },
-                        ignoreEvent: true,
-                    });
-                }
-
-                return figures;
             },
         });
         _klineMarkerRegistered = true;
@@ -845,11 +848,12 @@ function renderLiveChart() {
                     lock:       true,
                     points:     [{ timestamp: m.time * 1000, value: m.price }],
                     extendData: {
-                        isBuy: isLongSide,
-                        isEntry: m.isEntry,
-                        isExit: !m.isEntry,
+                        _isLong: isLongSide,
+                        _isEntry: m.isEntry,
+                        _count: m.count || 1,
+                        _mixed: m.count > 1 && !m.isEntry,
                         pnl: pnl,
-                        label: label,
+                        price: m.price,
                         symbol: m.symbol,
                     },
                 });
