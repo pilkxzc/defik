@@ -901,6 +901,74 @@ router.post('/api/bots/binance', requireAuth, requireRole('admin', 'moderator'),
     }
 });
 
+// ── Bot Analytics (must be before :id routes) ──
+
+router.post('/api/bots/analytics', requireAuth, (req, res) => {
+    try {
+        const { event, bot_id, symbol, meta } = req.body;
+        if (!event) return res.status(400).json({ error: 'event is required' });
+        dbRun(
+            'INSERT INTO bot_analytics (user_id, event, bot_id, symbol, meta) VALUES (?, ?, ?, ?, ?)',
+            [req.session.userId, event, bot_id || null, symbol || null, meta ? JSON.stringify(meta) : null]
+        );
+        res.json({ ok: true });
+    } catch (error) {
+        console.error('Analytics track error:', error);
+        res.status(500).json({ error: 'Failed to track event' });
+    }
+});
+
+router.get('/api/bots/analytics/stats', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const days = parseInt(req.query.days) || 7;
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+
+        const pageViews = dbGet(
+            `SELECT COUNT(*) as total, COUNT(DISTINCT user_id) as unique_users
+             FROM bot_analytics WHERE event = 'page_view' AND created_at >= ?`, [since]
+        );
+
+        const topBots = dbAll(
+            `SELECT ba.bot_id, b.name as bot_name, COUNT(*) as views, COUNT(DISTINCT ba.user_id) as unique_users
+             FROM bot_analytics ba LEFT JOIN bots b ON b.id = ba.bot_id
+             WHERE ba.event = 'bot_select' AND ba.created_at >= ? AND ba.bot_id IS NOT NULL
+             GROUP BY ba.bot_id ORDER BY views DESC LIMIT 20`, [since]
+        );
+
+        const topCoins = dbAll(
+            `SELECT ba.symbol, ba.bot_id, b.name as bot_name, COUNT(*) as views, COUNT(DISTINCT ba.user_id) as unique_users
+             FROM bot_analytics ba LEFT JOIN bots b ON b.id = ba.bot_id
+             WHERE ba.event = 'coin_click' AND ba.created_at >= ? AND ba.symbol IS NOT NULL
+             GROUP BY ba.bot_id, ba.symbol ORDER BY views DESC LIMIT 30`, [since]
+        );
+
+        const activeUsers = dbAll(
+            `SELECT ba.user_id, u.full_name, u.email, COUNT(*) as actions,
+                    COUNT(DISTINCT ba.bot_id) as bots_viewed,
+                    MAX(ba.created_at) as last_active
+             FROM bot_analytics ba LEFT JOIN users u ON u.id = ba.user_id
+             WHERE ba.created_at >= ?
+             GROUP BY ba.user_id ORDER BY actions DESC LIMIT 30`, [since]
+        );
+
+        const events = dbAll(
+            `SELECT event, COUNT(*) as count FROM bot_analytics
+             WHERE created_at >= ? GROUP BY event ORDER BY count DESC`, [since]
+        );
+
+        const daily = dbAll(
+            `SELECT DATE(created_at) as day, COUNT(*) as events, COUNT(DISTINCT user_id) as users
+             FROM bot_analytics WHERE created_at >= ?
+             GROUP BY DATE(created_at) ORDER BY day DESC`, [since]
+        );
+
+        res.json({ pageViews, topBots, topCoins, activeUsers, events, daily, days });
+    } catch (error) {
+        console.error('Analytics stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+});
+
 router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
     try {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
@@ -1793,82 +1861,6 @@ router.post('/api/bots/:id/reconcile', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Reconcile error:', error);
         res.status(500).json({ error: 'Reconcile failed' });
-    }
-});
-
-// ── Bot Analytics ──
-
-// Record an analytics event (any authenticated user)
-router.post('/api/bots/analytics', requireAuth, (req, res) => {
-    try {
-        const { event, bot_id, symbol, meta } = req.body;
-        if (!event) return res.status(400).json({ error: 'event is required' });
-        dbRun(
-            'INSERT INTO bot_analytics (user_id, event, bot_id, symbol, meta) VALUES (?, ?, ?, ?, ?)',
-            [req.session.userId, event, bot_id || null, symbol || null, meta ? JSON.stringify(meta) : null]
-        );
-        res.json({ ok: true });
-    } catch (error) {
-        console.error('Analytics track error:', error);
-        res.status(500).json({ error: 'Failed to track event' });
-    }
-});
-
-// Get analytics stats (admin only)
-router.get('/api/bots/analytics/stats', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
-    try {
-        const days = parseInt(req.query.days) || 7;
-        const since = new Date(Date.now() - days * 86400000).toISOString();
-
-        // Unique visitors to /bots page
-        const pageViews = dbGet(
-            `SELECT COUNT(*) as total, COUNT(DISTINCT user_id) as unique_users
-             FROM bot_analytics WHERE event = 'page_view' AND created_at >= ?`, [since]
-        );
-
-        // Most viewed bots
-        const topBots = dbAll(
-            `SELECT ba.bot_id, b.name as bot_name, COUNT(*) as views, COUNT(DISTINCT ba.user_id) as unique_users
-             FROM bot_analytics ba LEFT JOIN bots b ON b.id = ba.bot_id
-             WHERE ba.event = 'bot_select' AND ba.created_at >= ? AND ba.bot_id IS NOT NULL
-             GROUP BY ba.bot_id ORDER BY views DESC LIMIT 20`, [since]
-        );
-
-        // Most viewed coins
-        const topCoins = dbAll(
-            `SELECT ba.symbol, ba.bot_id, b.name as bot_name, COUNT(*) as views, COUNT(DISTINCT ba.user_id) as unique_users
-             FROM bot_analytics ba LEFT JOIN bots b ON b.id = ba.bot_id
-             WHERE ba.event = 'coin_click' AND ba.created_at >= ? AND ba.symbol IS NOT NULL
-             GROUP BY ba.bot_id, ba.symbol ORDER BY views DESC LIMIT 30`, [since]
-        );
-
-        // Active users (who interacted)
-        const activeUsers = dbAll(
-            `SELECT ba.user_id, u.full_name, u.email, COUNT(*) as actions,
-                    COUNT(DISTINCT ba.bot_id) as bots_viewed,
-                    MAX(ba.created_at) as last_active
-             FROM bot_analytics ba LEFT JOIN users u ON u.id = ba.user_id
-             WHERE ba.created_at >= ?
-             GROUP BY ba.user_id ORDER BY actions DESC LIMIT 30`, [since]
-        );
-
-        // Event breakdown
-        const events = dbAll(
-            `SELECT event, COUNT(*) as count FROM bot_analytics
-             WHERE created_at >= ? GROUP BY event ORDER BY count DESC`, [since]
-        );
-
-        // Daily activity
-        const daily = dbAll(
-            `SELECT DATE(created_at) as day, COUNT(*) as events, COUNT(DISTINCT user_id) as users
-             FROM bot_analytics WHERE created_at >= ?
-             GROUP BY DATE(created_at) ORDER BY day DESC`, [since]
-        );
-
-        res.json({ pageViews, topBots, topCoins, activeUsers, events, daily, days });
-    } catch (error) {
-        console.error('Analytics stats error:', error);
-        res.status(500).json({ error: 'Failed to fetch analytics' });
     }
 });
 
