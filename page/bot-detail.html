@@ -216,11 +216,89 @@
             height: 60px;
         }
 
-        /* Panels in stacked/wide mode: each panel gets a width */
+        /* Panels in stacked/wide mode: horizontal row layout */
+        .right-panel.horizontal-layout {
+            flex-direction: row;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            gap: 8px;
+            align-items: stretch;
+        }
         .right-panel.horizontal-layout > .panel-card {
-            min-width: 280px;
-            max-width: 100%;
+            min-width: 260px;
+            max-width: none;
             flex: 1 1 300px;
+            height: auto !important;
+            min-height: 0 !important;
+        }
+        .right-panel.horizontal-layout > .panel-card.collapsed {
+            flex: 0 0 44px !important;
+            min-width: 44px !important;
+            width: 44px !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+        }
+        .right-panel.horizontal-layout > .panel-card.collapsed > .panel-header,
+        .right-panel.horizontal-layout > .panel-card.collapsed > .panel-tabs {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+            padding: 8px 4px;
+            white-space: nowrap;
+            justify-content: flex-end;
+            height: 100%;
+        }
+        .right-panel.horizontal-layout > .panel-card.collapsed .panel-title {
+            font-size: 11px;
+        }
+        .right-panel.horizontal-layout > .panel-card.collapsed .panel-hide-btn,
+        .right-panel.horizontal-layout > .panel-card.collapsed .panel-drag-handle,
+        .right-panel.horizontal-layout > .panel-card.collapsed .color-edit-marker,
+        .right-panel.horizontal-layout > .panel-card.collapsed .subscribers-badge,
+        .right-panel.horizontal-layout > .panel-card.collapsed .panel-tab,
+        .right-panel.horizontal-layout > .panel-card.collapsed .resize-handle-w,
+        .right-panel.horizontal-layout > .panel-card.collapsed button:not(.panel-collapse-btn) {
+            display: none !important;
+        }
+        .right-panel.horizontal-layout > .panel-card.collapsed .panel-collapse-btn {
+            transform: rotate(90deg);
+        }
+        .right-panel.horizontal-layout > .panel-card .resize-handle {
+            display: none;
+        }
+        /* Panel manager compact in horizontal mode */
+        .right-panel.horizontal-layout > .panel-manager-bar {
+            flex: 0 0 auto;
+            flex-direction: column;
+            padding: 4px 2px;
+            gap: 4px;
+            min-width: auto;
+            width: auto;
+        }
+        .right-panel.horizontal-layout > .panel-manager-bar .panel-manager-label {
+            display: none;
+        }
+        .right-panel.horizontal-layout > .panel-manager-bar .panel-manager-btn {
+            padding: 6px;
+            font-size: 0;
+            gap: 0;
+        }
+        .right-panel.horizontal-layout > .panel-manager-bar .panel-manager-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+        .right-panel.horizontal-layout > #panelManagerDropdown {
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 0;
+            z-index: 100;
+            min-width: 220px;
+        }
+        /* Hidden panel instruments in horizontal */
+        .right-panel.horizontal-layout > #panelInstruments {
+            display: none !important;
         }
 
         /* ── Constructor color markers ── */
@@ -1779,6 +1857,7 @@
         .panel-manager-bar {
             display: flex; align-items: center; justify-content: space-between;
             padding: 4px 6px; margin-bottom: 4px;
+            flex-shrink: 0; position: relative;
         }
         .panel-manager-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.4px; }
         .panel-manager-btn {
@@ -1795,8 +1874,13 @@
             background: rgba(28,28,28,0.98); border: 1px solid rgba(255,255,255,0.1);
             border-radius: 12px; padding: 8px; display: none;
             box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 100;
         }
         #panelManagerDropdown.open { display: block; }
+        .horizontal-layout > #panelManagerDropdown {
+            position: absolute; bottom: 100%; left: 0;
+            margin-bottom: 4px; min-width: 240px;
+        }
         .pm-section-title { font-size: 10px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 8px 6px; }
         .pm-row {
             display: flex; align-items: center; justify-content: space-between;
@@ -2708,12 +2792,12 @@
                 grid-row: 3;
                 overflow-y: visible;
             }
-            /* In stacked layout, panels don't need fixed heights */
-            .right-panel .resizable-panel:not(.collapsed) {
+            /* Vertical stacked: panels auto-height since page scrolls */
+            .right-panel:not(.horizontal-layout) .resizable-panel:not(.collapsed) {
                 height: auto !important;
                 min-height: 80px;
             }
-            .right-panel .resizable-panel#panelOrders:not(.collapsed) {
+            .right-panel:not(.horizontal-layout) .resizable-panel#panelOrders:not(.collapsed) {
                 min-height: 200px;
                 max-height: 500px;
             }
@@ -2757,6 +2841,22 @@
                 grid-row: 3 !important;
                 padding: 12px;
                 overflow-y: visible;
+                flex-direction: column !important;
+                flex-wrap: nowrap !important;
+            }
+            .right-panel .resizable-panel:not(.collapsed) {
+                height: auto !important;
+                min-height: 80px;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+            }
+            .right-panel .resizable-panel#panelOrders:not(.collapsed) {
+                min-height: 200px;
+                max-height: 500px;
+            }
+            .right-panel .resizable-panel .resize-handle {
+                display: none;
             }
         }
         @media (max-width: 480px) {
@@ -5704,32 +5804,39 @@
             chartContainer.style.gridRow = '';
             rightPanel.style.gridColumn = '';
             rightPanel.style.gridRow = '';
+            rightPanel.style.gridArea = '';
             rightPanel.style.flexDirection = '';
             rightPanel.style.flexWrap = '';
             rightPanel.style.overflowX = '';
+            rightPanel.style.overflowY = '';
             rightPanel.classList.remove('horizontal-layout');
+            // Clear inline width/flex/height overrides when switching layouts
+            rightPanel.querySelectorAll('.resizable-panel').forEach(p => {
+                p.style.width = '';
+                p.style.minWidth = '';
+                p.style.maxWidth = '';
+                if (layout !== 'default') {
+                    // In horizontal mode, heights are controlled by CSS
+                    p.style.height = '';
+                    p.style.flex = '';
+                }
+            });
             if (layout === 'default') {
                 container.style.gridTemplateColumns = `auto 1fr ${rightPanelWidth}px`;
                 container.style.gridTemplateRows = 'auto 1fr';
             } else if (layout === 'stacked') {
                 container.style.gridTemplateColumns = 'auto 1fr';
-                container.style.gridTemplateRows = 'auto 1fr 300px';
+                container.style.gridTemplateRows = 'auto 1fr minmax(200px, 35vh)';
                 chartContainer.style.gridColumn = '2';
                 rightPanel.style.gridColumn = '2';
                 rightPanel.style.gridRow = '3';
-                rightPanel.style.flexDirection = 'row';
-                rightPanel.style.flexWrap = 'wrap';
-                rightPanel.style.overflowX = 'auto';
                 rightPanel.classList.add('horizontal-layout');
             } else if (layout === 'wide') {
                 container.style.gridTemplateColumns = 'auto 1fr';
-                container.style.gridTemplateRows = 'auto 1fr 280px';
+                container.style.gridTemplateRows = 'auto 1fr minmax(180px, 30vh)';
                 chartContainer.style.gridColumn = '2';
                 rightPanel.style.gridColumn = '2';
                 rightPanel.style.gridRow = '3';
-                rightPanel.style.flexDirection = 'row';
-                rightPanel.style.flexWrap = 'wrap';
-                rightPanel.style.overflowX = 'auto';
                 rightPanel.classList.add('horizontal-layout');
             }
             setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
@@ -10146,18 +10253,29 @@
                         if (panel) container.appendChild(panel);
                     });
                 }
+                const isHorizontal = document.getElementById('rightPanel')?.classList.contains('horizontal-layout');
                 Object.keys(sizes).forEach(panelId => {
                     if (panelId === '_order') return;
                     const panel = document.getElementById(panelId);
                     if (!panel) return;
-                    if (sizes[panelId].height && !sizes[panelId].collapsed) {
-                        const minH = panel.dataset.minHeight ? parseInt(panel.dataset.minHeight) : 80;
-                        panel.style.height = Math.max(sizes[panelId].height, minH) + 'px';
-                    }
-                    if (sizes[panelId].width) {
-                        panel.style.width = sizes[panelId].width;
-                        panel.style.minWidth = sizes[panelId].width;
-                        panel.style.maxWidth = sizes[panelId].width;
+                    // Skip height/width restore in horizontal layout — CSS handles it
+                    if (!isHorizontal) {
+                        if (sizes[panelId].height && !sizes[panelId].collapsed) {
+                            const minH = panel.dataset.minHeight ? parseInt(panel.dataset.minHeight) : 80;
+                            panel.style.height = Math.max(sizes[panelId].height, minH) + 'px';
+                        }
+                        if (sizes[panelId].width) {
+                            panel.style.width = sizes[panelId].width;
+                            panel.style.minWidth = sizes[panelId].width;
+                            panel.style.maxWidth = sizes[panelId].width;
+                        }
+                    } else {
+                        // In horizontal: clear all size overrides
+                        panel.style.height = '';
+                        panel.style.width = '';
+                        panel.style.minWidth = '';
+                        panel.style.maxWidth = '';
+                        panel.style.flex = '';
                     }
                     if (sizes[panelId].flex) {
                         panel.style.flex = sizes[panelId].flex;
