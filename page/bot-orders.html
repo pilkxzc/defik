@@ -934,7 +934,14 @@
     const _drawColors = ['#C4B5FD', '#8CA8FF', '#F59E0B', '#22D3EE', '#10B981'];
     let _drawColorIdx = 0;
     let _hoverDrawingIdx = -1;     // index of drawing under cursor (for delete)
+    let _chartDataSource = 'futures'; // 'futures' | 'spot' — track which API served data
     const padTop = 18, padBottom = 22, padLeft = 6, padRight = 62;
+
+    // Smart order time: FILLED orders → updateTime (execution), others → time (creation)
+    function getOrderTime(o) {
+        if (o.status === 'FILLED' && o.updateTime > 0) return o.updateTime;
+        return o.time || o.updateTime || 0;
+    }
 
     window.showOrderByIdx = function(idx) {
         if (filteredOrders[idx]) showOrderDetail(filteredOrders[idx]);
@@ -1008,46 +1015,71 @@
     async function loadChartKlines() {
         if (!_chartOrder) return;
         _priceScale = 1; // reset price zoom on new load
+        _chartDataSource = 'futures';
         const loader = document.getElementById('chartLoading');
         loader.style.display = 'flex';
 
         const o = _chartOrder;
-        const orderTime = o.time || o.updateTime || Date.now();
+        const orderTime = getOrderTime(o);
         const intervalMs = _tfMs[_chartTF] || 900000;
         const sym = o.symbol || symbol;
 
-        // Fetch 500 bars centered on order
-        const startTime = orderTime - 250 * intervalMs;
-        const endTime = orderTime + 250 * intervalMs;
+        // For 1s: fetch more candles (1000 each side ≈ 33 min) since each bar = 1 sec
+        const barsPerSide = _chartTF === '1s' ? 1000 : 500;
+        const startTime = orderTime - barsPerSide * intervalMs;
+        const endTime = orderTime + barsPerSide * intervalMs;
+        const limit = Math.min(1000, barsPerSide);
 
         try {
             const parseK = k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] });
             const map = new Map();
 
-            // Try futures first, fallback to spot for 1s (or if futures fails)
+            // Endpoint strategy:
+            // - For 1s: Binance Futures doesn't support 1s, go straight to spot
+            // - Others: use futures
             const endpoints = _chartTF === '1s'
-                ? [
-                    `https://fapi.binance.com/fapi/v1/klines`,   // futures (may work on newer API)
-                    `https://api.binance.com/api/v3/klines`       // spot fallback
-                  ]
-                : [`https://fapi.binance.com/fapi/v1/klines`];
+                ? [{ url: 'https://api.binance.com/api/v3/klines', src: 'spot' }]
+                : [{ url: 'https://fapi.binance.com/fapi/v1/klines', src: 'futures' }];
 
-            for (const base of endpoints) {
-                if (map.size > 0) break; // already got data
+            for (const ep of endpoints) {
+                if (map.size > 0) break;
                 try {
                     const [r1, r2] = await Promise.all([
-                        fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=500`),
-                        fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=500`)
+                        fetch(`${ep.url}?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=${limit}`),
+                        fetch(`${ep.url}?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=${limit}`)
                     ]);
                     const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
                     if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
                     if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                    if (map.size > 0) _chartDataSource = ep.src;
                 } catch (_) { /* try next endpoint */ }
+            }
+
+            // If 1s spot returned no data — auto-upgrade to 1m
+            if (map.size === 0 && _chartTF === '1s') {
+                console.warn(`No 1s data for ${sym}, auto-upgrading to 1m`);
+                _chartTF = '1m';
+                _chartDataSource = 'futures';
+                const intMs2 = _tfMs['1m'];
+                const st2 = orderTime - 500 * intMs2;
+                const et2 = orderTime + 500 * intMs2;
+                try {
+                    const [r1, r2] = await Promise.all([
+                        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1m&startTime=${st2}&endTime=${orderTime}&limit=500`),
+                        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1m&startTime=${orderTime}&endTime=${et2}&limit=500`)
+                    ]);
+                    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+                    if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                    if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                } catch (_) {}
+                // Update TF buttons to reflect auto-change
+                document.querySelectorAll('#chartTfGroup .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === '1m'));
+                document.querySelectorAll('#chartTfDropdown .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === '1m'));
             }
 
             _chartKlines = [...map.values()].sort((a, b) => a.time - b.time);
             if (_chartKlines.length === 0) {
-                console.warn(`No klines loaded for ${sym} @ ${_chartTF}. Endpoints tried: ${endpoints.join(', ')}`);
+                console.warn(`No klines loaded for ${sym} @ ${_chartTF}`);
             }
         } catch (e) {
             console.error('Chart klines error:', e);
@@ -1063,7 +1095,7 @@
 
     function centerOnOrder() {
         if (!_chartOrder || _chartKlines.length === 0) return;
-        const orderTime = _chartOrder.time || _chartOrder.updateTime || 0;
+        const orderTime = getOrderTime(_chartOrder);
         let orderIdx = 0;
         let minDist = Infinity;
         _chartKlines.forEach((k, i) => {
@@ -1079,8 +1111,9 @@
         if (_fetchingMore || _chartKlines.length === 0) return;
         _fetchingMore = true;
         const sym = (_chartOrder?.symbol) || symbol;
-        const endpoints = _chartTF === '1s'
-            ? ['https://fapi.binance.com/fapi/v1/klines', 'https://api.binance.com/api/v3/klines']
+        // Use the same source that loaded the main data
+        const endpoints = _chartDataSource === 'spot'
+            ? ['https://api.binance.com/api/v3/klines']
             : ['https://fapi.binance.com/fapi/v1/klines'];
         try {
             let params;
@@ -1212,6 +1245,24 @@
             ctx.fillText(label, idxToX(i), H - 5);
         }
 
+        // Data source indicator (when using spot fallback)
+        if (_chartDataSource === 'spot') {
+            ctx.save();
+            ctx.font = 'bold 9px "JetBrains Mono", monospace';
+            const lbl = 'SPOT DATA';
+            const tw = ctx.measureText(lbl).width + 10;
+            const bx = W - padRight - tw - 6, by = padTop + 4;
+            ctx.fillStyle = 'rgba(245,158,11,0.12)';
+            ctx.fillRect(bx, by, tw, 16);
+            ctx.strokeStyle = 'rgba(245,158,11,0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(bx, by, tw, 16);
+            ctx.fillStyle = '#F59E0B';
+            ctx.textAlign = 'center';
+            ctx.fillText(lbl, bx + tw/2, by + 11);
+            ctx.restore();
+        }
+
         // Volume bars (behind candles)
         if (_showVolume) {
             let maxVol = 0;
@@ -1339,14 +1390,14 @@
             const visEnd = visible[visible.length - 1].time;
             const intervalMs = _tfMs[_chartTF] || 900000;
             const relevantOrders = allOrders.filter(o => {
-                const t = o.time || o.updateTime || 0;
+                const t = getOrderTime(o);
                 return t >= visStart - intervalMs && t <= visEnd + intervalMs && o.orderId !== _chartOrder?.orderId;
             });
 
             // Cluster orders within same candle (by time bucket)
             const clusters = new Map();
             relevantOrders.forEach(o => {
-                const oTime = o.time || o.updateTime || 0;
+                const oTime = getOrderTime(o);
                 const bucket = Math.floor(oTime / intervalMs); // same candle = same bucket
                 const key = bucket + '_' + o.side;
                 if (!clusters.has(key)) clusters.set(key, []);
@@ -1356,7 +1407,7 @@
             clusters.forEach(group => {
                 // Use the first order's time, average price of the group
                 const rep = group[0];
-                const oTime = rep.time || rep.updateTime || 0;
+                const oTime = getOrderTime(rep);
                 const ox = timeToX(oTime);
                 if (ox < padLeft - 5 || ox > W - padRight + 5) return;
 
@@ -1405,7 +1456,7 @@
         }
 
         // ── Main order marker (highlighted) ──
-        const orderTime = _chartOrder.time || _chartOrder.updateTime || 0;
+        const orderTime = getOrderTime(_chartOrder);
         // Use the price where the order was actually placed
         const oPlacePrice = parseFloat(_chartOrder.price) || 0;
         const oFillPrice = parseFloat(_chartOrder.avgPrice) || 0;
