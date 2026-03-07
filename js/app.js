@@ -3158,7 +3158,21 @@ function _buildAdminFlyout(adminLink) {
         <a href="/admin/bug-reports" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>Баги</a>
         <a href="/admin/full-stats" class="af-item" style="color:#EF4444;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12z"/><path d="M12 6v6l4 2"/></svg>Повна статистика</a>
         <a href="/bot-community-stats" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>Статистика ботів</a>
-        <a href="/bot-orders" class="af-item" style="color:#C4B5FD;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Ордери</a>
+        <div class="af-item af-submenu-trigger" style="color:#C4B5FD;position:relative;cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Ордери
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.4;"><polyline points="9 18 15 12 9 6"/></svg>
+            <div class="af-submenu" id="afOrdersSubmenu">
+                <a href="/bot-orders" class="af-item" style="color:#C4B5FD;font-size:11px;padding:6px 10px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Всі боти
+                </a>
+                <div class="af-submenu-divider"></div>
+                <div class="af-submenu-loading" id="afOrdersBotList">
+                    <span style="font-size:10px;color:var(--text-tertiary);padding:6px 10px;">Завантаження...</span>
+                </div>
+            </div>
+        </div>
     `;
 
     // Inject styles once
@@ -3182,6 +3196,32 @@ function _buildAdminFlyout(adminLink) {
             }
             .af-item:hover { background:rgba(255,255,255,0.08); color:#fff; }
             .af-item svg { flex-shrink:0; }
+            .af-submenu-trigger { position:relative; }
+            .af-submenu {
+                display:none; position:absolute; left:100%; top:-6px;
+                background:var(--surface,#141414); border:1px solid rgba(255,255,255,0.1);
+                border-radius:12px; padding:4px; min-width:180px; max-height:360px;
+                overflow-y:auto; scrollbar-width:none;
+                box-shadow:0 12px 40px rgba(0,0,0,0.6); z-index:10;
+                margin-left:4px;
+            }
+            .af-submenu::-webkit-scrollbar { display:none; }
+            .af-submenu-trigger:hover .af-submenu { display:flex; flex-direction:column; gap:1px; }
+            .af-submenu-divider { height:1px; background:rgba(255,255,255,0.06); margin:2px 0; }
+            .af-bot-name {
+                font-size:10px; font-weight:700; color:var(--text-tertiary);
+                padding:6px 10px 2px; text-transform:uppercase; letter-spacing:0.5px;
+            }
+            .af-coin-link {
+                display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px;
+                color:var(--text-secondary); font-size:11px; font-weight:600;
+                text-decoration:none; transition:all .12s; font-family:'JetBrains Mono',monospace;
+            }
+            .af-coin-link:hover { background:rgba(139,92,246,0.12); color:#C4B5FD; }
+            .af-coin-dot {
+                width:5px; height:5px; border-radius:50%; background:var(--text-tertiary); flex-shrink:0;
+            }
+            .af-coin-dot.live { background:#10B981; box-shadow:0 0 4px rgba(16,185,129,0.5); }
         `;
         document.head.appendChild(s);
     }
@@ -3209,11 +3249,50 @@ function _buildAdminFlyout(adminLink) {
     });
 
     // Flyout links: navigate to admin page with tab hash
-    flyout.querySelectorAll('.af-item').forEach(function(a) {
+    flyout.querySelectorAll('a.af-item').forEach(function(a) {
         a.addEventListener('click', function() {
             flyout.classList.remove('open');
         });
     });
+
+    // Load bots for orders submenu on first hover
+    let _afBotsLoaded = false;
+    const submenuTrigger = flyout.querySelector('.af-submenu-trigger');
+    if (submenuTrigger) {
+        submenuTrigger.addEventListener('mouseenter', async function() {
+            if (_afBotsLoaded) return;
+            _afBotsLoaded = true;
+            try {
+                const res = await fetch('/api/bots/tree', { credentials: 'include' });
+                if (!res.ok) throw new Error();
+                const { tree } = await res.json();
+                const bots = tree ? tree.flatMap(c => c.bots || []) : [];
+                const container = document.getElementById('afOrdersBotList');
+                if (!container) return;
+                if (bots.length === 0) {
+                    container.innerHTML = '<span style="font-size:10px;color:var(--text-tertiary);padding:6px 10px;">Ботів немає</span>';
+                    return;
+                }
+                container.innerHTML = bots.map(b => {
+                    const coins = b.instruments || [];
+                    const coinLinks = coins.map(c => {
+                        const sym = c.symbol || c;
+                        const displaySym = sym.replace(/USDT|BUSD/gi, '');
+                        const hasOpen = c.hasOpenTrade || false;
+                        return `<a href="/bot-orders/${b.id}?symbol=${sym}" class="af-coin-link">
+                            <span class="af-coin-dot${hasOpen ? ' live' : ''}"></span>${displaySym}
+                        </a>`;
+                    }).join('');
+                    return `<div class="af-bot-name">${b.name}</div>${coinLinks}`;
+                }).join('<div class="af-submenu-divider"></div>');
+                // Close flyout on sub-link click
+                container.querySelectorAll('a').forEach(a => a.addEventListener('click', () => flyout.classList.remove('open')));
+            } catch (e) {
+                const c = document.getElementById('afOrdersBotList');
+                if (c) c.innerHTML = '<span style="font-size:10px;color:var(--color-down);padding:6px 10px;">Помилка</span>';
+            }
+        });
+    }
 }
 
 // Emergency Stop — load on all pages (shows only for admins)

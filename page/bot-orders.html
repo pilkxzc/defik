@@ -348,6 +348,35 @@
             .chart-tf-group { flex-wrap: wrap; }
         }
 
+        /* View tabs (Orders / Trades / Positions) */
+        .view-tabs {
+            display: flex; gap: 4px; margin-bottom: 12px;
+        }
+        .view-tab {
+            padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03); color: var(--text-secondary);
+            font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+            transition: 0.15s; display: flex; align-items: center; gap: 6px;
+        }
+        .view-tab:hover { background: rgba(255,255,255,0.06); }
+        .view-tab.active {
+            background: rgba(139,92,246,0.15); color: #C4B5FD;
+            border-color: rgba(139,92,246,0.3);
+        }
+        .view-tab .tab-count {
+            font-size: 10px; padding: 1px 6px; border-radius: 6px;
+            background: rgba(255,255,255,0.06); font-weight: 600;
+        }
+        .view-tab.active .tab-count {
+            background: rgba(139,92,246,0.25);
+        }
+        .view-content { display: none; }
+        .view-content.active { display: block; }
+
+        /* PnL colors in trades table */
+        .pnl-positive { color: var(--color-up); }
+        .pnl-negative { color: var(--color-down); }
+
         /* Responsive */
         @media (max-width: 768px) {
             .main-content { padding: 16px; }
@@ -356,6 +385,7 @@
             .stat-value { font-size: 14px; }
             .toolbar { gap: 8px; }
             .search-box { min-width: 150px; }
+            .view-tabs { flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -389,6 +419,28 @@
 
     <!-- Main -->
     <div class="main-content">
+        <!-- View tabs -->
+        <div class="view-tabs" id="viewTabs">
+            <button class="view-tab active" data-view="orders">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Ордери <span class="tab-count" id="tabCountOrders">-</span>
+            </button>
+            <button class="view-tab" data-view="trades">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Угоди <span class="tab-count" id="tabCountTrades">-</span>
+            </button>
+            <button class="view-tab" data-view="positions">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>
+                Позиції <span class="tab-count" id="tabCountPositions">-</span>
+            </button>
+            <button class="view-tab" data-view="unfilled">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                Не виконані <span class="tab-count" id="tabCountUnfilled">-</span>
+            </button>
+        </div>
+
+        <!-- ═══ ORDERS VIEW ═══ -->
+        <div class="view-content active" id="viewOrders">
         <!-- Stats -->
         <div class="stats-row" id="statsRow">
             <div class="stat-card"><div class="stat-label">Всього</div><div class="stat-value" id="statTotal">-</div></div>
@@ -457,6 +509,108 @@
             </div>
             <div class="pagination" id="pagination"></div>
         </div>
+        </div><!-- /viewOrders -->
+
+        <!-- ═══ TRADES VIEW ═══ -->
+        <div class="view-content" id="viewTrades">
+            <div class="stats-row" id="tradesStatsRow">
+                <div class="stat-card"><div class="stat-label">Всього угод</div><div class="stat-value" id="statTradesTotal">-</div></div>
+                <div class="stat-card"><div class="stat-label">Прибуткових</div><div class="stat-value" id="statTradesWin" style="color:var(--color-up);">-</div></div>
+                <div class="stat-card"><div class="stat-label">Збиткових</div><div class="stat-value" id="statTradesLoss" style="color:var(--color-down);">-</div></div>
+                <div class="stat-card"><div class="stat-label">Загальний PnL</div><div class="stat-value" id="statTradesPnl">-</div></div>
+            </div>
+            <div class="orders-card">
+                <div class="orders-table-wrap">
+                    <table class="orders-tbl">
+                        <thead>
+                            <tr>
+                                <th style="width:32px;"></th>
+                                <th class="sortable active-sort desc" data-sort="openedAt">Відкрито</th>
+                                <th class="sortable" data-sort="closedAt">Закрито</th>
+                                <th class="sortable" data-sort="symbol">Символ</th>
+                                <th class="sortable" data-sort="side">Сторона</th>
+                                <th class="sortable" data-sort="price">Ціна входу</th>
+                                <th class="sortable" data-sort="quantity">К-сть</th>
+                                <th class="sortable" data-sort="pnl">PnL</th>
+                                <th class="sortable" data-sort="status">Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradesBody">
+                            <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="tradesPagination"></div>
+            </div>
+        </div>
+
+        <!-- ═══ POSITIONS VIEW ═══ -->
+        <div class="view-content" id="viewPositions">
+            <div class="stats-row" id="posStatsRow">
+                <div class="stat-card"><div class="stat-label">Всього позицій</div><div class="stat-value" id="statPosTotal">-</div></div>
+                <div class="stat-card"><div class="stat-label">Прибуткових</div><div class="stat-value" id="statPosWin" style="color:var(--color-up);">-</div></div>
+                <div class="stat-card"><div class="stat-label">Збиткових</div><div class="stat-value" id="statPosLoss" style="color:var(--color-down);">-</div></div>
+                <div class="stat-card"><div class="stat-label">Загальний PnL</div><div class="stat-value" id="statPosPnl">-</div></div>
+            </div>
+            <div class="orders-card">
+                <div class="orders-table-wrap">
+                    <table class="orders-tbl">
+                        <thead>
+                            <tr>
+                                <th class="sortable active-sort desc" data-sort="openedAt">Відкрито</th>
+                                <th class="sortable" data-sort="closedAt">Закрито</th>
+                                <th class="sortable" data-sort="symbol">Символ</th>
+                                <th class="sortable" data-sort="side">Сторона</th>
+                                <th class="sortable" data-sort="price">Вхід</th>
+                                <th>Вихід</th>
+                                <th class="sortable" data-sort="pnl">PnL</th>
+                                <th>Тривалість</th>
+                                <th class="sortable" data-sort="status">Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positionsBody">
+                            <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="positionsPagination"></div>
+            </div>
+        </div>
+
+        <!-- ═══ UNFILLED VIEW ═══ -->
+        <div class="view-content" id="viewUnfilled">
+            <div class="stats-row">
+                <div class="stat-card"><div class="stat-label">Скасовано</div><div class="stat-value" id="statUnfilledCanceled" style="color:var(--color-down);">-</div></div>
+                <div class="stat-card"><div class="stat-label">Протерміновано</div><div class="stat-value" id="statUnfilledExpired">-</div></div>
+                <div class="stat-card"><div class="stat-label">Нові (висять)</div><div class="stat-value" id="statUnfilledNew" style="color:#8CA8FF;">-</div></div>
+                <div class="stat-card"><div class="stat-label">Всього</div><div class="stat-value" id="statUnfilledTotal">-</div></div>
+            </div>
+            <div class="orders-card">
+                <div class="orders-table-wrap">
+                    <table class="orders-tbl">
+                        <thead>
+                            <tr>
+                                <th style="width:32px;"></th>
+                                <th class="sortable active-sort desc" data-sort="time">Дата</th>
+                                <th class="sortable" data-sort="orderId">Order ID</th>
+                                <th class="sortable" data-sort="symbol">Символ</th>
+                                <th class="sortable" data-sort="side">Сторона</th>
+                                <th class="sortable" data-sort="type">Тип</th>
+                                <th class="sortable" data-sort="price">Ціна</th>
+                                <th class="sortable" data-sort="quantity">К-сть</th>
+                                <th class="sortable" data-sort="status">Статус</th>
+                                <th>Причина</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unfilledBody">
+                            <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="unfilledPagination"></div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -611,6 +765,7 @@
         document.getElementById('pageTitle').textContent = 'Ордери — Вибір бота';
         document.getElementById('symbolBadge').style.display = 'none';
         document.getElementById('headerCount').style.display = 'none';
+        document.getElementById('viewTabs').style.display = 'none';
         document.title = 'Yamato — Ордери';
         document.getElementById('backBtn').href = '/admin';
 
@@ -724,7 +879,390 @@
             }).catch(() => {});
 
         loadOrders();
+        // Show view tabs (hidden in selector mode)
+        document.getElementById('viewTabs').style.display = '';
     }
+
+    // ═══════════════════════════════════════════
+    //  VIEW TABS (Orders / Trades / Positions)
+    // ═══════════════════════════════════════════
+    let currentView = 'orders';
+    let allTrades = [];
+    let tradesLoaded = false;
+    let allPositions = [];
+    let positionsLoaded = false;
+    let tradesSortKey = 'openedAt', tradesSortDir = 'desc';
+    let posSortKey = 'openedAt', posSortDir = 'desc';
+    let tradesPage = 1, positionsPage = 1;
+
+    const viewIdMap = { orders: 'viewOrders', trades: 'viewTrades', positions: 'viewPositions', unfilled: 'viewUnfilled' };
+    document.querySelectorAll('#viewTabs .view-tab').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentView = this.dataset.view;
+            document.querySelectorAll('#viewTabs .view-tab').forEach(b => b.classList.toggle('active', b === this));
+            document.querySelectorAll('.view-content').forEach(v => v.classList.toggle('active', v.id === viewIdMap[currentView]));
+            if (currentView === 'trades' && !tradesLoaded) loadTrades();
+            if (currentView === 'positions' && !positionsLoaded) loadPositions();
+            if (currentView === 'unfilled' && !unfilledLoaded) loadUnfilled();
+        });
+    });
+
+    // ── Load Trades ──
+    async function loadTrades() {
+        if (!botId) return;
+        try {
+            const res = await fetch(`/api/bots/${botId}/trades?limit=5000&offset=0`, { credentials: 'include' });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            allTrades = (data.trades || []).filter(t => !symbol || t.symbol === symbol);
+            tradesLoaded = true;
+            document.getElementById('tabCountTrades').textContent = allTrades.length;
+            renderTrades();
+        } catch (e) {
+            document.getElementById('tradesBody').innerHTML = '<tr><td colspan="9" class="empty-state">Помилка завантаження угод</td></tr>';
+        }
+    }
+
+    function renderTrades() {
+        const body = document.getElementById('tradesBody');
+        let trades = allTrades.slice();
+
+        // Sort
+        const dir = tradesSortDir === 'asc' ? 1 : -1;
+        trades.sort((a, b) => {
+            let va, vb;
+            switch (tradesSortKey) {
+                case 'symbol': return dir * (a.symbol || '').localeCompare(b.symbol || '');
+                case 'side': return dir * (a.side || '').localeCompare(b.side || '');
+                case 'price': va = parseFloat(a.price) || 0; vb = parseFloat(b.price) || 0; break;
+                case 'quantity': va = parseFloat(a.quantity) || 0; vb = parseFloat(b.quantity) || 0; break;
+                case 'pnl': va = parseFloat(a.pnl) || 0; vb = parseFloat(b.pnl) || 0; break;
+                case 'status': return dir * (a.status || '').localeCompare(b.status || '');
+                case 'closedAt': va = new Date(a.closedAt || 0).getTime(); vb = new Date(b.closedAt || 0).getTime(); break;
+                default: va = new Date(a.openedAt || 0).getTime(); vb = new Date(b.openedAt || 0).getTime();
+            }
+            return dir * (va - vb);
+        });
+
+        if (trades.length === 0) {
+            body.innerHTML = '<tr><td colspan="9"><div class="empty-state">Угод не знайдено</div></td></tr>';
+            document.getElementById('tradesPagination').innerHTML = '';
+            return;
+        }
+
+        // Stats
+        const wins = trades.filter(t => (parseFloat(t.pnl) || 0) > 0).length;
+        const losses = trades.filter(t => (parseFloat(t.pnl) || 0) < 0).length;
+        const totalPnl = trades.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
+        document.getElementById('statTradesTotal').textContent = trades.length;
+        document.getElementById('statTradesWin').textContent = wins;
+        document.getElementById('statTradesLoss').textContent = losses;
+        const pnlEl = document.getElementById('statTradesPnl');
+        pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2);
+        pnlEl.style.color = totalPnl >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+
+        const totalPages = Math.ceil(trades.length / perPage);
+        if (tradesPage > totalPages) tradesPage = totalPages;
+        const start = (tradesPage - 1) * perPage;
+        const pageTrades = trades.slice(start, start + perPage);
+
+        body.innerHTML = pageTrades.map(t => {
+            const isBuy = t.side === 'BUY' || t.side === 'LONG';
+            const pnl = parseFloat(t.pnl) || 0;
+            const pnlStr = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
+            const pnlCls = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+            const openDt = t.openedAt ? new Date(t.openedAt) : null;
+            const closeDt = t.closedAt ? new Date(t.closedAt) : null;
+            const fmtD = d => d ? d.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + d.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
+            const statusCls = t.status === 'closed' ? 'badge-filled' : t.status === 'open' ? 'badge-new' : 'badge-type';
+            return `<tr>
+                <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${pnl >= 0 ? '#10B981' : '#EF4444'}" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
+                <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(openDt)}</td>
+                <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(closeDt)}</td>
+                <td class="mono">${(t.symbol || '').replace('USDT', '')}</td>
+                <td><span class="${isBuy ? 'badge-long' : 'badge-short'}">${t.side || t.positionSide || ''}</span></td>
+                <td class="mono">$${fmtPrice(t.price)}</td>
+                <td class="mono">${parseFloat(t.quantity || 0).toFixed(4)}</td>
+                <td class="mono ${pnlCls}" style="font-weight:700;">${pnlStr}</td>
+                <td><span class="${statusCls}">${t.status || ''}</span></td>
+            </tr>`;
+        }).join('');
+
+        renderPagination('tradesPagination', trades.length, tradesPage, p => { tradesPage = p; renderTrades(); });
+    }
+
+    // ── Load Positions (grouped trades) ──
+    async function loadPositions() {
+        if (!botId) return;
+        // Load all trades and group into positions (open→close pairs)
+        if (!tradesLoaded) {
+            try {
+                const res = await fetch(`/api/bots/${botId}/trades?limit=5000&offset=0`, { credentials: 'include' });
+                if (!res.ok) throw new Error('Failed');
+                const data = await res.json();
+                allTrades = (data.trades || []).filter(t => !symbol || t.symbol === symbol);
+                tradesLoaded = true;
+                document.getElementById('tabCountTrades').textContent = allTrades.length;
+            } catch (e) {}
+        }
+
+        // Group trades into positions: consecutive trades with same symbol+side form a position block
+        const positions = [];
+        const closed = allTrades.filter(t => t.status === 'closed');
+        const open = allTrades.filter(t => t.status === 'open');
+
+        closed.forEach(t => {
+            const pnl = parseFloat(t.pnl) || 0;
+            const openDt = t.openedAt ? new Date(t.openedAt) : null;
+            const closeDt = t.closedAt ? new Date(t.closedAt) : null;
+            const duration = openDt && closeDt ? closeDt - openDt : 0;
+            positions.push({
+                symbol: t.symbol, side: t.side || t.positionSide,
+                entryPrice: parseFloat(t.price) || 0,
+                exitPrice: t.closedAt ? (parseFloat(t.price) + pnl / (parseFloat(t.quantity) || 1)) : 0,
+                quantity: parseFloat(t.quantity) || 0,
+                pnl, pnlPercent: parseFloat(t.pnlPercent) || 0,
+                openedAt: t.openedAt, closedAt: t.closedAt,
+                duration, status: 'closed'
+            });
+        });
+        open.forEach(t => {
+            positions.push({
+                symbol: t.symbol, side: t.side || t.positionSide,
+                entryPrice: parseFloat(t.price) || 0, exitPrice: 0,
+                quantity: parseFloat(t.quantity) || 0,
+                pnl: 0, pnlPercent: 0,
+                openedAt: t.openedAt, closedAt: null,
+                duration: 0, status: 'open'
+            });
+        });
+
+        allPositions = positions;
+        positionsLoaded = true;
+        document.getElementById('tabCountPositions').textContent = allPositions.length;
+        renderPositions();
+    }
+
+    function fmtDuration(ms) {
+        if (!ms || ms <= 0) return '\u2014';
+        const s = Math.floor(ms / 1000);
+        if (s < 60) return s + 'с';
+        const m = Math.floor(s / 60);
+        if (m < 60) return m + 'хв';
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + 'г ' + (m % 60) + 'хв';
+        const d = Math.floor(h / 24);
+        return d + 'д ' + (h % 24) + 'г';
+    }
+
+    function renderPositions() {
+        const body = document.getElementById('positionsBody');
+        let positions = allPositions.slice();
+
+        const dir = posSortDir === 'asc' ? 1 : -1;
+        positions.sort((a, b) => {
+            let va, vb;
+            switch (posSortKey) {
+                case 'symbol': return dir * (a.symbol || '').localeCompare(b.symbol || '');
+                case 'side': return dir * (a.side || '').localeCompare(b.side || '');
+                case 'price': va = a.entryPrice; vb = b.entryPrice; break;
+                case 'pnl': va = a.pnl; vb = b.pnl; break;
+                case 'closedAt': va = new Date(a.closedAt || 0).getTime(); vb = new Date(b.closedAt || 0).getTime(); break;
+                case 'status': return dir * (a.status || '').localeCompare(b.status || '');
+                default: va = new Date(a.openedAt || 0).getTime(); vb = new Date(b.openedAt || 0).getTime();
+            }
+            return dir * (va - vb);
+        });
+
+        if (positions.length === 0) {
+            body.innerHTML = '<tr><td colspan="9"><div class="empty-state">Позицій не знайдено</div></td></tr>';
+            document.getElementById('positionsPagination').innerHTML = '';
+            return;
+        }
+
+        // Stats
+        const wins = positions.filter(p => p.pnl > 0).length;
+        const losses = positions.filter(p => p.pnl < 0).length;
+        const totalPnl = positions.reduce((s, p) => s + p.pnl, 0);
+        document.getElementById('statPosTotal').textContent = positions.length;
+        document.getElementById('statPosWin').textContent = wins;
+        document.getElementById('statPosLoss').textContent = losses;
+        const pnlEl = document.getElementById('statPosPnl');
+        pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2);
+        pnlEl.style.color = totalPnl >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+
+        const totalPages = Math.ceil(positions.length / perPage);
+        if (positionsPage > totalPages) positionsPage = totalPages;
+        const start = (positionsPage - 1) * perPage;
+        const pagePos = positions.slice(start, start + perPage);
+
+        body.innerHTML = pagePos.map(p => {
+            const isBuy = p.side === 'BUY' || p.side === 'LONG';
+            const pnlStr = (p.pnl >= 0 ? '+' : '') + '$' + Math.abs(p.pnl).toFixed(2);
+            const pnlCls = p.pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+            const fmtD = d => d ? new Date(d).toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + new Date(d).toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' }) : '\u2014';
+            const statusCls = p.status === 'closed' ? 'badge-filled' : 'badge-new';
+            return `<tr>
+                <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(p.openedAt)}</td>
+                <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(p.closedAt)}</td>
+                <td class="mono">${(p.symbol || '').replace('USDT', '')}</td>
+                <td><span class="${isBuy ? 'badge-long' : 'badge-short'}">${p.side}</span></td>
+                <td class="mono">$${fmtPrice(p.entryPrice)}</td>
+                <td class="mono">${p.exitPrice > 0 ? '$' + fmtPrice(p.exitPrice) : '\u2014'}</td>
+                <td class="mono ${pnlCls}" style="font-weight:700;">${p.status === 'closed' ? pnlStr : '\u2014'}</td>
+                <td style="color:var(--text-tertiary);font-size:11px;">${fmtDuration(p.duration)}</td>
+                <td><span class="${statusCls}">${p.status}</span></td>
+            </tr>`;
+        }).join('');
+
+        renderPagination('positionsPagination', positions.length, positionsPage, p => { positionsPage = p; renderPositions(); });
+    }
+
+    // Shared pagination renderer
+    function renderPagination(elId, total, page, onPage) {
+        const pagEl = document.getElementById(elId);
+        const totalPages = Math.ceil(total / perPage);
+        if (totalPages <= 1) { pagEl.innerHTML = `<span>${total} записів</span><span></span>`; return; }
+        const start = (page - 1) * perPage;
+        let btns = `<button class="page-btn" ${page === 1 ? 'disabled' : ''} data-p="${page - 1}">&laquo;</button>`;
+        const maxBtns = 7;
+        let startP = Math.max(1, page - Math.floor(maxBtns / 2));
+        let endP = Math.min(totalPages, startP + maxBtns - 1);
+        if (endP - startP < maxBtns - 1) startP = Math.max(1, endP - maxBtns + 1);
+        for (let i = startP; i <= endP; i++) {
+            btns += `<button class="page-btn${i === page ? ' active' : ''}" data-p="${i}">${i}</button>`;
+        }
+        btns += `<button class="page-btn" ${page === totalPages ? 'disabled' : ''} data-p="${page + 1}">&raquo;</button>`;
+        pagEl.innerHTML = `<span>${start + 1}\u2013${Math.min(start + perPage, total)} з ${total}</span><div class="pagination-btns">${btns}</div>`;
+        pagEl.querySelectorAll('.page-btn[data-p]').forEach(btn => {
+            btn.addEventListener('click', () => { const p = parseInt(btn.dataset.p); if (p >= 1 && p <= totalPages) onPage(p); });
+        });
+    }
+
+    // Sortable headers for trades/positions tables
+    document.querySelectorAll('#viewTrades .orders-tbl th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            if (tradesSortKey === th.dataset.sort) { tradesSortDir = tradesSortDir === 'desc' ? 'asc' : 'desc'; }
+            else { tradesSortKey = th.dataset.sort; tradesSortDir = 'desc'; }
+            document.querySelectorAll('#viewTrades .orders-tbl th.sortable').forEach(h => h.classList.remove('active-sort', 'asc', 'desc'));
+            th.classList.add('active-sort', tradesSortDir);
+            tradesPage = 1; renderTrades();
+        });
+    });
+    document.querySelectorAll('#viewPositions .orders-tbl th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            if (posSortKey === th.dataset.sort) { posSortDir = posSortDir === 'desc' ? 'asc' : 'desc'; }
+            else { posSortKey = th.dataset.sort; posSortDir = 'desc'; }
+            document.querySelectorAll('#viewPositions .orders-tbl th.sortable').forEach(h => h.classList.remove('active-sort', 'asc', 'desc'));
+            th.classList.add('active-sort', posSortDir);
+            positionsPage = 1; renderPositions();
+        });
+    });
+
+    // ═══════════════════════════════════════════
+    //  UNFILLED VIEW (canceled, expired, new)
+    // ═══════════════════════════════════════════
+    let unfilledLoaded = false;
+    let unfilledSortKey = 'time', unfilledSortDir = 'desc';
+    let unfilledPage = 1;
+
+    function loadUnfilled() {
+        unfilledLoaded = true;
+        renderUnfilled();
+    }
+
+    function guessUnfilledReason(o) {
+        if (o.status === 'CANCELED') {
+            if (o.type && o.type.includes('STOP')) return 'Позицію закрито / SL знято';
+            if (o.type && o.type.includes('TAKE_PROFIT')) return 'Позицію закрито / TP знято';
+            if (parseFloat(o.executedQty) === 0) return 'Скасовано вручну / ботом';
+            return 'Частково виконано, решту скасовано';
+        }
+        if (o.status === 'EXPIRED') {
+            if (o.type === 'LIMIT') return 'Ціна не досягнута (GTX expired)';
+            if (o.type && o.type.includes('STOP')) return 'Stop ордер протермінований';
+            return 'Час дії вийшов';
+        }
+        if (o.status === 'NEW') {
+            return 'Очікує виконання';
+        }
+        return '';
+    }
+
+    function renderUnfilled() {
+        const body = document.getElementById('unfilledBody');
+        let orders = allOrders.filter(o => o.status === 'CANCELED' || o.status === 'EXPIRED' || o.status === 'NEW');
+
+        const canceled = orders.filter(o => o.status === 'CANCELED').length;
+        const expired = orders.filter(o => o.status === 'EXPIRED').length;
+        const newO = orders.filter(o => o.status === 'NEW').length;
+        document.getElementById('statUnfilledCanceled').textContent = canceled;
+        document.getElementById('statUnfilledExpired').textContent = expired;
+        document.getElementById('statUnfilledNew').textContent = newO;
+        document.getElementById('statUnfilledTotal').textContent = orders.length;
+        document.getElementById('tabCountUnfilled').textContent = orders.length;
+
+        const dir = unfilledSortDir === 'asc' ? 1 : -1;
+        orders.sort((a, b) => {
+            let va, vb;
+            switch (unfilledSortKey) {
+                case 'orderId': va = a.orderId || 0; vb = b.orderId || 0; break;
+                case 'symbol': return dir * (a.symbol || '').localeCompare(b.symbol || '');
+                case 'side': return dir * (a.side || '').localeCompare(b.side || '');
+                case 'type': return dir * (a.type || '').localeCompare(b.type || '');
+                case 'price': va = parseFloat(a.price) || 0; vb = parseFloat(b.price) || 0; break;
+                case 'quantity': va = parseFloat(a.quantity) || 0; vb = parseFloat(b.quantity) || 0; break;
+                case 'status': return dir * (a.status || '').localeCompare(b.status || '');
+                default: va = a.time || a.updateTime || 0; vb = b.time || b.updateTime || 0;
+            }
+            return dir * (va - vb);
+        });
+
+        if (orders.length === 0) {
+            body.innerHTML = '<tr><td colspan="10"><div class="empty-state">Всі ордери виконані</div></td></tr>';
+            document.getElementById('unfilledPagination').innerHTML = '';
+            return;
+        }
+
+        const totalPages = Math.ceil(orders.length / perPage);
+        if (unfilledPage > totalPages) unfilledPage = totalPages;
+        const start = (unfilledPage - 1) * perPage;
+        const pageOrders = orders.slice(start, start + perPage);
+
+        body.innerHTML = pageOrders.map((o, pi) => {
+            const isBuy = o.side === 'BUY';
+            const statusCls = o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : 'badge-expired';
+            const displayPrice = parseFloat(o.price) > 0 ? o.price : (parseFloat(o.stopPrice) > 0 ? o.stopPrice : 0);
+            const dt = o.time ? new Date(o.time) : null;
+            const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
+            const reason = guessUnfilledReason(o);
+            return `<tr style="cursor:pointer;" onclick="showOrderDirect(${o.orderId})">
+                <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${o.status === 'CANCELED' ? '#EF4444' : o.status === 'NEW' ? '#8CA8FF' : '#636363'}" stroke-width="2" style="opacity:0.5;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></td>
+                <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
+                <td class="mono" style="font-size:10px;">${o.orderId}</td>
+                <td class="mono">${(o.symbol || '').replace('USDT', '')}</td>
+                <td><span class="${isBuy ? 'badge-long' : 'badge-short'}">${o.side}</span></td>
+                <td><span class="badge-type">${(o.type || '').replace(/_/g, ' ')}</span></td>
+                <td class="mono">$${fmtPrice(displayPrice)}</td>
+                <td class="mono">${parseFloat(o.quantity || 0).toFixed(4)}</td>
+                <td><span class="${statusCls}">${o.status}</span></td>
+                <td style="font-size:10px;color:var(--text-tertiary);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${reason}">${reason}</td>
+            </tr>`;
+        }).join('');
+
+        renderPagination('unfilledPagination', orders.length, unfilledPage, p => { unfilledPage = p; renderUnfilled(); });
+    }
+
+    // Sortable headers for unfilled table
+    document.querySelectorAll('#viewUnfilled .orders-tbl th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            if (unfilledSortKey === th.dataset.sort) { unfilledSortDir = unfilledSortDir === 'desc' ? 'asc' : 'desc'; }
+            else { unfilledSortKey = th.dataset.sort; unfilledSortDir = 'desc'; }
+            document.querySelectorAll('#viewUnfilled .orders-tbl th.sortable').forEach(h => h.classList.remove('active-sort', 'asc', 'desc'));
+            th.classList.add('active-sort', unfilledSortDir);
+            unfilledPage = 1; renderUnfilled();
+        });
+    });
 
     // Fetch orders
     async function loadOrders() {
@@ -821,6 +1359,7 @@
         document.getElementById('statNew').textContent = newO;
         document.getElementById('statExpired').textContent = expired;
         document.getElementById('headerCount').textContent = filteredOrders.length + ' з ' + total;
+        document.getElementById('tabCountOrders').textContent = total;
     }
 
     function renderTable() {
@@ -941,6 +1480,10 @@
 
     window.showOrderByIdx = function(idx) {
         if (filteredOrders[idx]) showOrderDetail(filteredOrders[idx]);
+    };
+    window.showOrderDirect = function(orderId) {
+        const o = allOrders.find(o => o.orderId == orderId);
+        if (o) showOrderDetail(o);
     };
 
     window.showOrderDetail = function(o) {
