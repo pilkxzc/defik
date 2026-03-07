@@ -506,7 +506,8 @@ function _registerTradeMarkerOverlay() {
                 if (!c) return [];
                 const data  = overlay.extendData || {};
                 const isBuy = data.isBuy === true;
-                const color = isBuy ? '#10B981' : '#EF4444';
+                // Contrasting colors so markers don't blend with candles
+                const color = isBuy ? '#22D3EE' : '#F59E0B';
                 const size  = 7, offset = 12;
                 let coords;
                 if (isBuy) {
@@ -524,7 +525,10 @@ function _registerTradeMarkerOverlay() {
                         { x: c.x + size, y: tipY - size * 1.5 },
                     ];
                 }
-                return [{ type: 'polygon', attrs: { coordinates: coords }, styles: { style: 'fill', color } }];
+                return [
+                    { type: 'circle', attrs: { x: c.x, y: coords[0].y, r: size + 2 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.4)' }, ignoreEvent: true },
+                    { type: 'polygon', attrs: { coordinates: coords }, styles: { style: 'fill', color }, ignoreEvent: true },
+                ];
             },
         });
         _klineMarkerRegistered = true;
@@ -540,6 +544,7 @@ function _getOrInitKlineChart() {
 
     _klineChart = window.klinecharts.init(el);
     if (!_klineChart) return null;
+    window._klineChart = _klineChart; // expose for chart expand resize
 
     // Dark theme styles
     _klineChart.setStyles({

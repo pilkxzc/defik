@@ -1116,6 +1116,38 @@ router.patch('/api/bots/:id/api-keys', requireAuth, requireRole('admin', 'modera
     }
 });
 
+// ── Reset bot statistics ──
+router.post('/api/bots/:id/reset-stats', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        const { resetTrades, resetProfit, adjustPnl } = req.body;
+
+        if (resetTrades) {
+            dbRun('DELETE FROM bot_trades WHERE bot_id = ?', [req.params.id]);
+        }
+
+        if (resetProfit) {
+            dbRun('UPDATE bots SET profit = 0, investment = 0 WHERE id = ?', [req.params.id]);
+        }
+
+        if (adjustPnl !== undefined && adjustPnl !== null) {
+            const adj = parseFloat(adjustPnl) || 0;
+            dbRun('UPDATE bots SET profit = profit + ? WHERE id = ?', [adj, req.params.id]);
+        }
+
+        // Rebuild stats
+        dbRun('DELETE FROM bot_stats WHERE bot_id = ?', [req.params.id]);
+        updateBotStats(req.params.id);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Reset stats error:', error);
+        res.status(500).json({ error: 'Failed to reset stats' });
+    }
+});
+
 router.get('/api/bots/:id/trading-settings', requireAuth, (req, res) => {
     try {
         const bot = dbGet('SELECT trading_settings FROM bots WHERE id = ?', [req.params.id]);

@@ -2136,6 +2136,32 @@
                         <label class="be-label">API Secret</label>
                         <input type="password" id="beditApiSecret" class="be-input" placeholder="Binance API Secret" autocomplete="off">
                     </div>
+                    <!-- Stats manipulation (admin) -->
+                    <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:14px;margin-top:2px;">
+                        <div class="be-label" style="margin-bottom:8px;">Маніпуляція статистикою</div>
+                        <div class="be-field" style="margin-bottom:8px;">
+                            <label class="be-label" style="font-size:10px;text-transform:none;letter-spacing:0;">Додати/відняти PnL (USDT)</label>
+                            <div style="display:flex;gap:6px;">
+                                <input type="number" id="beditAdjustPnl" class="be-input" placeholder="0.00" step="0.01" style="flex:1;">
+                                <button onclick="beditApplyPnlAdjust(${botId})" class="be-btn be-btn-secondary" style="padding:8px 14px;white-space:nowrap;">Застосувати</button>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button onclick="beditResetStats(${botId}, 'profit')" class="be-link-btn" style="border-color:rgba(239,68,68,0.2);color:#EF4444;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                                Скинути прибуток
+                            </button>
+                            <button onclick="beditResetStats(${botId}, 'trades')" class="be-link-btn" style="border-color:rgba(239,68,68,0.2);color:#EF4444;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                                Видалити всі угоди
+                            </button>
+                            <button onclick="beditResetStats(${botId}, 'all')" class="be-link-btn" style="border-color:rgba(239,68,68,0.3);color:#EF4444;font-weight:700;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                Повний скид
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Links -->
                     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;">
                         <a href="/bot/${botId}" class="be-link-btn" target="_blank">
@@ -2169,6 +2195,47 @@
         function beditSetCommunity(btn) {
             btn.parentElement.querySelectorAll('.be-toggle').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+        }
+
+        async function beditApplyPnlAdjust(botId) {
+            const val = parseFloat(document.getElementById('beditAdjustPnl')?.value);
+            if (!val || val === 0) return;
+            if (!confirm(`Додати ${val > 0 ? '+' : ''}${val} USDT до PnL бота?`)) return;
+            try {
+                const res = await fetch(`/api/bots/${botId}/reset-stats`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ adjustPnl: val }),
+                });
+                if (res.ok) {
+                    if (typeof showToast === 'function') showToast(`PnL скориговано на ${val > 0 ? '+' : ''}${val}`, 'success');
+                    document.getElementById('beditAdjustPnl').value = '';
+                } else { alert('Помилка'); }
+            } catch (e) { alert('Помилка'); }
+        }
+
+        async function beditResetStats(botId, type) {
+            const msgs = {
+                profit: 'Скинути прибуток бота до 0?',
+                trades: 'ВИДАЛИТИ ВСІ УГОДИ бота? Це незворотна дія!',
+                all: 'ПОВНИЙ СКИД — видалити всі угоди ТА скинути прибуток? Це незворотна дія!',
+            };
+            if (!confirm(msgs[type] || 'Впевнені?')) return;
+            if (type === 'all' || type === 'trades') {
+                if (!confirm('Точно впевнені? Дані будуть втрачені назавжди.')) return;
+            }
+            try {
+                const body = {};
+                if (type === 'profit' || type === 'all') body.resetProfit = true;
+                if (type === 'trades' || type === 'all') body.resetTrades = true;
+                const res = await fetch(`/api/bots/${botId}/reset-stats`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify(body),
+                });
+                if (res.ok) {
+                    if (typeof showToast === 'function') showToast('Статистику скинуто', 'success');
+                    loadBotsTree();
+                } else { alert('Помилка'); }
+            } catch (e) { alert('Помилка'); }
         }
 
         async function saveBotEdit(botId) {
