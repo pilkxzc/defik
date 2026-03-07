@@ -81,7 +81,7 @@ function setupEventListeners() {
 
     // Initial tab from URL
     const initialTab = _getTabFromUrl();
-    const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports'];
+    const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports','access'];
     if (validTabs.includes(initialTab) && initialTab !== 'dashboard') {
         setTimeout(() => switchTab(initialTab), 100);
     }
@@ -182,7 +182,8 @@ const _tabTitles = {
     'audit': 'Аудит',
     'analytics': 'Аналітика',
     'backup': 'Бекапи',
-    'bug-reports': 'Баг-репорти'
+    'bug-reports': 'Баг-репорти',
+    'access': 'Доступи'
 };
 
 let _previousTab = null;
@@ -243,6 +244,9 @@ function switchTab(tabName) {
             break;
         case 'bug-reports':
             loadBugReports();
+            break;
+        case 'access':
+            loadAccessTab();
             break;
     }
 }
