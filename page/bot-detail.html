@@ -10685,6 +10685,10 @@
                 _drawingGroup = 'user-' + (++_drawingGroupIdx);
             } catch(e) {}
         }
+        // Expose to global scope for onclick handlers
+        window.toggleDrawingMenu = toggleDrawingMenu;
+        window.startDrawing = startDrawing;
+        window.clearAllUserDrawings = clearAllUserDrawings;
         // ── End drawing tools ──────────────────────────────────────────────────
 
         var rulerActive = false;
