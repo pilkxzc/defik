@@ -913,14 +913,15 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
 
 router.patch('/api/bots/:id/settings', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
     try {
-        const { name, mode, displaySettings } = req.body;
+        const { name, mode, displaySettings, community_visible } = req.body;
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
         const updates = [], params = [];
-        if (name !== undefined)            { updates.push('name = ?');             params.push(name); }
-        if (mode !== undefined)            { updates.push('mode = ?');             params.push(mode); }
-        if (displaySettings !== undefined) { updates.push('display_settings = ?'); params.push(JSON.stringify(displaySettings)); }
+        if (name !== undefined)               { updates.push('name = ?');               params.push(name); }
+        if (mode !== undefined)               { updates.push('mode = ?');               params.push(mode); }
+        if (displaySettings !== undefined)    { updates.push('display_settings = ?');   params.push(JSON.stringify(displaySettings)); }
+        if (community_visible !== undefined)  { updates.push('community_visible = ?');  params.push(community_visible ? 1 : 0); }
 
         if (updates.length > 0) { params.push(req.params.id); dbRun(`UPDATE bots SET ${updates.join(', ')} WHERE id = ?`, params); }
 

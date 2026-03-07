@@ -1551,7 +1551,7 @@
                     if (panel) {
                         panel.classList.add('open');
                         const gear = panel.previousElementSibling?.querySelector('.bot-list-gear');
-                        if (gear) gear.style.transform = 'rotate(180deg)';
+                        if (gear) gear.style.transform = 'rotate(90deg)';
                     }
                 });
 
@@ -1600,9 +1600,9 @@
 
             // Build coins submenu
             const coins = b.instruments || [];
-            let coinsHtml = '';
+            let coinItems = '';
             if (coins.length > 0) {
-                const coinItems = coins.map(c => {
+                coinItems = coins.map(c => {
                     const sym = c.symbol || c;
                     const hasOpen = c.hasOpenTrade || false;
                     const displayName = sym.replace(/USDT|BUSD/gi, '/USDT');
@@ -1616,9 +1616,42 @@
                             </div>
                         </div>`;
                 }).join('');
+            }
+
+            // Admin settings section
+            const communityVisible = b.community_visible !== undefined ? b.community_visible : 1;
+            let adminSection = '';
+            if (_isAdmin) {
+                adminSection = `
+                    <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06);">
+                        <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;padding-left:20px;">Налаштування</div>
+                        <div class="bot-coin-item" style="cursor:pointer;" onclick="event.stopPropagation(); editBotName(${b.id}, '${b.name.replace(/'/g, "\\'")}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            <span class="bot-coin-name">Назва</span>
+                            <span class="bot-coin-status">${b.name}</span>
+                        </div>
+                        <div class="bot-coin-item" style="cursor:pointer;" onclick="event.stopPropagation(); toggleCommunityVisibility(${b.id}, ${communityVisible ? 0 : 1})">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${communityVisible
+                                ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+                                : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+                            }</svg>
+                            <span class="bot-coin-name">Спільнота</span>
+                            <span class="bot-coin-status${communityVisible ? ' trading' : ''}">${communityVisible ? 'Видимий' : 'Прихований'}</span>
+                        </div>
+                        <div class="bot-coin-item" style="cursor:pointer;" onclick="event.stopPropagation(); window.location.href='/bot/${b.id}'">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            <span class="bot-coin-name">Повне редагування</span>
+                        </div>
+                    </div>`;
+            }
+
+            const hasPanelContent = coinItems || adminSection;
+            let coinsHtml = '';
+            if (hasPanelContent) {
                 coinsHtml = `
                     <div class="bot-coins-panel" id="botCoins_${b.id}">
-                        <div class="bot-coins-list">${coinItems}</div>
+                        ${coinItems ? `<div class="bot-coins-list">${coinItems}</div>` : ''}
+                        ${adminSection}
                     </div>`;
             }
 
@@ -1634,7 +1667,7 @@
                     </div>
                     <div class="bot-list-item-pnl ${pnlClass}">${pnlStr}</div>
                     <div class="bot-list-gear" onclick="event.stopPropagation(); toggleBotCoins(${b.id})" title="Показати монети">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     </div>
                     <div class="bot-live-bar"></div>
                 </div>${coinsHtml}`;
@@ -1644,12 +1677,40 @@
             const panel = document.getElementById('botCoins_' + botId);
             if (!panel) return;
             panel.classList.toggle('open');
-            // Rotate chevron
+            // Rotate gear icon
             const item = panel.previousElementSibling;
             const gear = item?.querySelector('.bot-list-gear');
             if (gear) {
-                gear.style.transform = panel.classList.contains('open') ? 'rotate(180deg)' : '';
+                gear.style.transform = panel.classList.contains('open') ? 'rotate(90deg)' : '';
             }
+        }
+
+        async function editBotName(botId, currentName) {
+            const newName = prompt('Нова назва бота:', currentName);
+            if (!newName || newName === currentName) return;
+            try {
+                const res = await fetch(`/api/bots/${botId}/settings`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name: newName })
+                });
+                if (res.ok) loadBotsTree();
+                else alert('Помилка при зміні назви');
+            } catch (e) { alert('Помилка при зміні назви'); }
+        }
+
+        async function toggleCommunityVisibility(botId, newValue) {
+            try {
+                const res = await fetch(`/api/bots/${botId}/settings`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ community_visible: !!newValue })
+                });
+                if (res.ok) loadBotsTree();
+                else alert('Помилка при зміні видимості');
+            } catch (e) { alert('Помилка при зміні видимості'); }
         }
 
         function renderBotDetail(b) {
@@ -1693,6 +1754,22 @@
                     </div>
                 </div>
                 <div class="detail-tickers">${tickers}</div>
+                ${b.instruments && b.instruments.length > 0 ? `
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Статус монет</div>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        ${b.instruments.map(c => {
+                            const sym = c.symbol || c;
+                            const hasOpen = c.hasOpenTrade || false;
+                            const displayName = sym.replace(/USDT|BUSD/gi, '/USDT');
+                            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface-secondary);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                                <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
+                                <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
+                                <span style="font-size:11px;font-weight:600;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? 'В позиції' : 'Очікує'}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>` : ''}
                 <div class="detail-stats-grid">
                     <div class="detail-item">
                         <div class="detail-label">Інвестиція</div>
