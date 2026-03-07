@@ -2927,11 +2927,10 @@
             transform: rotate(180deg);
         }
         .ind-dropdown {
-            display: none; position: absolute; top: calc(100% + 4px); left: 0;
+            display: none;
             background: var(--surface, #1a1a1a); border: 1px solid rgba(255,255,255,0.08);
             border-radius: var(--radius-md, 16px); padding: 6px 0;
-            min-width: 190px; z-index: 201; box-shadow: var(--shadow-card);
-            max-height: calc(100vh - 80px); overflow-y: auto;
+            min-width: 190px; box-shadow: var(--shadow-card);
         }
         .ind-dropdown.open { display: block; }
         .ind-dropdown-section {
@@ -3162,7 +3161,7 @@
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         Малювання
                     </button>
-                    <div id="drawingToolsMenu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:4px 0;min-width:190px;z-index:99000;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                    <div id="drawingToolsMenu" style="display:none;background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:4px 0;min-width:190px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
                         <button class="drawing-tool-item" onclick="startDrawing('segment')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/></svg>Лінія тренду</button>
                         <button class="drawing-tool-item" onclick="startDrawing('horizontalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/></svg>Горизонтальна лінія</button>
                         <button class="drawing-tool-item" onclick="startDrawing('verticalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/></svg>Вертикальна лінія</button>
@@ -3175,6 +3174,10 @@
                     </div>
                 </div>
                 <div class="ind-sep"></div>
+                <!-- Customize mode -->
+                <button class="ind-btn" onclick="toggleDashboardMode()" title="Кастомізація панелей">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                </button>
                 <!-- Settings -->
                 <button class="ind-btn" onclick="openSettings()" title="Налаштування">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -8507,62 +8510,125 @@
             if (trigger) trigger.classList.toggle('has-active', count > 0);
         }
 
-        // Clamp any dropdown/panel so it never extends beyond the viewport
-        function clampToViewport(el) {
-            if (!el) return;
-            // Reset any previous adjustments
-            el.style.maxHeight = '';
-            el.style.left = '';
-            el.style.right = '';
-            el.style.transform = '';
-            requestAnimationFrame(function() {
-                var rect = el.getBoundingClientRect();
-                var vw = window.innerWidth;
-                var vh = window.innerHeight;
-                var margin = 8;
-                // Clamp height so bottom doesn't exceed viewport
-                if (rect.bottom > vh - margin) {
-                    el.style.maxHeight = Math.max(120, vh - rect.top - margin) + 'px';
-                    el.style.overflowY = 'auto';
+        // ── Viewport-safe dropdown system ──
+        // All dropdowns use position:fixed and are repositioned relative to their trigger.
+        // On scroll/resize they reposition or auto-close. Nothing ever leaves the screen.
+        var _openDropdowns = []; // [{el, trigger, cleanup}]
+
+        function _positionDropdown(el, trigger) {
+            var r = trigger.getBoundingClientRect();
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var m = 8; // margin from edges
+
+            // Make visible off-screen to measure
+            el.style.visibility = 'hidden';
+            el.style.display = el.classList.contains('open') ? 'block' : (el.style.display || 'block');
+            var dw = el.offsetWidth;
+            var dh = el.offsetHeight;
+            el.style.visibility = '';
+
+            // Prefer below trigger
+            var top = r.bottom + 4;
+            var left = r.left;
+
+            // If goes below viewport, open above trigger
+            if (top + dh > vh - m) {
+                top = r.top - dh - 4;
+            }
+            // If still above viewport, pin to top
+            if (top < m) {
+                top = m;
+            }
+
+            // Clamp max-height to viewport
+            var maxH = vh - top - m;
+            if (top + dh > vh - m) {
+                el.style.maxHeight = maxH + 'px';
+                el.style.overflowY = 'auto';
+            } else {
+                el.style.maxHeight = '';
+            }
+
+            // Horizontal: don't overflow right
+            if (left + dw > vw - m) {
+                left = vw - dw - m;
+            }
+            // Don't overflow left
+            if (left < m) {
+                left = m;
+            }
+
+            el.style.position = 'fixed';
+            el.style.top = top + 'px';
+            el.style.left = left + 'px';
+            el.style.zIndex = '99999';
+        }
+
+        function openDropdownSafe(el, trigger) {
+            // Close all other dropdowns first
+            closeAllDropdowns();
+            _positionDropdown(el, trigger);
+
+            // Reposition on scroll/resize, close if trigger leaves viewport
+            function onMove() {
+                var r = trigger.getBoundingClientRect();
+                if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) {
+                    closeAllDropdowns();
+                    return;
                 }
-                // Clamp left/right so it stays within viewport
-                if (rect.right > vw - margin) {
-                    var shift = rect.right - vw + margin;
-                    el.style.transform = 'translateX(-' + shift + 'px)';
+                _positionDropdown(el, trigger);
+            }
+            window.addEventListener('scroll', onMove, true);
+            window.addEventListener('resize', onMove);
+
+            // Close on outside click
+            function onOutside(e) {
+                if (!el.contains(e.target) && !trigger.contains(e.target)) {
+                    closeAllDropdowns();
                 }
-                if (rect.left < margin) {
-                    el.style.left = margin + 'px';
-                    el.style.right = 'auto';
+            }
+            setTimeout(function() { document.addEventListener('click', onOutside); }, 0);
+
+            _openDropdowns.push({
+                el: el,
+                trigger: trigger,
+                cleanup: function() {
+                    window.removeEventListener('scroll', onMove, true);
+                    window.removeEventListener('resize', onMove);
+                    document.removeEventListener('click', onOutside);
+                    el.style.position = '';
+                    el.style.top = '';
+                    el.style.left = '';
+                    el.style.zIndex = '';
+                    el.style.maxHeight = '';
                 }
             });
         }
 
+        function closeAllDropdowns() {
+            _openDropdowns.forEach(function(d) {
+                d.el.classList.remove('open');
+                if (d.el.style.display === 'block') d.el.style.display = 'none';
+                d.cleanup();
+                // Also remove .open from associated triggers
+                var trg = d.trigger;
+                if (trg) trg.classList.remove('open');
+            });
+            _openDropdowns = [];
+        }
+
         function toggleIndDropdown() {
-            // Close symbols dropdown if open
-            var symMenu = document.getElementById('symDropdownMenu');
-            var symTrigger = document.getElementById('symDropdownTrigger');
-            if (symMenu) symMenu.classList.remove('open');
-            if (symTrigger) symTrigger.classList.remove('open');
             var menu = document.getElementById('indDropdownMenu');
             var trigger = document.getElementById('indDropdownTrigger');
-            if (!menu) return;
-            var isOpen = menu.classList.toggle('open');
-            if (trigger) trigger.classList.toggle('open', isOpen);
-            if (isOpen) {
-                clampToViewport(menu);
-                setTimeout(function() {
-                    document.addEventListener('click', closeIndDropdownOutside);
-                }, 0);
-            }
-        }
-        function closeIndDropdownOutside(e) {
-            var wrap = document.getElementById('indDropdownWrap');
-            if (wrap && !wrap.contains(e.target)) {
-                var menu = document.getElementById('indDropdownMenu');
-                var trigger = document.getElementById('indDropdownTrigger');
-                if (menu) menu.classList.remove('open');
-                if (trigger) trigger.classList.remove('open');
-                document.removeEventListener('click', closeIndDropdownOutside);
+            if (!menu || !trigger) return;
+            var wasOpen = menu.classList.contains('open');
+            if (wasOpen) {
+                closeAllDropdowns();
+            } else {
+                menu.classList.add('open');
+                trigger.classList.add('open');
+                openDropdownSafe(menu, trigger);
             }
         }
 
@@ -9527,33 +9593,17 @@
         }
 
         function toggleSymDropdown() {
-            const menu = document.getElementById('symDropdownMenu');
-            const trigger = document.getElementById('symDropdownTrigger');
-            // Close indicators dropdown if open
-            const indMenu = document.getElementById('indDropdownMenu');
-            const indTrigger = document.getElementById('indDropdownTrigger');
-            if (indMenu) indMenu.classList.remove('open');
-            if (indTrigger) indTrigger.classList.remove('open');
-            if (!menu) return;
-            const isOpen = menu.classList.toggle('open');
-            if (trigger) trigger.classList.toggle('open', isOpen);
-            if (isOpen) {
+            var menu = document.getElementById('symDropdownMenu');
+            var trigger = document.getElementById('symDropdownTrigger');
+            if (!menu || !trigger) return;
+            var wasOpen = menu.classList.contains('open');
+            if (wasOpen) {
+                closeAllDropdowns();
+            } else {
                 updateSymbolsDropdown();
-                clampToViewport(menu);
-                setTimeout(() => {
-                    document.addEventListener('click', closeSymDropdownOutside);
-                }, 0);
-            }
-        }
-
-        function closeSymDropdownOutside(e) {
-            const wrap = document.getElementById('symDropdownWrap');
-            if (wrap && !wrap.contains(e.target)) {
-                const menu = document.getElementById('symDropdownMenu');
-                const trigger = document.getElementById('symDropdownTrigger');
-                if (menu) menu.classList.remove('open');
-                if (trigger) trigger.classList.remove('open');
-                document.removeEventListener('click', closeSymDropdownOutside);
+                menu.classList.add('open');
+                trigger.classList.add('open');
+                openDropdownSafe(menu, trigger);
             }
         }
 
@@ -10642,23 +10692,15 @@
     function toggleSubTfMenu() {
         var dd = document.getElementById('subTfDropdown');
         var btn = document.getElementById('subTfToggle');
-        var isOpen = dd.classList.toggle('open');
-        if (isOpen) {
-            var r = btn.getBoundingClientRect();
-            dd.style.top = (r.bottom + 6) + 'px';
-            dd.style.left = (r.left + r.width / 2) + 'px';
-            dd.style.transform = 'translateX(-50%)';
-            clampToViewport(dd);
+        if (!dd || !btn) return;
+        var wasOpen = dd.classList.contains('open');
+        if (wasOpen) {
+            closeAllDropdowns();
+        } else {
+            dd.classList.add('open');
+            openDropdownSafe(dd, btn);
         }
     }
-    // Close sub-tf dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-        var dd = document.getElementById('subTfDropdown');
-        var btn = document.getElementById('subTfToggle');
-        if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
-            dd.classList.remove('open');
-        }
-    });
     // When a sub-tf is selected, update the toggle button text and close dropdown
     document.querySelectorAll('.sub-tf-dropdown .interval-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -10688,25 +10730,21 @@
 
         function toggleDrawingMenu() {
             var menu = document.getElementById('drawingToolsMenu');
-            if (!menu) return;
-            var isOpen = menu.style.display !== 'none';
+            var btn = document.getElementById('drawingToolsBtn');
+            if (!menu || !btn) return;
             // Cancel any in-progress drawing when toggling the menu
             if (_activeDrawingId) {
                 try { klChart && klChart.removeOverlay({ id: _activeDrawingId }); } catch(e) {}
                 _activeDrawingId = null;
                 _activeDrawingTool = null;
             }
-            menu.style.display = isOpen ? 'none' : 'block';
-            if (!isOpen) {
-                clampToViewport(menu);
-                setTimeout(function() {
-                    document.addEventListener('click', function closeMenu(e) {
-                        if (!e.target.closest('#drawingToolsMenu') && !e.target.closest('#drawingToolsBtn')) {
-                            menu.style.display = 'none';
-                        }
-                        document.removeEventListener('click', closeMenu);
-                    });
-                }, 0);
+            var wasOpen = menu.style.display !== 'none';
+            if (wasOpen) {
+                closeAllDropdowns();
+                menu.style.display = 'none';
+            } else {
+                menu.style.display = 'block';
+                openDropdownSafe(menu, btn);
             }
         }
 
