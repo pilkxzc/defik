@@ -232,20 +232,22 @@ body { font-family: var(--font-sans); background: var(--bg-app); color: var(--te
 .chart-legend-item { display: flex; align-items: center; gap: 5px; }
 .chart-legend-marker { display: inline-block; }
 .chart-legend-marker.entry-long {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(34,211,238,0.15); border: 1.5px solid #22D3EE;
+    width: 0; height: 0;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-bottom: 9px solid #22D3EE;
 }
 .chart-legend-marker.entry-short {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(245,158,11,0.15); border: 1.5px solid #F59E0B;
+    width: 0; height: 0;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 9px solid #F59E0B;
 }
 .chart-legend-marker.exit-profit {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(16,185,129,0.15); border: 1.5px solid #10B981;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(34,211,238,0.15); border: 1.5px solid #22D3EE;
 }
 .chart-legend-marker.exit-loss {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(239,68,68,0.15); border: 1.5px solid #EF4444;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(245,158,11,0.15); border: 1.5px solid #F59E0B;
 }
 .chart-legend-marker.grouped {
     width: 8px; height: 8px; border: 1.5px solid #8B5CF6;
@@ -254,19 +256,19 @@ body { font-family: var(--font-sans); background: var(--bg-app); color: var(--te
 
 /* ── Trades/Orders tabs ── */
 .trades-tabs {
-    display: flex; gap: 2px; background: var(--surface-secondary);
-    border-radius: 8px; padding: 2px;
+    display: flex; gap: 2px; background: rgba(255,255,255,0.04);
+    border-radius: 8px; padding: 3px;
 }
 .trades-tab {
-    padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
-    font-size: 12px; font-weight: 500; font-family: inherit;
+    padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer;
+    font-size: 12px; font-weight: 600; font-family: inherit; letter-spacing: 0.02em;
     background: transparent; color: var(--text-tertiary);
     transition: all 0.2s;
 }
-.trades-tab:hover { color: var(--text-secondary); }
+.trades-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
 .trades-tab.active {
-    background: var(--surface); color: var(--text-primary);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    background: rgba(139,92,246,0.15); color: #C4B5FD;
+    box-shadow: 0 0 8px rgba(139,92,246,0.15);
 }
 
 /* ── KPI grid ── */
