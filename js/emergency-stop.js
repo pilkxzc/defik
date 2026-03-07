@@ -1,6 +1,6 @@
 /**
  * Emergency Stop Button (admin only)
- * Hold for 5 seconds to confirm — stops ALL bots and disconnects ALL subscribers.
+ * Hold for 2 seconds to confirm — stops ALL bots and disconnects ALL subscribers.
  * Positioned bottom-right, above the bug reporter FAB.
  */
 (function () {
@@ -11,7 +11,7 @@
     let progressInterval = null;
     let isExecuting = false;
 
-    const HOLD_DURATION = 5000;
+    const HOLD_DURATION = 2000;
 
     function injectStyles() {
         if (document.getElementById('es-styles')) return;
@@ -111,7 +111,7 @@
                 <circle cx="12" cy="12" r="10"/>
                 <rect x="9" y="9" width="6" height="6" rx="0.5" fill="#EF4444" stroke="none"/>
             </svg>
-            <div id="es-tooltip">Аварійна зупинка (утримуйте 5 сек)</div>`;
+            <div id="es-tooltip">Аварійна зупинка (утримуйте 2 сек)</div>`;
 
         // Mouse events
         fab.addEventListener('mousedown', startHold);
@@ -171,7 +171,7 @@
         if (circle) circle.style.strokeDashoffset = 141.37;
 
         const tooltip = document.getElementById('es-tooltip');
-        if (tooltip) tooltip.textContent = 'Аварійна зупинка (утримуйте 5 сек)';
+        if (tooltip) tooltip.textContent = 'Аварійна зупинка (утримуйте 2 сек)';
     }
 
     async function executeEmergencyStop() {
@@ -251,7 +251,7 @@
         const check = setInterval(() => {
             if (window.currentUser) {
                 clearInterval(check);
-                if (window.currentUser.role === 'admin' || window.currentUser.role === 'moderator') {
+                if (window.currentUser.role === 'admin') {
                     injectStyles();
                     createButton();
                 }

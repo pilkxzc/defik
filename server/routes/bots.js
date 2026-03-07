@@ -963,7 +963,7 @@ router.post('/api/bots/binance', requireAuth, requireRole('admin', 'moderator'),
 
 // ── Emergency stop all bots (admin only) ──
 
-router.post('/api/bots/emergency-stop', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+router.post('/api/bots/emergency-stop', requireAuth, requireRole('admin'), (req, res) => {
     try {
         // 1. Deactivate all bots
         dbRun('UPDATE bots SET is_active = 0');

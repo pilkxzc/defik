@@ -2802,6 +2802,7 @@
     let hideTimer = null;
 
     document.addEventListener('mouseenter', function(e) {
+        if (!e.target || !e.target.closest) return;
         const sub = e.target.closest('.bot-list-item-sub[data-tooltip-coins]');
         if (!sub) return;
         clearTimeout(hideTimer);
@@ -2822,12 +2823,13 @@
 
         const tipH = tip.offsetHeight;
         let top = rect.top - tipH - 6;
-        if (top < 4) top = rect.bottom + 6; // fallback below if no space above
+        if (top < 4) top = rect.bottom + 6;
         tip.style.top = top + 'px';
         tip.style.left = rect.left + 'px';
     }, true);
 
     document.addEventListener('mouseleave', function(e) {
+        if (!e.target || !e.target.closest) return;
         const sub = e.target.closest('.bot-list-item-sub[data-tooltip-coins]');
         if (!sub) return;
         hideTimer = setTimeout(() => tip.classList.remove('visible'), 100);
