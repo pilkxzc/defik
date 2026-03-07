@@ -143,3 +143,23 @@ window.addEventListener('resize', () => {
 });
 
 init();
+
+// ═══════════════════════════════════════════
+//  URL TAB PARAM (standalone, runs even if init() fails)
+// ═══════════════════════════════════════════
+(function() {
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    if (urlTab) {
+        const el = document.getElementById('tab-' + urlTab);
+        if (el) {
+            // Switch tab immediately
+            document.querySelectorAll('.tab-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.tab === urlTab)
+            );
+            document.querySelectorAll('.tab-content').forEach(c =>
+                c.classList.toggle('active', c.id === 'tab-' + urlTab)
+            );
+            if (typeof activeTab !== 'undefined') activeTab = urlTab;
+        }
+    }
+})();
