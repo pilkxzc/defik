@@ -63,22 +63,33 @@ async function fetchKlines(symbol, interval) {
         const sym = symbol || getSymbol();
         const intv = interval || currentTF;
 
-        // Sub-minute intervals: fetch 1s klines from Binance directly and aggregate
+        // Sub-minute intervals: fetch 1s klines from Binance Spot and aggregate
         const subMinMap = { '1s': 1, '3s': 3, '5s': 5, '15s': 15, '30s': 30 };
         if (subMinMap[intv]) {
-            let raw = null;
-            // Binance Futures does NOT support 1s klines — use Spot API directly
-            try {
-                const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1s&limit=1000`);
-                if (r.ok) raw = await r.json();
-            } catch (e) { /* silent */ }
-            if (raw && raw.length > 0) {
-                const oneSecCandles = raw.map(k => ({
+            const bucketSec = subMinMap[intv];
+            // Fetch enough 1s candles to produce ~300 aggregated candles (max 10 requests)
+            const targetRaw = Math.max(1000, bucketSec * 300);
+            const numRequests = Math.min(Math.ceil(targetRaw / 1000), 10);
+
+            let allRaw = [];
+            let endTime = Date.now();
+            for (let i = 0; i < numRequests; i++) {
+                try {
+                    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1s&limit=1000&endTime=${endTime}`);
+                    if (!r.ok) break;
+                    const batch = await r.json();
+                    if (!batch || batch.length === 0) break;
+                    allRaw = batch.concat(allRaw); // prepend older data
+                    endTime = batch[0][0] - 1; // next batch ends before this batch's first candle
+                } catch (e) { break; }
+            }
+
+            if (allRaw.length > 0) {
+                const oneSecCandles = allRaw.map(k => ({
                     time: Math.floor(k[0] / 1000), open: parseFloat(k[1]),
                     high: parseFloat(k[2]), low: parseFloat(k[3]),
                     close: parseFloat(k[4]), volume: parseFloat(k[5])
                 }));
-                const bucketSec = subMinMap[intv];
                 if (bucketSec === 1) {
                     klineData = oneSecCandles;
                 } else {
