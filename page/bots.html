@@ -2048,6 +2048,10 @@
                                     }</svg>
                                     ${hasOpen ? 'Зупинити (адмін)' : 'Запустити (адмін)'}
                                 </div>
+                                <a class="coin-popup-item" href="/bot-orders/${b.id}?symbol=${sym}" onclick="event.stopPropagation(); closeCoinPopups();" style="text-decoration:none;color:#C4B5FD;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                    Ордери <span style="font-size:8px;font-weight:800;letter-spacing:0.5px;background:rgba(139,92,246,0.2);padding:1px 5px;border-radius:3px;margin-left:4px;">ADMIN</span>
+                                </a>
                                 <div class="coin-popup-item ${c.isVisible ? 'stop' : 'start'}" onclick="event.stopPropagation(); closeCoinPopups(); toggleSymbolVisibility(${b.id}, '${sym}', ${!c.isVisible})">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.isVisible
                                         ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
@@ -2586,6 +2590,9 @@
                                     <a class="coin-action-icon" href="/bot-stats/${b.id}?symbol=${sym}&tab=statistics" onclick="event.stopPropagation()" title="Статистика">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                                     </a>
+                                    ${_isAdmin ? `<a class="coin-action-icon" href="/bot-orders/${b.id}?symbol=${sym}" onclick="event.stopPropagation()" title="Ордери (ADMIN)" style="color:#C4B5FD;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                    </a>` : ''}
                                     <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
                                     <span style="font-size:11px;font-weight:600;color:${coinPnlClass};">${coinPnlStr}</span>
                                     <span style="font-size:11px;font-weight:600;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? '● Live' : 'Очікує'}</span>

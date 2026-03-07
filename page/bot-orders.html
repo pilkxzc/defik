@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamato — Ордери</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=robot" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/shared-layout.css">
+    <link rel="stylesheet" href="/css/nav-fix.css">
+    <link rel="stylesheet" href="/css/responsive.css">
+    <link rel="stylesheet" href="/css/scrollbar.css">
+    <style>
+        .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:24px;line-height:1;color:inherit;display:inline-flex;align-items:center;justify-content:center;}
+
+        .app-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: 56px 1fr;
+            height: 100vh;
+        }
+        .header-bar {
+            grid-column: 2; grid-row: 1;
+            display: flex; align-items: center; gap: 12px;
+            padding: 0 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .main-content {
+            grid-column: 2; grid-row: 2;
+            overflow-y: auto; padding: 24px;
+            scrollbar-width: none;
+        }
+        .main-content::-webkit-scrollbar { display: none; }
+
+        /* Header */
+        .back-btn {
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; background: rgba(255,255,255,0.06); color: var(--text-secondary);
+            text-decoration: none; transition: 0.15s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+        .page-title { font-size: 18px; font-weight: 700; }
+        .admin-badge {
+            font-size: 9px; font-weight: 800; letter-spacing: 1px;
+            background: rgba(139,92,246,0.15); color: #C4B5FD; border: 1px solid rgba(139,92,246,0.3);
+            padding: 3px 8px; border-radius: 6px;
+        }
+        .symbol-badge {
+            font-size: 12px; font-weight: 700; color: var(--accent-primary);
+            background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2);
+            padding: 4px 10px; border-radius: 8px; font-family: 'JetBrains Mono', monospace;
+        }
+        .header-spacer { flex: 1; }
+        .header-count { font-size: 12px; color: var(--text-tertiary); font-weight: 500; }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .search-box {
+            flex: 1; min-width: 200px; max-width: 360px;
+            display: flex; align-items: center; gap: 8px;
+            background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px; padding: 0 12px; height: 36px;
+            transition: border-color 0.15s;
+        }
+        .search-box:focus-within { border-color: rgba(139,92,246,0.4); }
+        .search-box svg { flex-shrink: 0; color: var(--text-tertiary); }
+        .search-box input {
+            flex: 1; background: none; border: none; outline: none;
+            color: var(--text-primary); font-size: 13px; font-family: inherit;
+        }
+        .search-box input::placeholder { color: var(--text-tertiary); }
+
+        .filter-group { display: flex; gap: 4px; }
+        .filter-btn {
+            padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03); color: var(--text-secondary);
+            font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.15s;
+            font-family: inherit; white-space: nowrap;
+        }
+        .filter-btn:hover { background: rgba(255,255,255,0.06); }
+        .filter-btn.active {
+            background: rgba(139,92,246,0.15); color: #C4B5FD;
+            border-color: rgba(139,92,246,0.3);
+        }
+
+        .time-select {
+            background: var(--surface-secondary); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px; padding: 6px 10px; color: var(--text-secondary);
+            font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+            outline: none; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23636363' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 8px center;
+            padding-right: 24px;
+        }
+
+        /* Stats summary row */
+        .stats-row {
+            display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+        }
+        .stat-card {
+            background: var(--surface); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 12px 16px; flex: 1; min-width: 120px;
+        }
+        .stat-label { font-size: 10px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .stat-value { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+        /* Table */
+        .orders-card {
+            background: var(--surface); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px; overflow: hidden;
+        }
+        .orders-table-wrap {
+            overflow-x: auto; scrollbar-width: none;
+        }
+        .orders-table-wrap::-webkit-scrollbar { display: none; }
+        .orders-tbl {
+            width: 100%; border-collapse: collapse; font-size: 12px;
+        }
+        .orders-tbl th {
+            text-align: left; padding: 12px 14px; font-size: 10px; font-weight: 700;
+            color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px;
+            background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: sticky; top: 0; z-index: 1;
+        }
+        .orders-tbl th.sortable {
+            cursor: pointer; user-select: none; white-space: nowrap;
+        }
+        .orders-tbl th.sortable::after {
+            content: '\21C5'; margin-left: 4px; opacity: 0.3; font-size: 9px;
+        }
+        .orders-tbl th.sortable.active-sort { color: #C4B5FD; }
+        .orders-tbl th.sortable.active-sort.asc::after { content: '\2191'; opacity: 0.8; }
+        .orders-tbl th.sortable.active-sort.desc::after { content: '\2193'; opacity: 0.8; }
+        .orders-tbl td {
+            padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text-secondary); vertical-align: middle;
+        }
+        .orders-tbl tr:hover td { background: rgba(255,255,255,0.02); }
+        .orders-tbl .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+        /* Badges */
+        .badge-long { color: #22D3EE; background: rgba(34,211,238,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+        .badge-short { color: #F59E0B; background: rgba(245,158,11,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+        .badge-filled { color: #10B981; background: rgba(16,185,129,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+        .badge-canceled { color: #EF4444; background: rgba(239,68,68,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+        .badge-new { color: #8CA8FF; background: rgba(140,168,255,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+        .badge-expired { color: #636363; background: rgba(99,99,99,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+        .badge-type { color: #C4B5FD; background: rgba(139,92,246,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center; padding: 60px 20px; color: var(--text-tertiary);
+            font-size: 14px; font-weight: 500;
+        }
+        .empty-state svg { margin-bottom: 12px; opacity: 0.3; }
+
+        /* Loading spinner */
+        .loading-spinner {
+            display: flex; align-items: center; justify-content: center; padding: 60px;
+        }
+        .loading-spinner::after {
+            content: ''; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.08);
+            border-top-color: #C4B5FD; border-radius: 50%; animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Pagination */
+        .pagination {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 12px; color: var(--text-tertiary);
+        }
+        .pagination-btns { display: flex; gap: 4px; }
+        .page-btn {
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03); color: var(--text-secondary);
+            cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; transition: 0.15s;
+        }
+        .page-btn:hover { background: rgba(255,255,255,0.06); }
+        .page-btn.active { background: rgba(139,92,246,0.15); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
+        .page-btn:disabled { opacity: 0.3; cursor: default; }
+
+        /* Order detail panel */
+        .order-detail-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 1000; backdrop-filter: blur(4px);
+        }
+        .order-detail-overlay.open { display: flex; align-items: center; justify-content: center; }
+        .order-detail-panel {
+            background: var(--surface); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px; padding: 24px; width: 420px; max-width: 90vw;
+            max-height: 80vh; overflow-y: auto;
+        }
+        .order-detail-panel h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+        .detail-label { color: var(--text-tertiary); }
+        .detail-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+        .detail-close {
+            position: absolute; top: 16px; right: 16px; width: 28px; height: 28px;
+            border-radius: 50%; border: none; background: rgba(255,255,255,0.06);
+            color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-content { padding: 16px; }
+            .stats-row { gap: 8px; }
+            .stat-card { min-width: 90px; padding: 10px 12px; }
+            .stat-value { font-size: 14px; }
+            .toolbar { gap: 8px; }
+            .search-box { min-width: 150px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- Sidebar -->
+    <nav class="nav-sidebar">
+        <a href="/dashboard" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></a>
+        <a href="/portfolio" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg></a>
+        <a href="/bots" class="nav-item"><span class="material-symbols-outlined">robot</span></a>
+        <a href="/news" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg></a>
+        <a href="/subscriptions" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></a>
+        <a href="/community" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></a>
+        <a href="/docs" class="nav-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></a>
+        <a href="/admin" class="nav-item admin-nav-item admin-hidden" id="adminNavLink"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></a>
+        <a href="/profile" class="nav-item" style="margin-top:auto"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></a>
+    </nav>
+
+    <!-- Header -->
+    <header class="header-bar">
+        <a class="back-btn" id="backBtn" href="/bots" title="Назад">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="page-title" id="pageTitle">Ордери</span>
+        <span class="admin-badge">ADMIN</span>
+        <span class="symbol-badge" id="symbolBadge">---</span>
+        <div class="header-spacer"></div>
+        <span class="header-count" id="headerCount"></span>
+    </header>
+
+    <!-- Main -->
+    <div class="main-content">
+        <!-- Stats -->
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card"><div class="stat-label">Всього</div><div class="stat-value" id="statTotal">-</div></div>
+            <div class="stat-card"><div class="stat-label">Виконано</div><div class="stat-value" id="statFilled" style="color:var(--color-up);">-</div></div>
+            <div class="stat-card"><div class="stat-label">Скасовано</div><div class="stat-value" id="statCanceled" style="color:var(--color-down);">-</div></div>
+            <div class="stat-card"><div class="stat-label">Нові</div><div class="stat-value" id="statNew" style="color:#8CA8FF;">-</div></div>
+            <div class="stat-card"><div class="stat-label">Протерміновано</div><div class="stat-value" id="statExpired">-</div></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="search-box">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input type="text" id="searchInput" placeholder="Пошук по ID, типу, статусу...">
+            </div>
+            <div class="filter-group" id="sideFilters">
+                <button class="filter-btn active" data-side="all">Все</button>
+                <button class="filter-btn" data-side="BUY">Long</button>
+                <button class="filter-btn" data-side="SELL">Short</button>
+            </div>
+            <div class="filter-group" id="statusFilters">
+                <button class="filter-btn active" data-status="all">Все</button>
+                <button class="filter-btn" data-status="FILLED">Filled</button>
+                <button class="filter-btn" data-status="CANCELED">Canceled</button>
+                <button class="filter-btn" data-status="NEW">New</button>
+                <button class="filter-btn" data-status="EXPIRED">Expired</button>
+            </div>
+            <div class="filter-group" id="typeFilters">
+                <button class="filter-btn active" data-type="all">Все</button>
+                <button class="filter-btn" data-type="LIMIT">Limit</button>
+                <button class="filter-btn" data-type="MARKET">Market</button>
+                <button class="filter-btn" data-type="STOP">Stop</button>
+                <button class="filter-btn" data-type="TP">TP</button>
+            </div>
+            <select class="time-select" id="timeFilter">
+                <option value="0">Весь час</option>
+                <option value="1">24 години</option>
+                <option value="7">7 днів</option>
+                <option value="30">30 днів</option>
+                <option value="90">90 днів</option>
+            </select>
+        </div>
+
+        <!-- Table -->
+        <div class="orders-card">
+            <div class="orders-table-wrap">
+                <table class="orders-tbl">
+                    <thead>
+                        <tr>
+                            <th class="sortable active-sort desc" data-sort="time">Дата</th>
+                            <th class="sortable" data-sort="orderId">Order ID</th>
+                            <th class="sortable" data-sort="symbol">Символ</th>
+                            <th class="sortable" data-sort="side">Сторона</th>
+                            <th class="sortable" data-sort="type">Тип</th>
+                            <th class="sortable" data-sort="price">Ціна</th>
+                            <th class="sortable" data-sort="quantity">К-сть</th>
+                            <th class="sortable" data-sort="executedQty">Виконано</th>
+                            <th class="sortable" data-sort="status">Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersBody">
+                        <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Detail Overlay -->
+<div class="order-detail-overlay" id="orderOverlay">
+    <div class="order-detail-panel" id="orderPanel" style="position:relative;"></div>
+</div>
+
+<!-- Mobile nav -->
+<nav class="mobile-nav" id="mobileNav" style="display:none;">
+    <a href="/dashboard" class="mobile-nav-item"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><span>Дашборд</span></a>
+    <a href="/portfolio" class="mobile-nav-item"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфоліо</span></a>
+    <a href="/bots" class="mobile-nav-item"><span class="material-symbols-outlined" style="font-size:22px;">robot</span><span>Боти</span></a>
+    <a href="/profile" class="mobile-nav-item"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>
+</nav>
+
+<script src="/js/app.js"></script>
+<script>
+(function() {
+    // Mobile nav
+    const mq = window.matchMedia('(max-width: 768px)');
+    function toggleMobileNav(e) { const n = document.getElementById('mobileNav'); if (n) n.style.display = e.matches ? 'flex' : 'none'; }
+    mq.addEventListener('change', toggleMobileNav); toggleMobileNav(mq);
+
+    // Parse URL
+    const pathParts = window.location.pathname.split('/');
+    const botId = pathParts[pathParts.length - 1];
+    const urlParams = new URLSearchParams(window.location.search);
+    const symbol = urlParams.get('symbol') || 'BTCUSDT';
+
+    document.getElementById('symbolBadge').textContent = symbol.replace(/USDT|BUSD/gi, '/USDT');
+    document.title = `Yamato — Ордери ${symbol.replace(/USDT|BUSD/gi, '')}`;
+
+    // State
+    let allOrders = [];
+    let filteredOrders = [];
+    let sortKey = 'time';
+    let sortDir = 'desc';
+    let sideFilter = 'all';
+    let statusFilter = 'all';
+    let typeFilter = 'all';
+    let timeFilter = 0;
+    let searchQuery = '';
+    let currentPage = 1;
+    const perPage = 50;
+
+    // Fetch bot name
+    fetch(`/api/bots/${botId}/details`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+            if (d?.bot?.name) {
+                document.getElementById('pageTitle').textContent = d.bot.name + ' — Ордери';
+                document.getElementById('backBtn').href = '/bots';
+            }
+        }).catch(() => {});
+
+    // Check admin
+    fetch('/api/auth/me', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(user => {
+            if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+                document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text-tertiary);font-size:16px;">Доступ заборонено</div>';
+            }
+            if (user?.role === 'admin') {
+                const adminLink = document.getElementById('adminNavLink');
+                if (adminLink) adminLink.classList.remove('admin-hidden');
+            }
+        }).catch(() => {});
+
+    // Fetch orders
+    async function loadOrders() {
+        try {
+            const res = await fetch(`/api/bots/${botId}/order-history?symbol=${symbol}`, { credentials: 'include' });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            allOrders = data.orders || [];
+            applyFilters();
+        } catch (e) {
+            document.getElementById('ordersBody').innerHTML =
+                '<tr><td colspan="9" class="empty-state">Помилка завантаження ордерів</td></tr>';
+        }
+    }
+
+    function fmtPrice(v) {
+        v = parseFloat(v) || 0;
+        if (v === 0) return '0';
+        if (v >= 1000) return v.toFixed(2);
+        if (v >= 1) return v.toFixed(4);
+        return v.toPrecision(4);
+    }
+
+    function applyFilters() {
+        let orders = allOrders.slice();
+
+        // Side filter
+        if (sideFilter !== 'all') orders = orders.filter(o => o.side === sideFilter);
+
+        // Status filter
+        if (statusFilter !== 'all') orders = orders.filter(o => o.status === statusFilter);
+
+        // Type filter
+        if (typeFilter !== 'all') {
+            if (typeFilter === 'STOP') {
+                orders = orders.filter(o => o.type && (o.type.includes('STOP') && !o.type.includes('TAKE_PROFIT')));
+            } else if (typeFilter === 'TP') {
+                orders = orders.filter(o => o.type && o.type.includes('TAKE_PROFIT'));
+            } else {
+                orders = orders.filter(o => o.type === typeFilter);
+            }
+        }
+
+        // Time filter
+        if (timeFilter > 0) {
+            const cutoff = Date.now() - timeFilter * 86400000;
+            orders = orders.filter(o => (o.time || o.updateTime || 0) >= cutoff);
+        }
+
+        // Search
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            orders = orders.filter(o =>
+                String(o.orderId).includes(q) ||
+                (o.symbol || '').toLowerCase().includes(q) ||
+                (o.side || '').toLowerCase().includes(q) ||
+                (o.type || '').toLowerCase().replace(/_/g, ' ').includes(q) ||
+                (o.status || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Sort
+        const dir = sortDir === 'asc' ? 1 : -1;
+        orders.sort((a, b) => {
+            let va, vb;
+            switch (sortKey) {
+                case 'orderId':     va = a.orderId || 0; vb = b.orderId || 0; break;
+                case 'symbol':      return dir * (a.symbol || '').localeCompare(b.symbol || '');
+                case 'side':        return dir * (a.side || '').localeCompare(b.side || '');
+                case 'type':        return dir * (a.type || '').localeCompare(b.type || '');
+                case 'price':       va = a.avgPrice > 0 ? a.avgPrice : (a.stopPrice > 0 ? a.stopPrice : (a.price || 0)); vb = b.avgPrice > 0 ? b.avgPrice : (b.stopPrice > 0 ? b.stopPrice : (b.price || 0)); break;
+                case 'quantity':    va = a.quantity || 0; vb = b.quantity || 0; break;
+                case 'executedQty': va = a.executedQty || 0; vb = b.executedQty || 0; break;
+                case 'status':      return dir * (a.status || '').localeCompare(b.status || '');
+                default: /* time */ va = a.time || a.updateTime || 0; vb = b.time || b.updateTime || 0;
+            }
+            return dir * (va - vb);
+        });
+
+        filteredOrders = orders;
+        updateStats();
+        renderTable();
+    }
+
+    function updateStats() {
+        const total = allOrders.length;
+        const filled = allOrders.filter(o => o.status === 'FILLED').length;
+        const canceled = allOrders.filter(o => o.status === 'CANCELED').length;
+        const newO = allOrders.filter(o => o.status === 'NEW').length;
+        const expired = allOrders.filter(o => o.status === 'EXPIRED').length;
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statFilled').textContent = filled;
+        document.getElementById('statCanceled').textContent = canceled;
+        document.getElementById('statNew').textContent = newO;
+        document.getElementById('statExpired').textContent = expired;
+        document.getElementById('headerCount').textContent = filteredOrders.length + ' з ' + total;
+    }
+
+    function renderTable() {
+        const body = document.getElementById('ordersBody');
+        if (filteredOrders.length === 0) {
+            body.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                <div>Ордерів не знайдено</div>
+            </div></td></tr>`;
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        const totalPages = Math.ceil(filteredOrders.length / perPage);
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * perPage;
+        const pageOrders = filteredOrders.slice(start, start + perPage);
+
+        body.innerHTML = pageOrders.map(o => {
+            const isBuy = o.side === 'BUY';
+            const badgeSide = isBuy ? 'badge-long' : 'badge-short';
+            const statusCls = o.status === 'FILLED' ? 'badge-filled'
+                : o.status === 'CANCELED' ? 'badge-canceled'
+                : o.status === 'NEW' ? 'badge-new'
+                : o.status === 'EXPIRED' ? 'badge-expired'
+                : 'badge-type';
+            const displayPrice = o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : o.price);
+            const execPct = o.quantity > 0 ? Math.round((o.executedQty || 0) / o.quantity * 100) : 0;
+            const dt = o.time ? new Date(o.time) : (o.updateTime ? new Date(o.updateTime) : null);
+            const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
+            const orderType = (o.type || '\u2014').replace(/_/g, ' ');
+            return `<tr style="cursor:pointer;" onclick="showOrderDetail(${JSON.stringify(o).replace(/"/g, '&quot;')})">
+                <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
+                <td class="mono" style="font-size:10px;" title="${o.orderId}">${o.orderId}</td>
+                <td class="mono">${(o.symbol || '').replace('USDT', '')}</td>
+                <td><span class="${badgeSide}">${o.side}</span></td>
+                <td><span class="badge-type">${orderType}</span></td>
+                <td class="mono">$${fmtPrice(displayPrice)}</td>
+                <td class="mono">${parseFloat(o.quantity || 0).toFixed(4)}</td>
+                <td class="mono">${execPct > 0 ? execPct + '%' : '\u2014'}</td>
+                <td><span class="${statusCls}">${o.status}</span></td>
+            </tr>`;
+        }).join('');
+
+        // Pagination
+        const pagEl = document.getElementById('pagination');
+        if (totalPages <= 1) {
+            pagEl.innerHTML = `<span>${filteredOrders.length} ордерів</span><span></span>`;
+            return;
+        }
+        let btns = '';
+        btns += `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goPage(${currentPage - 1})">&laquo;</button>`;
+        const maxBtns = 7;
+        let startP = Math.max(1, currentPage - Math.floor(maxBtns / 2));
+        let endP = Math.min(totalPages, startP + maxBtns - 1);
+        if (endP - startP < maxBtns - 1) startP = Math.max(1, endP - maxBtns + 1);
+        for (let i = startP; i <= endP; i++) {
+            btns += `<button class="page-btn${i === currentPage ? ' active' : ''}" onclick="goPage(${i})">${i}</button>`;
+        }
+        btns += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goPage(${currentPage + 1})">&raquo;</button>`;
+        pagEl.innerHTML = `<span>${start + 1}\u2013${Math.min(start + perPage, filteredOrders.length)} з ${filteredOrders.length}</span><div class="pagination-btns">${btns}</div>`;
+    }
+
+    window.goPage = function(p) {
+        currentPage = p;
+        renderTable();
+        document.querySelector('.orders-table-wrap')?.scrollTo(0, 0);
+    };
+
+    // Order detail
+    window.showOrderDetail = function(o) {
+        const panel = document.getElementById('orderPanel');
+        const isBuy = o.side === 'BUY';
+        const badgeSide = isBuy ? 'badge-long' : 'badge-short';
+        const statusCls = o.status === 'FILLED' ? 'badge-filled' : o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : o.status === 'EXPIRED' ? 'badge-expired' : 'badge-type';
+        const dt = o.time ? new Date(o.time) : null;
+        const updDt = o.updateTime ? new Date(o.updateTime) : null;
+        const fmtDt = d => d ? d.toLocaleDateString('uk-UA') + ' ' + d.toLocaleTimeString('uk-UA') : '\u2014';
+
+        panel.innerHTML = `
+            <button class="detail-close" onclick="document.getElementById('orderOverlay').classList.remove('open')">&times;</button>
+            <h3><span class="${badgeSide}">${o.side}</span> <span class="badge-type">${(o.type || '').replace(/_/g, ' ')}</span> <span class="${statusCls}">${o.status}</span></h3>
+            <div class="detail-row"><span class="detail-label">Order ID</span><span class="detail-value">${o.orderId}</span></div>
+            <div class="detail-row"><span class="detail-label">Символ</span><span class="detail-value">${o.symbol}</span></div>
+            <div class="detail-row"><span class="detail-label">Ціна</span><span class="detail-value">$${fmtPrice(o.price)}</span></div>
+            ${o.stopPrice > 0 ? `<div class="detail-row"><span class="detail-label">Stop ціна</span><span class="detail-value">$${fmtPrice(o.stopPrice)}</span></div>` : ''}
+            ${o.avgPrice > 0 ? `<div class="detail-row"><span class="detail-label">Сер. ціна</span><span class="detail-value">$${fmtPrice(o.avgPrice)}</span></div>` : ''}
+            <div class="detail-row"><span class="detail-label">К-сть</span><span class="detail-value">${parseFloat(o.quantity || 0).toFixed(4)}</span></div>
+            <div class="detail-row"><span class="detail-label">Виконано</span><span class="detail-value">${parseFloat(o.executedQty || 0).toFixed(4)}</span></div>
+            <div class="detail-row"><span class="detail-label">Створено</span><span class="detail-value" style="font-size:11px;">${fmtDt(dt)}</span></div>
+            <div class="detail-row"><span class="detail-label">Оновлено</span><span class="detail-value" style="font-size:11px;">${fmtDt(updDt)}</span></div>
+        `;
+        document.getElementById('orderOverlay').classList.add('open');
+    };
+
+    // Close overlay
+    document.getElementById('orderOverlay').addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('open');
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('orderOverlay').classList.remove('open');
+    });
+
+    // Sortable headers
+    document.querySelectorAll('.orders-tbl th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.dataset.sort;
+            if (sortKey === key) {
+                sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+            } else {
+                sortKey = key;
+                sortDir = 'desc';
+            }
+            document.querySelectorAll('.orders-tbl th.sortable').forEach(h => h.classList.remove('active-sort', 'asc', 'desc'));
+            th.classList.add('active-sort', sortDir);
+            currentPage = 1;
+            applyFilters();
+        });
+    });
+
+    // Side filter
+    document.querySelectorAll('#sideFilters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            sideFilter = btn.dataset.side;
+            document.querySelectorAll('#sideFilters .filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+            currentPage = 1;
+            applyFilters();
+        });
+    });
+
+    // Status filter
+    document.querySelectorAll('#statusFilters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            statusFilter = btn.dataset.status;
+            document.querySelectorAll('#statusFilters .filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+            currentPage = 1;
+            applyFilters();
+        });
+    });
+
+    // Type filter
+    document.querySelectorAll('#typeFilters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            typeFilter = btn.dataset.type;
+            document.querySelectorAll('#typeFilters .filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+            currentPage = 1;
+            applyFilters();
+        });
+    });
+
+    // Time filter
+    document.getElementById('timeFilter').addEventListener('change', function() {
+        timeFilter = parseInt(this.value);
+        currentPage = 1;
+        applyFilters();
+    });
+
+    // Search
+    let searchDebounce;
+    document.getElementById('searchInput').addEventListener('input', function() {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+            searchQuery = this.value.trim();
+            currentPage = 1;
+            applyFilters();
+        }, 200);
+    });
+
+    // Init
+    loadOrders();
+})();
+</script>
+</body>
+</html>
