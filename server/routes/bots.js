@@ -1680,7 +1680,9 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
                 id: t.id, symbol: t.symbol, side: t.side, type: t.type,
                 quantity: t.quantity, price: t.price, pnl: t.pnl, pnlPercent: t.pnl_percent,
                 status: t.status, openedAt: t.opened_at, closedAt: t.closed_at,
-                positionSide: t.position_side || null
+                positionSide: t.position_side || null,
+                binanceTradeId: t.binance_trade_id || null,
+                binanceCloseTradeId: t.binance_close_trade_id || null
             })),
             total: total?.count || 0
         });
@@ -1693,6 +1695,68 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
     } catch (error) {
         console.error('Bot trades error:', error);
         res.status(500).json({ error: 'Failed to fetch trades' });
+    }
+});
+
+router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
+    try {
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        if (!bot.binance_api_key || !bot.binance_api_secret) {
+            // Return DB-only order history
+            const dbOrders = dbAll('SELECT * FROM bot_order_history WHERE bot_id = ? ORDER BY canceled_at DESC LIMIT 200', [bot.id]);
+            return res.json({
+                orders: dbOrders.map(o => ({
+                    orderId: o.order_id, symbol: o.symbol, side: o.side, type: o.type,
+                    price: parseFloat(o.price) || 0, stopPrice: o.stop_price ? parseFloat(o.stop_price) : null,
+                    quantity: parseFloat(o.quantity) || 0, status: o.status,
+                    time: o.canceled_at || o.created_at
+                }))
+            });
+        }
+
+        const symbol = req.query.symbol || bot.selected_symbol || 'BTCUSDT';
+        const timestamp = await getBinanceServerTime('futures');
+        const sign = (qs) => crypto.createHmac('sha256', bot.binance_api_secret).update(qs).digest('hex');
+        const qs = new URLSearchParams({ symbol, limit: 500, timestamp }).toString();
+
+        const resp = await axios.get(`https://fapi.binance.com/fapi/v1/allOrders?${qs}&signature=${sign(qs)}`, {
+            headers: { 'X-MBX-APIKEY': bot.binance_api_key }, timeout: 10000
+        });
+        const allOrders = resp.data || [];
+
+        // Save canceled orders to DB for history
+        const canceled = allOrders.filter(o => o.status === 'CANCELED');
+        for (const o of canceled) {
+            try {
+                const exists = dbGet('SELECT id FROM bot_order_history WHERE bot_id = ? AND order_id = ?', [bot.id, o.orderId]);
+                if (!exists) {
+                    dbRun('INSERT INTO bot_order_history (bot_id, order_id, symbol, side, type, price, stop_price, quantity, status, canceled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [bot.id, o.orderId, o.symbol, o.side, o.type, o.price, o.stopPrice, o.origQty, o.status, new Date(o.updateTime).toISOString()]);
+                }
+            } catch (e) { /* duplicate */ }
+        }
+
+        const orders = allOrders.map(o => ({
+            orderId: o.orderId,
+            symbol: o.symbol,
+            side: o.side,
+            type: o.type,
+            price: parseFloat(o.price) || 0,
+            stopPrice: parseFloat(o.stopPrice) || 0,
+            avgPrice: parseFloat(o.avgPrice) || 0,
+            quantity: parseFloat(o.origQty) || 0,
+            executedQty: parseFloat(o.executedQty) || 0,
+            status: o.status,
+            time: o.time,
+            updateTime: o.updateTime
+        })).sort((a, b) => b.time - a.time);
+
+        res.json({ orders });
+    } catch (error) {
+        console.error('Order history error:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to fetch order history' });
     }
 });
 

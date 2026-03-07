@@ -345,27 +345,52 @@
                 </div>
             </div>
 
-            <!-- Recent Trades -->
+            <!-- Recent Trades + Order History -->
             <div class="card">
-                <div class="card-header">
-                    <span class="card-title">Останні угоди</span>
+                <div class="card-header" style="gap:12px;">
+                    <div class="trades-tabs">
+                        <button class="trades-tab active" data-trades-tab="trades">Угоди</button>
+                        <button class="trades-tab" data-trades-tab="orders">Ордери</button>
+                    </div>
                     <span style="font-size:11px;color:var(--text-tertiary)" id="recentTradesCount"></span>
                 </div>
-                <div class="card-body-np">
+                <div class="card-body-np" id="tradesTabContent">
                     <div class="trades-scroll">
                         <table class="trades-tbl" id="recentTradesTable">
                             <thead>
                                 <tr>
                                     <th>Символ</th>
                                     <th>Сторона</th>
-                                    <th>Ціна входу</th>
-                                    <th>Кількість</th>
+                                    <th>Тип</th>
+                                    <th>Ціна</th>
+                                    <th>К-сть</th>
                                     <th>PnL</th>
+                                    <th>ID</th>
                                     <th>Тривалість</th>
                                     <th>Дата</th>
                                 </tr>
                             </thead>
                             <tbody id="recentTradesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-body-np" id="ordersTabContent" style="display:none;">
+                    <div class="trades-scroll">
+                        <table class="trades-tbl" id="orderHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Символ</th>
+                                    <th>Сторона</th>
+                                    <th>Тип</th>
+                                    <th>Ціна</th>
+                                    <th>К-сть</th>
+                                    <th>Виконано</th>
+                                    <th>Статус</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderHistoryBody"></tbody>
                         </table>
                     </div>
                 </div>

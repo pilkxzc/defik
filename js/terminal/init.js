@@ -103,6 +103,22 @@ async function init() {
             switchTab(urlTab);
         }
 
+        // Trades/Orders sub-tabs
+        document.querySelectorAll('.trades-tab[data-trades-tab]').forEach(b =>
+            b.addEventListener('click', () => {
+                const tab = b.dataset.tradesTab;
+                document.querySelectorAll('.trades-tab').forEach(t => t.classList.toggle('active', t === b));
+                const tradesContent = document.getElementById('tradesTabContent');
+                const ordersContent = document.getElementById('ordersTabContent');
+                if (tradesContent) tradesContent.style.display = tab === 'trades' ? '' : 'none';
+                if (ordersContent) ordersContent.style.display = tab === 'orders' ? '' : 'none';
+                if (tab === 'orders' && !_orderHistoryLoaded) {
+                    renderOrderHistory();
+                    fetchOrderHistory().then(() => renderOrderHistory());
+                }
+            })
+        );
+
         // Chart timeframe buttons
         document.querySelectorAll('.chart-tf-btn[data-tf]').forEach(b =>
             b.addEventListener('click', () => setChartTF(b.dataset.tf))

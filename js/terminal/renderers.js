@@ -881,13 +881,72 @@ function renderRecentTrades() {
             dur = mins >= 1440 ? `${Math.floor(mins/1440)}d` : mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`;
         }
         const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', timeZone:'UTC' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' }) : '—';
+        const orderType = (t.type || '—').replace('_', ' ');
+        const tradeId = t.binanceTradeId || t.binanceCloseTradeId || t.id || '—';
+        const shortId = String(tradeId).length > 8 ? '…' + String(tradeId).slice(-6) : tradeId;
         return `<tr>
             <td class="mono">${(t.symbol||'').replace('USDT','')}</td>
             <td><span class="${badgeCls}">${side}</span></td>
+            <td><span class="badge-type">${orderType}</span></td>
             <td class="mono">$${fmtPrice(t.price||0)}</td>
             <td class="mono">${parseFloat(t.quantity||0).toFixed(4)}</td>
             <td class="mono" style="color:${pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">${fmt(pnl)}</td>
+            <td class="mono" style="font-size:10px;color:var(--text-tertiary)" title="${tradeId}">${shortId}</td>
             <td style="color:var(--text-tertiary)">${dur}</td>
+            <td style="color:var(--text-tertiary);font-size:11px;">${dateStr}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════
+//  ORDER HISTORY
+// ═══════════════════════════════════════════
+let _orderHistoryLoaded = false;
+let _orderHistory = [];
+
+async function fetchOrderHistory() {
+    try {
+        const sym = getSymbol();
+        const res = await fetch(`/api/bots/${botId}/order-history?symbol=${sym}`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            _orderHistory = data.orders || [];
+            _orderHistoryLoaded = true;
+        }
+    } catch (e) { console.error('fetchOrderHistory:', e); }
+}
+
+function renderOrderHistory() {
+    const body = document.getElementById('orderHistoryBody');
+    if (!body) return;
+    if (!_orderHistoryLoaded) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:24px;">Завантаження...</td></tr>';
+        return;
+    }
+    if (_orderHistory.length === 0) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:24px;">Немає ордерів</td></tr>';
+        return;
+    }
+    body.innerHTML = _orderHistory.map(o => {
+        const isBuy = o.side === 'BUY';
+        const badgeCls = isBuy ? 'badge-long' : 'badge-short';
+        const statusCls = o.status === 'FILLED' ? 'badge-filled' : o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : 'badge-type';
+        const displayPrice = o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : o.price);
+        const execQty = o.executedQty !== undefined ? o.executedQty : 0;
+        const execPct = o.quantity > 0 ? Math.round(execQty / o.quantity * 100) : 0;
+        const dt = o.time ? new Date(o.time) : (o.updateTime ? new Date(o.updateTime) : null);
+        const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', timeZone:'UTC' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' }) : '—';
+        const shortId = String(o.orderId).length > 8 ? '…' + String(o.orderId).slice(-6) : o.orderId;
+        const orderType = (o.type || '—').replace(/_/g, ' ');
+        return `<tr>
+            <td class="mono" style="font-size:10px;" title="${o.orderId}">${shortId}</td>
+            <td class="mono">${(o.symbol||'').replace('USDT','')}</td>
+            <td><span class="${badgeCls}">${o.side}</span></td>
+            <td><span class="badge-type">${orderType}</span></td>
+            <td class="mono">$${fmtPrice(displayPrice)}</td>
+            <td class="mono">${parseFloat(o.quantity||0).toFixed(4)}</td>
+            <td class="mono">${execPct > 0 ? execPct + '%' : '—'}</td>
+            <td><span class="${statusCls}">${o.status}</span></td>
             <td style="color:var(--text-tertiary);font-size:11px;">${dateStr}</td>
         </tr>`;
     }).join('');
