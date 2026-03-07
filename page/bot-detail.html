@@ -8592,6 +8592,14 @@
             }
         }
 
+        // Helper: remove indicator by paneId + name (klinecharts v9 auto-removes empty panes)
+        function _removeInd(paneId, indName) {
+            if (!klChart || !paneId) return;
+            try { klChart.removeIndicator(paneId, indName); } catch(e) {
+                console.warn('removeIndicator failed:', paneId, indName, e);
+            }
+        }
+
         function applyIndicators() {
             if (!klChart) return;
 
@@ -8600,11 +8608,12 @@
                 if (!emaIndicatorId) {
                     try {
                         emaIndicatorId = klChart.createIndicator('EMA', false, { id: 'candle_pane' }, { calcParams: [EMA_PERIOD] });
-                    } catch(e) { emaIndicatorId = true; }
+                        if (!emaIndicatorId) emaIndicatorId = 'candle_pane';
+                    } catch(e) { emaIndicatorId = 'candle_pane'; }
                 }
             } else {
                 if (emaIndicatorId) {
-                    try { klChart.removeIndicator('candle_pane', 'EMA'); } catch(e) {}
+                    _removeInd('candle_pane', 'EMA');
                     emaIndicatorId = null;
                 }
             }
@@ -8614,11 +8623,12 @@
                 if (!bollIndicatorId) {
                     try {
                         bollIndicatorId = klChart.createIndicator('BOLL', false, { id: 'candle_pane' });
-                    } catch(e) { bollIndicatorId = true; }
+                        if (!bollIndicatorId) bollIndicatorId = 'candle_pane';
+                    } catch(e) { bollIndicatorId = 'candle_pane'; }
                 }
             } else {
                 if (bollIndicatorId) {
-                    try { klChart.removeIndicator('candle_pane', 'BOLL'); } catch(e) {}
+                    _removeInd('candle_pane', 'BOLL');
                     bollIndicatorId = null;
                 }
             }
@@ -8626,11 +8636,13 @@
             // VOL (sub pane)
             if (indState.vol) {
                 if (!volPaneId) {
-                    try { volPaneId = klChart.createIndicator('VOL', false, { height: 80 }); } catch(e) { volPaneId = 'vol-err'; }
+                    try {
+                        volPaneId = klChart.createIndicator('VOL', false, { height: 80 });
+                    } catch(e) { console.warn('VOL create failed:', e); }
                 }
             } else {
-                if (volPaneId && volPaneId !== 'vol-err') {
-                    try { klChart.removePane(volPaneId); } catch(e) {}
+                if (volPaneId) {
+                    _removeInd(volPaneId, 'VOL');
                     volPaneId = null;
                 }
             }
@@ -8638,11 +8650,13 @@
             // RSI (sub pane)
             if (indState.rsi) {
                 if (!rsiPaneId) {
-                    try { rsiPaneId = klChart.createIndicator('RSI', false, { height: 80 }); } catch(e) { rsiPaneId = 'rsi-err'; }
+                    try {
+                        rsiPaneId = klChart.createIndicator('RSI', false, { height: 80 });
+                    } catch(e) { console.warn('RSI create failed:', e); }
                 }
             } else {
-                if (rsiPaneId && rsiPaneId !== 'rsi-err') {
-                    try { klChart.removePane(rsiPaneId); } catch(e) {}
+                if (rsiPaneId) {
+                    _removeInd(rsiPaneId, 'RSI');
                     rsiPaneId = null;
                 }
             }
@@ -8650,11 +8664,13 @@
             // MACD (sub pane)
             if (indState.macd) {
                 if (!macdPaneId) {
-                    try { macdPaneId = klChart.createIndicator('MACD', false, { height: 90 }); } catch(e) { macdPaneId = 'macd-err'; }
+                    try {
+                        macdPaneId = klChart.createIndicator('MACD', false, { height: 90 });
+                    } catch(e) { console.warn('MACD create failed:', e); }
                 }
             } else {
-                if (macdPaneId && macdPaneId !== 'macd-err') {
-                    try { klChart.removePane(macdPaneId); } catch(e) {}
+                if (macdPaneId) {
+                    _removeInd(macdPaneId, 'MACD');
                     macdPaneId = null;
                 }
             }
