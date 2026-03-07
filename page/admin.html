@@ -1849,6 +1849,50 @@
                     </div>
                 </div>
 
+                <!-- Full Stats Tab -->
+                <div class="tab-content" id="tab-full-stats">
+                    <style>
+                        .fst-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-bottom:24px; }
+                        .fst-card { background:var(--surface-secondary,#141414); border-radius:14px; padding:16px; border:1px solid rgba(255,255,255,0.05); }
+                        .fst-card-value { font-size:24px; font-weight:800; margin-bottom:2px; }
+                        .fst-card-label { font-size:12px; color:var(--text-tertiary); font-weight:600; }
+                        .fst-section { background:var(--surface); border-radius:18px; padding:20px; margin-bottom:16px; border:1px solid rgba(255,255,255,0.05); }
+                        .fst-section-title { font-size:15px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+                        .fst-table { width:100%; border-collapse:collapse; font-size:13px; }
+                        .fst-table th { text-align:left; padding:8px 10px; color:var(--text-tertiary); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); }
+                        .fst-table td { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+                        .fst-table tr:last-child td { border-bottom:none; }
+                        .fst-bar { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
+                        .fst-bar-fill { height:100%; border-radius:3px; transition:width 0.3s; }
+                        .fst-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+                        .fst-filter { padding:8px 12px; background:var(--surface-secondary); border:1px solid rgba(255,255,255,0.08); border-radius:8px; color:var(--text-primary); font-size:12px; font-weight:600; outline:none; }
+                        .fst-filter:focus { border-color:var(--accent-primary); }
+                        .fst-badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700; }
+                        .fst-log-row { display:grid; grid-template-columns:140px 1fr 100px 90px 80px; gap:8px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; align-items:center; }
+                        .fst-log-row:last-child { border-bottom:none; }
+                        .fst-pagination { display:flex; gap:6px; justify-content:center; margin-top:16px; align-items:center; }
+                        .fst-page-btn { padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:var(--surface-secondary); color:var(--text-secondary); font-size:12px; font-weight:600; cursor:pointer; }
+                        .fst-page-btn.active { background:var(--accent-primary); color:white; border-color:var(--accent-primary); }
+                        .fst-hourly { display:flex; align-items:flex-end; gap:2px; height:80px; padding:4px 0; }
+                        .fst-hourly-bar { flex:1; background:rgba(16,185,129,0.3); border-radius:2px 2px 0 0; min-width:8px; transition:height 0.3s; position:relative; }
+                        .fst-hourly-bar:hover { background:rgba(16,185,129,0.6); }
+                        @media (max-width:768px) {
+                            .fst-grid { grid-template-columns:repeat(2, 1fr); gap:8px; }
+                            .fst-log-row { grid-template-columns:1fr; gap:4px; }
+                            .fst-filters { flex-direction:column; }
+                        }
+                    </style>
+                    <div class="table-container" style="display:flex;flex-direction:column;gap:16px;">
+                        <div class="table-header">
+                            <span class="table-title">Повна статистика</span>
+                            <button class="btn btn-sm" onclick="loadFullStats()" style="padding:6px 14px;font-size:12px;">Оновити</button>
+                        </div>
+                        <div id="fullStatsContent">
+                            <div style="text-align:center;padding:40px;color:var(--text-tertiary);">Завантаження...</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>

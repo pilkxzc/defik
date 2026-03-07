@@ -656,4 +656,18 @@ function dbRun(sql, params = []) {
     }
 }
 
-module.exports = { initDatabase, saveDatabase, dbGet, dbAll, dbRun, getDb: () => db };
+// Insert without immediate save — for high-frequency logging
+let _savePending = false;
+function dbInsertNoSave(sql, params = []) {
+    try {
+        db.run(sql, params);
+        if (!_savePending) {
+            _savePending = true;
+            setTimeout(() => { _savePending = false; saveDatabase(); }, 5000);
+        }
+    } catch (error) {
+        console.error('dbInsertNoSave error:', error.message);
+    }
+}
+
+module.exports = { initDatabase, saveDatabase, dbGet, dbAll, dbRun, dbInsertNoSave, getDb: () => db };

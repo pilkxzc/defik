@@ -81,7 +81,7 @@ function setupEventListeners() {
 
     // Initial tab from URL
     const initialTab = _getTabFromUrl();
-    const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports','access'];
+    const validTabs = ['dashboard','users','database','subscriptions','transactions','bots','news','audit','analytics','backup','bug-reports','access','full-stats'];
     if (validTabs.includes(initialTab) && initialTab !== 'dashboard') {
         setTimeout(() => switchTab(initialTab), 100);
     }
@@ -183,7 +183,8 @@ const _tabTitles = {
     'analytics': 'Аналітика',
     'backup': 'Бекапи',
     'bug-reports': 'Баг-репорти',
-    'access': 'Доступи'
+    'access': 'Доступи',
+    'full-stats': 'Повна статистика'
 };
 
 let _previousTab = null;
@@ -247,6 +248,9 @@ function switchTab(tabName) {
             break;
         case 'access':
             loadAccessTab();
+            break;
+        case 'full-stats':
+            loadFullStats();
             break;
     }
 }
@@ -2489,6 +2493,355 @@ function _refreshVerifyBar(status) {
     if (btns) btns.innerHTML = _accVerified ? '<span style="font-size:12px;color:#10B981;font-weight:700;padding:8px 0;">Активна</span>' : '';
     const inp = document.getElementById('accVerifyInput');
     if (inp) inp.classList.remove('show');
+}
+
+// ==================== FULL STATS ====================
+
+let _fstPage = 1;
+let _fstFilters = {};
+
+async function loadFullStats() {
+    const container = document.getElementById('fullStatsContent');
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Завантаження...</div>';
+
+    try {
+        const [statsRes, logsRes] = await Promise.all([
+            fetch('/api/admin/activity/stats'),
+            fetch('/api/admin/activity?limit=50&page=1')
+        ]);
+        const stats = await statsRes.json();
+        const logs = await logsRes.json();
+
+        _fstPage = 1;
+        _fstFilters = {};
+        _renderFullStats(stats, logs);
+    } catch (err) {
+        console.error('loadFullStats error:', err);
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#EF4444;">Помилка завантаження</div>';
+    }
+}
+
+function _fstCatColor(cat) {
+    const m = { auth:'#F59E0B', admin:'#EF4444', navigation:'#6366F1', client:'#06B6D4', bots:'#8B5CF6', orders:'#10B981', portfolio:'#EC4899', profile:'#F97316', market:'#3B82F6', api:'#A1A1A1' };
+    return m[cat] || '#636363';
+}
+
+function _fstFormatDate(d) {
+    if (!d) return '—';
+    const dt = new Date(d.replace(' ', 'T') + (d.includes('T') ? '' : 'Z'));
+    if (isNaN(dt)) return d;
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(dt.getDate())}.${pad(dt.getMonth()+1)} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+}
+
+function _renderFullStats(stats, logs) {
+    const container = document.getElementById('fullStatsContent');
+    const maxHourly = Math.max(1, ...stats.hourlyData.map(h => h.count));
+    const maxAction = Math.max(1, ...(stats.topActions || []).map(a => a.count));
+    const maxPage = Math.max(1, ...(stats.topPages || []).map(p => p.hits));
+
+    container.innerHTML = `
+        <!-- Overview cards -->
+        <div class="fst-grid">
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#10B981;">${(stats.todayEvents || 0).toLocaleString()}</div>
+                <div class="fst-card-label">Подій сьогодні</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#6366F1;">${stats.uniqueUsersToday || 0}</div>
+                <div class="fst-card-label">Юзерів сьогодні</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#F59E0B;">${stats.uniqueIpsToday || 0}</div>
+                <div class="fst-card-label">Унік. IP</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#06B6D4;">${stats.hourEvents || 0}</div>
+                <div class="fst-card-label">За останню годину</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#10B981;">${stats.loginsToday || 0}</div>
+                <div class="fst-card-label">Логінів</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#EF4444;">${stats.failedLogins || 0}</div>
+                <div class="fst-card-label">Невдалих логінів</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#8B5CF6;">${stats.registrations || 0}</div>
+                <div class="fst-card-label">Реєстрацій</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:${(stats.avgResponseTime || 0) > 500 ? '#EF4444' : '#10B981'};">${stats.avgResponseTime || 0}ms</div>
+                <div class="fst-card-label">Серед. відповідь</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#EF4444;">${stats.slowRequests || 0}</div>
+                <div class="fst-card-label">Повільних (>1с)</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value" style="color:#EF4444;">${stats.errors || 0}</div>
+                <div class="fst-card-label">Помилок (4xx/5xx)</div>
+            </div>
+            <div class="fst-card">
+                <div class="fst-card-value">${(stats.totalEvents || 0).toLocaleString()}</div>
+                <div class="fst-card-label">Всього в базі</div>
+            </div>
+        </div>
+
+        <!-- Hourly chart -->
+        <div class="fst-section">
+            <div class="fst-section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+                Активність за 24 години
+            </div>
+            <div class="fst-hourly">
+                ${Array.from({length:24}, (_, i) => {
+                    const h = stats.hourlyData.find(d => parseInt(d.hour) === i);
+                    const count = h ? h.count : 0;
+                    const pct = Math.max(2, (count / maxHourly) * 100);
+                    return `<div class="fst-hourly-bar" style="height:${pct}%;" title="${String(i).padStart(2,'0')}:00 — ${count} подій"></div>`;
+                }).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-top:4px;">
+                <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <!-- Top actions -->
+            <div class="fst-section">
+                <div class="fst-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    Топ дій
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${(stats.topActions || []).slice(0, 10).map(a => `
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="fst-badge" style="background:${_fstCatColor(a.category)}22;color:${_fstCatColor(a.category)};min-width:50px;text-align:center;">${a.category}</span>
+                            <span style="flex:1;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escHtml(a.action)}</span>
+                            <div style="width:60px;"><div class="fst-bar"><div class="fst-bar-fill" style="width:${(a.count/maxAction)*100}%;background:${_fstCatColor(a.category)};"></div></div></div>
+                            <span style="font-size:11px;color:var(--text-tertiary);font-weight:700;min-width:30px;text-align:right;">${a.count}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Top pages -->
+            <div class="fst-section">
+                <div class="fst-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Топ сторінок
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${(stats.topPages || []).map(p => `
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="flex:1;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#6366F1;">${_escHtml(p.path)}</span>
+                            <div style="width:60px;"><div class="fst-bar"><div class="fst-bar-fill" style="width:${(p.hits/maxPage)*100}%;background:#6366F1;"></div></div></div>
+                            <span style="font-size:11px;color:var(--text-tertiary);font-weight:700;min-width:30px;text-align:right;">${p.hits}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <!-- Active users -->
+            <div class="fst-section">
+                <div class="fst-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EC4899" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    Найактивніші юзери
+                </div>
+                <table class="fst-table">
+                    <thead><tr><th>Юзер</th><th style="text-align:right;">Дій</th></tr></thead>
+                    <tbody>
+                        ${(stats.activeUsers || []).map(u => `
+                            <tr>
+                                <td>
+                                    <div style="font-weight:600;font-size:13px;">${_escHtml(u.full_name || 'Unknown')}</div>
+                                    <div style="font-size:11px;color:var(--text-tertiary);">${_escHtml(u.email || '')}</div>
+                                </td>
+                                <td style="text-align:right;font-weight:700;color:#EC4899;">${u.actions}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Categories + IPs -->
+            <div class="fst-section">
+                <div class="fst-section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06B6D4" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    Категорії та IP
+                </div>
+                <div style="margin-bottom:14px;">
+                    ${(stats.categories || []).map(c => `
+                        <div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:${_fstCatColor(c.category)};flex-shrink:0;"></span>
+                            <span style="flex:1;font-size:12px;font-weight:600;">${_escHtml(c.category)}</span>
+                            <span style="font-size:11px;color:var(--text-tertiary);font-weight:700;">${c.count}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">Топ IP</div>
+                ${(stats.topIps || []).slice(0, 5).map(ip => `
+                    <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;">
+                        <code style="flex:1;color:var(--text-secondary);font-weight:600;">${_escHtml(ip.ip_address)}</code>
+                        <span style="color:var(--text-tertiary);font-weight:700;">${ip.hits}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <!-- Activity log -->
+        <div class="fst-section">
+            <div class="fst-section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Журнал активності
+            </div>
+            <div class="fst-filters">
+                <select class="fst-filter" id="fstCatFilter" style="min-width:110px;">
+                    <option value="">Всі категорії</option>
+                    <option value="auth">Auth</option>
+                    <option value="navigation">Навігація</option>
+                    <option value="client">Клієнт</option>
+                    <option value="admin">Адмін</option>
+                    <option value="bots">Боти</option>
+                    <option value="orders">Ордери</option>
+                    <option value="portfolio">Портфоліо</option>
+                    <option value="profile">Профіль</option>
+                    <option value="market">Маркет</option>
+                    <option value="api">API</option>
+                </select>
+                <input type="text" class="fst-filter" id="fstSearch" placeholder="Пошук..." style="min-width:150px;">
+                <input type="text" class="fst-filter" id="fstIpFilter" placeholder="IP..." style="max-width:130px;">
+                <input type="date" class="fst-filter" id="fstDateFrom" style="max-width:140px;">
+                <input type="date" class="fst-filter" id="fstDateTo" style="max-width:140px;">
+                <button class="fst-page-btn" id="fstApplyFilter" style="background:var(--accent-primary);color:white;border-color:var(--accent-primary);">Фільтр</button>
+            </div>
+            <div id="fstLogList">
+                ${_renderActivityRows(logs.activities)}
+            </div>
+            <div id="fstPagination">
+                ${_renderFstPagination(logs.page, logs.pages, logs.total)}
+            </div>
+        </div>
+
+        <!-- Cleanup -->
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:8px 0;">
+            <button class="fst-page-btn" id="fstCleanup30" style="color:#EF4444;">Очистити старіше 30 днів</button>
+            <button class="fst-page-btn" id="fstCleanup7" style="color:#EF4444;">Очистити старіше 7 днів</button>
+        </div>
+    `;
+
+    _wireFstEvents();
+}
+
+function _renderActivityRows(activities) {
+    if (!activities || activities.length === 0) {
+        return '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px;">Немає записів</div>';
+    }
+    return activities.map(a => {
+        const catColor = _fstCatColor(a.category);
+        const statusColor = !a.status_code ? 'var(--text-tertiary)' : a.status_code < 300 ? '#10B981' : a.status_code < 400 ? '#F59E0B' : '#EF4444';
+        return `
+        <div class="fst-log-row">
+            <div style="color:var(--text-tertiary);font-size:11px;font-weight:600;white-space:nowrap;">${_fstFormatDate(a.created_at)}</div>
+            <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                <span class="fst-badge" style="background:${catColor}22;color:${catColor};">${a.category || '?'}</span>
+                <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escHtml(a.action)}</span>
+                ${a.full_name ? `<span style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">· ${_escHtml(a.full_name)}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${_escHtml(a.path || '')}">${_escHtml(a.path || '—')}</div>
+            <div style="font-size:11px;color:var(--text-tertiary);font-family:monospace;">${_escHtml(a.ip_address || '—')}</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                ${a.status_code ? `<span style="font-size:11px;font-weight:700;color:${statusColor};">${a.status_code}</span>` : ''}
+                ${a.duration_ms != null ? `<span style="font-size:10px;color:${a.duration_ms > 1000 ? '#EF4444' : 'var(--text-tertiary)'};">${a.duration_ms}ms</span>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function _renderFstPagination(currentPage, totalPages, total) {
+    if (totalPages <= 1) return `<div style="text-align:center;font-size:12px;color:var(--text-tertiary);margin-top:8px;">${total} записів</div>`;
+    let html = '<div class="fst-pagination">';
+    html += `<span style="font-size:12px;color:var(--text-tertiary);margin-right:8px;">${total.toLocaleString()} записів</span>`;
+
+    if (currentPage > 1) html += `<button class="fst-page-btn" data-page="${currentPage - 1}">&laquo;</button>`;
+
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    for (let i = start; i <= end; i++) {
+        html += `<button class="fst-page-btn${i === currentPage ? ' active' : ''}" data-page="${i}">${i}</button>`;
+    }
+
+    if (currentPage < totalPages) html += `<button class="fst-page-btn" data-page="${currentPage + 1}">&raquo;</button>`;
+    html += '</div>';
+    return html;
+}
+
+async function _loadFstLogs(page) {
+    _fstPage = page || 1;
+    const params = new URLSearchParams({ page: _fstPage, limit: 50 });
+    if (_fstFilters.category) params.set('category', _fstFilters.category);
+    if (_fstFilters.search) params.set('search', _fstFilters.search);
+    if (_fstFilters.ip) params.set('ip', _fstFilters.ip);
+    if (_fstFilters.dateFrom) params.set('dateFrom', _fstFilters.dateFrom);
+    if (_fstFilters.dateTo) params.set('dateTo', _fstFilters.dateTo);
+
+    try {
+        const res = await fetch('/api/admin/activity?' + params.toString());
+        const data = await res.json();
+        document.getElementById('fstLogList').innerHTML = _renderActivityRows(data.activities);
+        document.getElementById('fstPagination').innerHTML = _renderFstPagination(data.page, data.pages, data.total);
+        _wireFstPagination();
+    } catch (err) {
+        showNotification('Помилка завантаження логів', 'error');
+    }
+}
+
+function _wireFstPagination() {
+    document.querySelectorAll('#fstPagination .fst-page-btn[data-page]').forEach(btn => {
+        btn.addEventListener('click', () => _loadFstLogs(parseInt(btn.dataset.page)));
+    });
+}
+
+function _wireFstEvents() {
+    // Filter
+    document.getElementById('fstApplyFilter')?.addEventListener('click', () => {
+        _fstFilters = {
+            category: document.getElementById('fstCatFilter').value,
+            search: document.getElementById('fstSearch').value.trim(),
+            ip: document.getElementById('fstIpFilter').value.trim(),
+            dateFrom: document.getElementById('fstDateFrom').value,
+            dateTo: document.getElementById('fstDateTo').value
+        };
+        _loadFstLogs(1);
+    });
+
+    // Enter key on search
+    ['fstSearch', 'fstIpFilter'].forEach(id => {
+        document.getElementById(id)?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') document.getElementById('fstApplyFilter')?.click();
+        });
+    });
+
+    // Pagination
+    _wireFstPagination();
+
+    // Cleanup buttons
+    document.getElementById('fstCleanup30')?.addEventListener('click', async () => {
+        if (!confirm('Видалити записи старіше 30 днів?')) return;
+        await fetch('/api/admin/activity/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 30 }) });
+        showNotification('Логи очищено', 'success');
+        loadFullStats();
+    });
+    document.getElementById('fstCleanup7')?.addEventListener('click', async () => {
+        if (!confirm('Видалити записи старіше 7 днів?')) return;
+        await fetch('/api/admin/activity/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 7 }) });
+        showNotification('Логи очищено', 'success');
+        loadFullStats();
+    });
 }
 
 function _escHtml(str) {

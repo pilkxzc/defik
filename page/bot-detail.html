@@ -3193,7 +3193,7 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
                     Угоди
                 </button>
-                <button class="ind-btn active" id="indGroupTrades" title="Групувати угоди на одній свічці">
+                <button class="ind-btn active" id="indGroupTrades" onclick="toggleTradeGrouping()" title="Групувати угоди на одній свічці">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7"/></svg>
                     Груп.
                 </button>
@@ -7650,11 +7650,13 @@
                     const isLong  = m.positionSide === 'LONG' ? true : m.positionSide === 'SHORT' ? false : (m.side === 'LONG' || m.side === 'BUY');
                     const isEntry = m.isEntry !== false && (m.isEntry === true || Math.abs(m.pnl || 0) < 0.0001);
                     const enriched = { ...m, _isLong: isLong, _isEntry: isEntry, _isBuy: isLong };
-                    if (!barGroups.has(barTime)) barGroups.set(barTime, []);
-                    barGroups.get(barTime).push(enriched);
+                    // When grouping disabled, use unique key per marker so each is separate
+                    const groupKey = _tradeGroupingEnabled ? barTime : (barTime + '_' + m.time + '_' + Math.random());
+                    if (!barGroups.has(groupKey)) barGroups.set(groupKey, { barTime, markers: [] });
+                    barGroups.get(groupKey).markers.push(enriched);
                 });
 
-                barGroups.forEach((group, barTime) => {
+                barGroups.forEach(({ barTime, markers: group }) => {
                     const price = parseFloat(group[0].price || 0) || (klinesData.find(k => k.time === barTime)?.close ?? 0);
                     if (!price) return;
 
@@ -8521,6 +8523,14 @@
             document.getElementById(btnId)?.classList.toggle('active', indState[name]);
             applyIndicators();
             updateIndBadge();
+        }
+
+        let _tradeGroupingEnabled = true;
+        function toggleTradeGrouping() {
+            _tradeGroupingEnabled = !_tradeGroupingEnabled;
+            const btn = document.getElementById('indGroupTrades');
+            if (btn) btn.classList.toggle('active', _tradeGroupingEnabled);
+            loadTradeMarkers();
         }
 
         function updateIndBadge() {

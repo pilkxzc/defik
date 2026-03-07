@@ -1,5 +1,5 @@
 'use strict';
-const { dbRun } = require('../db');
+const { dbInsertNoSave } = require('../db');
 const { getClientIP } = require('../utils/ip');
 
 // Paths to skip tracking (static assets, health checks)
@@ -77,7 +77,7 @@ function activityTracker(req, res, next) {
                 details = JSON.stringify({ page: cleanPath });
             }
 
-            dbRun(
+            dbInsertNoSave(
                 `INSERT INTO activity_log (user_id, action, category, details, ip_address, user_agent, path, method, status_code, duration_ms, session_id)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [userId, action, category, details, ip, ua.substring(0, 500), cleanPath, method, statusCode, duration, sessionId]
@@ -93,7 +93,7 @@ function activityTracker(req, res, next) {
 // Log client-side events (called from frontend tracker)
 function logClientEvent(userId, action, details, ip, ua, sessionId) {
     try {
-        dbRun(
+        dbInsertNoSave(
             `INSERT INTO activity_log (user_id, action, category, details, ip_address, user_agent, session_id)
              VALUES (?, ?, 'client', ?, ?, ?, ?)`,
             [userId, action, details ? JSON.stringify(details) : null, ip, ua?.substring(0, 500), sessionId]

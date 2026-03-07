@@ -2819,7 +2819,7 @@ router.get('/api/admin/activity', requireAuth, requireRole('admin'), (req, res) 
         if (userId) { where += ' AND a.user_id = ?'; params.push(parseInt(userId)); }
         if (action) { where += ' AND a.action LIKE ?'; params.push(`%${action}%`); }
         if (dateFrom) { where += ' AND a.created_at >= ?'; params.push(dateFrom); }
-        if (dateTo) { where += " AND a.created_at <= ? || ' 23:59:59'"; params.push(dateTo); }
+        if (dateTo) { where += " AND a.created_at <= (? || ' 23:59:59')"; params.push(dateTo); }
         if (search) { where += ' AND (a.details LIKE ? OR a.path LIKE ? OR a.action LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
         if (ip) { where += ' AND a.ip_address LIKE ?'; params.push(`%${ip}%`); }
 

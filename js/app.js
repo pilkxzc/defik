@@ -2391,6 +2391,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!path.includes('reglogin') && path !== '/login' && path !== '/register' && path !== '/' && !path.includes('index.html')) {
         loadNotifications();
     }
+
+    // Load activity tracker
+    if (!document.querySelector('script[src="/js/tracker.js"]')) {
+        const s = document.createElement('script');
+        s.src = '/js/tracker.js';
+        s.defer = true;
+        document.head.appendChild(s);
+    }
 });
 
 // Export for global access
@@ -2974,7 +2982,8 @@ function _buildAdminFlyout(adminLink) {
         <a href="/admin/backup" class="af-item" style="color:#10B981;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Бекапи</a>
         <a href="/admin/access" class="af-item" style="color:#F59E0B;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Доступи</a>
         <a href="/admin/bug-reports" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>Баги</a>
-        <a href="/bot-community-stats" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>Статистика</a>
+        <a href="/admin/full-stats" class="af-item" style="color:#EF4444;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12z"/><path d="M12 6v6l4 2"/></svg>Повна статистика</a>
+        <a href="/bot-community-stats" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>Статистика ботів</a>
     `;
 
     // Inject styles once
