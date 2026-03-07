@@ -16,7 +16,7 @@ const maintenanceMiddleware = (req, res, next) => {
     if (siteSettings.maintenanceMode) {
         if (req.session?.userId) {
             const user = dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]);
-            if (user && (user.role === 'admin' || user.role === 'moderator')) {
+            if (user && user.role === 'admin') {
                 return next();
             }
         }

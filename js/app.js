@@ -268,6 +268,16 @@ function initSocketIO() {
         console.log('Disconnected from notification server');
     });
 
+    // Maintenance mode — kick non-admin users immediately
+    socket.on('maintenance', (data) => {
+        if (data.enabled) {
+            const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+            if (!isAdmin) {
+                window.location.reload();
+            }
+        }
+    });
+
     // Telegram channel post broadcast — show toast on any page
     socket.on('tg_channel_post', (post) => {
         const preview = post.text

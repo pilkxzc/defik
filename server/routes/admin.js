@@ -12,6 +12,7 @@ const { getClientIP }                       = require('../utils/ip');
 const { getLocalTime, getLocalTimeDaysAgo } = require('../utils/time');
 const { siteSettings, saveSettings, ADMIN_EMAIL } = require('../config');
 const { logAdminAction }                    = require('../services/notifications');
+const { getIo }                             = require('../socket');
 
 function createNotification(...args) {
     return require('../services/notifications').createNotification(...args);
@@ -258,7 +259,7 @@ function formatUptime(seconds) {
 
 // ==================== MAINTENANCE ====================
 
-router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+router.get('/api/admin/maintenance', requireAuth, requireRole('admin'), (req, res) => {
     res.json({
         enabled:   siteSettings.maintenanceMode,
         message:   siteSettings.maintenanceMessage,
@@ -267,7 +268,7 @@ router.get('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderato
     });
 });
 
-router.post('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+router.post('/api/admin/maintenance', requireAuth, requireRole('admin'), (req, res) => {
     try {
         const { enabled, message } = req.body;
         const user = dbGet('SELECT full_name, email FROM users WHERE id = ?', [req.session.userId]);
@@ -290,6 +291,15 @@ router.post('/api/admin/maintenance', requireAuth, requireRole('admin', 'moderat
             enabled ? 'maintenance_enabled' : 'maintenance_disabled',
             'system', null, message || null, getClientIP(req)
         );
+
+        // Notify all connected clients about maintenance mode change
+        const io = getIo();
+        if (io) {
+            io.emit('maintenance', {
+                enabled: siteSettings.maintenanceMode,
+                message: siteSettings.maintenanceMessage
+            });
+        }
 
         res.json({ success: true, enabled: siteSettings.maintenanceMode, message: siteSettings.maintenanceMessage });
     } catch (error) {
@@ -1162,7 +1172,7 @@ router.get('/api/admin/db-access/users', requireAuth, requireRole('admin'), (req
         return res.status(403).json({ error: 'Only the main admin can manage database access' });
     }
     const admins = dbAll("SELECT id, email, full_name, role, db_access FROM users WHERE role IN ('admin', 'moderator') ORDER BY id");
-    res.json({ admins: admins.map(a => ({ ...a, db_access: !!a.db_access })) });
+    res.json({ admins: admins.map(a => ({ ...a, db_access: !!a.db_access, isMainAdmin: a.email === ADMIN_EMAIL })) });
 });
 
 // Grant/revoke db access (main admin only, requires 2FA or access key)
