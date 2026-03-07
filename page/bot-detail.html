@@ -1339,36 +1339,6 @@
         .trades-table tbody tr:hover { background: rgba(255,255,255,0.05); }
         .trades-table tbody tr.highlighted { background: rgba(139, 92, 246, 0.12); outline: 1px solid rgba(139,92,246,0.3); }
 
-        /* Trade info overlay on chart */
-        #tradeInfoOverlay {
-            position: absolute;
-            top: 60px;
-            right: 12px;
-            z-index: 20;
-            background: rgba(20, 20, 20, 0.95);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            padding: 14px 16px;
-            min-width: 220px;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-        }
-        #tradeInfoOverlay .tio-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 10px;
-        }
-        #tradeInfoOverlay .tio-title { font-weight: 700; font-size: 13px; }
-        #tradeInfoOverlay .tio-close {
-            background: none; border: none; color: var(--text-tertiary); cursor: pointer;
-            font-size: 16px; line-height: 1; padding: 0 2px;
-        }
-        #tradeInfoOverlay .tio-close:hover { color: white; }
-        #tradeInfoOverlay .tio-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 4px 0; font-size: 12px;
-        }
-        #tradeInfoOverlay .tio-label { color: var(--text-tertiary); }
-        #tradeInfoOverlay .tio-value { font-weight: 600; }
 
         .trade-symbol {
             font-weight: 700;
@@ -3189,14 +3159,6 @@
             <div class="loading-more-indicator" id="loadingMoreIndicator" style="display: none;">
                 <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
                 <span id="loadingMoreText">Завантаження...</span>
-            </div>
-            <!-- Trade info overlay (shown when clicking history row) -->
-            <div id="tradeInfoOverlay" style="display:none;">
-                <div class="tio-header">
-                    <span class="tio-title" id="tioTitle">Деталі угоди</span>
-                    <button class="tio-close" onclick="clearTradeHighlight()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-                </div>
-                <div id="tioBody"></div>
             </div>
             <!-- Trade markers legend (toggleable chips) -->
             <div class="chart-markers-legend" id="markersLegend">
@@ -5431,29 +5393,6 @@
                 } catch(e) {}
             }
 
-            // Show position info in tradeInfoOverlay
-            const pnlSign = block.totalPnl >= 0 ? '+' : '';
-            const pnlC = block.totalPnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
-            const startDt = _bStartMs ? new Date(_bStartMs) : null;
-            const endDt = _bEndMs ? new Date(_bEndMs) : null;
-            const dtFmt = { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' };
-            const _bSymbol = block.symbol || block.sym || '';
-            const _bQty = block.totalQty || block.total_qty || 0;
-            const _bTradeCount = block.tradeCount || (block.trades ? block.trades.length : 0);
-            const _bDuration = block.durationMs || (_bEndMs && _bStartMs ? _bEndMs - _bStartMs : 0);
-            document.getElementById('tioTitle').textContent = `${isLong ? '↑ LONG' : '↓ SHORT'} ${_bSymbol.replace('USDT', '')}`;
-            document.getElementById('tioBody').innerHTML = `
-                <div class="tio-row"><span class="tio-label">Відкрито</span><span class="tio-value">${startDt ? startDt.toLocaleString('uk-UA', dtFmt) : '—'}</span></div>
-                ${endDt ? `<div class="tio-row"><span class="tio-label">Закрито</span><span class="tio-value">${endDt.toLocaleString('uk-UA', dtFmt)}</span></div>` : ''}
-                <div class="tio-row"><span class="tio-label">Вхід</span><span class="tio-value">${block.avgEntry > 0 ? '$' + fmtP(block.avgEntry) : '—'}</span></div>
-                <div class="tio-row"><span class="tio-label">Вихід</span><span class="tio-value">${block.avgExit > 0 ? '$' + fmtP(block.avgExit) : '—'}</span></div>
-                <div class="tio-row"><span class="tio-label">Кіл.</span><span class="tio-value">${_bQty.toFixed(4)}</span></div>
-                <div class="tio-row"><span class="tio-label">Угод</span><span class="tio-value">${_bTradeCount}</span></div>
-                <div class="tio-row"><span class="tio-label">PNL</span><span class="tio-value" style="color:${pnlC}">${pnlSign}$${Math.abs(block.totalPnl).toFixed(2)}</span></div>
-                ${_bDuration > 0 ? `<div class="tio-row"><span class="tio-label">Тривалість</span><span class="tio-value">${formatDuration(_bDuration)}</span></div>` : ''}
-                ${block.isOpen ? `<div class="tio-row"><span class="tio-label">Статус</span><span class="tio-value" style="color:#F59E0B">OPEN</span></div>` : ''}
-            `;
-            document.getElementById('tradeInfoOverlay').style.display = 'block';
         }
 
         // ==================== DASHBOARD CONSTRUCTOR (Phase 9) ====================
@@ -8420,22 +8359,6 @@
                 }
             }
 
-            // Show info overlay (unchanged)
-            const dt       = trade.openedAt ? new Date(trade.openedAt) : null;
-            const pnlColor = pnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
-            const pnlSign  = pnl >= 0 ? '+' : '';
-            const closeDt  = trade.closedAt ? new Date(trade.closedAt) : null;
-            document.getElementById('tioTitle').textContent = `${isBuy ? '↑ КУПІВЛЯ' : '↓ ШОРТ'} ${(trade.symbol||'').replace('USDT','')}`;
-            document.getElementById('tioBody').innerHTML = `
-                <div class="tio-row"><span class="tio-label">Відкрито</span><span class="tio-value">${dt ? dt.toLocaleString('uk-UA',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'UTC'}) : '—'}</span></div>
-                ${closeDt ? `<div class="tio-row"><span class="tio-label">Закрито</span><span class="tio-value">${closeDt.toLocaleString('uk-UA',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})}</span></div>` : ''}
-                <div class="tio-row"><span class="tio-label">Вхід</span><span class="tio-value">$${price.toFixed(2)}</span></div>
-                ${closePrice ? `<div class="tio-row"><span class="tio-label">Вихід</span><span class="tio-value">$${closePrice.toFixed(2)}</span></div>` : ''}
-                <div class="tio-row"><span class="tio-label">Кіл.</span><span class="tio-value">${qty.toFixed(4)}</span></div>
-                <div class="tio-row"><span class="tio-label">PNL</span><span class="tio-value" style="color:${pnlColor}">${pnlSign}$${pnl.toFixed(2)}</span></div>
-                <div class="tio-row"><span class="tio-label">Статус</span><span class="tio-value" style="color:${trade.status==='open'?'#F59E0B':'var(--text-secondary)'}">${(trade.status||'').toUpperCase()}</span></div>
-            `;
-            document.getElementById('tradeInfoOverlay').style.display = 'block';
         }
 
         function clearTradeHighlight(hideOverlay = true) {
@@ -8447,7 +8370,6 @@
                 highlightedTradeRow.classList.remove('highlighted');
                 highlightedTradeRow = null;
             }
-            if (hideOverlay) document.getElementById('tradeInfoOverlay').style.display = 'none';
         }
 
         // ===== TRADE DETAIL POPUP =====
