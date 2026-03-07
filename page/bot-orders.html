@@ -235,15 +235,40 @@
         .chart-overlay.pinned .chart-overlay-header { cursor: default; }
         .chart-overlay.pinned .chart-resize-handle { display: none; }
         .chart-overlay-title { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px; flex-shrink: 1; min-width: 0; overflow: hidden; }
-        .chart-tf-group { display: flex; gap: 1px; margin-left: 4px; flex-shrink: 0; flex-wrap: wrap; max-width: 380px; }
+        .chart-tf-group { display: flex; gap: 1px; margin-left: 4px; flex-shrink: 0; align-items: center; }
         .chart-tf-btn {
-            padding: 3px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.06);
+            padding: 2px 5px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);
             background: rgba(255,255,255,0.03); color: var(--text-secondary);
-            font-size: 10px; font-weight: 700; cursor: pointer; font-family: 'JetBrains Mono', monospace;
-            transition: 0.15s; white-space: nowrap;
+            font-size: 9px; font-weight: 700; cursor: pointer; font-family: 'JetBrains Mono', monospace;
+            transition: 0.15s; white-space: nowrap; line-height: 1.2;
         }
         .chart-tf-btn:hover { background: rgba(255,255,255,0.06); }
         .chart-tf-btn.active { background: rgba(139,92,246,0.2); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
+        .chart-tf-more {
+            position: relative; display: inline-flex;
+        }
+        .chart-tf-dropdown {
+            display: none; position: absolute; top: 100%; left: 0; z-index: 20;
+            background: #141414; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+            padding: 4px; gap: 2px; flex-wrap: wrap; width: 160px; margin-top: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        .chart-tf-dropdown.open { display: flex; }
+        .chart-tf-dropdown .chart-tf-btn { padding: 4px 8px; font-size: 10px; flex: 0 0 auto; }
+        /* Drawing toolbar */
+        .chart-draw-toolbar {
+            position: absolute; top: 4px; right: 68px; z-index: 4;
+            display: flex; gap: 2px; align-items: center;
+        }
+        .chart-draw-btn {
+            width: 22px; height: 22px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.04); color: var(--text-tertiary);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: 0.15s; padding: 0;
+        }
+        .chart-draw-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+        .chart-draw-btn.active { background: rgba(139,92,246,0.2); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
+        .chart-draw-btn svg { width: 12px; height: 12px; }
         .chart-overlay-body {
             display: flex; flex: 1; min-height: 0; overflow: hidden;
         }
@@ -446,20 +471,32 @@
         <div class="chart-tf-group" id="chartTfGroup">
             <button class="chart-tf-btn" data-tf="1s">1s</button>
             <button class="chart-tf-btn" data-tf="1m">1m</button>
-            <button class="chart-tf-btn" data-tf="3m">3m</button>
             <button class="chart-tf-btn" data-tf="5m">5m</button>
             <button class="chart-tf-btn active" data-tf="15m">15m</button>
-            <button class="chart-tf-btn" data-tf="30m">30m</button>
             <button class="chart-tf-btn" data-tf="1h">1h</button>
-            <button class="chart-tf-btn" data-tf="2h">2h</button>
             <button class="chart-tf-btn" data-tf="4h">4h</button>
-            <button class="chart-tf-btn" data-tf="6h">6h</button>
-            <button class="chart-tf-btn" data-tf="8h">8h</button>
-            <button class="chart-tf-btn" data-tf="12h">12h</button>
             <button class="chart-tf-btn" data-tf="1d">1d</button>
-            <button class="chart-tf-btn" data-tf="3d">3d</button>
-            <button class="chart-tf-btn" data-tf="1w">1w</button>
-            <button class="chart-tf-btn" data-tf="1M">1M</button>
+            <div class="chart-tf-more">
+                <button class="chart-tf-btn" id="chartTfMoreBtn" title="More timeframes">...</button>
+                <div class="chart-tf-dropdown" id="chartTfDropdown">
+                    <button class="chart-tf-btn" data-tf="1s">1s</button>
+                    <button class="chart-tf-btn" data-tf="1m">1m</button>
+                    <button class="chart-tf-btn" data-tf="3m">3m</button>
+                    <button class="chart-tf-btn" data-tf="5m">5m</button>
+                    <button class="chart-tf-btn" data-tf="15m">15m</button>
+                    <button class="chart-tf-btn" data-tf="30m">30m</button>
+                    <button class="chart-tf-btn" data-tf="1h">1h</button>
+                    <button class="chart-tf-btn" data-tf="2h">2h</button>
+                    <button class="chart-tf-btn" data-tf="4h">4h</button>
+                    <button class="chart-tf-btn" data-tf="6h">6h</button>
+                    <button class="chart-tf-btn" data-tf="8h">8h</button>
+                    <button class="chart-tf-btn" data-tf="12h">12h</button>
+                    <button class="chart-tf-btn" data-tf="1d">1d</button>
+                    <button class="chart-tf-btn" data-tf="3d">3d</button>
+                    <button class="chart-tf-btn" data-tf="1w">1w</button>
+                    <button class="chart-tf-btn" data-tf="1M">1M</button>
+                </div>
+            </div>
         </div>
         <div style="display:flex;gap:2px;margin-left:4px;flex-shrink:0;">
             <button class="chart-tf-btn" id="chartShowAllOrders" style="gap:3px;display:inline-flex;align-items:center;" title="Всі ордери на графіку">
@@ -495,6 +532,20 @@
             <canvas id="chartCanvas"></canvas>
             <div class="chart-loading" id="chartLoading" style="display:none;"></div>
             <div class="chart-crosshair-info" id="chartCrosshair"></div>
+            <div class="chart-draw-toolbar" id="chartDrawToolbar">
+                <button class="chart-draw-btn" data-tool="trendline" title="Трендова лінія">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+                </button>
+                <button class="chart-draw-btn" data-tool="hline" title="Горизонтальна лінія">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                </button>
+                <button class="chart-draw-btn" data-tool="ray" title="Промінь">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="18" x2="20" y2="6"/><circle cx="4" cy="18" r="2"/></svg>
+                </button>
+                <button class="chart-draw-btn" id="chartDrawDeleteAll" title="Видалити всі">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
         </div>
         <div class="chart-info-panel" id="chartInfoPanel"></div>
     </div>
@@ -876,6 +927,13 @@
         '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '8h': 28800000, '12h': 43200000,
         '1d': 86400000, '3d': 259200000, '1w': 604800000, '1M': 2592000000
     };
+    // Drawing instruments
+    let _drawTool = null;          // 'trendline' | 'hline' | 'ray' | null
+    let _drawings = [];            // { type, points: [{time,price}], color }
+    let _drawingInProgress = null; // partial drawing being placed
+    const _drawColors = ['#C4B5FD', '#8CA8FF', '#F59E0B', '#22D3EE', '#10B981'];
+    let _drawColorIdx = 0;
+    let _hoverDrawingIdx = -1;     // index of drawing under cursor (for delete)
     const padTop = 18, padBottom = 22, padLeft = 6, padRight = 62;
 
     window.showOrderByIdx = function(idx) {
@@ -928,8 +986,9 @@
             <div class="info-row"><span class="info-label">Оновлено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.updateTime)}</span></div>
         `;
 
-        // Set active TF button
-        document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
+        // Set active TF button (inline + dropdown)
+        document.querySelectorAll('#chartTfGroup .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
+        document.querySelectorAll('#chartTfDropdown .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
         document.getElementById('chartShowAllOrders').classList.toggle('active', _showAllOrders);
         document.getElementById('chartShowLevels').classList.toggle('active', _showOrderLevels);
         document.getElementById('chartShowVolume').classList.toggle('active', _showVolume);
@@ -1412,6 +1471,80 @@
             }
         }
 
+        // ── Drawing instruments ──
+        const xToTime = (x) => {
+            if (visible.length === 0) return 0;
+            const idx = Math.round((x - padLeft) / candleW - 0.5);
+            const ci = Math.max(0, Math.min(visible.length - 1, idx));
+            return visible[ci].time;
+        };
+        const yToPrice = (y) => maxP - (y - padTop) / chartH * range;
+
+        // Render completed drawings
+        _drawings.forEach((d, di) => {
+            ctx.save();
+            const isHover = di === _hoverDrawingIdx;
+            ctx.strokeStyle = d.color || '#C4B5FD';
+            ctx.lineWidth = isHover ? 2 : 1;
+            ctx.setLineDash(d.type === 'ray' ? [6, 3] : []);
+            if (d.type === 'hline') {
+                const y = priceToY(d.points[0].price);
+                if (y >= padTop - 5 && y <= H - padBottom + 5) {
+                    ctx.beginPath(); ctx.moveTo(padLeft, Math.round(y)+0.5); ctx.lineTo(W - padRight, Math.round(y)+0.5); ctx.stroke();
+                    // Price label
+                    ctx.font = '8px "JetBrains Mono", monospace';
+                    ctx.fillStyle = d.color; ctx.textAlign = 'right';
+                    ctx.fillText('$' + fmtPrice(d.points[0].price), W - padRight - 4, y - 3);
+                    if (isHover) {
+                        ctx.fillStyle = 'rgba(239,68,68,0.7)'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
+                        ctx.fillText('\u00d7', padLeft + 4, y - 3);
+                    }
+                }
+            } else if ((d.type === 'trendline' || d.type === 'ray') && d.points.length === 2) {
+                const x1 = timeToX(d.points[0].time), y1 = priceToY(d.points[0].price);
+                let x2 = timeToX(d.points[1].time), y2 = priceToY(d.points[1].price);
+                if (d.type === 'ray' && x2 !== x1) {
+                    const slope = (y2 - y1) / (x2 - x1);
+                    x2 = x2 > x1 ? W - padRight : padLeft;
+                    y2 = y1 + slope * (x2 - x1);
+                }
+                ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                // Anchor dots
+                ctx.setLineDash([]);
+                [d.points[0], d.points[1]].forEach(p => {
+                    const px = timeToX(p.time), py = priceToY(p.price);
+                    ctx.beginPath(); ctx.arc(px, py, isHover ? 4 : 3, 0, Math.PI * 2);
+                    ctx.fillStyle = d.color; ctx.fill();
+                });
+                if (isHover) {
+                    ctx.fillStyle = 'rgba(239,68,68,0.7)'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+                    const mx = (timeToX(d.points[0].time) + timeToX(d.points[1].time)) / 2;
+                    const my = (priceToY(d.points[0].price) + priceToY(d.points[1].price)) / 2;
+                    ctx.fillText('\u00d7', mx, my - 6);
+                }
+            }
+            ctx.restore();
+        });
+
+        // Render in-progress drawing
+        if (_drawingInProgress && _mouseX > 0) {
+            ctx.save();
+            ctx.strokeStyle = _drawColors[_drawColorIdx] + 'aa';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            if (_drawingInProgress.type === 'hline') {
+                ctx.beginPath(); ctx.moveTo(padLeft, Math.round(_mouseY)+0.5); ctx.lineTo(W - padRight, Math.round(_mouseY)+0.5); ctx.stroke();
+            } else if (_drawingInProgress.points.length === 1) {
+                const x1 = timeToX(_drawingInProgress.points[0].time);
+                const y1 = priceToY(_drawingInProgress.points[0].price);
+                ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(_mouseX, _mouseY); ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // Store helpers for click handler
+        canvas._chartHelpers = { xToTime, yToPrice, timeToX, priceToY, visible, W, H };
+
         // ── Crosshair ──
         if (_mouseX >= padLeft && _mouseX <= W - padRight && _mouseY >= padTop && _mouseY <= H - padBottom && !_isDragging) {
             ctx.setLineDash([3, 3]);
@@ -1464,6 +1597,7 @@
 
     chartCanvas.addEventListener('mousedown', function(e) {
         if (e.button !== 0) return;
+        if (_drawTool) return; // drawing mode — handled by click
         const rect = this.getBoundingClientRect();
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
@@ -1558,8 +1692,10 @@
             this.style.cursor = 'ns-resize';
         } else if (my >= rect.height - padBottom) {
             this.style.cursor = 'ew-resize';
-        } else {
+        } else if (_drawTool) {
             this.style.cursor = 'crosshair';
+        } else {
+            this.style.cursor = _hoverDrawingIdx >= 0 ? 'pointer' : 'crosshair';
         }
     });
 
@@ -1602,16 +1738,118 @@
     // Set cursor
     chartCanvas.style.cursor = 'crosshair';
 
-    // TF buttons
-    document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(btn => {
-        if (!btn.dataset.tf) return;
-        btn.addEventListener('click', () => {
-            _chartTF = btn.dataset.tf;
-            document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(b => {
-                if (b.dataset.tf) b.classList.toggle('active', b === btn);
-            });
-            loadChartKlines();
+    // TF buttons (both inline + dropdown)
+    function handleTFClick(tf) {
+        _chartTF = tf;
+        document.querySelectorAll('#chartTfGroup .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
+        document.querySelectorAll('#chartTfDropdown .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
+        document.getElementById('chartTfDropdown').classList.remove('open');
+        loadChartKlines();
+    }
+    document.querySelectorAll('#chartTfGroup > .chart-tf-btn[data-tf]').forEach(btn => {
+        btn.addEventListener('click', () => handleTFClick(btn.dataset.tf));
+    });
+    document.querySelectorAll('#chartTfDropdown .chart-tf-btn[data-tf]').forEach(btn => {
+        btn.addEventListener('click', (e) => { e.stopPropagation(); handleTFClick(btn.dataset.tf); });
+    });
+    // Dropdown toggle
+    document.getElementById('chartTfMoreBtn').addEventListener('click', function(e) {
+        e.stopPropagation();
+        document.getElementById('chartTfDropdown').classList.toggle('open');
+    });
+    document.addEventListener('click', () => document.getElementById('chartTfDropdown')?.classList.remove('open'));
+
+    // ── Drawing tool handlers ──
+    document.querySelectorAll('#chartDrawToolbar .chart-draw-btn[data-tool]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tool = this.dataset.tool;
+            if (_drawTool === tool) {
+                _drawTool = null; _drawingInProgress = null;
+                this.classList.remove('active');
+            } else {
+                _drawTool = tool;
+                _drawingInProgress = null;
+                document.querySelectorAll('#chartDrawToolbar .chart-draw-btn[data-tool]').forEach(b => b.classList.toggle('active', b === this));
+            }
         });
+    });
+    // Delete all drawings
+    document.getElementById('chartDrawDeleteAll').addEventListener('click', function() {
+        _drawings = [];
+        _drawingInProgress = null;
+        if (_chartKlines.length > 0) drawChart();
+    });
+
+    // Drawing click on canvas
+    chartCanvas.addEventListener('click', function(e) {
+        if (!_drawTool || _isDragging || _priceAxisDrag || _timeAxisDrag) return;
+        const helpers = this._chartHelpers;
+        if (!helpers) return;
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        if (mx < padLeft || mx > helpers.W - padRight || my < padTop || my > helpers.H - padBottom) return;
+
+        const price = helpers.yToPrice(my);
+        const time = helpers.xToTime(mx);
+        const color = _drawColors[_drawColorIdx];
+
+        if (_drawTool === 'hline') {
+            _drawings.push({ type: 'hline', points: [{ time: 0, price }], color });
+            _drawColorIdx = (_drawColorIdx + 1) % _drawColors.length;
+            _drawTool = null; _drawingInProgress = null;
+            document.querySelectorAll('#chartDrawToolbar .chart-draw-btn').forEach(b => b.classList.remove('active'));
+            drawChart();
+        } else if (_drawTool === 'trendline' || _drawTool === 'ray') {
+            if (!_drawingInProgress) {
+                _drawingInProgress = { type: _drawTool, points: [{ time, price }], color };
+            } else {
+                _drawingInProgress.points.push({ time, price });
+                _drawings.push({ ..._drawingInProgress });
+                _drawColorIdx = (_drawColorIdx + 1) % _drawColors.length;
+                _drawingInProgress = null;
+                _drawTool = null;
+                document.querySelectorAll('#chartDrawToolbar .chart-draw-btn').forEach(b => b.classList.remove('active'));
+                drawChart();
+            }
+        }
+    });
+
+    // Right-click to delete drawing under cursor
+    chartCanvas.addEventListener('contextmenu', function(e) {
+        if (_hoverDrawingIdx >= 0 && _hoverDrawingIdx < _drawings.length) {
+            e.preventDefault();
+            _drawings.splice(_hoverDrawingIdx, 1);
+            _hoverDrawingIdx = -1;
+            drawChart();
+        }
+    });
+
+    // Detect hover over drawings for delete hint
+    chartCanvas.addEventListener('mousemove', function drawHoverCheck(e) {
+        if (_drawTool || _isDragging) { _hoverDrawingIdx = -1; return; }
+        const helpers = this._chartHelpers;
+        if (!helpers || _drawings.length === 0) { _hoverDrawingIdx = -1; return; }
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        let closest = -1, minDist = 8;
+        _drawings.forEach((d, i) => {
+            if (d.type === 'hline') {
+                const dy = Math.abs(helpers.priceToY(d.points[0].price) - my);
+                if (dy < minDist) { minDist = dy; closest = i; }
+            } else if (d.points.length === 2) {
+                const x1 = helpers.timeToX(d.points[0].time), y1 = helpers.priceToY(d.points[0].price);
+                const x2 = helpers.timeToX(d.points[1].time), y2 = helpers.priceToY(d.points[1].price);
+                const len = Math.sqrt((x2-x1)**2 + (y2-y1)**2) || 1;
+                const dist = Math.abs((y2-y1)*mx - (x2-x1)*my + x2*y1 - y2*x1) / len;
+                if (dist < minDist) { minDist = dist; closest = i; }
+            }
+        });
+        if (closest !== _hoverDrawingIdx) {
+            _hoverDrawingIdx = closest;
+            if (_chartKlines.length > 0 && !_rafPending) { _rafPending = true; requestAnimationFrame(() => { _rafPending = false; drawChart(); }); }
+        }
     });
 
     // Toggle all orders
@@ -1657,7 +1895,17 @@
         _chartOrder = null;
     }
     document.getElementById('chartClose').addEventListener('click', closeChart);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            if (_drawTool || _drawingInProgress) {
+                _drawTool = null; _drawingInProgress = null;
+                document.querySelectorAll('#chartDrawToolbar .chart-draw-btn').forEach(b => b.classList.remove('active'));
+                if (_chartKlines.length > 0) drawChart();
+            } else {
+                closeChart();
+            }
+        }
+    });
 
     // Fullscreen toggle
     let _chartFullscreen = false;
