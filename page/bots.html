@@ -2032,7 +2032,7 @@
         async function openBotEditModal(botId) {
             // Fetch bot + categories in parallel
             const [botRes, catRes] = await Promise.all([
-                fetch(`/api/bots/${botId}`, { credentials: 'include' }),
+                fetch(`/api/bots/${botId}/info`, { credentials: 'include' }),
                 fetch('/api/admin/bot-categories', { credentials: 'include' }),
             ]);
             if (!botRes.ok) { alert('Не вдалося завантажити бота'); return; }

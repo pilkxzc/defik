@@ -2952,9 +2952,9 @@ function _buildAdminFlyout(adminLink) {
         s.id = 'adminFlyoutStyle';
         s.textContent = `
             #adminFlyout {
-                display:none; position:absolute; left:calc(100% + 8px); bottom:0;
+                display:none; position:fixed;
                 background:var(--surface,#141414); border:1px solid rgba(255,255,255,0.1);
-                border-radius:14px; padding:6px; min-width:170px; z-index:99990;
+                border-radius:14px; padding:6px; min-width:170px; z-index:999999;
                 box-shadow:0 12px 40px rgba(0,0,0,0.6);
                 animation:afIn .15s ease;
             }
@@ -2971,13 +2971,22 @@ function _buildAdminFlyout(adminLink) {
         document.head.appendChild(s);
     }
 
-    wrap.appendChild(flyout);
+    document.body.appendChild(flyout);
+
+    function _positionFlyout() {
+        const rect = adminLink.getBoundingClientRect();
+        flyout.style.left = (rect.right + 8) + 'px';
+        // Position so bottom of flyout aligns with bottom of admin link
+        flyout.style.bottom = (window.innerHeight - rect.bottom) + 'px';
+        flyout.style.top = 'auto';
+    }
 
     // Toggle on click
     adminLink.addEventListener('click', function(e) {
         // If already on admin page, let it navigate. Otherwise toggle flyout.
         if (window.location.pathname === '/admin') return;
         e.preventDefault();
+        _positionFlyout();
         flyout.classList.toggle('open');
     });
 
