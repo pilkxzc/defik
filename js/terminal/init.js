@@ -61,6 +61,12 @@ async function init() {
             b.addEventListener('click', () => switchTab(b.dataset.tab))
         );
 
+        // Open tab from URL param (?tab=connect)
+        const urlTab = new URLSearchParams(window.location.search).get('tab');
+        if (urlTab && document.getElementById('tab-' + urlTab)) {
+            switchTab(urlTab);
+        }
+
         // Chart timeframe buttons
         document.querySelectorAll('.chart-tf-btn[data-tf]').forEach(b =>
             b.addEventListener('click', () => setChartTF(b.dataset.tf))
