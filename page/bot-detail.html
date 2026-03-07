@@ -3236,10 +3236,6 @@
                     <button class="pm-toggle-pill on" id="pmToggle_panelStats" onclick="togglePanelHidden('panelStats')"></button>
                 </div>
                 <div class="pm-row">
-                    <span class="pm-row-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg> Інструменти</span>
-                    <button class="pm-toggle-pill on" id="pmToggle_panelInstruments" onclick="togglePanelHidden('panelInstruments')"></button>
-                </div>
-                <div class="pm-row">
                     <span class="pm-row-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Позиція</span>
                     <button class="pm-toggle-pill on" id="pmToggle_positionPanel" onclick="togglePanelHidden('positionPanel')"></button>
                 </div>
@@ -3336,25 +3332,10 @@
             </div>
 
             <!-- Instruments + Display Toggles -->
-            <div class="panel-card resizable-panel" id="panelInstruments" data-panel="instruments" style="height: 120px;">
-                <div class="resize-handle-w" data-panel="panelInstruments"></div>
-                <div class="panel-tabs" style="align-items:center;position:relative;">
-                    <div class="color-edit-marker" data-target="panelInstruments" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelInstruments',this.value)"></div>
-                    <span class="panel-drag-handle" title="Перетягніть для зміни порядку" style="margin-right:2px;">⠿</span>
-                    <button class="panel-tab active" id="instrTab_symbols">Символи <span id="instrumentsCount" style="background:rgba(255,255,255,0.08);color:var(--text-tertiary);padding:1px 5px;border-radius:9999px;font-size:10px;margin-left:3px;">0</span></button>
-                    <div style="flex:1;"></div>
-                    <button id="instrumentsSortBtn" onclick="cycleInstrumentsSort()" title="Сортування" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:3px 7px;color:var(--text-tertiary);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">A-Z</button>
-                    <button class="panel-hide-btn" onclick="togglePanelHidden('panelInstruments')" title="Приховати панель">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    </button>
-                    <button class="panel-collapse-btn" onclick="togglePanelCollapse('panelInstruments')" style="margin-right:8px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-                    </button>
-                </div>
-                <div class="panel-body" id="instrumentsContent" style="overflow:auto;">
-                    <div class="empty-state">Немає інструментів</div>
-                </div>
-                <div class="resize-handle" data-panel="panelInstruments"></div>
+            <!-- panelInstruments hidden — symbols moved to chart toolbar dropdown -->
+            <div id="panelInstruments" style="display:none;">
+                <div id="instrumentsContent"></div>
+                <span id="instrumentsCount" style="display:none;">0</span>
             </div>
 
             <!-- Current Position -->
@@ -9580,7 +9561,7 @@
                 const changeColor = change >= 0 ? 'var(--color-long)' : 'var(--color-short)';
                 const changeStr = change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}%` : '';
                 const isActive = symbol === currentSym;
-                return `<button class="ind-dropdown-item${isActive ? ' active' : ''}" onclick="changeSymbol('${symbol}'); document.getElementById('symDropdownMenu').classList.remove('active');">
+                return `<button class="ind-dropdown-item${isActive ? ' active' : ''}" onclick="changeSymbol('${symbol}'); document.getElementById('symDropdownMenu').classList.remove('open'); document.getElementById('symDropdownTrigger').classList.remove('open');">
                     <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
                     <span style="font-weight:600;flex:1;">${symbol.replace('USDT', '/USDT')}</span>
                     <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">${priceStr}</span>
@@ -9789,6 +9770,8 @@
             symbolLocked = false;
             selectSymbol(symbol);
             symbolLocked = wasLocked;
+            // Update symbols dropdown to reflect new active symbol
+            updateSymbolsDropdown();
         }
 
         // Update instruments panel directly from known symbols list
