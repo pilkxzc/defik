@@ -9551,7 +9551,7 @@
                 return;
             }
 
-            const currentSym = typeof getSymbol === 'function' ? getSymbol() : '';
+            const currentSym = (typeof currentSymbol !== 'undefined' ? currentSymbol : null) || (typeof getSymbol === 'function' ? getSymbol() : '');
             const sorted = sortInstrumentsList(instruments);
             menu.innerHTML = sorted.map(symbol => {
                 const priceData = symbolPrices[symbol];
