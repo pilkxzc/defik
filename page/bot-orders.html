@@ -231,12 +231,12 @@
         }
         .chart-fullscreen-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
         .chart-overlay-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .chart-tf-group { display: flex; gap: 3px; margin-left: 12px; }
+        .chart-tf-group { display: flex; gap: 2px; margin-left: 12px; flex-shrink: 0; flex-wrap: wrap; max-width: 420px; }
         .chart-tf-btn {
-            padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);
+            padding: 3px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.06);
             background: rgba(255,255,255,0.03); color: var(--text-secondary);
-            font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'JetBrains Mono', monospace;
-            transition: 0.15s;
+            font-size: 10px; font-weight: 700; cursor: pointer; font-family: 'JetBrains Mono', monospace;
+            transition: 0.15s; white-space: nowrap;
         }
         .chart-tf-btn:hover { background: rgba(255,255,255,0.06); }
         .chart-tf-btn.active { background: rgba(139,92,246,0.2); color: #C4B5FD; border-color: rgba(139,92,246,0.3); }
@@ -438,16 +438,30 @@
         <button class="chart-overlay-close" id="chartClose">&times;</button>
         <div class="chart-overlay-title" id="chartTitle"></div>
         <div class="chart-tf-group" id="chartTfGroup">
+            <button class="chart-tf-btn" data-tf="1s">1s</button>
             <button class="chart-tf-btn" data-tf="1m">1m</button>
+            <button class="chart-tf-btn" data-tf="3m">3m</button>
             <button class="chart-tf-btn" data-tf="5m">5m</button>
             <button class="chart-tf-btn active" data-tf="15m">15m</button>
+            <button class="chart-tf-btn" data-tf="30m">30m</button>
             <button class="chart-tf-btn" data-tf="1h">1h</button>
+            <button class="chart-tf-btn" data-tf="2h">2h</button>
             <button class="chart-tf-btn" data-tf="4h">4h</button>
+            <button class="chart-tf-btn" data-tf="6h">6h</button>
+            <button class="chart-tf-btn" data-tf="8h">8h</button>
+            <button class="chart-tf-btn" data-tf="12h">12h</button>
             <button class="chart-tf-btn" data-tf="1d">1d</button>
+            <button class="chart-tf-btn" data-tf="3d">3d</button>
+            <button class="chart-tf-btn" data-tf="1w">1w</button>
+            <button class="chart-tf-btn" data-tf="1M">1M</button>
         </div>
-        <button class="chart-tf-btn" id="chartShowAllOrders" style="margin-left:8px;gap:4px;display:inline-flex;align-items:center;">
+        <button class="chart-tf-btn" id="chartShowAllOrders" style="margin-left:8px;gap:4px;display:inline-flex;align-items:center;" title="Показати всі ордери">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Ордери
+        </button>
+        <button class="chart-tf-btn" id="chartShowLevels" style="margin-left:4px;gap:4px;display:inline-flex;align-items:center;" title="Рівні ордеру (ціна, стоп, середня)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="6" x2="22" y2="6"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="18" x2="22" y2="18"/></svg>
+            Рівні
         </button>
         <button class="chart-tf-btn" id="chartResetView" style="margin-left:4px;" title="Центрувати на ордер">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
@@ -819,6 +833,7 @@
     let _chartTF = '15m';
     let _chartKlines = [];       // full kline buffer
     let _showAllOrders = true;   // toggle for showing all orders
+    let _showOrderLevels = true; // toggle for order price levels
     let _chartViewStart = 0;     // viewport: first visible kline index
     let _chartViewCount = 200;   // viewport: number of visible klines
     let _isDragging = false;
@@ -826,7 +841,11 @@
     let _dragStartViewStart = 0;
     let _mouseX = -1, _mouseY = -1;  // crosshair
     let _fetchingMore = false;
-    const _tfMs = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+    const _tfMs = {
+        '1s': 1000, '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000,
+        '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '8h': 28800000, '12h': 43200000,
+        '1d': 86400000, '3d': 259200000, '1w': 604800000, '1M': 2592000000
+    };
     const padTop = 24, padBottom = 30, padLeft = 8, padRight = 76;
 
     window.showOrderByIdx = function(idx) {
@@ -883,6 +902,8 @@
         document.querySelectorAll('#chartTfGroup .chart-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
         const allBtn = document.getElementById('chartShowAllOrders');
         allBtn.classList.toggle('active', _showAllOrders);
+        const levelsBtn = document.getElementById('chartShowLevels');
+        levelsBtn.classList.toggle('active', _showOrderLevels);
 
         // If chart was already open with same symbol — just navigate, don't reload
         if (wasOpen && prevSymbol === o.symbol && _chartKlines.length > 0) {
@@ -1075,6 +1096,51 @@
                 ctx.fillRect(Math.round(x - bodyW/2), Math.round(bodyTop), Math.round(bodyW), Math.round(bodyH));
             }
         });
+
+        // ── Order price levels (limit, stop, avg) ──
+        if (_showOrderLevels && _chartOrder) {
+            const levels = [];
+            const oPrice = parseFloat(_chartOrder.price) || 0;
+            const oStop = parseFloat(_chartOrder.stopPrice) || 0;
+            const oAvg = parseFloat(_chartOrder.avgPrice) || 0;
+
+            if (oPrice > 0) levels.push({ price: oPrice, label: 'Limit ' + fmtPrice(oPrice), color: '#C4B5FD', dash: [6, 4] });
+            if (oStop > 0 && oStop !== oPrice) levels.push({ price: oStop, label: 'Stop ' + fmtPrice(oStop), color: '#F59E0B', dash: [4, 4] });
+            if (oAvg > 0 && oAvg !== oPrice && oAvg !== oStop) levels.push({ price: oAvg, label: 'Avg ' + fmtPrice(oAvg), color: '#22D3EE', dash: [3, 6] });
+
+            levels.forEach(lv => {
+                const ly = priceToY(lv.price);
+                if (ly < padTop - 10 || ly > H - padBottom + 10) return;
+                ctx.save();
+                ctx.setLineDash(lv.dash);
+                ctx.strokeStyle = lv.color + '66';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(padLeft, Math.round(ly) + 0.5);
+                ctx.lineTo(W - padRight, Math.round(ly) + 0.5);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                // Label bg
+                ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                const tw = ctx.measureText(lv.label).width + 8;
+                ctx.fillStyle = lv.color + '22';
+                ctx.fillRect(padLeft + 4, ly - 8, tw, 16);
+                ctx.strokeStyle = lv.color + '44';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(padLeft + 4, ly - 8, tw, 16);
+                ctx.fillStyle = lv.color;
+                ctx.textAlign = 'left';
+                ctx.fillText(lv.label, padLeft + 8, ly + 3);
+                // Right side price tag
+                ctx.fillStyle = lv.color + '33';
+                const rpLabel = '$' + fmtPrice(lv.price);
+                const rpw = ctx.measureText(rpLabel).width + 8;
+                ctx.fillRect(W - padRight + 2, ly - 8, rpw, 16);
+                ctx.fillStyle = lv.color;
+                ctx.fillText(rpLabel, W - padRight + 6, ly + 3);
+                ctx.restore();
+            });
+        }
 
         // ── All orders markers ──
         if (_showAllOrders && allOrders.length > 0) {
@@ -1285,6 +1351,13 @@
     document.getElementById('chartShowAllOrders').addEventListener('click', function() {
         _showAllOrders = !_showAllOrders;
         this.classList.toggle('active', _showAllOrders);
+        if (_chartKlines.length > 0) drawChart();
+    });
+
+    // Toggle order levels
+    document.getElementById('chartShowLevels').addEventListener('click', function() {
+        _showOrderLevels = !_showOrderLevels;
+        this.classList.toggle('active', _showOrderLevels);
         if (_chartKlines.length > 0) drawChart();
     });
 
