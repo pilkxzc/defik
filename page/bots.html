@@ -759,7 +759,21 @@
             border-bottom: 1px solid rgba(255,255,255,0.04);
         }
         .bot-coins-panel.open {
-            max-height: 400px;
+            max-height: 600px;
+        }
+        .bot-panel-collapse {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 0;
+            cursor: pointer;
+            color: var(--text-tertiary);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            transition: color 0.15s, background 0.15s;
+        }
+        .bot-panel-collapse:hover {
+            color: var(--text-secondary);
+            background: rgba(255,255,255,0.03);
         }
         .bot-coins-list {
             padding: 4px 0;
@@ -2092,6 +2106,9 @@
                     <div class="bot-coins-panel" id="botCoins_${b.id}">
                         ${coinItems ? `<div class="bot-coins-list">${coinItems}</div>` : ''}
                         ${adminSection}
+                        <div class="bot-panel-collapse" onclick="event.stopPropagation(); toggleBotCoins(${b.id})">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                        </div>
                     </div>`;
             }
 
