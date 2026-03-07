@@ -1260,13 +1260,18 @@
             });
         }
 
-        // ── Interpolated X position for a timestamp (sub-candle precision) ──
+        // ── Find X position for a timestamp (snap to nearest candle) ──
+        // Binary search for closest candle — O(log n) instead of O(n)
         const timeToX = (t) => {
-            if (visible.length < 2) return idxToX(0);
-            const intMs = _tfMs[_chartTF] || (visible[1].time - visible[0].time) || 1;
-            // Fractional index based on time
-            const fIdx = (t - visible[0].time) / intMs;
-            return padLeft + fIdx * candleW + candleW / 2;
+            if (visible.length === 0) return padLeft;
+            let lo = 0, hi = visible.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (visible[mid].time < t) lo = mid + 1; else hi = mid;
+            }
+            // lo is the first candle with time >= t, check lo-1 too
+            if (lo > 0 && Math.abs(visible[lo - 1].time - t) < Math.abs(visible[lo].time - t)) lo--;
+            return idxToX(lo);
         };
 
         // ── All orders markers (clustered) ──
