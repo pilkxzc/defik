@@ -1759,6 +1759,24 @@
             if (countInactive) countInactive.textContent = inactive;
         }
 
+        function setCoinFilter(filter, btn) {
+            // Update button states within the coin filter bar
+            const bar = btn.parentElement;
+            bar.querySelectorAll('.bots-filter-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.coinFilter === filter);
+            });
+            // Filter coin items in detail panel
+            const list = document.getElementById('detailCoinsList');
+            if (!list) return;
+            list.querySelectorAll('.detail-coin-wrap').forEach(wrap => {
+                const isActive = wrap.dataset.coinActive === '1';
+                let show = true;
+                if (filter === 'active') show = isActive;
+                if (filter === 'inactive') show = !isActive;
+                wrap.style.display = show ? '' : 'none';
+            });
+        }
+
         async function loadBotsTree() {
             try {
                 const [treeRes, authRes] = await Promise.all([
@@ -2409,8 +2427,15 @@
                 <div class="detail-tickers">${tickers}</div>
                 ${b.instruments && b.instruments.length > 0 ? `
                 <div style="margin-bottom:16px;">
-                    <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Монети</div>
-                    <div style="display:flex;flex-direction:column;gap:4px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                        <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;">Монети</div>
+                        <div class="bots-filter-bar" style="padding:0;border:none;gap:3px;">
+                            <button class="bots-filter-btn active" data-coin-filter="all" onclick="setCoinFilter('all',this)" style="padding:3px 8px;font-size:10px;">Усі</button>
+                            <button class="bots-filter-btn" data-coin-filter="active" onclick="setCoinFilter('active',this)" style="padding:3px 8px;font-size:10px;"><span class="bots-filter-dot green"></span> Live</button>
+                            <button class="bots-filter-btn" data-coin-filter="inactive" onclick="setCoinFilter('inactive',this)" style="padding:3px 8px;font-size:10px;"><span class="bots-filter-dot red"></span> Очікує</button>
+                        </div>
+                    </div>
+                    <div id="detailCoinsList" style="display:flex;flex-direction:column;gap:4px;">
                         ${b.instruments.map(c => {
                             const sym = c.symbol || c;
                             const hasOpen = c.hasOpenTrade || false;
@@ -2422,7 +2447,7 @@
                             const volStr = coinVol >= 1000 ? '$' + (coinVol / 1000).toFixed(1) + 'k' : '$' + coinVol.toFixed(2);
                             const coinId = 'detail-coin-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
                             const popupId = 'coin-popup-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
-                            return `<div>
+                            return `<div class="detail-coin-wrap" data-coin-active="${hasOpen ? '1' : '0'}">
                                 <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface-secondary);border-radius:10px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;position:relative;" onclick="document.getElementById('${coinId}').classList.toggle('open'); trackEvent('coin_click', ${b.id}, '${sym}')">
                                     <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
                                     <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
