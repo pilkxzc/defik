@@ -655,6 +655,9 @@
             color: var(--text-tertiary);
             font-weight: 600;
             letter-spacing: 0.3px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
         }
         .bot-live-pair.trading {
             color: var(--color-up);
@@ -674,29 +677,58 @@
         .bot-list-item-sub {
             position: relative;
         }
-        /* Hover tooltip for +N */
-        .bot-pair-more::after {
-            content: attr(title);
+        /* Coins hover tooltip */
+        .bot-coins-tooltip {
+            display: none;
             position: absolute;
-            bottom: calc(100% + 6px);
+            bottom: calc(100% + 8px);
             left: 0;
             background: var(--surface);
             border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 6px 10px;
+            border-radius: 10px;
+            padding: 8px 0;
             font-size: 11px;
             color: var(--text-primary);
             white-space: nowrap;
-            pointer-events: none;
-            opacity: 0;
-            transform: translateY(4px);
-            transition: opacity 0.15s, transform 0.15s;
             z-index: 100;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            min-width: 140px;
         }
-        .bot-pair-more:hover::after {
-            opacity: 1;
-            transform: translateY(0);
+        .bot-list-item-sub:hover .bot-coins-tooltip {
+            display: block;
+            animation: tooltipIn 0.15s ease-out;
+        }
+        @keyframes tooltipIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .bot-coins-tooltip-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .bot-coins-tooltip-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .bot-coins-tooltip-dot.active {
+            background: var(--color-up);
+            box-shadow: 0 0 4px rgba(16,185,129,0.5);
+        }
+        .bot-coins-tooltip-dot.inactive {
+            background: var(--text-tertiary);
+        }
+        .bot-coins-tooltip-status {
+            margin-left: auto;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         /* ── Gear button on bot list item ── */
@@ -1879,11 +1911,24 @@
             let pairHtml = visibleCoins.map(c => {
                 const sym = (c.symbol || c).replace(/USDT|BUSD/gi, '');
                 const hasOpen = c.hasOpenTrade || false;
-                return `<span class="bot-live-pair${hasOpen ? ' trading' : ''}">${sym}${hasOpen ? ' ●' : ''}</span>`;
+                const dotColor = hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)';
+                const dotShadow = hasOpen ? 'box-shadow:0 0 4px rgba(16,185,129,0.5);' : '';
+                return `<span class="bot-live-pair${hasOpen ? ' trading' : ''}"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};${dotShadow}flex-shrink:0;"></span>${sym}</span>`;
             }).join('');
             if (extraCount > 0) {
-                pairHtml += `<span class="bot-live-pair bot-pair-more" title="${allNames}">+${extraCount}</span>`;
+                pairHtml += `<span class="bot-live-pair bot-pair-more">+${extraCount}</span>`;
             }
+
+            // Build tooltip with all coins and their status
+            const tooltipHtml = allCoins.map(c => {
+                const sym = (c.symbol || c).replace(/USDT|BUSD/gi, '');
+                const hasOpen = c.hasOpenTrade || false;
+                return `<div class="bot-coins-tooltip-item">
+                    <span class="bot-coins-tooltip-dot ${hasOpen ? 'active' : 'inactive'}"></span>
+                    <span>${sym}/USDT</span>
+                    <span class="bot-coins-tooltip-status" style="color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? 'Live' : 'Очікує'}</span>
+                </div>`;
+            }).join('');
 
             const isLiveTrading = b.realStatus === 'live';
 
@@ -1983,11 +2028,11 @@
 
             return `
                 <div class="bot-list-item${_selectedBotId === b.id ? ' selected' : ''}${isLiveTrading ? ' is-live' : ''}" data-bot-id="${b.id}" style="position:relative;">
-                    <span class="bot-status-dot ${statusClass}"></span>
                     <div class="bot-list-item-info">
                         <div class="bot-list-item-name">${b.name}</div>
                         <div class="bot-list-item-sub">
                             ${pairHtml}
+                            ${allCoins.length > 0 ? `<div class="bot-coins-tooltip">${tooltipHtml}</div>` : ''}
                         </div>
                     </div>
                     <div class="bot-list-item-pnl ${pnlClass}">${pnlStr}</div>
