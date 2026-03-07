@@ -1750,7 +1750,8 @@
         let _botsFilter = 'all'; // 'all' | 'active' | 'inactive'
 
         function isBotActive(b) {
-            return b.realStatus === 'live' || b.realStatus === 'idle';
+            const coins = b.instruments || [];
+            return coins.some(c => c.hasOpenTrade);
         }
 
         function setBotsFilter(filter) {
