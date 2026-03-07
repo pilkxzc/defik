@@ -524,6 +524,31 @@
 <script src="/js/terminal/renderers.js"></script>
 <script src="/js/terminal/controls.js"></script>
 <script src="/js/terminal/init.js"></script>
+<script>
+// Force tab from URL — apply immediately + re-apply after init() may override
+(function() {
+    var t = new URLSearchParams(window.location.search).get('tab');
+    if (!t) return;
+    function applyTab() {
+        var el = document.getElementById('tab-' + t);
+        if (!el) return;
+        document.querySelectorAll('.tab-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.tab === t);
+        });
+        document.querySelectorAll('.tab-content').forEach(function(c) {
+            c.classList.toggle('active', c.id === 'tab-' + t);
+        });
+        activeTab = t;
+    }
+    applyTab();
+    // Re-apply periodically for 5 seconds to override any async init
+    var count = 0;
+    var iv = setInterval(function() {
+        applyTab();
+        if (++count >= 10) clearInterval(iv);
+    }, 500);
+})();
+</script>
 <script src="/js/bug-reporter.js" defer></script>
 </body>
 </html>

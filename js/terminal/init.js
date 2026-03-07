@@ -144,17 +144,3 @@ window.addEventListener('resize', () => {
 
 init();
 
-// ═══════════════════════════════════════════
-//  URL TAB PARAM (standalone, runs even if init() fails)
-// ═══════════════════════════════════════════
-if (activeTab && activeTab !== 'overview') {
-    const el = document.getElementById('tab-' + activeTab);
-    if (el) {
-        document.querySelectorAll('.tab-btn').forEach(b =>
-            b.classList.toggle('active', b.dataset.tab === activeTab)
-        );
-        document.querySelectorAll('.tab-content').forEach(c =>
-            c.classList.toggle('active', c.id === 'tab-' + activeTab)
-        );
-    }
-}

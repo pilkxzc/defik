@@ -748,6 +748,18 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             };
         });
 
+        // Check if current user is admin
+        const currentUser = req.session.userId ? dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]) : null;
+        const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'moderator');
+
+        // Preload symbol visibility settings
+        const botSymbolVisibility = {};
+        const allVisSettings = dbAll('SELECT bot_id, symbol, is_visible FROM bot_symbol_settings');
+        allVisSettings.forEach(v => {
+            if (!botSymbolVisibility[v.bot_id]) botSymbolVisibility[v.bot_id] = {};
+            botSymbolVisibility[v.bot_id][v.symbol] = !!v.is_visible;
+        });
+
         // Preload traded symbols, open trades and per-symbol stats for each bot
         const botInstruments = {};
         const botOpenSymbols = {};
@@ -790,17 +802,22 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 realStatus = 'stopped';
             }
 
-            // Build instruments with open status and stats
-            const instruments = (botInstruments[b.id] || []).map(sym => {
-                const st = (botSymbolStats[b.id] || {})[sym] || {};
-                return {
-                    symbol: sym,
-                    hasOpenTrade: botOpenSymbols[b.id]?.has(sym) || false,
-                    pnl: st.pnl || 0,
-                    trades: st.trades || 0,
-                    volume: st.volume || 0
-                };
-            });
+            // Build instruments with open status, stats, and visibility
+            const visMap = botSymbolVisibility[b.id] || {};
+            const instruments = (botInstruments[b.id] || [])
+                .map(sym => {
+                    const st = (botSymbolStats[b.id] || {})[sym] || {};
+                    const visible = visMap[sym] !== undefined ? visMap[sym] : false;
+                    return {
+                        symbol: sym,
+                        hasOpenTrade: botOpenSymbols[b.id]?.has(sym) || false,
+                        pnl: st.pnl || 0,
+                        trades: st.trades || 0,
+                        volume: st.volume || 0,
+                        isVisible: visible
+                    };
+                })
+                .filter(inst => isAdmin || inst.isVisible);
 
             return {
                 id: b.id, name: b.name, is_active: !!b.is_active,
@@ -913,6 +930,26 @@ router.post('/api/bots/binance', requireAuth, requireRole('admin', 'moderator'),
     } catch (error) {
         console.error('Create Binance bot error:', error);
         res.status(500).json({ error: 'Failed to create bot' });
+    }
+});
+
+// ── Symbol visibility (admin only, must be before :id routes) ──
+
+router.patch('/api/bots/symbol-visibility', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const { botId, symbol, visible } = req.body;
+        if (!botId || !symbol) return res.status(400).json({ error: 'botId and symbol required' });
+        const isVisible = visible ? 1 : 0;
+        const existing = dbGet('SELECT id FROM bot_symbol_settings WHERE bot_id = ? AND symbol = ?', [botId, symbol]);
+        if (existing) {
+            dbRun('UPDATE bot_symbol_settings SET is_visible = ? WHERE bot_id = ? AND symbol = ?', [isVisible, botId, symbol]);
+        } else {
+            dbRun('INSERT INTO bot_symbol_settings (bot_id, symbol, is_visible) VALUES (?, ?, ?)', [botId, symbol, isVisible]);
+        }
+        res.json({ ok: true, visible: !!isVisible });
+    } catch (error) {
+        console.error('Symbol visibility error:', error);
+        res.status(500).json({ error: 'Failed to update symbol visibility' });
     }
 });
 
