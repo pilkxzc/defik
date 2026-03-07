@@ -862,8 +862,9 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 community_visible: b.community_visible !== undefined ? !!b.community_visible : true,
             };
         };
-        const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));
-        const uncat = bots.filter(b => !b.category_id);
+        const visibleBots = isAdmin ? bots : bots.filter(b => b.community_visible !== 0);
+        const tree = cats.map(c => ({ ...c, bots: visibleBots.filter(b => b.category_id === c.id).map(toCard) }));
+        const uncat = visibleBots.filter(b => !b.category_id);
         if (uncat.length) tree.push({ id: null, name: 'Інші', color: '#6B7280', icon: 'folder', bots: uncat.map(toCard) });
         res.json({ tree });
     } catch (error) {
@@ -873,7 +874,10 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
 });
 
 router.get('/api/bots', requireAuth, (req, res) => {
-    const bots = dbAll('SELECT * FROM bots ORDER BY created_at DESC', []);
+    const user = dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]);
+    const isAdmin = user && (user.role === 'admin' || user.role === 'moderator');
+    const allBots = dbAll('SELECT * FROM bots ORDER BY created_at DESC', []);
+    const bots = isAdmin ? allBots : allBots.filter(b => b.community_visible !== 0);
     const botsWithTime = bots.map(bot => {
         const created = new Date(bot.created_at);
         const now     = new Date();
