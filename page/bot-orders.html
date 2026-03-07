@@ -933,14 +933,24 @@
         });
     });
 
-    // ── Load Trades ──
+    // ── Load Trades (all, paginated) ──
     async function loadTrades() {
         if (!botId) return;
         try {
-            const res = await fetch(`/api/bots/${botId}/trades?limit=5000&offset=0`, { credentials: 'include' });
-            if (!res.ok) throw new Error('Failed');
-            const data = await res.json();
-            allTrades = (data.trades || []).filter(t => !symbol || t.symbol === symbol);
+            const batchSize = 10000;
+            let offset = 0;
+            let all = [];
+            while (true) {
+                const res = await fetch(`/api/bots/${botId}/trades?limit=${batchSize}&offset=${offset}`, { credentials: 'include' });
+                if (!res.ok) throw new Error('Failed');
+                const data = await res.json();
+                const batch = data.trades || [];
+                all = all.concat(batch);
+                document.getElementById('tabCountTrades').textContent = all.length + (batch.length === batchSize ? '+' : '');
+                if (batch.length < batchSize) break;
+                offset += batchSize;
+            }
+            allTrades = all.filter(t => !symbol || t.symbol === symbol);
             tradesLoaded = true;
             document.getElementById('tabCountTrades').textContent = allTrades.length;
             renderTrades();
@@ -1033,16 +1043,9 @@
     // ── Load Positions (grouped trades) ──
     async function loadPositions() {
         if (!botId) return;
-        // Load all trades and group into positions (open→close pairs)
+        // Load all trades first if not loaded
         if (!tradesLoaded) {
-            try {
-                const res = await fetch(`/api/bots/${botId}/trades?limit=5000&offset=0`, { credentials: 'include' });
-                if (!res.ok) throw new Error('Failed');
-                const data = await res.json();
-                allTrades = (data.trades || []).filter(t => !symbol || t.symbol === symbol);
-                tradesLoaded = true;
-                document.getElementById('tabCountTrades').textContent = allTrades.length;
-            } catch (e) {}
+            await loadTrades();
         }
 
         // Group trades into positions: consecutive trades with same symbol+side form a position block
