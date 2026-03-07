@@ -77,11 +77,10 @@
             display: flex;
             flex-direction: column;
             gap: 0;
-            overflow-y: auto;
-            scrollbar-width: none;
+            overflow: hidden;
             border-right: 1px solid rgba(255, 255, 255, 0.06);
+            min-height: 0;
         }
-        .bots-list::-webkit-scrollbar { display: none; }
 
         .bots-detail {
             overflow-y: auto;
@@ -576,6 +575,52 @@
             font-weight: 700;
             color: var(--text-primary);
         }
+
+        /* ── Filter bar ── */
+        .bots-filter-bar {
+            display: flex;
+            gap: 4px;
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+        }
+        .bots-filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: inherit;
+        }
+        .bots-filter-btn:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .bots-filter-btn.active {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: var(--text-primary);
+        }
+        .bots-filter-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .bots-filter-dot.green { background: var(--color-up); }
+        .bots-filter-dot.red { background: #EF4444; }
+        .bots-filter-count {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        #botsList::-webkit-scrollbar { display: none; }
 
         .bot-status-dot {
             width: 8px;
@@ -1107,10 +1152,17 @@
             </div>
 
             <div class="bots-master-detail" id="botsMasterDetail">
-                <div class="bots-list" id="botsList">
-                    <div style="text-align:center; padding:60px 20px; color:var(--text-tertiary);">
-                        <div class="spinner" style="margin:0 auto 16px;"></div>
-                        Завантаження ботів...
+                <div class="bots-list">
+                    <div class="bots-filter-bar" id="botsFilterBar">
+                        <button class="bots-filter-btn active" data-filter="all" onclick="setBotsFilter('all')">Усі <span class="bots-filter-count" id="filterCountAll">0</span></button>
+                        <button class="bots-filter-btn" data-filter="active" onclick="setBotsFilter('active')"><span class="bots-filter-dot green"></span> Активні <span class="bots-filter-count" id="filterCountActive">0</span></button>
+                        <button class="bots-filter-btn" data-filter="inactive" onclick="setBotsFilter('inactive')"><span class="bots-filter-dot red"></span> Неактивні <span class="bots-filter-count" id="filterCountInactive">0</span></button>
+                    </div>
+                    <div id="botsList" style="overflow-y:auto;scrollbar-width:none;flex:1;min-height:0;">
+                        <div style="text-align:center; padding:60px 20px; color:var(--text-tertiary);">
+                            <div class="spinner" style="margin:0 auto 16px;"></div>
+                            Завантаження ботів...
+                        </div>
                     </div>
                 </div>
                 <div class="bots-detail" id="botsDetail">
@@ -1664,6 +1716,48 @@
         let _isAdmin = false;
         let _allBots = [];
         let _selectedBotId = null;
+        let _botsFilter = 'all'; // 'all' | 'active' | 'inactive'
+
+        function isBotActive(b) {
+            return b.realStatus === 'live' || b.realStatus === 'idle';
+        }
+
+        function setBotsFilter(filter) {
+            _botsFilter = filter;
+            // Update button states
+            document.querySelectorAll('.bots-filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === filter);
+            });
+            applyBotsFilter();
+        }
+
+        function applyBotsFilter() {
+            const items = document.querySelectorAll('#botsList .bot-list-item');
+            items.forEach(item => {
+                const botId = parseInt(item.dataset.botId);
+                const bot = _allBots.find(b => b.id === botId);
+                if (!bot) return;
+                const active = isBotActive(bot);
+                let show = true;
+                if (_botsFilter === 'active') show = active;
+                if (_botsFilter === 'inactive') show = !active;
+                item.style.display = show ? '' : 'none';
+                // Also hide/show the coins panel below
+                const panel = document.getElementById('botCoins_' + botId);
+                if (panel) panel.style.display = show ? '' : 'none';
+            });
+        }
+
+        function updateFilterCounts() {
+            const active = _allBots.filter(b => isBotActive(b)).length;
+            const inactive = _allBots.length - active;
+            const countAll = document.getElementById('filterCountAll');
+            const countActive = document.getElementById('filterCountActive');
+            const countInactive = document.getElementById('filterCountInactive');
+            if (countAll) countAll.textContent = _allBots.length;
+            if (countActive) countActive.textContent = active;
+            if (countInactive) countInactive.textContent = inactive;
+        }
 
         async function loadBotsTree() {
             try {
@@ -1730,6 +1824,10 @@
                 if (allocEl) {
                     allocEl.textContent = '$' + totalInvestment.toFixed(2);
                 }
+
+                // Update filter counts & apply current filter
+                updateFilterCounts();
+                applyBotsFilter();
 
                 // Attach list click handler
                 attachListListeners();
