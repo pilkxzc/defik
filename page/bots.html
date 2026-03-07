@@ -706,6 +706,32 @@
             color: var(--color-up);
         }
 
+        /* ── Detail coin expandable stats ── */
+        .detail-coin-stats {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease;
+            background: rgba(0,0,0,0.15);
+            border-radius: 0 0 10px 10px;
+            margin-top: -2px;
+        }
+        .detail-coin-stats.open {
+            max-height: 120px;
+        }
+        .detail-coin-stats-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .detail-coin-stats-row:first-child {
+            padding-top: 10px;
+        }
+        .detail-coin-stats-row:last-child {
+            padding-bottom: 10px;
+        }
+
         /* ── Live activity bar on bot item ── */
         .bot-live-bar {
             position: absolute;
@@ -1606,12 +1632,16 @@
                     const sym = c.symbol || c;
                     const hasOpen = c.hasOpenTrade || false;
                     const displayName = sym.replace(/USDT|BUSD/gi, '/USDT');
+                    const cp = c.pnl || 0;
+                    const cpColor = cp > 0 ? 'var(--color-up)' : cp < 0 ? 'var(--color-down)' : 'var(--text-tertiary)';
+                    const cpStr = (cp > 0 ? '+' : '') + '$' + Math.abs(cp).toFixed(2);
                     return `
                         <div class="bot-coin-item">
                             <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
                             <span class="bot-coin-name">${displayName}</span>
-                            <span class="bot-coin-status${hasOpen ? ' trading' : ''}">${hasOpen ? 'В позиції' : 'Очікує'}</span>
-                            <div class="bot-coin-gear" onclick="event.stopPropagation(); window.location.href='/bot-stats/${b.id}?symbol=${sym}'" title="Налаштування ${displayName}">
+                            <span style="font-size:10px;font-weight:700;color:${cpColor};margin-left:auto;">${cpStr}</span>
+                            <span class="bot-coin-status${hasOpen ? ' trading' : ''}">${hasOpen ? 'Live' : 'Очікує'}</span>
+                            <div class="bot-coin-gear" onclick="event.stopPropagation(); window.location.href='/bot-stats/${b.id}?symbol=${sym}'" title="Статистика ${displayName}">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                             </div>
                         </div>`;
@@ -1714,10 +1744,6 @@
         }
 
         function renderBotDetail(b) {
-            const pnl = b.profit || 0;
-            const pnlClass = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
-            const pnlStr = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
-            const win = b.winRate != null ? b.winRate + '%' : '—';
             const isLive = b.mode === 'bot';
             const modeLabel = isLive ? 'REAL' : b.mode === 'test' ? 'PAPER' : (b.mode || 'TEST').toUpperCase();
             const modePillClass = isLive ? 'mode-live' : 'mode-paper';
@@ -1756,62 +1782,43 @@
                 <div class="detail-tickers">${tickers}</div>
                 ${b.instruments && b.instruments.length > 0 ? `
                 <div style="margin-bottom:16px;">
-                    <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Статус монет</div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Монети</div>
                     <div style="display:flex;flex-direction:column;gap:4px;">
                         ${b.instruments.map(c => {
                             const sym = c.symbol || c;
                             const hasOpen = c.hasOpenTrade || false;
                             const displayName = sym.replace(/USDT|BUSD/gi, '/USDT');
-                            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface-secondary);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-                                <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
-                                <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
-                                <span style="font-size:11px;font-weight:600;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? 'В позиції' : 'Очікує'}</span>
+                            const coinPnl = c.pnl || 0;
+                            const coinPnlClass = coinPnl > 0 ? 'var(--color-up)' : coinPnl < 0 ? 'var(--color-down)' : 'var(--text-tertiary)';
+                            const coinPnlStr = (coinPnl > 0 ? '+' : '') + '$' + Math.abs(coinPnl).toFixed(2);
+                            const coinVol = c.volume || 0;
+                            const volStr = coinVol >= 1000 ? '$' + (coinVol / 1000).toFixed(1) + 'k' : '$' + coinVol.toFixed(2);
+                            const coinId = 'detail-coin-' + b.id + '-' + sym.replace(/[^a-zA-Z0-9]/g,'');
+                            return `<div>
+                                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface-secondary);border-radius:10px 10px 10px 10px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="document.getElementById('${coinId}').classList.toggle('open')">
+                                    <span class="bot-coin-dot${hasOpen ? ' active' : ''}"></span>
+                                    <span style="font-size:13px;font-weight:600;flex:1;">${displayName}</span>
+                                    <span style="font-size:11px;font-weight:600;color:${coinPnlClass};">${coinPnlStr}</span>
+                                    <span style="font-size:11px;font-weight:600;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? '● Live' : 'Очікує'}</span>
+                                    <div class="bot-coin-gear" onclick="event.stopPropagation(); window.location.href='/bot-stats/${b.id}?symbol=${sym}'" title="Статистика ${displayName}">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                    </div>
+                                </div>
+                                <div id="${coinId}" class="detail-coin-stats">
+                                    <div class="detail-coin-stats-row">
+                                        <span>PNL</span><span style="color:${coinPnlClass};font-weight:700;">${coinPnlStr}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Обʼєм</span><span>${volStr}</span>
+                                    </div>
+                                    <div class="detail-coin-stats-row">
+                                        <span>Угоди</span><span>${c.trades || 0}</span>
+                                    </div>
+                                </div>
                             </div>`;
                         }).join('')}
                     </div>
                 </div>` : ''}
-                <div class="detail-stats-grid">
-                    <div class="detail-item">
-                        <div class="detail-label">Інвестиція</div>
-                        <div class="detail-value">$${(b.investment || 0).toFixed(2)}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Прибуток</div>
-                        <div class="detail-value ${pnlClass}">${pnlStr}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Режим</div>
-                        <div class="detail-value">${modeLabel}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Тип</div>
-                        <div class="detail-value">${b.type || '—'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Акаунт</div>
-                        <div class="detail-value">${b.account_type || '—'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Статус</div>
-                        <div class="detail-value">${statusBadge}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Пара</div>
-                        <div class="detail-value" style="${b.hasOpenTrade ? 'color:var(--color-up)' : ''}">${(b.activeSymbol || '—').replace(/USDT|BUSD/gi,'/USD')}${b.hasOpenTrade ? ' ●' : ''}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Win Rate</div>
-                        <div class="detail-value">${win}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Угоди</div>
-                        <div class="detail-value">${b.totalTrades || 0}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Остання угода</div>
-                        <div class="detail-value" style="font-size:11px;">${b.lastTradeAt ? new Date(b.lastTradeAt).toLocaleString('uk-UA', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
-                    </div>
-                </div>
                 <div class="detail-actions">
                     ${_isAdmin ? `<a class="card-action-btn" href="/bot/${b.id}">Редагувати</a>` : ''}
                     <button class="card-action-btn btn-danger" onclick="if(confirm('Видалити бота?')) deleteBot(${b.id})">Видалити</button>

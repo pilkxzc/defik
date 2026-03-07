@@ -741,13 +741,18 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             };
         });
 
-        // Preload traded symbols and open trades per symbol for each bot
+        // Preload traded symbols, open trades and per-symbol stats for each bot
         const botInstruments = {};
         const botOpenSymbols = {};
+        const botSymbolStats = {};
         bots.forEach(b => {
             botInstruments[b.id] = dbAll('SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ?', [b.id]).map(r => r.symbol);
             const openSyms = dbAll("SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ? AND status = 'open'", [b.id]);
             botOpenSymbols[b.id] = new Set(openSyms.map(r => r.symbol));
+            const stats = dbAll(`SELECT symbol, COALESCE(SUM(pnl), 0) as pnl, COUNT(*) as trades, SUM(quantity * price) as volume FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
+            const map = {};
+            stats.forEach(s => { map[s.symbol] = { pnl: s.pnl || 0, trades: s.trades || 0, volume: s.volume || 0 }; });
+            botSymbolStats[b.id] = map;
         });
 
         const toCard = b => {
@@ -771,11 +776,17 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 realStatus = 'stopped';
             }
 
-            // Build instruments with open status
-            const instruments = (botInstruments[b.id] || []).map(sym => ({
-                symbol: sym,
-                hasOpenTrade: botOpenSymbols[b.id]?.has(sym) || false
-            }));
+            // Build instruments with open status and stats
+            const instruments = (botInstruments[b.id] || []).map(sym => {
+                const st = (botSymbolStats[b.id] || {})[sym] || {};
+                return {
+                    symbol: sym,
+                    hasOpenTrade: botOpenSymbols[b.id]?.has(sym) || false,
+                    pnl: st.pnl || 0,
+                    trades: st.trades || 0,
+                    volume: st.volume || 0
+                };
+            });
 
             return {
                 id: b.id, name: b.name, is_active: !!b.is_active,
