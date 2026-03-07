@@ -328,7 +328,7 @@ function applyPeriod() {
 function setPeriod(days) {
     currentPeriod = days;
     document.querySelectorAll('.period-pill').forEach(p =>
-        p.classList.toggle('active', parseInt(p.dataset.days) === days)
+        p.classList.toggle('active', parseFloat(p.dataset.days) === days)
     );
     applyPeriod();
 }

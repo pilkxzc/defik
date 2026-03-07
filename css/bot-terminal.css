@@ -271,6 +271,24 @@ body { font-family: var(--font-sans); background: var(--bg-app); color: var(--te
     box-shadow: 0 0 8px rgba(139,92,246,0.15);
 }
 
+/* ── Trades filters ── */
+.trades-filters {
+    display: flex; gap: 8px; align-items: center; margin-left: auto;
+}
+.trades-side-filter, .trades-time-filter {
+    display: flex; gap: 2px; background: rgba(255,255,255,0.04);
+    border-radius: 6px; padding: 2px;
+}
+.side-filter-btn, .time-filter-btn {
+    padding: 4px 10px; border-radius: 5px; border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; font-family: inherit;
+    background: transparent; color: var(--text-tertiary);
+    transition: all 0.15s;
+}
+.side-filter-btn:hover, .time-filter-btn:hover { color: var(--text-secondary); }
+.side-filter-btn.active { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.time-filter-btn.active { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+
 /* ── KPI grid ── */
 .kpi-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 1px;

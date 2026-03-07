@@ -86,7 +86,7 @@ async function init() {
 
         // Period pills
         document.querySelectorAll('.period-pill[data-days]').forEach(p =>
-            p.addEventListener('click', () => setPeriod(parseInt(p.dataset.days)))
+            p.addEventListener('click', () => setPeriod(parseFloat(p.dataset.days)))
         );
 
         // Export CSV
@@ -103,19 +103,43 @@ async function init() {
             switchTab(urlTab);
         }
 
-        // Trades/Orders sub-tabs
+        // Trades/Orders/Positions sub-tabs
         document.querySelectorAll('.trades-tab[data-trades-tab]').forEach(b =>
             b.addEventListener('click', () => {
                 const tab = b.dataset.tradesTab;
                 document.querySelectorAll('.trades-tab').forEach(t => t.classList.toggle('active', t === b));
-                const tradesContent = document.getElementById('tradesTabContent');
-                const ordersContent = document.getElementById('ordersTabContent');
-                if (tradesContent) tradesContent.style.display = tab === 'trades' ? '' : 'none';
-                if (ordersContent) ordersContent.style.display = tab === 'orders' ? '' : 'none';
+                document.getElementById('tradesTabContent').style.display = tab === 'trades' ? '' : 'none';
+                document.getElementById('ordersTabContent').style.display = tab === 'orders' ? '' : 'none';
+                document.getElementById('positionsTabContent').style.display = tab === 'positions' ? '' : 'none';
                 if (tab === 'orders' && !_orderHistoryLoaded) {
                     renderOrderHistory();
                     fetchOrderHistory().then(() => renderOrderHistory());
                 }
+                if (tab === 'positions' && !_positionHistoryLoaded) {
+                    renderPositionHistory();
+                    fetchPositionHistory().then(() => renderPositionHistory());
+                }
+                if (tab === 'trades') renderRecentTrades();
+                if (tab === 'orders' && _orderHistoryLoaded) renderOrderHistory();
+                if (tab === 'positions' && _positionHistoryLoaded) renderPositionHistory();
+            })
+        );
+
+        // Side filter (Long/Short/All)
+        document.querySelectorAll('.side-filter-btn[data-side]').forEach(b =>
+            b.addEventListener('click', () => {
+                _tradesSideFilter = b.dataset.side;
+                document.querySelectorAll('.side-filter-btn').forEach(x => x.classList.toggle('active', x === b));
+                _rerenderActiveTradesTab();
+            })
+        );
+
+        // Time filter
+        document.querySelectorAll('.time-filter-btn[data-time]').forEach(b =>
+            b.addEventListener('click', () => {
+                _tradesTimeFilter = parseInt(b.dataset.time);
+                document.querySelectorAll('.time-filter-btn').forEach(x => x.classList.toggle('active', x === b));
+                _rerenderActiveTradesTab();
             })
         );
 

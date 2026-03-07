@@ -863,13 +863,51 @@ function renderLiveChart() {
 }
 
 // ═══════════════════════════════════════════
-//  RECENT TRADES TABLE
+//  RECENT TRADES TABLE (with filters)
 // ═══════════════════════════════════════════
-function renderRecentTrades() {
-    const trades = filteredTrades.slice(-50).reverse();
-    document.getElementById('recentTradesCount').textContent = `${trades.length} з ${filteredTrades.length}`;
+let _tradesSideFilter = 'all'; // 'all' | 'long' | 'short'
+let _tradesTimeFilter = 0;     // 0 = all, N = days
 
-    document.getElementById('recentTradesBody').innerHTML = trades.map(t => {
+function _getFilteredTradesForTable() {
+    let trades = filteredTrades.slice();
+
+    // Side filter
+    if (_tradesSideFilter === 'long') {
+        trades = trades.filter(t => isLong(t));
+    } else if (_tradesSideFilter === 'short') {
+        trades = trades.filter(t => !isLong(t));
+    }
+
+    // Time filter
+    if (_tradesTimeFilter > 0) {
+        const cutoff = Date.now() - _tradesTimeFilter * 86400000;
+        trades = trades.filter(t => new Date(t.closedAt || t.openedAt).getTime() >= cutoff);
+    }
+
+    // Sort by date (newest first)
+    trades.sort((a, b) => {
+        const da = new Date(b.closedAt || b.openedAt).getTime();
+        const db = new Date(a.closedAt || a.openedAt).getTime();
+        return da - db;
+    });
+
+    return trades;
+}
+
+function renderRecentTrades() {
+    const trades = _getFilteredTradesForTable();
+    const countEl = document.getElementById('recentTradesCount');
+    if (countEl) countEl.textContent = `${trades.length} з ${filteredTrades.length}`;
+
+    const body = document.getElementById('recentTradesBody');
+    if (!body) return;
+
+    if (trades.length === 0) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:24px;">Немає угод</td></tr>';
+        return;
+    }
+
+    body.innerHTML = trades.map(t => {
         const pnl = pnlOf(t);
         const side = isLong(t) ? 'LONG' : 'SHORT';
         const badgeCls = isLong(t) ? 'badge-long' : 'badge-short';
@@ -916,6 +954,17 @@ async function fetchOrderHistory() {
     } catch (e) { console.error('fetchOrderHistory:', e); }
 }
 
+function _getFilteredOrders() {
+    let orders = _orderHistory.slice();
+    if (_tradesSideFilter === 'long') orders = orders.filter(o => o.side === 'BUY');
+    else if (_tradesSideFilter === 'short') orders = orders.filter(o => o.side === 'SELL');
+    if (_tradesTimeFilter > 0) {
+        const cutoff = Date.now() - _tradesTimeFilter * 86400000;
+        orders = orders.filter(o => (o.time || o.updateTime || 0) >= cutoff);
+    }
+    return orders;
+}
+
 function renderOrderHistory() {
     const body = document.getElementById('orderHistoryBody');
     if (!body) return;
@@ -923,11 +972,12 @@ function renderOrderHistory() {
         body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:24px;">Завантаження...</td></tr>';
         return;
     }
-    if (_orderHistory.length === 0) {
+    const orders = _getFilteredOrders();
+    if (orders.length === 0) {
         body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:24px;">Немає ордерів</td></tr>';
         return;
     }
-    body.innerHTML = _orderHistory.map(o => {
+    body.innerHTML = orders.map(o => {
         const isBuy = o.side === 'BUY';
         const badgeCls = isBuy ? 'badge-long' : 'badge-short';
         const statusCls = o.status === 'FILLED' ? 'badge-filled' : o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : 'badge-type';
@@ -950,6 +1000,78 @@ function renderOrderHistory() {
             <td style="color:var(--text-tertiary);font-size:11px;">${dateStr}</td>
         </tr>`;
     }).join('');
+}
+
+// ═══════════════════════════════════════════
+//  POSITION HISTORY
+// ═══════════════════════════════════════════
+let _positionHistoryLoaded = false;
+let _positionHistory = [];
+
+async function fetchPositionHistory() {
+    try {
+        const res = await fetch(`/api/bots/${botId}/position-blocks?limit=500`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            _positionHistory = data.blocks || [];
+            _positionHistoryLoaded = true;
+        }
+    } catch (e) { console.error('fetchPositionHistory:', e); }
+}
+
+function _getFilteredPositions() {
+    let positions = _positionHistory.slice();
+    if (_tradesSideFilter === 'long') positions = positions.filter(p => p.side === 'LONG' || p.side === 'BUY');
+    else if (_tradesSideFilter === 'short') positions = positions.filter(p => p.side === 'SHORT' || p.side === 'SELL');
+    if (_tradesTimeFilter > 0) {
+        const cutoff = Date.now() - _tradesTimeFilter * 86400000;
+        positions = positions.filter(p => new Date(p.startedAt).getTime() >= cutoff);
+    }
+    return positions;
+}
+
+function renderPositionHistory() {
+    const body = document.getElementById('positionHistoryBody');
+    if (!body) return;
+    if (!_positionHistoryLoaded) {
+        body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-tertiary);padding:24px;">Завантаження...</td></tr>';
+        return;
+    }
+    const positions = _getFilteredPositions();
+    if (positions.length === 0) {
+        body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-tertiary);padding:24px;">Немає позицій</td></tr>';
+        return;
+    }
+    body.innerHTML = positions.map(p => {
+        const pnl = p.totalPnl || 0;
+        const isLongP = p.side === 'LONG' || p.side === 'BUY';
+        const badgeCls = isLongP ? 'badge-long' : 'badge-short';
+        const statusCls = p.isOpen ? 'badge-new' : 'badge-filled';
+        const statusText = p.isOpen ? 'OPEN' : 'CLOSED';
+        const openDt = p.startedAt ? new Date(p.startedAt) : null;
+        const closeDt = p.endedAt ? new Date(p.endedAt) : null;
+        const fmtDt = (d) => d ? d.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', timeZone:'UTC' }) + ' ' + d.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', timeZone:'UTC' }) : '—';
+        return `<tr>
+            <td class="mono">${(p.symbol||'').replace('USDT','')}</td>
+            <td><span class="${badgeCls}">${p.side}</span></td>
+            <td class="mono">${p.tradeCount || 0}</td>
+            <td class="mono">${parseFloat(p.totalQty||0).toFixed(4)}</td>
+            <td class="mono">$${fmtPrice(p.avgEntry||0)}</td>
+            <td class="mono">$${fmtPrice(p.avgExit||0)}</td>
+            <td class="mono" style="color:${pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">${fmt(pnl)}</td>
+            <td><span class="${statusCls}">${statusText}</span></td>
+            <td style="color:var(--text-tertiary);font-size:11px;">${fmtDt(openDt)}</td>
+            <td style="color:var(--text-tertiary);font-size:11px;">${fmtDt(closeDt)}</td>
+        </tr>`;
+    }).join('');
+}
+
+// Re-render active trades sub-tab when filters change
+function _rerenderActiveTradesTab() {
+    const activeTab = document.querySelector('.trades-tab.active')?.dataset.tradesTab || 'trades';
+    if (activeTab === 'trades') renderRecentTrades();
+    else if (activeTab === 'orders') renderOrderHistory();
+    else if (activeTab === 'positions') renderPositionHistory();
 }
 
 // ═══════════════════════════════════════════

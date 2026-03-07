@@ -59,9 +59,15 @@
         </div>
         <div class="header-spacer"></div>
         <div class="period-pills">
+            <button class="period-pill" data-days="0.02083">30хв</button>
+            <button class="period-pill" data-days="0.04167">1г</button>
+            <button class="period-pill" data-days="1">1д</button>
+            <button class="period-pill" data-days="3">3д</button>
             <button class="period-pill" data-days="7">7д</button>
+            <button class="period-pill" data-days="14">14д</button>
             <button class="period-pill" data-days="30">30д</button>
             <button class="period-pill active" data-days="90">90д</button>
+            <button class="period-pill" data-days="180">6м</button>
             <button class="period-pill" data-days="365">1р</button>
             <button class="period-pill" data-days="0">Все</button>
         </div>
@@ -345,12 +351,27 @@
                 </div>
             </div>
 
-            <!-- Recent Trades + Order History -->
+            <!-- Recent Trades + Orders + Positions -->
             <div class="card">
-                <div class="card-header" style="gap:12px;">
+                <div class="card-header" style="gap:12px;flex-wrap:wrap;">
                     <div class="trades-tabs">
                         <button class="trades-tab active" data-trades-tab="trades">Угоди</button>
                         <button class="trades-tab" data-trades-tab="orders">Ордери</button>
+                        <button class="trades-tab" data-trades-tab="positions">Позиції</button>
+                    </div>
+                    <div class="trades-filters" id="tradesFilters">
+                        <div class="trades-side-filter">
+                            <button class="side-filter-btn active" data-side="all">Всі</button>
+                            <button class="side-filter-btn" data-side="long">Long</button>
+                            <button class="side-filter-btn" data-side="short">Short</button>
+                        </div>
+                        <div class="trades-time-filter">
+                            <button class="time-filter-btn active" data-time="0">Все</button>
+                            <button class="time-filter-btn" data-time="1">24г</button>
+                            <button class="time-filter-btn" data-time="7">7д</button>
+                            <button class="time-filter-btn" data-time="30">30д</button>
+                            <button class="time-filter-btn" data-time="90">90д</button>
+                        </div>
                     </div>
                     <span style="font-size:11px;color:var(--text-tertiary)" id="recentTradesCount"></span>
                 </div>
@@ -391,6 +412,27 @@
                                 </tr>
                             </thead>
                             <tbody id="orderHistoryBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-body-np" id="positionsTabContent" style="display:none;">
+                    <div class="trades-scroll">
+                        <table class="trades-tbl" id="positionHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Символ</th>
+                                    <th>Сторона</th>
+                                    <th>Угод</th>
+                                    <th>К-сть</th>
+                                    <th>Вхід</th>
+                                    <th>Вихід</th>
+                                    <th>PnL</th>
+                                    <th>Статус</th>
+                                    <th>Відкрито</th>
+                                    <th>Закрито</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positionHistoryBody"></tbody>
                         </table>
                     </div>
                 </div>
