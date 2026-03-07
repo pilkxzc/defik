@@ -14,7 +14,7 @@ let currentTF = '1h';
 let isSubscribed = false;
 let currentUser = null;
 let tradeMarkers = [];
-let currentSymbol = null; // null = auto-detect, string = user-selected
+let currentSymbol = new URLSearchParams(window.location.search).get('symbol') || null; // URL param or auto-detect
 
 // ═══════════════════════════════════════════
 //  FETCH REAL DATA
