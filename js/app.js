@@ -3228,15 +3228,12 @@ function _buildAdminFlyout(adminLink) {
             }
             .af-coin-dot.live { background:#10B981; box-shadow:0 0 4px rgba(16,185,129,0.5); }
             .af-coin-submenu {
-                display:none; position:absolute; left:calc(100% - 4px); top:-4px;
+                display:none; position:fixed;
                 background:var(--surface,#141414); border:1px solid rgba(255,255,255,0.1);
-                border-radius:10px; padding:4px; min-width:140px; z-index:11;
-                box-shadow:0 8px 24px rgba(0,0,0,0.5); padding-left:8px;
+                border-radius:10px; padding:4px; min-width:140px; z-index:9999999;
+                box-shadow:0 8px 24px rgba(0,0,0,0.5);
             }
-            .af-coin-submenu::before {
-                content:''; position:absolute; left:-8px; top:0; width:12px; height:100%;
-            }
-            .af-coin-wrap:hover > .af-coin-submenu { display:flex; flex-direction:column; gap:1px; }
+            .af-coin-submenu.open { display:flex; flex-direction:column; gap:1px; }
             .af-coin-submenu a {
                 display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:7px;
                 color:var(--text-secondary); font-size:11px; font-weight:600;
@@ -3265,9 +3262,9 @@ function _buildAdminFlyout(adminLink) {
         flyout.classList.toggle('open');
     });
 
-    // Close on click outside
+    // Close on click outside (but not when clicking inside flyout or submenus)
     document.addEventListener('click', function(e) {
-        if (!wrap.contains(e.target)) flyout.classList.remove('open');
+        if (!wrap.contains(e.target) && !flyout.contains(e.target)) flyout.classList.remove('open');
     });
 
     // Flyout links: navigate to admin page with tab hash
@@ -3318,13 +3315,45 @@ function _buildAdminFlyout(adminLink) {
                     return `<div class="af-bot-name">${b.name}</div>${coinLinks}`;
                 }).join('<div class="af-submenu-divider"></div>');
                 // Close flyout on any link click
-                container.querySelectorAll('a').forEach(a => a.addEventListener('click', () => flyout.classList.remove('open')));
-                // Also clicking the coin label directly goes to orders view
-                container.querySelectorAll('.af-coin-link').forEach(cl => {
-                    cl.addEventListener('click', function() {
-                        const wrap = this.closest('.af-coin-wrap');
-                        const firstLink = wrap?.querySelector('.af-coin-submenu a');
-                        if (firstLink) { flyout.classList.remove('open'); window.location.href = firstLink.href; }
+                container.querySelectorAll('.af-coin-submenu a').forEach(a => a.addEventListener('click', () => flyout.classList.remove('open')));
+
+                // Coin hover → position + show submenu
+                let _activeCoinSub = null;
+                container.querySelectorAll('.af-coin-wrap').forEach(wrap => {
+                    const sub = wrap.querySelector('.af-coin-submenu');
+                    const link = wrap.querySelector('.af-coin-link');
+                    if (!sub || !link) return;
+
+                    // Move submenu to body so it's above everything
+                    document.body.appendChild(sub);
+
+                    wrap.addEventListener('mouseenter', function() {
+                        if (_activeCoinSub && _activeCoinSub !== sub) _activeCoinSub.classList.remove('open');
+                        const rect = link.getBoundingClientRect();
+                        sub.style.left = (rect.right + 4) + 'px';
+                        sub.style.top = rect.top + 'px';
+                        // Clamp to viewport bottom
+                        sub.classList.add('open');
+                        requestAnimationFrame(() => {
+                            const sr = sub.getBoundingClientRect();
+                            if (sr.bottom > window.innerHeight - 8) {
+                                sub.style.top = (window.innerHeight - sr.height - 8) + 'px';
+                            }
+                        });
+                        _activeCoinSub = sub;
+                    });
+
+                    sub.addEventListener('mouseenter', () => sub.classList.add('open'));
+                    sub.addEventListener('mouseleave', () => { sub.classList.remove('open'); _activeCoinSub = null; });
+                    wrap.addEventListener('mouseleave', function(e) {
+                        // Don't close if moving to the submenu
+                        setTimeout(() => { if (!sub.matches(':hover')) { sub.classList.remove('open'); _activeCoinSub = null; } }, 80);
+                    });
+
+                    // Click on coin name → go to orders
+                    link.addEventListener('click', function() {
+                        const firstLink = sub.querySelector('a');
+                        if (firstLink) { flyout.classList.remove('open'); sub.classList.remove('open'); window.location.href = firstLink.href; }
                     });
                 });
             } catch (e) {
