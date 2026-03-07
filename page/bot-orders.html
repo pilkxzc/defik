@@ -250,6 +250,33 @@
             pointer-events: none; display: flex; gap: 12px;
         }
 
+        /* Bot selector */
+        .selector-bot-card {
+            background: var(--surface); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px; overflow: hidden;
+        }
+        .selector-bot-header {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .selector-bot-name { font-size: 14px; font-weight: 700; }
+        .selector-coin-list { display: flex; flex-direction: column; }
+        .selector-coin-link {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 18px; text-decoration: none; color: var(--text-secondary);
+            font-size: 12px; font-weight: 600; transition: background 0.12s;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+        .selector-coin-link:last-child { border-bottom: none; }
+        .selector-coin-link:hover { background: rgba(139,92,246,0.08); color: var(--text-primary); }
+        .selector-coin-dot {
+            width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); flex-shrink: 0;
+        }
+        .selector-coin-dot.active {
+            background: var(--color-up); box-shadow: 0 0 6px rgba(16,185,129,0.5);
+        }
+        .selector-coin-name { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; }
+
         @media (max-width: 768px) {
             .chart-overlay-body { flex-direction: column; }
             .chart-info-panel { width: auto; max-height: 200px; border-left: none; border-top: 1px solid rgba(255,255,255,0.08); }
@@ -411,13 +438,12 @@
     mq.addEventListener('change', toggleMobileNav); toggleMobileNav(mq);
 
     // Parse URL
-    const pathParts = window.location.pathname.split('/');
-    const botId = pathParts[pathParts.length - 1];
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const lastPart = pathParts[pathParts.length - 1];
+    const botId = lastPart && lastPart !== 'bot-orders' && /^\d+$/.test(lastPart) ? lastPart : null;
     const urlParams = new URLSearchParams(window.location.search);
     const symbol = urlParams.get('symbol') || 'BTCUSDT';
-
-    document.getElementById('symbolBadge').textContent = symbol.replace(/USDT|BUSD/gi, '/USDT');
-    document.title = `Yamato — Ордери ${symbol.replace(/USDT|BUSD/gi, '')}`;
+    const isSelectorMode = !botId;
 
     // State
     let allOrders = [];
@@ -432,28 +458,146 @@
     let currentPage = 1;
     const perPage = 50;
 
-    // Fetch bot name
-    fetch(`/api/bots/${botId}/details`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-            if (d?.bot?.name) {
-                document.getElementById('pageTitle').textContent = d.bot.name + ' — Ордери';
-                document.getElementById('backBtn').href = '/bots';
-            }
-        }).catch(() => {});
-
-    // Check admin
+    // Check admin first
     fetch('/api/auth/me', { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
         .then(user => {
             if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
                 document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text-tertiary);font-size:16px;">Доступ заборонено</div>';
+                return;
             }
             if (user?.role === 'admin') {
                 const adminLink = document.getElementById('adminNavLink');
                 if (adminLink) adminLink.classList.remove('admin-hidden');
             }
+            if (isSelectorMode) {
+                showBotSelector();
+            } else {
+                initOrdersView();
+            }
         }).catch(() => {});
+
+    // ═══════════════════════════════════════════
+    //  BOT SELECTOR MODE (no bot ID)
+    // ═══════════════════════════════════════════
+    async function showBotSelector() {
+        document.getElementById('pageTitle').textContent = 'Ордери — Вибір бота';
+        document.getElementById('symbolBadge').style.display = 'none';
+        document.getElementById('headerCount').style.display = 'none';
+        document.title = 'Yamato — Ордери';
+        document.getElementById('backBtn').href = '/admin';
+
+        // Hide orders UI, show selector
+        document.querySelector('.main-content').innerHTML = `
+            <div class="stats-row" style="margin-bottom:8px;">
+                <div class="stat-card" style="flex:none;width:100%;">
+                    <div class="stat-label">Виберіть бота та монету для перегляду ордерів</div>
+                </div>
+            </div>
+            <div class="search-box" style="max-width:400px;margin-bottom:16px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input type="text" id="botSearchInput" placeholder="Пошук бота або монети...">
+            </div>
+            <div id="botSelectorList" style="display:flex;flex-direction:column;gap:8px;">
+                <div class="loading-spinner"></div>
+            </div>
+        `;
+
+        try {
+            const res = await fetch('/api/bots/tree', { credentials: 'include' });
+            if (!res.ok) throw new Error('Failed');
+            const { tree } = await res.json();
+            const allBots = tree ? tree.flatMap(c => c.bots || []) : [];
+
+            renderBotSelector(allBots);
+
+            // Search
+            document.getElementById('botSearchInput')?.addEventListener('input', function() {
+                const q = this.value.toLowerCase().trim();
+                renderBotSelector(allBots, q);
+            });
+        } catch (e) {
+            document.getElementById('botSelectorList').innerHTML =
+                '<div class="empty-state">Помилка завантаження ботів</div>';
+        }
+    }
+
+    function renderBotSelector(bots, query) {
+        const container = document.getElementById('botSelectorList');
+        if (!container) return;
+
+        let filtered = bots;
+        if (query) {
+            filtered = bots.filter(b => {
+                if (b.name.toLowerCase().includes(query)) return true;
+                return (b.instruments || []).some(c => (c.symbol || '').toLowerCase().includes(query));
+            });
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="empty-state">Ботів не знайдено</div>';
+            return;
+        }
+
+        container.innerHTML = filtered.map(b => {
+            const coins = b.instruments || [];
+            const statusColors = { live: '#10B981', idle: '#8CA8FF', stopped: '#636363', off: '#EF4444' };
+            const statusLabels = { live: 'Live', idle: 'Idle', stopped: 'Stopped', off: 'Off' };
+            const statusColor = statusColors[b.realStatus] || '#636363';
+            const statusLabel = statusLabels[b.realStatus] || 'Off';
+            const isLive = b.realStatus === 'live';
+            const modeBadge = b.mode === 'test' || b.mode === 'paper'
+                ? '<span style="font-size:9px;font-weight:800;background:rgba(245,158,11,0.15);color:#F59E0B;padding:2px 6px;border-radius:4px;margin-left:6px;">PAPER</span>'
+                : '<span style="font-size:9px;font-weight:800;background:rgba(16,185,129,0.15);color:#10B981;padding:2px 6px;border-radius:4px;margin-left:6px;">LIVE</span>';
+
+            const coinLinks = coins.length > 0 ? coins.map(c => {
+                const sym = c.symbol || c;
+                const displaySym = sym.replace(/USDT|BUSD/gi, '');
+                const hasOpen = c.hasOpenTrade || false;
+                const pnl = c.pnl || 0;
+                const pnlColor = pnl > 0 ? 'var(--color-up)' : pnl < 0 ? 'var(--color-down)' : 'var(--text-tertiary)';
+                const pnlStr = (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
+                return `<a href="/bot-orders/${b.id}?symbol=${sym}" class="selector-coin-link">
+                    <span class="selector-coin-dot${hasOpen ? ' active' : ''}"></span>
+                    <span class="selector-coin-name">${displaySym}</span>
+                    <span style="font-size:10px;font-weight:700;color:${pnlColor};margin-left:auto;">${pnlStr}</span>
+                    <span style="font-size:10px;color:${hasOpen ? 'var(--color-up)' : 'var(--text-tertiary)'};">${hasOpen ? 'Live' : 'Idle'}</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </a>`;
+            }).join('') : '<div style="padding:8px 16px;font-size:11px;color:var(--text-tertiary);">Немає монет</div>';
+
+            return `<div class="selector-bot-card">
+                <div class="selector-bot-header">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;${isLive ? 'box-shadow:0 0 6px ' + statusColor + ';' : ''}"></span>
+                    <span class="selector-bot-name">${b.name}</span>
+                    ${modeBadge}
+                    <span style="font-size:10px;color:${statusColor};font-weight:600;margin-left:auto;">${statusLabel}</span>
+                    <span style="font-size:10px;color:var(--text-tertiary);">${coins.length} монет</span>
+                </div>
+                <div class="selector-coin-list">${coinLinks}</div>
+            </div>`;
+        }).join('');
+    }
+
+    // ═══════════════════════════════════════════
+    //  ORDERS VIEW MODE (with bot ID)
+    // ═══════════════════════════════════════════
+    function initOrdersView() {
+        document.getElementById('symbolBadge').textContent = symbol.replace(/USDT|BUSD/gi, '/USDT');
+        document.title = `Yamato — Ордери ${symbol.replace(/USDT|BUSD/gi, '')}`;
+
+        // Fetch bot name
+        fetch(`/api/bots/${botId}/details`, { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (d?.bot?.name) {
+                    document.getElementById('pageTitle').textContent = d.bot.name + ' — Ордери';
+                    document.getElementById('backBtn').href = '/bot-orders';
+                }
+            }).catch(() => {});
+
+        loadOrders();
+    }
 
     // Fetch orders
     async function loadOrders() {
@@ -1005,8 +1149,6 @@
         }, 200);
     });
 
-    // Init
-    loadOrders();
 })();
 </script>
 </body>

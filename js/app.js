@@ -2420,7 +2420,7 @@ async function initializePage() {
                     al.id = 'adminNavLink';
                     al.title = 'Панель адміна';
                     al.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>';
-                    if (window.location.pathname.startsWith('/admin') || window.location.pathname === '/bot-community-stats') al.classList.add('active');
+                    if (window.location.pathname.startsWith('/admin') || window.location.pathname === '/bot-community-stats' || window.location.pathname.startsWith('/bot-orders')) al.classList.add('active');
                     profileLink.before(al);
                     adminNavLink = al;
                 }
@@ -3156,6 +3156,7 @@ function _buildAdminFlyout(adminLink) {
         <a href="/admin/bug-reports" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>Баги</a>
         <a href="/admin/full-stats" class="af-item" style="color:#EF4444;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12z"/><path d="M12 6v6l4 2"/></svg>Повна статистика</a>
         <a href="/bot-community-stats" class="af-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>Статистика ботів</a>
+        <a href="/bot-orders" class="af-item" style="color:#C4B5FD;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Ордери</a>
     `;
 
     // Inject styles once
