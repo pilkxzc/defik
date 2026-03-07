@@ -2940,20 +2940,14 @@
 
                 <!-- Group: Chart / Symbol -->
                 <div class="header-group">
-                    <div class="symbol-search-container" id="symbolSearchContainer">
-                        <input type="text" class="symbol-search-input" id="symbolSearchInput" placeholder="Пошук монети..." autocomplete="off">
-                        <button class="symbol-lock-btn" id="symbolLockBtn" onclick="toggleSymbolLock()" title="Заблокувати монету">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                        </button>
-                        <svg class="symbol-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                        <div class="symbol-dropdown" id="symbolDropdown"></div>
-                    </div>
-                    <div class="live-price" id="livePrice">$0.00</div>
                     <div class="ws-status">
                         <div class="ws-status-dot" id="wsStatusDot"></div>
                         <span id="wsStatusText">Підключення</span>
                     </div>
                     <div id="dbgLog" style="font-size:10px;color:#F59E0B;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:6px;max-width:340px;overflow:hidden;white-space:nowrap;font-family:monospace;display:none;"></div>
+                    <!-- Hidden elements to prevent JS errors -->
+                    <div id="symbolSearchContainer" style="display:none;"><input id="symbolSearchInput" type="hidden"><div id="symbolDropdown"></div></div>
+                    <div id="livePrice" style="display:none;"></div>
                 </div>
 
                 <div class="header-sep"></div>
@@ -2983,25 +2977,8 @@
                             <button class="interval-btn" data-interval="1d">1D</button>
                         </div>
                     </div>
-                    <div style="width:1px; height:14px; background:rgba(255,255,255,0.1); margin:0 2px; flex-shrink:0;"></div>
-                    <button class="interval-btn prec-btn" id="precisionBtn" title="Точність ціни (auto → .2 → .4 → .5 → .6 → .8)">auto</button>
-                    <!-- Drawing tools -->
-                    <div style="position:relative;">
-                        <button class="interval-btn ruler-btn" id="drawingToolsBtn" onclick="toggleDrawingMenu()" title="Інструменти малювання">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        </button>
-                        <div id="drawingToolsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-md);padding:4px 0;min-width:170px;z-index:200;box-shadow:var(--shadow-card);">
-                            <button class="drawing-tool-item" onclick="startDrawing('segment')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/></svg>Лінія тренду</button>
-                            <button class="drawing-tool-item" onclick="startDrawing('horizontalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/></svg>Горизонтальна лінія</button>
-                            <button class="drawing-tool-item" onclick="startDrawing('verticalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/></svg>Вертикальна лінія</button>
-                            <button class="drawing-tool-item" onclick="startDrawing('priceChannelLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="17" x2="21" y2="17"/></svg>Канал</button>
-                            <button class="drawing-tool-item" onclick="startDrawing('rect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Прямокутник</button>
-                            <button class="drawing-tool-item" onclick="startDrawing('arrow')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>Стрілка</button>
-                            <button class="drawing-tool-item" onclick="startDrawing('text')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Текст</button>
-                            <div style="height:1px;background:rgba(255,255,255,0.06);margin:4px 8px;"></div>
-                            <button class="drawing-tool-item" style="color:var(--color-down);" onclick="clearAllUserDrawings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>Видалити всі</button>
-                        </div>
-                    </div>
+                    <!-- precisionBtn hidden for JS compat -->
+                    <button class="interval-btn prec-btn" id="precisionBtn" style="display:none;">auto</button>
                 </div>
 
                 <div class="header-sep"></div>
@@ -3064,6 +3041,17 @@
         <div class="chart-container" id="chartContainer" style="position: relative; display:flex; flex-direction:column;">
             <!-- Indicators Toolbar -->
             <div id="indicatorsToolbar" class="chart-indicators-bar">
+                <!-- Symbols dropdown -->
+                <div class="ind-dropdown-wrap" id="symDropdownWrap">
+                    <button class="ind-dropdown-trigger" id="symDropdownTrigger" onclick="toggleSymDropdown()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        Символи
+                        <span class="ind-badge" id="symBadge">0</span>
+                        <svg class="ind-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="ind-dropdown" id="symDropdownMenu" style="min-width:200px;max-height:320px;overflow-y:auto;"></div>
+                </div>
+                <div class="ind-sep"></div>
                 <!-- Indicators dropdown -->
                 <div class="ind-dropdown-wrap" id="indDropdownWrap">
                     <button class="ind-dropdown-trigger has-active" id="indDropdownTrigger" onclick="toggleIndDropdown()">
@@ -3152,6 +3140,25 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="3" y2="20"/><line x1="21" y1="4" x2="21" y2="20"/><line x1="3" y1="12" x2="21" y2="12" stroke-dasharray="3 3"/><rect x="3" y="7" width="18" height="10" rx="1" fill="rgba(245,158,11,0.1)" stroke="currentColor" stroke-width="1.5"/></svg>
                     Діапазон
                 </button>
+                <div class="ind-sep"></div>
+                <!-- Drawing tools -->
+                <div style="position:relative;">
+                    <button class="ind-btn" id="drawingToolsBtn" onclick="toggleDrawingMenu()" title="Інструменти малювання">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Малювання
+                    </button>
+                    <div id="drawingToolsMenu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:4px 0;min-width:190px;z-index:99000;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                        <button class="drawing-tool-item" onclick="startDrawing('segment')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/></svg>Лінія тренду</button>
+                        <button class="drawing-tool-item" onclick="startDrawing('horizontalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/></svg>Горизонтальна лінія</button>
+                        <button class="drawing-tool-item" onclick="startDrawing('verticalStraightLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/></svg>Вертикальна лінія</button>
+                        <button class="drawing-tool-item" onclick="startDrawing('priceChannelLine')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="17" x2="21" y2="17"/></svg>Канал</button>
+                        <button class="drawing-tool-item" onclick="startDrawing('rect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Прямокутник</button>
+                        <button class="drawing-tool-item" onclick="startDrawing('arrow')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>Стрілка</button>
+                        <button class="drawing-tool-item" onclick="startDrawing('text')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Текст</button>
+                        <div style="height:1px;background:rgba(255,255,255,0.06);margin:4px 8px;"></div>
+                        <button class="drawing-tool-item" style="color:var(--color-down);" onclick="clearAllUserDrawings()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>Видалити всі</button>
+                    </div>
+                </div>
             </div>
             <div class="color-edit-marker" data-target="chartBg" title="Змінити фон графіка" style="top:8px;right:8px;z-index:60;"><input type="color" value="#141414" onchange="setElementColor('chartBg',this.value)"></div>
             <div id="chart" style="width:100%;flex:1;min-height:0;"></div>
@@ -8540,6 +8547,11 @@
         }
 
         function toggleIndDropdown() {
+            // Close symbols dropdown if open
+            var symMenu = document.getElementById('symDropdownMenu');
+            var symTrigger = document.getElementById('symDropdownTrigger');
+            if (symMenu) symMenu.classList.remove('open');
+            if (symTrigger) symTrigger.classList.remove('open');
             var menu = document.getElementById('indDropdownMenu');
             var trigger = document.getElementById('indDropdownTrigger');
             if (!menu) return;
@@ -9506,11 +9518,75 @@
 
             if (instruments.length === 0) {
                 container.innerHTML = '<div class="empty-state">Інструменти відсутні</div>';
+            } else {
+                const sorted = sortInstrumentsList(instruments);
+                container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px;">${sorted.map(renderInstrumentChip).join('')}</div>`;
+            }
+
+            // Also update toolbar symbols dropdown
+            updateSymbolsDropdown();
+        }
+
+        function toggleSymDropdown() {
+            const menu = document.getElementById('symDropdownMenu');
+            const trigger = document.getElementById('symDropdownTrigger');
+            // Close indicators dropdown if open
+            const indMenu = document.getElementById('indDropdownMenu');
+            const indTrigger = document.getElementById('indDropdownTrigger');
+            if (indMenu) indMenu.classList.remove('open');
+            if (indTrigger) indTrigger.classList.remove('open');
+            if (!menu) return;
+            const isOpen = menu.classList.toggle('open');
+            if (trigger) trigger.classList.toggle('open', isOpen);
+            if (isOpen) {
+                updateSymbolsDropdown();
+                setTimeout(() => {
+                    document.addEventListener('click', closeSymDropdownOutside);
+                }, 0);
+            }
+        }
+
+        function closeSymDropdownOutside(e) {
+            const wrap = document.getElementById('symDropdownWrap');
+            if (wrap && !wrap.contains(e.target)) {
+                const menu = document.getElementById('symDropdownMenu');
+                const trigger = document.getElementById('symDropdownTrigger');
+                if (menu) menu.classList.remove('open');
+                if (trigger) trigger.classList.remove('open');
+                document.removeEventListener('click', closeSymDropdownOutside);
+            }
+        }
+
+        function updateSymbolsDropdown() {
+            const menu = document.getElementById('symDropdownMenu');
+            const badge = document.getElementById('symBadge');
+            if (!menu) return;
+
+            const instruments = botDetails?.instruments || [];
+            if (badge) badge.textContent = instruments.length;
+
+            if (instruments.length === 0) {
+                menu.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-tertiary);font-size:12px;">Немає інструментів</div>';
                 return;
             }
 
+            const currentSym = typeof getSymbol === 'function' ? getSymbol() : '';
             const sorted = sortInstrumentsList(instruments);
-            container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px;">${sorted.map(renderInstrumentChip).join('')}</div>`;
+            menu.innerHTML = sorted.map(symbol => {
+                const priceData = symbolPrices[symbol];
+                const price = priceData ? parseFloat(priceData.price) : null;
+                const change = priceData ? parseFloat(priceData.change) : null;
+                const priceStr = price ? (price >= 1000 ? '$' + price.toFixed(0) : price >= 1 ? '$' + price.toFixed(2) : '$' + price.toFixed(4)) : '';
+                const changeColor = change >= 0 ? 'var(--color-long)' : 'var(--color-short)';
+                const changeStr = change !== null ? `${change >= 0 ? '+' : ''}${change.toFixed(1)}%` : '';
+                const isActive = symbol === currentSym;
+                return `<button class="ind-dropdown-item${isActive ? ' active' : ''}" onclick="changeSymbol('${symbol}'); document.getElementById('symDropdownMenu').classList.remove('active');">
+                    <span class="ind-item-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+                    <span style="font-weight:600;flex:1;">${symbol.replace('USDT', '/USDT')}</span>
+                    <span style="font-size:10px;color:var(--text-tertiary);margin-left:auto;">${priceStr}</span>
+                    ${changeStr ? `<span style="font-size:10px;color:${changeColor};font-weight:600;min-width:40px;text-align:right;">${changeStr}</span>` : ''}
+                </button>`;
+            }).join('');
         }
 
         // ==================== FULL TRADE HISTORY ====================
