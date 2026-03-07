@@ -451,32 +451,111 @@ function renderDrawdownChart() {
     const wrap = document.getElementById('ddChartWrap');
     if (!wrap || !canvas) return;
     const ctx = canvas.getContext('2d');
-    canvas.width = wrap.clientWidth * 2; canvas.height = wrap.clientHeight * 2;
-    ctx.scale(2, 2);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = wrap.clientWidth * dpr;
+    canvas.height = wrap.clientHeight * dpr;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    ctx.scale(dpr, dpr);
     const W = wrap.clientWidth, H = wrap.clientHeight;
     ctx.clearRect(0, 0, W, H);
-    if (filteredTrades.length === 0) return;
+
+    if (filteredTrades.length === 0) {
+        ctx.fillStyle = '#636363'; ctx.font = '13px Plus Jakarta Sans'; ctx.textAlign = 'center';
+        ctx.fillText('Немає даних', W / 2, H / 2);
+        return;
+    }
 
     const dd = []; let cum = 0, peak = 0;
     filteredTrades.forEach(t => { cum += pnlOf(t); if (cum > peak) peak = cum; dd.push(peak - cum); });
     const maxDD = Math.max(...dd, 0.01);
-    const pad = { top: 10, bottom: 10, left: 10, right: 10 };
+    const pad = { top: 24, bottom: 28, left: 56, right: 16 };
     const chartW = W - pad.left - pad.right, chartH = H - pad.top - pad.bottom;
     const toX = i => pad.left + (i / (dd.length - 1 || 1)) * chartW;
     const toY = v => pad.top + (v / maxDD) * chartH;
 
-    ctx.beginPath(); ctx.moveTo(toX(0), pad.top);
+    // Y-axis grid lines & labels
+    const gridSteps = 4;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= gridSteps; i++) {
+        const val = (maxDD / gridSteps) * i;
+        const y = toY(val);
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#636363';
+        ctx.font = '500 9px JetBrains Mono';
+        ctx.fillText('-$' + val.toFixed(val >= 100 ? 0 : 2), pad.left - 8, y);
+    }
+
+    // Zero line at top
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, pad.top); ctx.lineTo(W - pad.right, pad.top); ctx.stroke();
+
+    // Gradient fill
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    grad.addColorStop(0, 'rgba(239,68,68,0.0)');
+    grad.addColorStop(0.4, 'rgba(239,68,68,0.08)');
+    grad.addColorStop(1, 'rgba(239,68,68,0.2)');
+    ctx.beginPath();
+    ctx.moveTo(toX(0), pad.top);
     for (let i = 0; i < dd.length; i++) ctx.lineTo(toX(i), toY(dd[i]));
-    ctx.lineTo(toX(dd.length - 1), pad.top); ctx.closePath();
-    ctx.fillStyle = 'rgba(239,68,68,0.1)'; ctx.fill();
+    ctx.lineTo(toX(dd.length - 1), pad.top);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
 
-    ctx.beginPath(); ctx.moveTo(toX(0), toY(dd[0]));
-    for (let i = 1; i < dd.length; i++) ctx.lineTo(toX(i), toY(dd[i]));
-    ctx.strokeStyle = 'rgba(239,68,68,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+    // Smooth line
+    ctx.beginPath();
+    ctx.moveTo(toX(0), toY(dd[0]));
+    for (let i = 1; i < dd.length; i++) {
+        if (dd.length > 3) {
+            const prevX = toX(i - 1), prevY = toY(dd[i - 1]);
+            const curX = toX(i), curY = toY(dd[i]);
+            const cpX = (prevX + curX) / 2;
+            ctx.bezierCurveTo(cpX, prevY, cpX, curY, curX, curY);
+        } else {
+            ctx.lineTo(toX(i), toY(dd[i]));
+        }
+    }
+    ctx.strokeStyle = '#EF4444';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(239,68,68,0.4)';
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
 
+    // Max drawdown marker
     const maxIdx = dd.indexOf(maxDD);
-    ctx.fillStyle = '#EF4444'; ctx.font = '600 10px JetBrains Mono'; ctx.textAlign = 'center';
-    ctx.fillText('-$' + maxDD.toFixed(2), toX(maxIdx), toY(maxDD) + 14);
+    const mx = toX(maxIdx), my = toY(maxDD);
+
+    // Dot
+    ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#EF4444'; ctx.fill();
+    ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(239,68,68,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Label with background
+    const labelText = '-$' + maxDD.toFixed(2);
+    ctx.font = '600 10px JetBrains Mono';
+    const textW = ctx.measureText(labelText).width;
+    const labelX = Math.min(Math.max(mx, pad.left + textW / 2 + 8), W - pad.right - textW / 2 - 8);
+    const labelY = my + 18;
+
+    ctx.fillStyle = 'rgba(239,68,68,0.15)';
+    const boxPad = 5;
+    ctx.beginPath();
+    ctx.roundRect(labelX - textW / 2 - boxPad, labelY - 7, textW + boxPad * 2, 16, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#F87171';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(labelText, labelX, labelY + 1);
 }
 
 // ═══════════════════════════════════════════
