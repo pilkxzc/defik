@@ -2223,16 +2223,18 @@ async function initializePage() {
             updateUserAvatar(user.fullName || user.full_name || user.email, user.avatar);
             window.currentUser = user;
 
-            // Show admin nav link for admin/moderator
+            // Show admin nav links for admin/moderator
             const adminNavLink = document.getElementById('adminNavLink');
-            if (adminNavLink) {
+            const statsNavLink = document.getElementById('statsNavLink');
+            [adminNavLink, statsNavLink].forEach(link => {
+                if (!link) return;
                 if (user.role === 'admin' || user.role === 'moderator') {
-                    adminNavLink.classList.remove('admin-hidden');
-                    adminNavLink.style.display = '';
+                    link.classList.remove('admin-hidden');
+                    link.style.display = '';
                 } else {
-                    adminNavLink.classList.add('admin-hidden');
+                    link.classList.add('admin-hidden');
                 }
-            }
+            });
 
             // Init context menu after user data is loaded
             initUserPillContextMenu();
