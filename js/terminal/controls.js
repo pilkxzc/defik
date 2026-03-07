@@ -2,7 +2,7 @@
 //  UI CONTROLS
 // ═══════════════════════════════════════════
 
-let activeTab = 'overview';
+let activeTab = new URLSearchParams(window.location.search).get('tab') || 'overview';
 let symbolDropdownOpen = false;
 
 // ═══════════════════════════════════════════
