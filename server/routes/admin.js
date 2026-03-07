@@ -1090,21 +1090,30 @@ router.delete('/api/admin/users/:id/subscription', requireAuth, requireRole('adm
 
 // ==================== DB ACCESS CONTROL ====================
 
+const crypto = require('crypto');
+const DB_SESSION_TTL = 5 * 60 * 1000; // 5 minutes
+
 // Check if user is the main admin (by ADMIN_EMAIL)
 function isMainAdmin(userId) {
     const user = dbGet('SELECT email FROM users WHERE id = ?', [userId]);
     return user && user.email === ADMIN_EMAIL;
 }
 
-// Middleware: require db_access flag OR be main admin (with 2FA session)
+// Check if DB session is still valid (within 5 min window)
+function isDbSessionValid(session) {
+    if (!session.dbVerified || !session.dbVerifiedAt) return false;
+    return (Date.now() - session.dbVerifiedAt) < DB_SESSION_TTL;
+}
+
+// Middleware: require db_access flag OR be main admin (with 2FA/key session, 5min TTL)
 function requireDbAccess(req, res, next) {
     const user = dbGet('SELECT email, db_access FROM users WHERE id = ?', [req.session.userId]);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
     if (user.email === ADMIN_EMAIL) {
-        // Main admin must have verified 2FA this session
-        if (!req.session.dbVerified) {
-            return res.status(403).json({ error: 'db_2fa_required', message: 'Потрібна 2FA верифікація' });
+        if (!isDbSessionValid(req.session)) {
+            req.session.dbVerified = false;
+            return res.status(403).json({ error: 'db_2fa_required', message: 'Сесія доступу закінчилась. Потрібна повторна верифікація.' });
         }
         return next();
     }
@@ -1117,13 +1126,32 @@ function requireDbAccess(req, res, next) {
 router.get('/api/admin/db-access/status', requireAuth, requireRole('admin'), (req, res) => {
     const user = dbGet('SELECT email, db_access, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
     const mainAdmin = user && user.email === ADMIN_EMAIL;
-    const dbVerified = !!req.session.dbVerified;
+    const dbVerified = isDbSessionValid(req.session);
+    const hasKey = !!(siteSettings.dbAccessKey);
     res.json({
         hasAccess: mainAdmin ? dbVerified : !!(user && user.db_access),
         isMainAdmin: mainAdmin,
         dbVerified,
-        has2FA: !!(user && user.totp_enabled)
+        has2FA: !!(user && user.totp_enabled),
+        hasAccessKey: hasKey
     });
+});
+
+// Heartbeat — extend DB session TTL while admin is on the database page
+router.post('/api/admin/db-access/heartbeat', requireAuth, requireRole('admin'), (req, res) => {
+    if (!isDbSessionValid(req.session)) {
+        req.session.dbVerified = false;
+        return res.status(403).json({ error: 'db_session_expired' });
+    }
+    req.session.dbVerifiedAt = Date.now();
+    res.json({ success: true, expiresIn: DB_SESSION_TTL });
+});
+
+// Invalidate DB session (called when leaving the database page)
+router.post('/api/admin/db-access/lock', requireAuth, requireRole('admin'), (req, res) => {
+    req.session.dbVerified = false;
+    req.session.dbVerifiedAt = null;
+    res.json({ success: true });
 });
 
 // Get list of admins with their db_access status (main admin only)
@@ -1135,28 +1163,21 @@ router.get('/api/admin/db-access/users', requireAuth, requireRole('admin'), (req
     res.json({ admins: admins.map(a => ({ ...a, db_access: !!a.db_access })) });
 });
 
-// Grant/revoke db access (main admin only, requires 2FA code)
+// Grant/revoke db access (main admin only, requires 2FA or access key)
 router.post('/api/admin/db-access/toggle', requireAuth, requireRole('admin'), (req, res) => {
     if (!isMainAdmin(req.session.userId)) {
         return res.status(403).json({ error: 'Only the main admin can manage database access' });
     }
 
-    const { userId, grant, totpCode } = req.body;
-    if (!userId || grant === undefined || !totpCode) {
+    const { userId, grant, totpCode, accessKey } = req.body;
+    if (!userId || grant === undefined) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Verify main admin's 2FA
+    // Verify via 2FA or access key
     const mainUser = dbGet('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
-    if (!mainUser || !mainUser.totp_enabled) {
-        return res.status(400).json({ error: 'Головний адмін повинен мати увімкнену 2FA для керування доступом до БД' });
-    }
-
-    const verified = speakeasy.totp.verify({
-        secret: mainUser.totp_secret, encoding: 'base32', token: totpCode, window: 2
-    });
-    if (!verified) {
-        return res.status(401).json({ error: 'Невірний 2FA код' });
+    if (!_verifyAdminAuth(mainUser, totpCode, accessKey)) {
+        return res.status(401).json({ error: 'Невірний код або ключ доступу' });
     }
 
     // Toggle access
@@ -1177,17 +1198,35 @@ router.post('/api/admin/db-access/toggle', requireAuth, requireRole('admin'), (r
     res.json({ success: true, userId, dbAccess: !!grant });
 });
 
-// Verify 2FA for database session (main admin self-access)
-router.post('/api/admin/db-access/verify-2fa', requireAuth, requireRole('admin'), (req, res) => {
-    const { totpCode } = req.body;
-    if (!totpCode) return res.status(400).json({ error: 'Missing 2FA code' });
+// Verify 2FA or access key for database session (main admin self-access)
+router.post('/api/admin/db-access/verify', requireAuth, requireRole('admin'), (req, res) => {
+    const { totpCode, accessKey } = req.body;
 
     const user = dbGet('SELECT email, totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
     if (!user || user.email !== ADMIN_EMAIL) {
         return res.status(403).json({ error: 'Only main admin' });
     }
-    if (!user.totp_enabled) {
-        return res.status(400).json({ error: 'Увімкніть 2FA в профілі для доступу до БД' });
+
+    if (!_verifyAdminAuth(user, totpCode, accessKey)) {
+        return res.status(401).json({ error: 'Невірний код або ключ доступу' });
+    }
+
+    // Set session flag with timestamp
+    req.session.dbVerified = true;
+    req.session.dbVerifiedAt = Date.now();
+    res.json({ success: true, expiresIn: DB_SESSION_TTL });
+});
+
+// Generate/regenerate access key (main admin only, requires 2FA)
+router.post('/api/admin/db-access/generate-key', requireAuth, requireRole('admin'), (req, res) => {
+    if (!isMainAdmin(req.session.userId)) {
+        return res.status(403).json({ error: 'Only main admin' });
+    }
+
+    const { totpCode } = req.body;
+    const user = dbGet('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
+    if (!user || !user.totp_enabled) {
+        return res.status(400).json({ error: 'Потрібна 2FA для генерації ключа' });
     }
 
     const verified = speakeasy.totp.verify({
@@ -1197,10 +1236,53 @@ router.post('/api/admin/db-access/verify-2fa', requireAuth, requireRole('admin')
         return res.status(401).json({ error: 'Невірний 2FA код' });
     }
 
-    // Set session flag — valid for this session
-    req.session.dbVerified = true;
+    const newKey = crypto.randomBytes(24).toString('base64url');
+    siteSettings.dbAccessKey = newKey;
+    saveSettings();
+
+    logAdminAction(req.session.userId, 'DB_KEY_REGENERATED', null, null, 'Regenerated DB access key', getClientIP(req));
+
+    res.json({ success: true, key: newKey });
+});
+
+// Delete access key (main admin only)
+router.post('/api/admin/db-access/delete-key', requireAuth, requireRole('admin'), (req, res) => {
+    if (!isMainAdmin(req.session.userId)) {
+        return res.status(403).json({ error: 'Only main admin' });
+    }
+
+    const { totpCode } = req.body;
+    const user = dbGet('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.session.userId]);
+    if (!user || !user.totp_enabled) {
+        return res.status(400).json({ error: 'Потрібна 2FA' });
+    }
+
+    const verified = speakeasy.totp.verify({
+        secret: user.totp_secret, encoding: 'base32', token: totpCode, window: 2
+    });
+    if (!verified) {
+        return res.status(401).json({ error: 'Невірний 2FA код' });
+    }
+
+    siteSettings.dbAccessKey = '';
+    saveSettings();
     res.json({ success: true });
 });
+
+// Helper: verify admin via 2FA code or access key
+function _verifyAdminAuth(user, totpCode, accessKey) {
+    // Try access key first
+    if (accessKey && siteSettings.dbAccessKey) {
+        if (accessKey === siteSettings.dbAccessKey) return true;
+    }
+    // Try 2FA
+    if (totpCode && user && user.totp_enabled && user.totp_secret) {
+        return speakeasy.totp.verify({
+            secret: user.totp_secret, encoding: 'base32', token: totpCode, window: 2
+        });
+    }
+    return false;
+}
 
 const ADMIN_TABLES = [
     'users', 'orders', 'transactions', 'bots', 'wallets',
@@ -1773,7 +1855,7 @@ router.post('/api/admin/google-settings', requireAuth, requireRole('admin'), (re
 });
 
 // Initiate Google Drive OAuth
-router.get('/api/admin/backup/google/auth', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/api/admin/backup/google/auth', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     const { googleClientId, googleClientSecret } = siteSettings;
     if (!googleClientId || !googleClientSecret) {
         return res.status(400).json({ error: 'Google Client ID and Secret are required' });
@@ -1822,7 +1904,7 @@ router.get('/api/admin/backup/google/callback', requireAuth, requireRole('admin'
 });
 
 // Disconnect Google Drive
-router.post('/api/admin/backup/disconnect', requireAuth, requireRole('admin'), (req, res) => {
+router.post('/api/admin/backup/disconnect', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     siteSettings.googleDriveTokens = null;
     siteSettings.googleDriveBackupEnabled = false;
     stopBackupSchedule();
@@ -1832,7 +1914,7 @@ router.post('/api/admin/backup/disconnect', requireAuth, requireRole('admin'), (
 });
 
 // Get backup settings
-router.get('/api/admin/backup/settings', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/api/admin/backup/settings', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     res.json({
         enabled: siteSettings.googleDriveBackupEnabled || false,
         time: siteSettings.googleDriveBackupTime || '03:00',
@@ -1842,7 +1924,7 @@ router.get('/api/admin/backup/settings', requireAuth, requireRole('admin'), (req
 });
 
 // Save backup settings
-router.post('/api/admin/backup/settings', requireAuth, requireRole('admin'), (req, res) => {
+router.post('/api/admin/backup/settings', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const { enabled, time, folderId } = req.body;
 
@@ -1868,7 +1950,7 @@ router.post('/api/admin/backup/settings', requireAuth, requireRole('admin'), (re
 });
 
 // Trigger manual backup
-router.post('/api/admin/backup/trigger', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/api/admin/backup/trigger', requireAuth, requireRole('admin'), requireDbAccess, async (req, res) => {
     try {
         const result = await performBackup('manual');
         logAdminAction(req.session.userId, 'manual_backup', 'backup', null, `Manual backup: ${result.filename}`, getClientIP(req));
@@ -1880,7 +1962,7 @@ router.post('/api/admin/backup/trigger', requireAuth, requireRole('admin'), asyn
 });
 
 // Get backup history + status (next backup time, recent status)
-router.get('/api/admin/backup/history', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/api/admin/backup/history', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     const history = dbAll('SELECT * FROM backup_history ORDER BY created_at DESC LIMIT 50');
 
     // Calculate next backup time
@@ -1999,7 +2081,7 @@ router.get('/api/admin/server/logs', requireAuth, requireRole('admin'), (req, re
 });
 
 // List backups from Google Drive
-router.get('/api/admin/backup/drive-files', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/api/admin/backup/drive-files', requireAuth, requireRole('admin'), requireDbAccess, async (req, res) => {
     try {
         if (!siteSettings.googleDriveTokens) {
             return res.status(400).json({ error: 'Google Drive not connected' });
@@ -2024,7 +2106,7 @@ router.get('/api/admin/backup/drive-files', requireAuth, requireRole('admin'), a
 });
 
 // Scan Google Drive folder for backups (works with shared folder link — no OAuth needed)
-router.get('/api/admin/backup/scan-drive', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/api/admin/backup/scan-drive', requireAuth, requireRole('admin'), requireDbAccess, async (req, res) => {
     try {
         // Try OAuth-connected drive first
         if (siteSettings.googleDriveTokens) {
@@ -2081,7 +2163,7 @@ router.get('/api/admin/backup/scan-drive', requireAuth, requireRole('admin'), as
 });
 
 // Restore database from Google Drive backup
-router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), requireDbAccess, async (req, res) => {
     try {
         const { fileId, fileName } = req.body;
         if (!fileId) return res.status(400).json({ error: 'File ID required' });
@@ -2148,7 +2230,7 @@ router.post('/api/admin/backup/restore', requireAuth, requireRole('admin'), asyn
 });
 
 // Restore database from Google Drive public link (no OAuth required)
-router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/api/admin/backup/restore-url', requireAuth, requireRole('admin'), requireDbAccess, async (req, res) => {
     try {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required' });

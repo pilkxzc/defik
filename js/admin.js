@@ -185,7 +185,18 @@ const _tabTitles = {
     'bug-reports': 'Баг-репорти'
 };
 
+let _previousTab = null;
+
 function switchTab(tabName) {
+    // Lock secure session when leaving database or backup
+    if (_previousTab === 'database' && tabName !== 'database') {
+        _onSecureTabLeave('database');
+    }
+    if (_previousTab === 'backup' && tabName !== 'backup') {
+        _onSecureTabLeave('backup');
+    }
+    _previousTab = tabName;
+
     // Update header page title
     const titleEl = document.getElementById('adminPageTitle');
     if (titleEl) {
@@ -228,7 +239,7 @@ function switchTab(tabName) {
             loadAnalytics();
             break;
         case 'backup':
-            loadBackupTab();
+            checkBackupAccessAndLoad();
             break;
         case 'bug-reports':
             loadBugReports();
@@ -1654,51 +1665,103 @@ let dbSortOrder = 'DESC';
 let dbColumns = [];
 let dbEditingCell = null;
 
-// ==================== DB ACCESS CONTROL ====================
-let _dbAccessGranted = false;
-let _dbIsMainAdmin = false;
+// ==================== SECURE ACCESS CONTROL (DB & Backup) ====================
+let _secureAccessState = {}; // { database: { granted, isMainAdmin }, backup: { ... } }
+let _secureHeartbeatTimers = {}; // { database: intervalId, backup: intervalId }
+let _secureCurrentTab = null;
 
-async function checkDbAccessAndLoad() {
-    const container = document.getElementById('tab-database');
+// Generic: check access for a protected tab
+async function _checkSecureAccess(tabKey, containerId) {
+    const container = document.getElementById(containerId);
     try {
         const res = await fetch('/api/admin/db-access/status');
         const data = await res.json();
-        _dbIsMainAdmin = data.isMainAdmin;
-        _dbAccessGranted = data.hasAccess;
+        _secureAccessState[tabKey] = { isMainAdmin: data.isMainAdmin, hasAccess: data.hasAccess };
 
         if (data.isMainAdmin) {
             if (data.dbVerified) {
-                // Already verified this session
-                _showDbContent(container);
-                loadDatabaseTables();
-            } else if (!data.has2FA) {
-                // Main admin without 2FA enabled — show message
-                _showDb2FARequired(container);
+                _showSecureContent(tabKey, container);
+                _startSecureHeartbeat(tabKey, container);
+                return true;
+            } else if (!data.has2FA && !data.hasAccessKey) {
+                _showSecureNoAuth(tabKey, container);
             } else {
-                // Needs 2FA verification
-                _showDb2FAVerify(container);
+                _showSecureVerify(tabKey, container, data.has2FA, data.hasAccessKey);
             }
-            return;
+            return false;
         }
 
         if (!data.hasAccess) {
-            _showDbAccessDenied(container);
-            return;
+            _showSecureAccessDenied(tabKey, container);
+            return false;
         }
 
-        // Has access (granted by main admin) — load directly
-        _showDbContent(container);
-        loadDatabaseTables();
+        _showSecureContent(tabKey, container);
+        return true;
     } catch (err) {
-        console.error('DB access check failed:', err);
-        _showDbAccessDenied(container);
+        console.error(`${tabKey} access check failed:`, err);
+        _showSecureAccessDenied(tabKey, container);
+        return false;
     }
 }
 
-function _showDbAccessDenied(container) {
+async function checkDbAccessAndLoad() {
+    _secureCurrentTab = 'database';
+    const ok = await _checkSecureAccess('database', 'tab-database');
+    if (ok) loadDatabaseTables();
+}
+
+async function checkBackupAccessAndLoad() {
+    _secureCurrentTab = 'backup';
+    const ok = await _checkSecureAccess('backup', 'tab-backup');
+    if (ok) loadBackupTab();
+}
+
+// Heartbeat — keeps session alive while on protected tab, auto-locks on leave
+function _startSecureHeartbeat(tabKey, container) {
+    _stopSecureHeartbeat(tabKey);
+    // Send heartbeat every 60s
+    _secureHeartbeatTimers[tabKey] = setInterval(async () => {
+        // Check if user is still on this tab
+        const currentTab = _getTabFromUrl();
+        if (currentTab !== (tabKey === 'database' ? 'database' : 'backup')) {
+            _stopSecureHeartbeat(tabKey);
+            // Lock session on server
+            fetch('/api/admin/db-access/lock', { method: 'POST' }).catch(() => {});
+            return;
+        }
+        try {
+            const res = await fetch('/api/admin/db-access/heartbeat', { method: 'POST' });
+            if (!res.ok) {
+                // Session expired
+                _stopSecureHeartbeat(tabKey);
+                _showSecureVerify(tabKey, container, true, true);
+                showNotification('Сесія доступу закінчилась', 'warning');
+            }
+        } catch (e) { /* ignore */ }
+    }, 60000);
+}
+
+function _stopSecureHeartbeat(tabKey) {
+    if (_secureHeartbeatTimers[tabKey]) {
+        clearInterval(_secureHeartbeatTimers[tabKey]);
+        _secureHeartbeatTimers[tabKey] = null;
+    }
+}
+
+// Lock session when leaving protected tab
+function _onSecureTabLeave(tabKey) {
+    _stopSecureHeartbeat(tabKey);
+    if (_secureAccessState[tabKey]?.isMainAdmin) {
+        fetch('/api/admin/db-access/lock', { method: 'POST' }).catch(() => {});
+    }
+}
+
+function _showSecureAccessDenied(tabKey, container) {
     const existingOverlay = container.querySelector('.db-access-overlay');
     if (existingOverlay) existingOverlay.remove();
 
+    const label = tabKey === 'database' ? 'бази даних' : 'бекапів';
     const overlay = document.createElement('div');
     overlay.className = 'db-access-overlay';
     overlay.innerHTML = `
@@ -1710,20 +1773,19 @@ function _showDbAccessDenied(container) {
             </div>
             <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Доступ заборонено</h2>
             <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:8px;">
-                Доступ до бази даних обмежений. Для отримання доступу зверніться до головного адміністратора.
+                Доступ до ${label} обмежений. Для отримання доступу зверніться до головного адміністратора.
             </p>
             <p style="color:var(--text-tertiary);font-size:12px;">
-                Тільки головний адмін може надати доступ через 2FA верифікацію.
+                Тільки головний адмін може надати доступ через 2FA або ключ доступу.
             </p>
         </div>
     `;
-    // Hide normal db content, show overlay
     Array.from(container.children).forEach(ch => ch.style.display = 'none');
     container.appendChild(overlay);
     overlay.style.display = 'flex';
 }
 
-function _showDb2FARequired(container) {
+function _showSecureNoAuth(tabKey, container) {
     const existingOverlay = container.querySelector('.db-access-overlay');
     if (existingOverlay) existingOverlay.remove();
 
@@ -1736,9 +1798,9 @@ function _showDb2FARequired(container) {
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
             </div>
-            <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Потрібна 2FA</h2>
+            <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Потрібна автентифікація</h2>
             <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:24px;">
-                Для доступу до бази даних вам потрібно спочатку увімкнути двофакторну автентифікацію в налаштуваннях профілю.
+                Увімкніть 2FA в профілі або згенеруйте ключ доступу для захисту цієї секції.
             </p>
             <a href="/profile" style="padding:12px 28px;background:var(--accent-primary);border:none;border-radius:12px;color:white;font-weight:700;font-size:14px;text-decoration:none;display:inline-block;">
                 Перейти в профіль
@@ -1750,10 +1812,11 @@ function _showDb2FARequired(container) {
     overlay.style.display = 'flex';
 }
 
-function _showDb2FAVerify(container) {
+function _showSecureVerify(tabKey, container, has2FA, hasAccessKey) {
     const existingOverlay = container.querySelector('.db-access-overlay');
     if (existingOverlay) existingOverlay.remove();
 
+    const label = tabKey === 'database' ? 'бази даних' : 'бекапів';
     const overlay = document.createElement('div');
     overlay.className = 'db-access-overlay';
     overlay.innerHTML = `
@@ -1763,20 +1826,45 @@ function _showDb2FAVerify(container) {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
             </div>
-            <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;">Верифікація 2FA</h2>
-            <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:24px;">
-                Введіть код з додатку автентифікації для доступу до бази даних.
+            <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Підтвердження доступу</h2>
+            <p style="color:var(--text-secondary);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:4px;">
+                Введіть код для доступу до ${label}.
             </p>
-            <div style="display:flex;gap:12px;align-items:center;">
-                <input type="text" id="db2faCode" maxlength="6" placeholder="000000"
-                    style="width:160px;padding:14px 20px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;font-size:20px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;"
-                    autocomplete="one-time-code" inputmode="numeric">
-                <button id="db2faSubmit" onclick="verifyDb2FA()"
-                    style="padding:14px 28px;background:var(--accent-primary);border:none;border-radius:12px;color:white;font-weight:700;font-size:14px;cursor:pointer;transition:0.2s;">
-                    Підтвердити
-                </button>
+            <p style="color:var(--text-tertiary);font-size:12px;margin-bottom:24px;">Сесія активна 5 хвилин</p>
+
+            <!-- Tab switcher -->
+            <div style="display:flex;gap:4px;background:var(--surface-secondary);border-radius:10px;padding:4px;margin-bottom:20px;" id="secVerifyTabs_${tabKey}">
+                ${has2FA ? `<button class="sv-tab active" data-mode="2fa" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;background:var(--accent-primary);color:white;">2FA код</button>` : ''}
+                ${hasAccessKey ? `<button class="sv-tab${!has2FA ? ' active' : ''}" data-mode="key" style="padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;${has2FA ? 'background:transparent;color:var(--text-secondary);' : 'background:var(--accent-primary);color:white;'}">Ключ доступу</button>` : ''}
             </div>
-            <p id="db2faError" style="color:#EF4444;font-size:13px;margin-top:12px;display:none;"></p>
+
+            <!-- 2FA input -->
+            <div id="secVerify2fa_${tabKey}" style="${has2FA ? '' : 'display:none;'}">
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <input type="text" id="secCode2fa_${tabKey}" maxlength="6" placeholder="000000"
+                        style="width:160px;padding:14px 20px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;font-size:20px;text-align:center;letter-spacing:8px;font-weight:700;outline:none;"
+                        autocomplete="one-time-code" inputmode="numeric">
+                    <button onclick="_submitSecureVerify('${tabKey}','2fa')"
+                        style="padding:14px 28px;background:var(--accent-primary);border:none;border-radius:12px;color:white;font-weight:700;font-size:14px;cursor:pointer;">
+                        Підтвердити
+                    </button>
+                </div>
+            </div>
+
+            <!-- Access Key input -->
+            <div id="secVerifyKey_${tabKey}" style="${!has2FA && hasAccessKey ? '' : 'display:none;'}">
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <input type="password" id="secCodeKey_${tabKey}" placeholder="Ключ доступу"
+                        style="width:240px;padding:14px 20px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;font-size:14px;font-weight:600;outline:none;">
+                    <button onclick="_submitSecureVerify('${tabKey}','key')"
+                        style="padding:14px 28px;background:var(--accent-primary);border:none;border-radius:12px;color:white;font-weight:700;font-size:14px;cursor:pointer;">
+                        Підтвердити
+                    </button>
+                </div>
+            </div>
+
+            <p id="secVerifyError_${tabKey}" style="color:#EF4444;font-size:13px;margin-top:12px;display:none;"></p>
+
             <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);width:100%;max-width:400px;">
                 <button onclick="openDbAccessManagement()" style="padding:10px 20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;transition:0.2s;">
                     Керувати доступом адмінів
@@ -1788,77 +1876,133 @@ function _showDb2FAVerify(container) {
     container.appendChild(overlay);
     overlay.style.display = 'flex';
 
-    // Auto-submit on 6 digits
-    const input = document.getElementById('db2faCode');
-    input.addEventListener('input', () => {
-        if (input.value.length === 6) verifyDb2FA();
+    // Tab switching
+    overlay.querySelectorAll('.sv-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            overlay.querySelectorAll('.sv-tab').forEach(b => {
+                b.style.background = 'transparent';
+                b.style.color = 'var(--text-secondary)';
+                b.classList.remove('active');
+            });
+            btn.style.background = 'var(--accent-primary)';
+            btn.style.color = 'white';
+            btn.classList.add('active');
+            const mode = btn.dataset.mode;
+            const fa = document.getElementById(`secVerify2fa_${tabKey}`);
+            const key = document.getElementById(`secVerifyKey_${tabKey}`);
+            if (fa) fa.style.display = mode === '2fa' ? '' : 'none';
+            if (key) key.style.display = mode === 'key' ? '' : 'none';
+        });
     });
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') verifyDb2FA();
-    });
-    setTimeout(() => input.focus(), 100);
+
+    // Auto-submit on 6 digits for 2FA
+    const input2fa = document.getElementById(`secCode2fa_${tabKey}`);
+    if (input2fa) {
+        input2fa.addEventListener('input', () => {
+            if (input2fa.value.length === 6) _submitSecureVerify(tabKey, '2fa');
+        });
+        input2fa.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') _submitSecureVerify(tabKey, '2fa');
+        });
+        if (has2FA) setTimeout(() => input2fa.focus(), 100);
+    }
+    const inputKey = document.getElementById(`secCodeKey_${tabKey}`);
+    if (inputKey) {
+        inputKey.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') _submitSecureVerify(tabKey, 'key');
+        });
+        if (!has2FA && hasAccessKey) setTimeout(() => inputKey.focus(), 100);
+    }
 }
 
-async function verifyDb2FA() {
-    const code = document.getElementById('db2faCode').value.trim();
-    const errEl = document.getElementById('db2faError');
-    if (!code || code.length < 6) {
-        errEl.textContent = 'Введіть 6-значний код';
-        errEl.style.display = 'block';
-        return;
+async function _submitSecureVerify(tabKey, mode) {
+    const errEl = document.getElementById(`secVerifyError_${tabKey}`);
+    let body = {};
+
+    if (mode === '2fa') {
+        const code = document.getElementById(`secCode2fa_${tabKey}`).value.trim();
+        if (!code || code.length < 6) {
+            errEl.textContent = 'Введіть 6-значний код';
+            errEl.style.display = 'block';
+            return;
+        }
+        body.totpCode = code;
+    } else {
+        const key = document.getElementById(`secCodeKey_${tabKey}`).value.trim();
+        if (!key) {
+            errEl.textContent = 'Введіть ключ доступу';
+            errEl.style.display = 'block';
+            return;
+        }
+        body.accessKey = key;
     }
+
     try {
-        const res = await fetch('/api/admin/db-access/verify-2fa', {
+        const res = await fetch('/api/admin/db-access/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ totpCode: code })
+            body: JSON.stringify(body)
         });
         const data = await res.json();
         if (!res.ok) {
             errEl.textContent = data.error || 'Помилка верифікації';
             errEl.style.display = 'block';
-            document.getElementById('db2faCode').value = '';
-            document.getElementById('db2faCode').focus();
+            if (mode === '2fa') {
+                const inp = document.getElementById(`secCode2fa_${tabKey}`);
+                inp.value = '';
+                inp.focus();
+            }
             return;
         }
-        // Success — show db content
-        const container = document.getElementById('tab-database');
-        _showDbContent(container);
-        loadDatabaseTables();
+        // Success
+        const containerId = tabKey === 'database' ? 'tab-database' : 'tab-backup';
+        const container = document.getElementById(containerId);
+        _showSecureContent(tabKey, container);
+        _startSecureHeartbeat(tabKey, container);
+        if (tabKey === 'database') loadDatabaseTables();
+        else loadBackupTab();
     } catch (err) {
         errEl.textContent = 'Помилка з\'єднання';
         errEl.style.display = 'block';
     }
 }
 
-function _showDbContent(container) {
+function _showSecureContent(tabKey, container) {
     const overlay = container.querySelector('.db-access-overlay');
     if (overlay) overlay.remove();
     Array.from(container.children).forEach(ch => ch.style.display = '');
 }
 
 async function openDbAccessManagement() {
-    // First verify 2FA if not already verified
-    const code = document.getElementById('db2faCode').value.trim();
-    if (!code || code.length < 6) {
-        const errEl = document.getElementById('db2faError');
-        errEl.textContent = 'Спочатку введіть 2FA код';
-        errEl.style.display = 'block';
+    // Try verify first via whatever input is filled
+    const tabKey = _secureCurrentTab || 'database';
+    const code2fa = document.getElementById(`secCode2fa_${tabKey}`)?.value.trim();
+    const codeKey = document.getElementById(`secCodeKey_${tabKey}`)?.value.trim();
+
+    if (!code2fa && !codeKey) {
+        const errEl = document.getElementById(`secVerifyError_${tabKey}`);
+        if (errEl) {
+            errEl.textContent = 'Спочатку введіть 2FA код або ключ доступу';
+            errEl.style.display = 'block';
+        }
         return;
     }
 
-    // Verify 2FA first
+    // Verify first
     try {
-        const verifyRes = await fetch('/api/admin/db-access/verify-2fa', {
+        const body = code2fa ? { totpCode: code2fa } : { accessKey: codeKey };
+        const verifyRes = await fetch('/api/admin/db-access/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ totpCode: code })
+            body: JSON.stringify(body)
         });
         if (!verifyRes.ok) {
             const d = await verifyRes.json();
-            const errEl = document.getElementById('db2faError');
-            errEl.textContent = d.error || 'Невірний код';
-            errEl.style.display = 'block';
+            const errEl = document.getElementById(`secVerifyError_${tabKey}`);
+            if (errEl) {
+                errEl.textContent = d.error || 'Невірний код';
+                errEl.style.display = 'block';
+            }
             return;
         }
     } catch(e) { return; }
@@ -1882,14 +2026,44 @@ function _showDbAccessModal(admins) {
     modal.id = 'dbAccessModal';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100000;animation:fadeIn .2s ease;';
     modal.innerHTML = `
-        <div style="background:var(--surface,#141414);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">
+        <div style="background:var(--surface,#141414);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-                <h3 style="font-size:18px;font-weight:800;">Доступ до бази даних</h3>
+                <h3 style="font-size:18px;font-weight:800;">Керування доступом</h3>
                 <button onclick="document.getElementById('dbAccessModal').remove()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:20px;padding:4px 8px;">✕</button>
             </div>
-            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px;">
-                Керуйте доступом адмінів до браузера бази даних. Кожна зміна потребує вашого 2FA коду.
-            </p>
+
+            <!-- Access key management -->
+            <div style="background:var(--surface-secondary,#1a1a1a);border-radius:14px;padding:16px;margin-bottom:20px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    <span style="font-weight:700;font-size:14px;">Ключ доступу</span>
+                </div>
+                <p style="color:var(--text-tertiary);font-size:12px;margin-bottom:12px;">
+                    Альтернатива 2FA. Використовуйте ключ для швидкого доступу.
+                </p>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="_generateAccessKey()" style="padding:8px 14px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:8px;color:#10B981;font-size:12px;font-weight:700;cursor:pointer;">
+                        Згенерувати новий
+                    </button>
+                    <button onclick="_deleteAccessKey()" style="padding:8px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#EF4444;font-size:12px;font-weight:700;cursor:pointer;">
+                        Видалити
+                    </button>
+                </div>
+                <div id="accessKeyResult" style="display:none;margin-top:12px;"></div>
+                <div id="accessKeyTotpArea" style="display:none;margin-top:12px;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="accessKeyTotpCode" maxlength="6" placeholder="2FA код"
+                            style="flex:1;padding:10px 14px;background:var(--bg-app,#080808);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:white;font-size:14px;text-align:center;letter-spacing:4px;font-weight:600;outline:none;"
+                            inputmode="numeric">
+                        <button id="accessKeyTotpSubmit" style="padding:10px 16px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:700;font-size:12px;cursor:pointer;">
+                            OK
+                        </button>
+                    </div>
+                    <p id="accessKeyError" style="color:#EF4444;font-size:11px;margin-top:6px;display:none;"></p>
+                </div>
+            </div>
+
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;font-weight:600;">Адміни</p>
             <div id="dbAccessList">
                 ${admins.map(a => `
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface-secondary,#1a1a1a);border-radius:12px;margin-bottom:8px;">
@@ -1909,9 +2083,8 @@ function _showDbAccessModal(admins) {
             </div>
             <div id="dbAccessToggleArea" style="margin-top:16px;display:none;">
                 <div style="display:flex;gap:10px;align-items:center;">
-                    <input type="text" id="dbAccessTotpCode" maxlength="6" placeholder="2FA код"
-                        style="flex:1;padding:12px 16px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:white;font-size:16px;text-align:center;letter-spacing:4px;font-weight:600;outline:none;"
-                        inputmode="numeric">
+                    <input type="text" id="dbAccessTotpCode" maxlength="6" placeholder="2FA код або ключ"
+                        style="flex:1;padding:12px 16px;background:var(--surface-secondary);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:white;font-size:14px;text-align:center;letter-spacing:2px;font-weight:600;outline:none;">
                     <button id="dbAccessConfirmBtn" style="padding:12px 20px;background:var(--accent-primary);border:none;border-radius:10px;color:white;font-weight:700;font-size:13px;cursor:pointer;">
                         Підтвердити
                     </button>
@@ -1921,11 +2094,10 @@ function _showDbAccessModal(admins) {
         </div>
     `;
     document.body.appendChild(modal);
-
-    // Close on backdrop click
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 
     let pendingUserId = null, pendingGrant = null;
+    let _keyAction = null; // 'generate' or 'delete'
 
     modal.querySelectorAll('.db-access-toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1940,35 +2112,85 @@ function _showDbAccessModal(admins) {
     });
 
     document.getElementById('dbAccessConfirmBtn').addEventListener('click', async () => {
-        const code = document.getElementById('dbAccessTotpCode').value.trim();
+        const input = document.getElementById('dbAccessTotpCode').value.trim();
         const errEl = document.getElementById('dbAccessError');
-        if (!code || code.length < 6) {
-            errEl.textContent = 'Введіть 6-значний код';
-            errEl.style.display = 'block';
-            return;
-        }
+        if (!input) { errEl.textContent = 'Введіть код'; errEl.style.display = 'block'; return; }
+
+        const body = { userId: pendingUserId, grant: !!pendingGrant };
+        // Detect if it's a 6-digit 2FA code or an access key
+        if (/^\d{6}$/.test(input)) body.totpCode = input;
+        else body.accessKey = input;
+
         try {
             const res = await fetch('/api/admin/db-access/toggle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: pendingUserId, grant: !!pendingGrant, totpCode: code })
+                body: JSON.stringify(body)
             });
             const data = await res.json();
-            if (!res.ok) {
-                errEl.textContent = data.error || 'Помилка';
-                errEl.style.display = 'block';
-                return;
-            }
-            // Refresh modal
+            if (!res.ok) { errEl.textContent = data.error || 'Помилка'; errEl.style.display = 'block'; return; }
             modal.remove();
             const refreshRes = await fetch('/api/admin/db-access/users');
             const refreshData = await refreshRes.json();
             _showDbAccessModal(refreshData.admins);
             showNotification(pendingGrant ? 'Доступ надано' : 'Доступ відкликано', 'success');
-        } catch (e) {
-            errEl.textContent = 'Помилка з\'єднання';
-            errEl.style.display = 'block';
-        }
+        } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
+    });
+
+    // Access key generate/delete
+    const keyTotpArea = document.getElementById('accessKeyTotpArea');
+    const keyTotpSubmit = document.getElementById('accessKeyTotpSubmit');
+
+    window._generateAccessKey = () => {
+        _keyAction = 'generate';
+        keyTotpArea.style.display = 'block';
+        document.getElementById('accessKeyTotpCode').value = '';
+        document.getElementById('accessKeyTotpCode').focus();
+        document.getElementById('accessKeyError').style.display = 'none';
+        document.getElementById('accessKeyResult').style.display = 'none';
+    };
+
+    window._deleteAccessKey = () => {
+        _keyAction = 'delete';
+        keyTotpArea.style.display = 'block';
+        document.getElementById('accessKeyTotpCode').value = '';
+        document.getElementById('accessKeyTotpCode').focus();
+        document.getElementById('accessKeyError').style.display = 'none';
+    };
+
+    keyTotpSubmit.addEventListener('click', async () => {
+        const code = document.getElementById('accessKeyTotpCode').value.trim();
+        const errEl = document.getElementById('accessKeyError');
+        if (!code || code.length < 6) { errEl.textContent = 'Введіть 2FA код'; errEl.style.display = 'block'; return; }
+
+        const url = _keyAction === 'generate' ? '/api/admin/db-access/generate-key' : '/api/admin/db-access/delete-key';
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ totpCode: code })
+            });
+            const data = await res.json();
+            if (!res.ok) { errEl.textContent = data.error || 'Помилка'; errEl.style.display = 'block'; return; }
+
+            keyTotpArea.style.display = 'none';
+            const resultEl = document.getElementById('accessKeyResult');
+            if (_keyAction === 'generate') {
+                resultEl.innerHTML = `
+                    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:12px;">
+                        <p style="color:#10B981;font-size:12px;font-weight:700;margin-bottom:8px;">Новий ключ згенеровано! Збережіть його:</p>
+                        <code style="display:block;background:var(--bg-app,#080808);padding:10px;border-radius:6px;font-size:14px;font-weight:600;color:white;word-break:break-all;user-select:all;">${data.key}</code>
+                        <p style="color:var(--text-tertiary);font-size:11px;margin-top:8px;">Цей ключ більше не буде показаний.</p>
+                    </div>
+                `;
+                resultEl.style.display = 'block';
+                showNotification('Ключ доступу згенеровано', 'success');
+            } else {
+                resultEl.innerHTML = '<p style="color:#EF4444;font-size:12px;font-weight:600;">Ключ видалено</p>';
+                resultEl.style.display = 'block';
+                showNotification('Ключ доступу видалено', 'success');
+            }
+        } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
     });
 }
 

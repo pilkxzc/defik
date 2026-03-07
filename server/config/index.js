@@ -42,7 +42,8 @@ const siteSettings = {
     googleDriveBackupTime: '03:00',
     googleDriveBackupFolderId: '',
     bugReportingEnabled: false,
-    bugReportingAdminChatId: ''
+    bugReportingAdminChatId: '',
+    dbAccessKey: ''
 };
 
 function loadSettings() {
