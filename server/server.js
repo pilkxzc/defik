@@ -20,6 +20,7 @@ const { getSSLCredentials }                    = require('./utils/ssl');
 const { startCollector, stopCollector }        = require('./services/candleCollector');
 const { startBackupSchedule, stopBackupSchedule } = require('./services/backup');
 const { startNewsCollector, stopNewsCollector }   = require('./services/newsCollector');
+const { activityTracker }                         = require('./middleware/activityTracker');
 
 async function createApp() {
     // 1. Load persisted settings
@@ -64,6 +65,9 @@ async function createApp() {
 
     const sessionMiddleware = createSessionMiddleware();
     app.use(sessionMiddleware);
+
+    // Activity tracking — runs after session so req.session.userId is available
+    app.use(activityTracker);
 
     // Beta gate — runs after session so req.session is available
     app.post('/beta', betaSubmit);

@@ -2784,4 +2784,160 @@ router.delete('/api/admin/bug-reports/:id', requireAuth, requireRole('admin'), (
     }
 });
 
+// ==================== FULL ACTIVITY STATS ====================
+
+const { logClientEvent } = require('../middleware/activityTracker');
+
+// Client-side event tracking endpoint (any logged-in user)
+router.post('/api/activity/track', (req, res) => {
+    const userId = req.session?.userId || null;
+    const { action, details } = req.body;
+    if (!action) return res.status(400).json({ error: 'Missing action' });
+    logClientEvent(userId, action, details, getClientIP(req), req.headers['user-agent'], req.sessionID);
+    res.json({ ok: true });
+});
+
+// Full activity log for admin (paginated, filterable)
+router.get('/api/admin/activity', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(10, parseInt(req.query.limit) || 50));
+        const offset = (page - 1) * limit;
+
+        const category = req.query.category || '';
+        const userId = req.query.userId || '';
+        const action = req.query.action || '';
+        const dateFrom = req.query.dateFrom || '';
+        const dateTo = req.query.dateTo || '';
+        const search = req.query.search || '';
+        const ip = req.query.ip || '';
+
+        let where = '1=1';
+        const params = [];
+
+        if (category) { where += ' AND a.category = ?'; params.push(category); }
+        if (userId) { where += ' AND a.user_id = ?'; params.push(parseInt(userId)); }
+        if (action) { where += ' AND a.action LIKE ?'; params.push(`%${action}%`); }
+        if (dateFrom) { where += ' AND a.created_at >= ?'; params.push(dateFrom); }
+        if (dateTo) { where += " AND a.created_at <= ? || ' 23:59:59'"; params.push(dateTo); }
+        if (search) { where += ' AND (a.details LIKE ? OR a.path LIKE ? OR a.action LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+        if (ip) { where += ' AND a.ip_address LIKE ?'; params.push(`%${ip}%`); }
+
+        const countResult = dbGet(`SELECT COUNT(*) as total FROM activity_log a WHERE ${where}`, params);
+        const total = countResult?.total || 0;
+
+        const rows = dbAll(
+            `SELECT a.*, u.email, u.full_name
+             FROM activity_log a
+             LEFT JOIN users u ON a.user_id = u.id
+             WHERE ${where}
+             ORDER BY a.created_at DESC
+             LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        res.json({
+            activities: rows,
+            total,
+            page,
+            pages: Math.ceil(total / limit),
+            limit
+        });
+    } catch (error) {
+        console.error('Activity query error:', error);
+        res.status(500).json({ error: 'Failed to fetch activity' });
+    }
+});
+
+// Activity stats summary (for dashboard cards)
+router.get('/api/admin/activity/stats', requireAuth, requireRole('admin'), (req, res) => {
+    try {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const hour = now.toISOString().substring(0, 13);
+
+        const totalEvents = dbGet('SELECT COUNT(*) as c FROM activity_log')?.c || 0;
+        const todayEvents = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE created_at >= ?", [today])?.c || 0;
+        const hourEvents = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE created_at >= ?", [hour + ':00:00'])?.c || 0;
+
+        const uniqueUsersToday = dbGet("SELECT COUNT(DISTINCT user_id) as c FROM activity_log WHERE created_at >= ? AND user_id IS NOT NULL", [today])?.c || 0;
+        const uniqueIpsToday = dbGet("SELECT COUNT(DISTINCT ip_address) as c FROM activity_log WHERE created_at >= ?", [today])?.c || 0;
+
+        const loginsToday = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE action = 'login' AND status_code = 200 AND created_at >= ?", [today])?.c || 0;
+        const failedLogins = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE action = 'login' AND status_code != 200 AND created_at >= ?", [today])?.c || 0;
+        const registrations = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE action = 'register' AND status_code IN (200,201) AND created_at >= ?", [today])?.c || 0;
+
+        const avgResponseTime = dbGet("SELECT AVG(duration_ms) as avg FROM activity_log WHERE duration_ms IS NOT NULL AND created_at >= ?", [today])?.avg || 0;
+        const slowRequests = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE duration_ms > 1000 AND created_at >= ?", [today])?.c || 0;
+
+        // Top pages today
+        const topPages = dbAll(
+            "SELECT path, COUNT(*) as hits FROM activity_log WHERE action = 'page_view' AND created_at >= ? GROUP BY path ORDER BY hits DESC LIMIT 10",
+            [today]
+        );
+
+        // Top actions today
+        const topActions = dbAll(
+            "SELECT action, category, COUNT(*) as count FROM activity_log WHERE created_at >= ? GROUP BY action ORDER BY count DESC LIMIT 15",
+            [today]
+        );
+
+        // Active users (most actions today)
+        const activeUsers = dbAll(
+            `SELECT a.user_id, u.full_name, u.email, COUNT(*) as actions
+             FROM activity_log a LEFT JOIN users u ON a.user_id = u.id
+             WHERE a.created_at >= ? AND a.user_id IS NOT NULL
+             GROUP BY a.user_id ORDER BY actions DESC LIMIT 10`,
+            [today]
+        );
+
+        // Hourly chart data (last 24h)
+        const hourlyData = dbAll(
+            `SELECT strftime('%H', created_at) as hour, COUNT(*) as count
+             FROM activity_log WHERE created_at >= datetime('now', '-24 hours')
+             GROUP BY hour ORDER BY hour`,
+            []
+        );
+
+        // Unique IPs / countries
+        const topIps = dbAll(
+            "SELECT ip_address, COUNT(*) as hits FROM activity_log WHERE created_at >= ? GROUP BY ip_address ORDER BY hits DESC LIMIT 10",
+            [today]
+        );
+
+        // Errors today (4xx/5xx)
+        const errors = dbGet("SELECT COUNT(*) as c FROM activity_log WHERE status_code >= 400 AND created_at >= ?", [today])?.c || 0;
+
+        // Category breakdown
+        const categories = dbAll(
+            "SELECT category, COUNT(*) as count FROM activity_log WHERE created_at >= ? GROUP BY category ORDER BY count DESC",
+            [today]
+        );
+
+        res.json({
+            totalEvents, todayEvents, hourEvents,
+            uniqueUsersToday, uniqueIpsToday,
+            loginsToday, failedLogins, registrations,
+            avgResponseTime: Math.round(avgResponseTime),
+            slowRequests, errors,
+            topPages, topActions, activeUsers,
+            hourlyData, topIps, categories
+        });
+    } catch (error) {
+        console.error('Activity stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+// Delete old activity logs (cleanup)
+router.post('/api/admin/activity/cleanup', requireAuth, requireRole('admin'), (req, res) => {
+    if (!isMainAdmin(req.session.userId)) {
+        return res.status(403).json({ error: 'Only main admin' });
+    }
+    const days = parseInt(req.body.days) || 30;
+    const result = dbRun("DELETE FROM activity_log WHERE created_at < datetime('now', '-' || ? || ' days')", [days]);
+    logAdminAction(req.session.userId, 'ACTIVITY_CLEANUP', null, null, `Cleaned up activity logs older than ${days} days`, getClientIP(req));
+    res.json({ success: true, message: `Deleted logs older than ${days} days` });
+});
+
 module.exports = router;

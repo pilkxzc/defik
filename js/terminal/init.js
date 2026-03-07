@@ -56,6 +56,9 @@ async function init() {
         const symBtn = document.getElementById('symbolSelectBtn');
         if (symBtn) symBtn.addEventListener('click', toggleSymbolDropdown);
 
+        // Trade grouping toggle (bot-detail page)
+        document.getElementById('indGroupTrades')?.addEventListener('click', toggleTradeGrouping);
+
         // Period pills
         document.querySelectorAll('.period-pill[data-days]').forEach(p =>
             p.addEventListener('click', () => setPeriod(parseInt(p.dataset.days)))

@@ -358,14 +358,31 @@ async function initDatabase() {
     db.run(`
         CREATE TABLE IF NOT EXISTS activity_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            user_id INTEGER,
             action TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
             details TEXT,
             ip_address TEXT,
+            user_agent TEXT,
+            country TEXT,
+            path TEXT,
+            method TEXT,
+            status_code INTEGER,
+            duration_ms INTEGER,
+            session_id TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     `);
+    // Migrate old activity_log columns
+    try { db.run('ALTER TABLE activity_log ADD COLUMN category TEXT DEFAULT "general"'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN user_agent TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN country TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN path TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN method TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN status_code INTEGER'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN duration_ms INTEGER'); } catch(e) {}
+    try { db.run('ALTER TABLE activity_log ADD COLUMN session_id TEXT'); } catch(e) {}
 
     db.run(`
         CREATE TABLE IF NOT EXISTS login_attempts (
