@@ -2066,9 +2066,13 @@ function _showSecureContent(tabKey, container) {
     Array.from(container.children).forEach(ch => ch.style.display = '');
 }
 
+let _accVerified = false;
+let _accExpandedUser = null;
+
 async function loadAccessTab() {
     const container = document.getElementById('accessTabContent');
     container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);">Завантаження...</div>';
+    _accVerified = false;
 
     try {
         const statusRes = await fetch('/api/admin/db-access/status');
@@ -2087,38 +2091,71 @@ async function loadAccessTab() {
             return;
         }
 
-        // Main admin — load admin list
+        if (status.dbVerified) _accVerified = true;
+
         const usersRes = await fetch('/api/admin/db-access/users');
         if (!usersRes.ok) throw new Error('Failed to load users');
         const usersData = await usersRes.json();
 
-        _renderAccessTab(usersData.admins, status);
+        _renderAccessTab(usersData.admins, usersData.availablePermissions, status);
     } catch (err) {
         console.error('loadAccessTab error:', err);
         container.innerHTML = '<div style="text-align:center;padding:40px;color:#EF4444;">Помилка завантаження</div>';
     }
 }
 
-function _renderAccessTab(admins, status) {
+function _renderAccessTab(admins, availablePerms, status) {
     const container = document.getElementById('accessTabContent');
+    const permKeys = Object.keys(availablePerms);
 
     const getInitials = (name) => {
         if (!name) return '?';
         const parts = name.trim().split(/\s+/);
         return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0,2).toUpperCase();
     };
+    const avatarColors = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4','#F97316'];
 
     container.innerHTML = `
     <div class="acc-page">
-        <!-- Section 1: Access Key -->
+        <!-- Verification bar -->
+        <div class="acc-section" id="accVerifyBar" style="border:1px solid ${_accVerified ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'};">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:40px;height:40px;border-radius:12px;background:${_accVerified ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        ${_accVerified
+                            ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+                            : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+                        }
+                    </div>
+                    <div>
+                        <div style="font-weight:700;font-size:14px;">${_accVerified ? 'Сесія верифікована' : 'Підтвердіть особу'}</div>
+                        <div style="color:var(--text-tertiary);font-size:12px;">${_accVerified ? 'Ви можете перемикати дозволи (5 хв сесія)' : 'Для зміни дозволів потрібна верифікація'}</div>
+                    </div>
+                </div>
+                <div id="accVerifyButtons" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${_accVerified ? '<span style="font-size:12px;color:#10B981;font-weight:700;padding:8px 0;">Активна</span>' : `
+                        ${status.has2FA ? '<button class="acc-btn primary" id="accVerify2faBtn" style="font-size:12px;padding:8px 14px;">2FA</button>' : ''}
+                        ${status.hasPasskeys ? '<button class="acc-btn" id="accVerifyPasskeyBtn" style="font-size:12px;padding:8px 14px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#818CF8;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/><circle cx="12" cy="12" r="2"/><path d="M21 12c0 3-2 6-4 8"/></svg>Passkey</button>' : ''}
+                        ${status.hasAccessKey ? '<button class="acc-btn" id="accVerifyKeyBtn" style="font-size:12px;padding:8px 14px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);color:#F59E0B;">Ключ</button>' : ''}
+                    `}
+                </div>
+            </div>
+            <div class="acc-confirm-row" id="accVerifyInput">
+                <div class="acc-input-row" style="margin-top:4px;">
+                    <input type="text" class="acc-code-input" id="accVerifyCode" maxlength="64" placeholder="" autocomplete="off">
+                    <button class="acc-btn primary" id="accVerifySubmit">Підтвердити</button>
+                </div>
+                <p class="acc-error" id="accVerifyError"></p>
+            </div>
+        </div>
+
+        <!-- Access key management -->
         <div class="acc-section">
             <div class="acc-section-head">
-                <div class="acc-section-icon" style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.15);">
+                <div class="acc-section-icon" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.15);">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                 </div>
-                <div>
-                    <div class="acc-section-title">Ключ доступу</div>
-                </div>
+                <div><div class="acc-section-title">Ключ доступу</div></div>
                 <div style="margin-left:auto;">
                     <span class="acc-key-status ${status.hasAccessKey ? 'active' : 'inactive'}">
                         <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
@@ -2126,86 +2163,260 @@ function _renderAccessTab(admins, status) {
                     </span>
                 </div>
             </div>
-            <p class="acc-section-desc">
-                Спеціальний ключ для доступу до бази даних та бекапів — альтернатива 2FA-коду. Використовуйте його як пароль при вході до захищених розділів.
-            </p>
+            <p class="acc-section-desc">Альтернатива 2FA для доступу до захищених розділів.</p>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button class="acc-btn green" id="accGenKeyBtn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Згенерувати новий
-                </button>
-                ${status.hasAccessKey ? `
-                <button class="acc-btn red" id="accDelKeyBtn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    Видалити ключ
-                </button>` : ''}
+                <button class="acc-btn green" id="accGenKeyBtn">Згенерувати</button>
+                ${status.hasAccessKey ? '<button class="acc-btn red" id="accDelKeyBtn">Видалити</button>' : ''}
             </div>
             <div id="accKeyResult" style="display:none;margin-top:16px;"></div>
             <div class="acc-confirm-row" id="accKeyTotpArea">
-                <div class="acc-confirm-label">Введіть 2FA-код для підтвердження:</div>
+                <div class="acc-confirm-label">Введіть 2FA-код:</div>
                 <div class="acc-input-row">
                     <input type="text" class="acc-code-input" id="accKeyTotpCode" maxlength="6" placeholder="000000" inputmode="numeric" autocomplete="off">
-                    <button class="acc-btn primary" id="accKeyTotpSubmit">Підтвердити</button>
+                    <button class="acc-btn primary" id="accKeyTotpSubmit">OK</button>
                 </div>
                 <p class="acc-error" id="accKeyError"></p>
             </div>
         </div>
 
-        <!-- Section 2: Admins with DB access -->
+        <!-- Discord-style permissions -->
         <div class="acc-section">
             <div class="acc-section-head">
-                <div class="acc-section-icon" style="background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.15);">
+                <div class="acc-section-icon" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
-                <div>
-                    <div class="acc-section-title">Доступ адміністраторів</div>
-                </div>
-                <div style="margin-left:auto;font-size:12px;color:var(--text-tertiary);font-weight:600;">
-                    ${admins.filter(a => a.db_access || a.isMainAdmin).length} / ${admins.length}
-                </div>
+                <div><div class="acc-section-title">Дозволи адміністраторів</div></div>
+                <div style="margin-left:auto;font-size:12px;color:var(--text-tertiary);font-weight:600;">${admins.length} адмін(ів)</div>
             </div>
-            <p class="acc-section-desc">
-                Керуйте доступом інших адміністраторів до бази даних та бекапів. Головний адміністратор завжди має повний доступ.
-            </p>
+            <p class="acc-section-desc">Натисніть на адміністратора щоб розкрити та налаштувати його дозволи.</p>
 
-            <div id="accAdminList">
-                ${admins.map(a => `
-                <div class="acc-user-card" data-uid="${a.id}">
-                    <div class="acc-user-avatar">${getInitials(a.full_name)}</div>
-                    <div class="acc-user-info">
-                        <div class="acc-user-name">
-                            ${_escHtml(a.full_name)}
-                            ${a.isMainAdmin ? '<span class="acc-badge main">Головний</span>' : ''}
+            <div id="accAdminList" style="display:flex;flex-direction:column;gap:6px;">
+                ${admins.map(a => {
+                    const isMain = a.isMainAdmin;
+                    const enabledCount = isMain ? permKeys.length : permKeys.filter(k => a.permissions[k]).length;
+                    const color = avatarColors[a.id % avatarColors.length];
+                    return `
+                    <div class="acc-admin-card" data-uid="${a.id}" style="background:var(--surface-secondary,#1a1a1a);border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);transition:border-color 0.2s;">
+                        <!-- Header -->
+                        <div class="acc-admin-header" data-uid="${a.id}" style="display:flex;align-items:center;padding:14px 16px;cursor:${isMain ? 'default' : 'pointer'};user-select:none;gap:12px;">
+                            <div style="width:38px;height:38px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:white;flex-shrink:0;">${getInitials(a.full_name)}</div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                    ${_escHtml(a.full_name)}
+                                    ${isMain ? '<span style="font-size:10px;padding:2px 7px;background:rgba(245,158,11,0.15);color:#F59E0B;border-radius:4px;font-weight:700;">ВЛАСНИК</span>' : ''}
+                                    ${a.role === 'moderator' ? '<span style="font-size:10px;padding:2px 7px;background:rgba(99,102,241,0.15);color:#818CF8;border-radius:4px;font-weight:700;">MOD</span>' : ''}
+                                </div>
+                                <div style="color:var(--text-tertiary);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escHtml(a.email)}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span style="font-size:12px;font-weight:700;color:${isMain || enabledCount > 0 ? '#10B981' : 'var(--text-tertiary)'};">${isMain ? 'Всі дозволи' : enabledCount + '/' + permKeys.length}</span>
+                                ${!isMain ? '<svg class="acc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" style="transition:transform 0.2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>' : ''}
+                            </div>
                         </div>
-                        <div class="acc-user-meta">${_escHtml(a.email)}</div>
-                    </div>
-                    <div class="acc-user-actions">
-                        <span class="acc-badge ${a.db_access || a.isMainAdmin ? 'granted' : 'denied'}">
-                            ${a.isMainAdmin ? 'Повний доступ' : a.db_access ? 'Є доступ' : 'Немає доступу'}
-                        </span>
-                        ${!a.isMainAdmin ? `
-                        <button class="acc-btn ${a.db_access ? 'red' : 'green'} acc-toggle-btn" data-user-id="${a.id}" data-grant="${a.db_access ? 0 : 1}" data-name="${_escHtml(a.full_name)}">
-                            ${a.db_access ? 'Забрати' : 'Надати'}
-                        </button>` : ''}
-                    </div>
-                </div>`).join('')}
-            </div>
-
-            <!-- Inline confirmation for toggle (appears below list) -->
-            <div class="acc-confirm-row" id="accToggleArea">
-                <div class="acc-confirm-label" id="accToggleLabel"></div>
-                <div class="acc-input-row">
-                    <input type="text" class="acc-code-input" id="accToggleCode" maxlength="64" placeholder="2FA код або ключ" autocomplete="off">
-                    <button class="acc-btn primary" id="accToggleConfirm">Підтвердити</button>
-                    <button class="acc-btn red" id="accToggleCancel" style="padding:10px 14px;">Скасувати</button>
-                </div>
-                <p class="acc-error" id="accToggleError"></p>
+                        ${!isMain ? `
+                        <!-- Permissions panel -->
+                        <div class="acc-admin-perms" data-uid="${a.id}" style="display:none;padding:0 16px 16px;border-top:1px solid rgba(255,255,255,0.06);">
+                            <div style="padding-top:14px;display:flex;flex-direction:column;gap:0;">
+                                ${permKeys.map(k => {
+                                    const p = availablePerms[k];
+                                    const on = !!a.permissions[k];
+                                    return `
+                                    <div class="acc-perm-row" style="display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">
+                                        <div style="flex:1;min-width:0;">
+                                            <div style="font-size:13px;font-weight:600;">${_escHtml(p.label)}</div>
+                                            <div style="font-size:11px;color:var(--text-tertiary);margin-top:1px;">${_escHtml(p.description)}</div>
+                                        </div>
+                                        <label class="acc-switch">
+                                            <input type="checkbox" class="acc-perm-toggle" data-uid="${a.id}" data-perm="${k}" ${on ? 'checked' : ''}>
+                                            <span class="acc-switch-track"></span>
+                                            <span class="acc-switch-thumb"></span>
+                                        </label>
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                        </div>` : ''}
+                    </div>`;
+                }).join('')}
             </div>
         </div>
     </div>
     `;
 
-    // Wire up access key management
+    _wireAccessTabEvents(admins, availablePerms, status);
+}
+
+function _wireAccessTabEvents(admins, availablePerms, status) {
+    const container = document.getElementById('accessTabContent');
+    let _accVerifyMode = null;
+
+    // ── Expand/collapse admin cards ──
+    container.querySelectorAll('.acc-admin-header').forEach(hdr => {
+        const uid = hdr.dataset.uid;
+        const permsEl = container.querySelector(`.acc-admin-perms[data-uid="${uid}"]`);
+        if (!permsEl) return;
+        hdr.addEventListener('click', () => {
+            const isOpen = permsEl.style.display !== 'none';
+            container.querySelectorAll('.acc-admin-perms').forEach(p => p.style.display = 'none');
+            container.querySelectorAll('.acc-chevron').forEach(c => c.style.transform = '');
+            container.querySelectorAll('.acc-admin-card').forEach(c => c.style.borderColor = 'rgba(255,255,255,0.06)');
+            if (!isOpen) {
+                permsEl.style.display = 'block';
+                hdr.querySelector('.acc-chevron')?.style && (hdr.querySelector('.acc-chevron').style.transform = 'rotate(180deg)');
+                hdr.closest('.acc-admin-card').style.borderColor = 'rgba(99,102,241,0.3)';
+                _accExpandedUser = parseInt(uid);
+            } else {
+                _accExpandedUser = null;
+            }
+        });
+    });
+
+    // ── Permission toggles ──
+    container.querySelectorAll('.acc-perm-toggle').forEach(cb => {
+        cb.addEventListener('change', async () => {
+            const userId = parseInt(cb.dataset.uid);
+            const perm = cb.dataset.perm;
+            const grant = cb.checked;
+
+            if (!_accVerified) {
+                cb.checked = !grant;
+                showNotification('Спочатку підтвердіть свою особу', 'warning');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/db-access/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, permission: perm, grant, useSession: true })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    cb.checked = !grant;
+                    if (data.error === 'Невірний код або ключ доступу') {
+                        _accVerified = false;
+                        showNotification('Сесія закінчилась — підтвердіть знову', 'warning');
+                        _refreshVerifyBar(status);
+                    } else {
+                        showNotification(data.error || 'Помилка', 'error');
+                    }
+                    return;
+                }
+
+                // Update counter
+                const card = container.querySelector(`.acc-admin-card[data-uid="${userId}"]`);
+                if (card) {
+                    const toggles = card.querySelectorAll('.acc-perm-toggle');
+                    const enabled = Array.from(toggles).filter(t => t.checked).length;
+                    const countSpan = card.querySelector('.acc-admin-header span[style*="font-weight:700"]');
+                    if (countSpan && !countSpan.textContent.includes('Всі')) {
+                        countSpan.textContent = enabled + '/' + toggles.length;
+                        countSpan.style.color = enabled > 0 ? '#10B981' : 'var(--text-tertiary)';
+                    }
+                }
+
+                showNotification(grant ? `${availablePerms[perm]?.label} — надано` : `${availablePerms[perm]?.label} — забрано`, 'success');
+            } catch (err) {
+                cb.checked = !grant;
+                showNotification('Помилка з\'єднання', 'error');
+            }
+        });
+    });
+
+    // ── Verify: 2FA button ──
+    document.getElementById('accVerify2faBtn')?.addEventListener('click', () => {
+        _accVerifyMode = '2fa';
+        const inp = document.getElementById('accVerifyCode');
+        inp.placeholder = '000000';
+        inp.maxLength = 6;
+        inp.inputMode = 'numeric';
+        document.getElementById('accVerifyInput').classList.add('show');
+        inp.value = '';
+        inp.focus();
+        document.getElementById('accVerifyError').style.display = 'none';
+    });
+
+    // ── Verify: Access Key button ──
+    document.getElementById('accVerifyKeyBtn')?.addEventListener('click', () => {
+        _accVerifyMode = 'key';
+        const inp = document.getElementById('accVerifyCode');
+        inp.placeholder = 'Ключ доступу';
+        inp.maxLength = 64;
+        inp.inputMode = 'text';
+        document.getElementById('accVerifyInput').classList.add('show');
+        inp.value = '';
+        inp.focus();
+        document.getElementById('accVerifyError').style.display = 'none';
+    });
+
+    // ── Verify: Passkey button ──
+    document.getElementById('accVerifyPasskeyBtn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('accVerifyPasskeyBtn');
+        btn.disabled = true; btn.style.opacity = '0.6';
+        try {
+            const optRes = await fetch('/api/admin/db-access/passkey-options', { method: 'POST' });
+            const options = await optRes.json();
+            if (!optRes.ok) { showNotification(options.error || 'Помилка', 'error'); return; }
+
+            options.challenge = _b64urlToBuffer(options.challenge);
+            if (options.allowCredentials) {
+                options.allowCredentials = options.allowCredentials.map(c => ({ ...c, id: _b64urlToBuffer(c.id) }));
+            }
+
+            const credential = await navigator.credentials.get({ publicKey: options });
+
+            const verifyRes = await fetch('/api/admin/db-access/passkey-verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: credential.id,
+                    rawId: _bufferToB64url(credential.rawId),
+                    response: {
+                        authenticatorData: _bufferToB64url(credential.response.authenticatorData),
+                        clientDataJSON: _bufferToB64url(credential.response.clientDataJSON),
+                        signature: _bufferToB64url(credential.response.signature)
+                    },
+                    type: credential.type
+                })
+            });
+            if (!verifyRes.ok) {
+                const d = await verifyRes.json();
+                showNotification(d.error || 'Passkey не вдалось', 'error');
+                return;
+            }
+
+            _accVerified = true;
+            showNotification('Верифіковано через Passkey', 'success');
+            _refreshVerifyBar(status);
+        } catch (err) {
+            if (err.name !== 'NotAllowedError') showNotification('Помилка Passkey', 'error');
+        } finally {
+            btn.disabled = false; btn.style.opacity = '1';
+        }
+    });
+
+    // ── Verify: 2FA/Key submit ──
+    document.getElementById('accVerifySubmit')?.addEventListener('click', async () => {
+        const code = document.getElementById('accVerifyCode').value.trim();
+        const errEl = document.getElementById('accVerifyError');
+        if (!code) { errEl.textContent = 'Введіть код'; errEl.style.display = 'block'; return; }
+
+        const body = _accVerifyMode === '2fa' ? { totpCode: code } : { accessKey: code };
+        try {
+            const res = await fetch('/api/admin/db-access/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!res.ok) { errEl.textContent = data.error || 'Невірний код'; errEl.style.display = 'block'; return; }
+
+            _accVerified = true;
+            showNotification('Верифіковано', 'success');
+            _refreshVerifyBar(status);
+        } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
+    });
+
+    // ── Access key gen/del ──
     let _accKeyAction = null;
     const keyTotpArea = document.getElementById('accKeyTotpArea');
 
@@ -2218,16 +2429,13 @@ function _renderAccessTab(admins, status) {
         document.getElementById('accKeyResult').style.display = 'none';
     });
 
-    const delBtn = document.getElementById('accDelKeyBtn');
-    if (delBtn) {
-        delBtn.addEventListener('click', () => {
-            _accKeyAction = 'delete';
-            keyTotpArea.classList.add('show');
-            document.getElementById('accKeyTotpCode').value = '';
-            document.getElementById('accKeyTotpCode').focus();
-            document.getElementById('accKeyError').style.display = 'none';
-        });
-    }
+    document.getElementById('accDelKeyBtn')?.addEventListener('click', () => {
+        _accKeyAction = 'delete';
+        keyTotpArea.classList.add('show');
+        document.getElementById('accKeyTotpCode').value = '';
+        document.getElementById('accKeyTotpCode').focus();
+        document.getElementById('accKeyError').style.display = 'none';
+    });
 
     document.getElementById('accKeyTotpSubmit').addEventListener('click', async () => {
         const code = document.getElementById('accKeyTotpCode').value.trim();
@@ -2236,11 +2444,7 @@ function _renderAccessTab(admins, status) {
 
         const url = _accKeyAction === 'generate' ? '/api/admin/db-access/generate-key' : '/api/admin/db-access/delete-key';
         try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ totpCode: code })
-            });
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ totpCode: code }) });
             const data = await res.json();
             if (!res.ok) { errEl.textContent = data.error || 'Помилка'; errEl.style.display = 'block'; return; }
 
@@ -2251,68 +2455,40 @@ function _renderAccessTab(admins, status) {
                     <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:12px;padding:16px;">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                            <span style="color:#10B981;font-size:13px;font-weight:700;">Ключ згенеровано! Збережіть його зараз:</span>
+                            <span style="color:#10B981;font-size:13px;font-weight:700;">Ключ згенеровано!</span>
                         </div>
                         <code style="display:block;background:var(--bg-app,#080808);padding:12px 16px;border-radius:10px;font-size:15px;font-weight:700;color:white;word-break:break-all;user-select:all;letter-spacing:1px;">${_escHtml(data.key)}</code>
-                        <p style="color:var(--text-tertiary);font-size:11px;margin-top:10px;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                            Цей ключ більше не буде показаний. Збережіть його в безпечному місці.
-                        </p>
-                    </div>
-                `;
+                        <p style="color:var(--text-tertiary);font-size:11px;margin-top:10px;">Збережіть — більше не буде показаний.</p>
+                    </div>`;
                 resultEl.style.display = 'block';
-                showNotification('Ключ доступу згенеровано', 'success');
+                showNotification('Ключ згенеровано', 'success');
             } else {
-                showNotification('Ключ доступу видалено', 'success');
+                showNotification('Ключ видалено', 'success');
                 loadAccessTab();
             }
         } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
     });
+}
 
-    // Wire up admin toggle buttons
-    let pendingUserId = null, pendingGrant = null;
-    const toggleArea = document.getElementById('accToggleArea');
-
-    container.querySelectorAll('.acc-toggle-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            pendingUserId = parseInt(btn.dataset.userId);
-            pendingGrant = parseInt(btn.dataset.grant);
-            const name = btn.dataset.name || '';
-            toggleArea.classList.add('show');
-            document.getElementById('accToggleLabel').textContent = pendingGrant
-                ? `Надати доступ для ${name} — введіть 2FA-код або ключ:`
-                : `Забрати доступ у ${name} — введіть 2FA-код або ключ:`;
-            document.getElementById('accToggleCode').value = '';
-            document.getElementById('accToggleCode').focus();
-            document.getElementById('accToggleError').style.display = 'none';
-        });
-    });
-
-    document.getElementById('accToggleCancel').addEventListener('click', () => {
-        toggleArea.classList.remove('show');
-    });
-
-    document.getElementById('accToggleConfirm').addEventListener('click', async () => {
-        const input = document.getElementById('accToggleCode').value.trim();
-        const errEl = document.getElementById('accToggleError');
-        if (!input) { errEl.textContent = 'Введіть код'; errEl.style.display = 'block'; return; }
-
-        const body = { userId: pendingUserId, grant: !!pendingGrant };
-        if (/^\d{6}$/.test(input)) body.totpCode = input;
-        else body.accessKey = input;
-
-        try {
-            const res = await fetch('/api/admin/db-access/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (!res.ok) { errEl.textContent = data.error || 'Помилка'; errEl.style.display = 'block'; return; }
-            showNotification(pendingGrant ? 'Доступ надано' : 'Доступ відкликано', 'success');
-            loadAccessTab();
-        } catch (e) { errEl.textContent = 'Помилка з\'єднання'; errEl.style.display = 'block'; }
-    });
+function _refreshVerifyBar(status) {
+    const bar = document.getElementById('accVerifyBar');
+    if (!bar) return;
+    bar.style.borderColor = _accVerified ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)';
+    const icon = bar.querySelector('div[style*="width:40px"]');
+    if (icon) {
+        icon.style.background = _accVerified ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)';
+        icon.innerHTML = _accVerified
+            ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+            : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    }
+    const titleEl = bar.querySelector('div[style*="font-weight:700;font-size:14px"]');
+    if (titleEl) titleEl.textContent = _accVerified ? 'Сесія верифікована' : 'Підтвердіть особу';
+    const descEl = bar.querySelector('div[style*="color:var(--text-tertiary);font-size:12px"]');
+    if (descEl) descEl.textContent = _accVerified ? 'Ви можете перемикати дозволи (5 хв сесія)' : 'Для зміни дозволів потрібна верифікація';
+    const btns = document.getElementById('accVerifyButtons');
+    if (btns) btns.innerHTML = _accVerified ? '<span style="font-size:12px;color:#10B981;font-weight:700;padding:8px 0;">Активна</span>' : '';
+    const inp = document.getElementById('accVerifyInput');
+    if (inp) inp.classList.remove('show');
 }
 
 function _escHtml(str) {

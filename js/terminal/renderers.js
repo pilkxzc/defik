@@ -532,31 +532,64 @@ function _registerTradeMarkerOverlay() {
             createPointFigures({ overlay, coordinates }) {
                 const c = coordinates && coordinates[0];
                 if (!c) return [];
-                const data  = overlay.extendData || {};
-                const isBuy = data.isBuy === true;
-                // Contrasting colors so markers don't blend with candles
-                const color = isBuy ? '#22D3EE' : '#F59E0B';
-                const size  = 7, offset = 12;
-                let coords;
-                if (isBuy) {
-                    const tipY = c.y + offset;
-                    coords = [
-                        { x: c.x,        y: tipY },
-                        { x: c.x - size, y: tipY + size * 1.5 },
-                        { x: c.x + size, y: tipY + size * 1.5 },
-                    ];
+                const data = overlay.extendData || {};
+                const isEntry = data.isEntry;
+                const isExit = data.isExit;
+                const isBuy = data.isBuy;
+                const figures = [];
+
+                if (isEntry) {
+                    // Entry: triangle pointing at the candle
+                    const color = isBuy ? '#22D3EE' : '#F59E0B'; // cyan=long entry, amber=short entry
+                    const size = 7, offset = 14;
+                    let triCoords;
+                    if (isBuy) {
+                        // Triangle below candle pointing up
+                        const tipY = c.y + offset;
+                        triCoords = [
+                            { x: c.x,        y: tipY },
+                            { x: c.x - size, y: tipY + size * 1.5 },
+                            { x: c.x + size, y: tipY + size * 1.5 },
+                        ];
+                    } else {
+                        // Triangle above candle pointing down
+                        const tipY = c.y - offset;
+                        triCoords = [
+                            { x: c.x,        y: tipY },
+                            { x: c.x - size, y: tipY - size * 1.5 },
+                            { x: c.x + size, y: tipY - size * 1.5 },
+                        ];
+                    }
+                    // Glow shadow
+                    figures.push({ type: 'circle', attrs: { x: c.x, y: triCoords[0].y, r: size + 3 }, styles: { style: 'fill', color: color.replace(')', ',0.2)').replace('rgb', 'rgba').replace('#', '') }, ignoreEvent: true });
+                    figures.push({ type: 'polygon', attrs: { coordinates: triCoords }, styles: { style: 'fill', color }, ignoreEvent: true });
                 } else {
-                    const tipY = c.y - offset;
-                    coords = [
-                        { x: c.x,        y: tipY },
-                        { x: c.x - size, y: tipY - size * 1.5 },
-                        { x: c.x + size, y: tipY - size * 1.5 },
+                    // Exit: diamond shape
+                    const pnl = data.pnl || 0;
+                    const color = pnl >= 0 ? '#10B981' : '#EF4444';
+                    const size = 6, offset = 14;
+                    const cy = isBuy === false ? c.y + offset : c.y - offset;
+                    const diamondCoords = [
+                        { x: c.x,        y: cy - size },
+                        { x: c.x + size, y: cy },
+                        { x: c.x,        y: cy + size },
+                        { x: c.x - size, y: cy },
                     ];
+                    figures.push({ type: 'polygon', attrs: { coordinates: diamondCoords }, styles: { style: 'fill', color }, ignoreEvent: true });
                 }
-                return [
-                    { type: 'circle', attrs: { x: c.x, y: coords[0].y, r: size + 2 }, styles: { style: 'fill', color: 'rgba(0,0,0,0.4)' }, ignoreEvent: true },
-                    { type: 'polygon', attrs: { coordinates: coords }, styles: { style: 'fill', color }, ignoreEvent: true },
-                ];
+
+                // Label with price/PnL
+                if (data.label) {
+                    const labelY = isEntry ? (isBuy ? c.y + 30 : c.y - 28) : (isBuy === false ? c.y + 30 : c.y - 28);
+                    figures.push({
+                        type: 'text',
+                        attrs: { x: c.x, y: labelY, text: data.label, align: 'center', baseline: 'middle' },
+                        styles: { style: 'fill', color: '#A1A1A1', size: 9, family: 'JetBrains Mono, monospace' },
+                        ignoreEvent: true,
+                    });
+                }
+
+                return figures;
             },
         });
         _klineMarkerRegistered = true;
@@ -574,31 +607,100 @@ function _getOrInitKlineChart() {
     if (!_klineChart) return null;
     window._klineChart = _klineChart; // expose for chart expand resize
 
-    // Dark theme styles
+    // Dark theme styles with tooltip & crosshair
     _klineChart.setStyles({
         grid: {
             horizontal: { color: 'rgba(255,255,255,0.04)' },
             vertical:   { color: 'rgba(255,255,255,0.04)' },
         },
         candle: {
-            upColor:       '#10B981',
-            downColor:     '#EF4444',
+            type: 'candle_solid',
+            upColor:       'rgba(16,185,129,0.85)',
+            downColor:     'rgba(239,68,68,0.85)',
             noChangeColor: '#A1A1A1',
             bar: {
                 upColor:         '#10B981', downColor:         '#EF4444', noChangeColor:   '#A1A1A1',
                 upBorderColor:   '#10B981', downBorderColor:   '#EF4444', noChangeBorderColor: '#A1A1A1',
                 upWickColor:     '#10B981', downWickColor:     '#EF4444', noChangeWickColor:   '#A1A1A1',
             },
+            tooltip: {
+                showRule: 'always',
+                showType: 'standard',
+                labels: ['O: ', 'H: ', 'L: ', 'C: ', 'V: '],
+                text: {
+                    size: 11,
+                    family: 'JetBrains Mono, monospace',
+                    color: '#A1A1A1',
+                    marginLeft: 6,
+                    marginTop: 4,
+                    marginRight: 6,
+                    marginBottom: 0,
+                },
+            },
+        },
+        indicator: {
+            tooltip: {
+                showRule: 'always',
+                showType: 'standard',
+                text: { size: 11, family: 'JetBrains Mono, monospace', color: '#A1A1A1' },
+            },
+        },
+        crosshair: {
+            show: true,
+            horizontal: {
+                show: true,
+                line: { show: true, style: 'dashed', dashedValue: [4, 3], size: 1, color: 'rgba(255,255,255,0.15)' },
+                text: {
+                    show: true, style: 'fill',
+                    color: '#fff', size: 10, family: 'JetBrains Mono, monospace',
+                    paddingLeft: 4, paddingRight: 4, paddingTop: 3, paddingBottom: 3,
+                    borderSize: 0, borderRadius: 3,
+                    backgroundColor: 'rgba(139,92,246,0.85)',
+                },
+            },
+            vertical: {
+                show: true,
+                line: { show: true, style: 'dashed', dashedValue: [4, 3], size: 1, color: 'rgba(255,255,255,0.15)' },
+                text: {
+                    show: true, style: 'fill',
+                    color: '#fff', size: 10, family: 'JetBrains Mono, monospace',
+                    paddingLeft: 4, paddingRight: 4, paddingTop: 3, paddingBottom: 3,
+                    borderSize: 0, borderRadius: 3,
+                    backgroundColor: 'rgba(139,92,246,0.85)',
+                },
+            },
+        },
+        xAxis: {
+            axisLine: { color: 'rgba(255,255,255,0.06)' },
+            tickLine: { color: 'rgba(255,255,255,0.06)' },
+            tickText: { color: '#636363', size: 10, family: 'JetBrains Mono, monospace' },
+        },
+        yAxis: {
+            axisLine: { color: 'rgba(255,255,255,0.06)' },
+            tickLine: { color: 'rgba(255,255,255,0.06)' },
+            tickText: { color: '#636363', size: 10, family: 'JetBrains Mono, monospace' },
+        },
+        separator: {
+            size: 1,
+            color: 'rgba(255,255,255,0.06)',
+            activeBackgroundColor: 'rgba(139,92,246,0.15)',
         },
     });
+
+    // Add volume sub-indicator
+    try { _klineChart.createIndicator('VOL', false, { id: 'candle_pane' }); } catch(e) {}
 
     return _klineChart;
 }
 
 function initChartInteraction() {
     // klinecharts handles its own scroll/zoom/crosshair/touch interactions
-    // This function is kept for API compatibility with init.js
-    _getOrInitKlineChart();
+    // Defer init until container is actually visible (non-zero dimensions)
+    const el = document.getElementById('liveChartCanvas');
+    if (el && el.clientHeight > 0) {
+        _getOrInitKlineChart();
+    }
+    // If container is hidden (opacity:0 during loading), init will happen on first renderLiveChart call
 }
 
 function renderLiveChart() {
@@ -609,6 +711,15 @@ function renderLiveChart() {
     if (symbolLabel) symbolLabel.textContent = getSymbol();
 
     if (!chart) return;
+
+    // Force resize if chart was initialized while container was invisible (only once)
+    if (!chart._resizedOnce) {
+        const el = document.getElementById('liveChartCanvas');
+        if (el && el.clientHeight > 0 && typeof chart.resize === 'function') {
+            chart.resize();
+            chart._resizedOnce = true;
+        }
+    }
 
     if (!klineData || klineData.length === 0) return;
 
@@ -631,13 +742,28 @@ function renderLiveChart() {
         const displayMarkers = _tradeGroupingEnabled ? _groupMarkersByCandle(tradeMarkers) : tradeMarkers;
         for (const m of displayMarkers) {
             const isLongSide = m.side === 'LONG' || m.side === 'BUY';
+            const pnl = m.pnl || 0;
+            let label = '';
+            if (m.isEntry) {
+                label = (isLongSide ? 'L' : 'S') + ' ' + fmtPrice(m.price);
+            } else {
+                label = fmt(pnl);
+            }
+            if (m.count > 1) label = `${m.count}x ${label}`;
             try {
                 chart.createOverlay({
                     name:       'tradeMarker',
                     groupId:    _klineMarkerGroup,
                     lock:       true,
                     points:     [{ timestamp: m.time * 1000, value: m.price }],
-                    extendData: { isBuy: m.isEntry ? isLongSide : null, isExit: !m.isEntry },
+                    extendData: {
+                        isBuy: isLongSide,
+                        isEntry: m.isEntry,
+                        isExit: !m.isEntry,
+                        pnl: pnl,
+                        label: label,
+                        symbol: m.symbol,
+                    },
                 });
             } catch (e) { /* ok */ }
         }

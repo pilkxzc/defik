@@ -1818,30 +1818,30 @@
                         .acc-btn.green { background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.2); }
                         .acc-btn.red { background:rgba(239,68,68,0.1); color:#EF4444; border:1px solid rgba(239,68,68,0.15); }
                         .acc-btn.primary { background:var(--accent-primary); color:white; }
-                        .acc-user-card { display:flex; align-items:center; gap:14px; padding:16px; background:var(--surface-secondary,#141414); border-radius:14px; margin-bottom:8px; transition:background 0.15s; }
-                        .acc-user-card:last-child { margin-bottom:0; }
-                        .acc-user-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#1c1c1c,#2a2a2a); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; color:var(--text-primary); border:2px solid rgba(255,255,255,0.08); flex-shrink:0; }
-                        .acc-user-info { flex:1; min-width:0; }
-                        .acc-user-name { font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; }
-                        .acc-user-meta { color:var(--text-tertiary); font-size:12px; margin-top:2px; }
                         .acc-badge { padding:2px 8px; border-radius:6px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; }
                         .acc-badge.main { background:rgba(139,92,246,0.15); color:#A78BFA; }
                         .acc-badge.granted { background:rgba(16,185,129,0.12); color:#10B981; }
                         .acc-badge.denied { background:rgba(239,68,68,0.1); color:#EF4444; }
-                        .acc-user-actions { display:flex; align-items:center; gap:10px; flex-shrink:0; }
                         .acc-confirm-row { margin-top:12px; padding:16px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:12px; display:none; }
                         .acc-confirm-row.show { display:block; }
                         .acc-confirm-label { font-size:13px; font-weight:600; color:var(--text-secondary); margin-bottom:10px; }
                         .acc-input-row { display:flex; gap:8px; align-items:center; }
-                        .acc-code-input { flex:1; max-width:200px; padding:11px 16px; background:var(--bg-app,#080808); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:white; font-size:14px; text-align:center; letter-spacing:3px; font-weight:700; outline:none; font-family:monospace; }
+                        .acc-code-input { flex:1; max-width:260px; padding:11px 16px; background:var(--bg-app,#080808); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:white; font-size:14px; text-align:center; letter-spacing:3px; font-weight:700; outline:none; font-family:monospace; }
                         .acc-code-input:focus { border-color:var(--accent-primary); }
                         .acc-error { color:#EF4444; font-size:12px; margin-top:8px; display:none; }
-                        .acc-divider { height:1px; background:rgba(255,255,255,0.05); margin:0; border:none; }
+                        /* Discord-style toggle switch */
+                        .acc-switch { position:relative; width:44px; height:24px; flex-shrink:0; cursor:pointer; display:inline-block; }
+                        .acc-switch input { opacity:0; width:0; height:0; position:absolute; }
+                        .acc-switch-track { position:absolute; inset:0; border-radius:12px; background:rgba(255,255,255,0.12); transition:background 0.2s; }
+                        .acc-switch input:checked ~ .acc-switch-track { background:#10B981; }
+                        .acc-switch-thumb { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:white; transition:left 0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+                        .acc-switch input:checked ~ .acc-switch-thumb { left:22px; }
+                        .acc-perm-row:last-child { border-bottom:none !important; }
+                        .acc-admin-header:hover { background:rgba(255,255,255,0.02); }
                         @media (max-width:768px) {
                             .acc-page { gap:16px; }
                             .acc-section { padding:18px; border-radius:16px; }
-                            .acc-user-card { flex-wrap:wrap; gap:10px; padding:14px; }
-                            .acc-user-actions { width:100%; justify-content:flex-end; }
+                            .acc-perm-row { padding:10px 2px !important; }
                         }
                     </style>
                     <div id="accessTabContent">

@@ -141,6 +141,8 @@ async function init() {
 //  RESIZE
 // ═══════════════════════════════════════════
 window.addEventListener('resize', () => {
+    // Reset resize flag so klinecharts re-measures on next render
+    if (window._klineChart) window._klineChart._resizedOnce = false;
     if (activeTab === 'overview') {
         renderEquityChart();
         renderLiveChart();
