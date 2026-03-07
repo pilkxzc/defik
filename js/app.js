@@ -2223,9 +2223,41 @@ async function initializePage() {
             updateUserAvatar(user.fullName || user.full_name || user.email, user.avatar);
             window.currentUser = user;
 
+            // Ensure admin nav links exist on every page
+            const navSidebar = document.querySelector('.nav-sidebar');
+            const profileLink = navSidebar ? navSidebar.querySelector('[href="/profile"]') : null;
+
+            let adminNavLink = document.getElementById('adminNavLink');
+            let statsNavLink = document.getElementById('statsNavLink');
+
+            if (navSidebar && profileLink) {
+                // Inject statsNavLink if missing
+                if (!statsNavLink) {
+                    const sl = document.createElement('a');
+                    sl.href = '/bot-community-stats';
+                    sl.className = 'nav-item admin-nav-item admin-hidden';
+                    sl.id = 'statsNavLink';
+                    sl.title = 'Статистика спільноти';
+                    sl.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>';
+                    if (window.location.pathname === '/bot-community-stats') sl.classList.add('active');
+                    profileLink.before(sl);
+                    statsNavLink = sl;
+                }
+                // Inject adminNavLink if missing
+                if (!adminNavLink) {
+                    const al = document.createElement('a');
+                    al.href = '/admin';
+                    al.className = 'nav-item admin-nav-item admin-hidden';
+                    al.id = 'adminNavLink';
+                    al.title = 'Панель адміна';
+                    al.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>';
+                    if (window.location.pathname === '/admin') al.classList.add('active');
+                    profileLink.before(al);
+                    adminNavLink = al;
+                }
+            }
+
             // Show admin nav links for admin/moderator
-            const adminNavLink = document.getElementById('adminNavLink');
-            const statsNavLink = document.getElementById('statsNavLink');
             [adminNavLink, statsNavLink].forEach(link => {
                 if (!link) return;
                 if (user.role === 'admin' || user.role === 'moderator') {
