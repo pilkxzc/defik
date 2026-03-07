@@ -2600,7 +2600,9 @@ function _renderFullStats(stats, logs) {
                     const h = stats.hourlyData.find(d => parseInt(d.hour) === i);
                     const count = h ? h.count : 0;
                     const pct = Math.max(2, (count / maxHourly) * 100);
-                    return `<div class="fst-hourly-bar" style="height:${pct}%;" title="${String(i).padStart(2,'0')}:00 — ${count} подій"></div>`;
+                    const intensity = count / maxHourly;
+                    const bg = count === 0 ? 'rgba(255,255,255,0.04)' : `rgba(16,185,129,${0.15 + intensity * 0.45})`;
+                    return `<div class="fst-hourly-bar" style="height:${pct}%;background:${bg};" title="${String(i).padStart(2,'0')}:00 — ${count} подій"></div>`;
                 }).join('')}
             </div>
             <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-top:4px;">
@@ -2719,7 +2721,7 @@ function _renderFullStats(stats, logs) {
                 <input type="date" class="fst-filter" id="fstDateTo" style="max-width:140px;">
                 <button class="fst-page-btn" id="fstApplyFilter" style="background:var(--accent-primary);color:white;border-color:var(--accent-primary);">Фільтр</button>
             </div>
-            <div id="fstLogList">
+            <div id="fstLogList" class="fst-scroll-log">
                 ${_renderActivityRows(logs.activities)}
             </div>
             <div id="fstPagination">

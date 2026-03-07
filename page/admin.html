@@ -1900,12 +1900,12 @@
                             .fst-filter { width:100%; }
                         }
                     </style>
-                    <div class="table-container" style="display:flex;flex-direction:column;gap:16px;">
-                        <div class="table-header">
+                    <div class="table-container" style="display:flex;flex-direction:column;gap:16px;overflow-y:auto;min-height:0;">
+                        <div class="table-header" style="position:sticky;top:0;z-index:2;background:var(--surface);">
                             <span class="table-title">Повна статистика</span>
                             <button class="btn btn-sm" onclick="loadFullStats()" style="padding:6px 14px;font-size:12px;">Оновити</button>
                         </div>
-                        <div id="fullStatsContent">
+                        <div id="fullStatsContent" style="padding:0 20px 20px;">
                             <div style="text-align:center;padding:40px;color:var(--text-tertiary);">Завантаження...</div>
                         </div>
                     </div>

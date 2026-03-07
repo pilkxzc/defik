@@ -209,20 +209,79 @@ let notificationCount = 0;
 
 function _showUpdateBanner() {
     if (document.getElementById('updateBanner')) return;
-    const banner = document.createElement('div');
-    banner.id = 'updateBanner';
-    banner.innerHTML = `
-        <div style="position:fixed;top:0;left:0;right:0;z-index:999999;background:linear-gradient(135deg,#1a1a2e,#16213e);border-bottom:2px solid #10B981;padding:14px 20px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:inherit;animation:ubSlide .4s ease">
-            <span style="font-size:20px">🔄</span>
-            <span style="color:#e0e0e0;font-size:14px">Сервер було оновлено. Натисніть <kbd style="background:#10B981;color:#fff;padding:2px 8px;border-radius:6px;font-size:13px;font-weight:600;margin:0 2px">Ctrl + Shift + R</kbd> щоб оновити сторінку</span>
-            <button onclick="location.reload(true)" style="background:#10B981;color:#fff;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;margin-left:8px">Оновити</button>
-            <button onclick="this.closest('#updateBanner').remove()" style="background:none;border:none;color:#666;font-size:20px;cursor:pointer;margin-left:4px;line-height:1">&times;</button>
+
+    const overlay = document.createElement('div');
+    overlay.id = 'updateBanner';
+    overlay.innerHTML = `
+        <style>
+            .ub-overlay{position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:ubFadeIn .4s ease}
+            .ub-card{background:#141414;border:1px solid rgba(16,185,129,.25);border-radius:24px;padding:40px 44px;max-width:420px;width:90%;text-align:center;box-shadow:0 0 60px rgba(16,185,129,.12),0 20px 60px rgba(0,0,0,.6);animation:ubPop .5s cubic-bezier(.16,1,.3,1)}
+            .ub-icon{width:64px;height:64px;border-radius:50%;background:rgba(16,185,129,.12);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;position:relative}
+            .ub-icon::before{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(16,185,129,.2);animation:ubPulse 2s ease-in-out infinite}
+            .ub-icon svg{width:28px;height:28px;color:#10B981;animation:ubSpin 2s linear infinite}
+            .ub-title{font-size:18px;font-weight:700;color:#fff;margin-bottom:8px;letter-spacing:-.3px}
+            .ub-desc{font-size:14px;color:#a1a1a1;line-height:1.5;margin-bottom:6px}
+            .ub-steps{display:flex;flex-direction:column;gap:10px;margin:20px 0 24px;text-align:left}
+            .ub-step{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#1c1c1c;border-radius:12px;border:1px solid rgba(255,255,255,.06)}
+            .ub-step-num{width:28px;height:28px;border-radius:50%;background:rgba(16,185,129,.15);color:#10B981;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+            .ub-step-text{font-size:13px;color:#ccc;line-height:1.4}
+            .ub-step .done{background:rgba(16,185,129,.25)}
+            .ub-step .done::after{content:'\\2713'}
+            .ub-step:nth-child(1){animation:ubStepIn .4s .2s both}
+            .ub-step:nth-child(2){animation:ubStepIn .4s .4s both}
+            .ub-step:nth-child(3){animation:ubStepIn .4s .6s both}
+            .ub-time{font-size:12px;color:#636363;margin-bottom:20px}
+            .ub-kbd{background:rgba(16,185,129,.15);color:#10B981;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;font-family:monospace;border:1px solid rgba(16,185,129,.2)}
+            .ub-btn{background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:none;padding:12px 32px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;width:100%;letter-spacing:.3px}
+            .ub-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(16,185,129,.3)}
+            .ub-dismiss{background:none;border:none;color:#636363;font-size:13px;cursor:pointer;margin-top:12px;padding:6px;transition:color .2s}
+            .ub-dismiss:hover{color:#a1a1a1}
+            @keyframes ubFadeIn{from{opacity:0}to{opacity:1}}
+            @keyframes ubPop{from{opacity:0;transform:scale(.9) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+            @keyframes ubPulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+            @keyframes ubSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+            @keyframes ubStepIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+        </style>
+        <div class="ub-overlay">
+            <div class="ub-card">
+                <div class="ub-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12a9 9 0 1 1-6.22-8.56"/>
+                        <polyline points="21 3 21 9 15 9"/>
+                    </svg>
+                </div>
+                <div class="ub-title">Сервер оновлюється</div>
+                <div class="ub-desc">Розгортаємо нову версію Yamato.<br>Сторінка оновиться автоматично.</div>
+                <div class="ub-steps">
+                    <div class="ub-step"><span class="ub-step-num done"></span><span class="ub-step-text">Зупинка процесу...</span></div>
+                    <div class="ub-step"><span class="ub-step-num done"></span><span class="ub-step-text">Застосування оновлень...</span></div>
+                    <div class="ub-step"><span class="ub-step-num" id="ubStep3">3</span><span class="ub-step-text">Перезавантаження сторінки</span></div>
+                </div>
+                <div class="ub-time" id="ubTime"></div>
+                <button class="ub-btn" onclick="location.reload(true)">Оновити зараз &nbsp;<span class="ub-kbd">Ctrl+Shift+R</span></button>
+                <button class="ub-dismiss" onclick="this.closest('#updateBanner').remove()">Пропустити</button>
+            </div>
         </div>
     `;
-    const s = document.createElement('style');
-    s.textContent = '@keyframes ubSlide{from{transform:translateY(-100%)}to{transform:translateY(0)}}';
-    banner.appendChild(s);
-    document.body.appendChild(banner);
+    document.body.appendChild(overlay);
+
+    // Auto-reload after 5 seconds
+    const timeEl = overlay.querySelector('#ubTime');
+    const step3 = overlay.querySelector('#ubStep3');
+    let countdown = 5;
+    timeEl.textContent = `Автооновлення через ${countdown} с`;
+    const iv = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+            clearInterval(iv);
+            step3.classList.add('done');
+            step3.textContent = '';
+            timeEl.textContent = 'Оновлення...';
+            location.reload(true);
+        } else {
+            timeEl.textContent = `Автооновлення через ${countdown} с`;
+        }
+    }, 1000);
 }
 
 function initSocketIO() {
