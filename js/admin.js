@@ -2608,7 +2608,7 @@ function _renderFullStats(stats, logs) {
             </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="fst-two-col">
             <!-- Top actions -->
             <div class="fst-section">
                 <div class="fst-section-title">
@@ -2645,7 +2645,7 @@ function _renderFullStats(stats, logs) {
             </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="fst-two-col">
             <!-- Active users -->
             <div class="fst-section">
                 <div class="fst-section-title">
@@ -2746,18 +2746,18 @@ function _renderActivityRows(activities) {
         const statusColor = !a.status_code ? 'var(--text-tertiary)' : a.status_code < 300 ? '#10B981' : a.status_code < 400 ? '#F59E0B' : '#EF4444';
         return `
         <div class="fst-log-row">
-            <div style="color:var(--text-tertiary);font-size:11px;font-weight:600;white-space:nowrap;">${_fstFormatDate(a.created_at)}</div>
-            <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+            <span class="fst-log-time">${_fstFormatDate(a.created_at)}</span>
+            <span class="fst-log-action">
                 <span class="fst-badge" style="background:${catColor}22;color:${catColor};">${a.category || '?'}</span>
-                <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escHtml(a.action)}</span>
-                ${a.full_name ? `<span style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">· ${_escHtml(a.full_name)}</span>` : ''}
-            </div>
-            <div style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${_escHtml(a.path || '')}">${_escHtml(a.path || '—')}</div>
-            <div style="font-size:11px;color:var(--text-tertiary);font-family:monospace;">${_escHtml(a.ip_address || '—')}</div>
-            <div style="display:flex;align-items:center;gap:6px;">
-                ${a.status_code ? `<span style="font-size:11px;font-weight:700;color:${statusColor};">${a.status_code}</span>` : ''}
+                <span class="fst-log-action-text">${_escHtml(a.action)}</span>
+                ${a.full_name ? `<span class="fst-log-user">· ${_escHtml(a.full_name)}</span>` : ''}
+            </span>
+            <span class="fst-log-path" title="${_escHtml(a.path || '')}">${_escHtml(a.path || '—')}</span>
+            <span class="fst-log-ip">${_escHtml(a.ip_address || '—')}</span>
+            <span class="fst-log-status">
+                ${a.status_code ? `<span style="font-weight:700;color:${statusColor};">${a.status_code}</span>` : ''}
                 ${a.duration_ms != null ? `<span style="font-size:10px;color:${a.duration_ms > 1000 ? '#EF4444' : 'var(--text-tertiary)'};">${a.duration_ms}ms</span>` : ''}
-            </div>
+            </span>
         </div>`;
     }).join('');
 }

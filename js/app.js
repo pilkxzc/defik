@@ -207,6 +207,24 @@ function playNotificationSound() {
 let socket = null;
 let notificationCount = 0;
 
+function _showUpdateBanner() {
+    if (document.getElementById('updateBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'updateBanner';
+    banner.innerHTML = `
+        <div style="position:fixed;top:0;left:0;right:0;z-index:999999;background:linear-gradient(135deg,#1a1a2e,#16213e);border-bottom:2px solid #10B981;padding:14px 20px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:inherit;animation:ubSlide .4s ease">
+            <span style="font-size:20px">🔄</span>
+            <span style="color:#e0e0e0;font-size:14px">Сервер було оновлено. Натисніть <kbd style="background:#10B981;color:#fff;padding:2px 8px;border-radius:6px;font-size:13px;font-weight:600;margin:0 2px">Ctrl + Shift + R</kbd> щоб оновити сторінку</span>
+            <button onclick="location.reload(true)" style="background:#10B981;color:#fff;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;margin-left:8px">Оновити</button>
+            <button onclick="this.closest('#updateBanner').remove()" style="background:none;border:none;color:#666;font-size:20px;cursor:pointer;margin-left:4px;line-height:1">&times;</button>
+        </div>
+    `;
+    const s = document.createElement('style');
+    s.textContent = '@keyframes ubSlide{from{transform:translateY(-100%)}to{transform:translateY(0)}}';
+    banner.appendChild(s);
+    document.body.appendChild(banner);
+}
+
 function initSocketIO() {
     // Only init on authenticated pages
     const path = window.location.pathname;
@@ -222,6 +240,19 @@ function initSocketIO() {
 
     socket = io({
         withCredentials: true
+    });
+
+    let _knownBuildId = null;
+
+    socket.on('server_build', ({ buildId }) => {
+        if (!_knownBuildId) {
+            _knownBuildId = buildId;
+            return;
+        }
+        if (buildId !== _knownBuildId) {
+            _knownBuildId = buildId;
+            _showUpdateBanner();
+        }
     });
 
     socket.on('connect', () => {
@@ -1932,7 +1963,7 @@ function initUserPillContextMenu() {
 
     if (isAdmin) {
         items.push(
-            { href: '/admin', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', label: 'Адмін панель', admin: true }
+            { admin: true, submenu: true, icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', label: 'Адмін панель' }
         );
     }
 
@@ -2025,9 +2056,58 @@ function initUserPillContextMenu() {
                 background: rgba(255,255,255,0.06);
                 margin: 4px 8px;
             }
+            #userPillCtxMenu .ctx-admin-wrap {
+                position: relative;
+            }
+            #userPillCtxMenu .ctx-admin-sub {
+                display: none;
+                position: absolute;
+                right: calc(100% + 6px);
+                top: -6px;
+                min-width: 190px;
+                background: #1a1a1a;
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 14px;
+                padding: 6px;
+                box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+                z-index: 10001;
+                max-height: 70vh;
+                overflow-y: auto;
+            }
+            #userPillCtxMenu .ctx-admin-wrap:hover .ctx-admin-sub,
+            #userPillCtxMenu .ctx-admin-sub.open {
+                display: block;
+            }
+            #userPillCtxMenu .ctx-admin-sub .ctx-item {
+                padding: 7px 12px;
+                font-size: 12px;
+                gap: 8px;
+                border-radius: 8px;
+            }
+            #userPillCtxMenu .ctx-admin-sub .ctx-item svg {
+                width: 14px;
+                height: 14px;
+            }
+            #userPillCtxMenu .ctx-item .ctx-chevron {
+                margin-left: auto;
+                opacity: 0.4;
+            }
         `;
         document.head.appendChild(style);
     }
+
+    const adminSubItems = [
+        { href: '/admin',               label: 'Дашборд',          icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
+        { href: '/admin/users',         label: 'Користувачі',      icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>' },
+        { href: '/admin/bots',          label: 'Боти',             icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/></svg>' },
+        { href: '/admin/database',      label: 'База даних',       icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>', color: '#8B5CF6' },
+        { href: '/admin/subscriptions', label: 'Підписки',         icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
+        { href: '/admin/analytics',     label: 'Аналітика',        icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' },
+        { href: '/admin/backup',        label: 'Бекапи',           icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', color: '#10B981' },
+        { href: '/admin/access',        label: 'Доступи',          icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>', color: '#F59E0B' },
+        { href: '/admin/full-stats',    label: 'Повна статистика', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>', color: '#EF4444' },
+        { href: '/admin/bug-reports',   label: 'Баги',             icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z"/></svg>' },
+    ];
 
     // Build items
     items.forEach(item => {
@@ -2035,6 +2115,39 @@ function initUserPillContextMenu() {
             const div = document.createElement('div');
             div.className = 'ctx-divider';
             menu.appendChild(div);
+            return;
+        }
+
+        // Admin submenu
+        if (item.submenu) {
+            const wrap = document.createElement('div');
+            wrap.className = 'ctx-admin-wrap';
+
+            const trigger = document.createElement('a');
+            trigger.href = '/admin';
+            trigger.className = 'ctx-item admin-item' + (currentPath.startsWith('/admin') ? ' active' : '');
+            trigger.innerHTML = item.icon + '<span>' + item.label + '</span><svg class="ctx-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>';
+
+            const sub = document.createElement('div');
+            sub.className = 'ctx-admin-sub';
+            adminSubItems.forEach(si => {
+                const a = document.createElement('a');
+                a.href = si.href;
+                a.className = 'ctx-item' + (currentPath === si.href ? ' active' : '');
+                if (si.color) a.style.color = si.color;
+                a.innerHTML = si.icon + '<span>' + si.label + '</span>';
+                sub.appendChild(a);
+            });
+
+            // Toggle on click for mobile
+            trigger.addEventListener('click', (e) => {
+                e.preventDefault();
+                sub.classList.toggle('open');
+            });
+
+            wrap.appendChild(trigger);
+            wrap.appendChild(sub);
+            menu.appendChild(wrap);
             return;
         }
 

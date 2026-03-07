@@ -4,6 +4,7 @@ const { getMarketPrices } = require('../services/market');
 
 let io = null;
 let priceInterval = null;
+const SERVER_BUILD_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 function initSocket(httpServer, sessionMiddleware) {
     io = new Server(httpServer, {
@@ -25,6 +26,9 @@ function initSocket(httpServer, sessionMiddleware) {
     io.on('connection', (socket) => {
         const session = socket.request.session;
         const userId = session?.userId;
+
+        // Send current build ID so client can detect server restarts
+        socket.emit('server_build', { buildId: SERVER_BUILD_ID });
 
         if (userId) {
             if (!connectedUsers.has(userId)) {

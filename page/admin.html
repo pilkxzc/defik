@@ -1852,34 +1852,52 @@
                 <!-- Full Stats Tab -->
                 <div class="tab-content" id="tab-full-stats">
                     <style>
-                        .fst-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-bottom:24px; }
-                        .fst-card { background:var(--surface-secondary,#141414); border-radius:14px; padding:16px; border:1px solid rgba(255,255,255,0.05); }
-                        .fst-card-value { font-size:24px; font-weight:800; margin-bottom:2px; }
-                        .fst-card-label { font-size:12px; color:var(--text-tertiary); font-weight:600; }
-                        .fst-section { background:var(--surface); border-radius:18px; padding:20px; margin-bottom:16px; border:1px solid rgba(255,255,255,0.05); }
-                        .fst-section-title { font-size:15px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+                        .fst-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-bottom:20px; }
+                        .fst-card { background:var(--surface-secondary,#141414); border-radius:14px; padding:16px; border:1px solid rgba(255,255,255,0.05); transition:border-color 0.15s, transform 0.15s; }
+                        .fst-card:hover { border-color:rgba(255,255,255,0.1); transform:translateY(-1px); }
+                        .fst-card-value { font-size:22px; font-weight:800; margin-bottom:2px; font-family:'JetBrains Mono',monospace; }
+                        .fst-card-label { font-size:11px; color:var(--text-tertiary); font-weight:600; text-transform:uppercase; letter-spacing:0.3px; }
+                        .fst-section { background:var(--surface); border-radius:16px; padding:18px; margin-bottom:0; border:1px solid rgba(255,255,255,0.05); }
+                        .fst-section-title { font-size:14px; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
                         .fst-table { width:100%; border-collapse:collapse; font-size:13px; }
-                        .fst-table th { text-align:left; padding:8px 10px; color:var(--text-tertiary); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); }
+                        .fst-table th { text-align:left; padding:8px 10px; color:var(--text-tertiary); font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); position:sticky; top:0; background:var(--surface); }
                         .fst-table td { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
                         .fst-table tr:last-child td { border-bottom:none; }
+                        .fst-table tr:hover td { background:rgba(255,255,255,0.02); }
                         .fst-bar { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
-                        .fst-bar-fill { height:100%; border-radius:3px; transition:width 0.3s; }
-                        .fst-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
-                        .fst-filter { padding:8px 12px; background:var(--surface-secondary); border:1px solid rgba(255,255,255,0.08); border-radius:8px; color:var(--text-primary); font-size:12px; font-weight:600; outline:none; }
-                        .fst-filter:focus { border-color:var(--accent-primary); }
-                        .fst-badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700; }
-                        .fst-log-row { display:grid; grid-template-columns:140px 1fr 100px 90px 80px; gap:8px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; align-items:center; }
+                        .fst-bar-fill { height:100%; border-radius:3px; transition:width 0.4s ease-out; }
+                        .fst-filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+                        .fst-filter { padding:7px 10px; background:var(--surface-secondary); border:1px solid rgba(255,255,255,0.08); border-radius:8px; color:var(--text-primary); font-size:12px; font-weight:600; outline:none; transition:border-color 0.15s; }
+                        .fst-filter:focus { border-color:var(--accent-primary); box-shadow:0 0 0 2px rgba(139,92,246,0.15); }
+                        .fst-badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700; white-space:nowrap; flex-shrink:0; }
+                        .fst-log-row { display:flex; flex-wrap:wrap; gap:6px 10px; padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; align-items:center; border-radius:8px; transition:background 0.1s; }
+                        .fst-log-row:hover { background:rgba(139,92,246,0.04); }
                         .fst-log-row:last-child { border-bottom:none; }
-                        .fst-pagination { display:flex; gap:6px; justify-content:center; margin-top:16px; align-items:center; }
-                        .fst-page-btn { padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:var(--surface-secondary); color:var(--text-secondary); font-size:12px; font-weight:600; cursor:pointer; }
+                        .fst-log-time { color:var(--text-tertiary); font-size:11px; font-weight:600; white-space:nowrap; font-family:'JetBrains Mono',monospace; min-width:120px; }
+                        .fst-log-action { display:flex; align-items:center; gap:6px; flex:1; min-width:200px; overflow:hidden; }
+                        .fst-log-action-text { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                        .fst-log-user { color:var(--text-tertiary); font-size:11px; white-space:nowrap; }
+                        .fst-log-path { font-size:11px; color:var(--text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+                        .fst-log-ip { font-size:11px; color:var(--text-tertiary); font-family:'JetBrains Mono',monospace; white-space:nowrap; }
+                        .fst-log-status { display:flex; align-items:center; gap:4px; font-size:11px; white-space:nowrap; }
+                        .fst-pagination { display:flex; gap:4px; justify-content:center; margin-top:14px; align-items:center; flex-wrap:wrap; }
+                        .fst-page-btn { padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:var(--surface-secondary); color:var(--text-secondary); font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+                        .fst-page-btn:hover { border-color:rgba(255,255,255,0.15); background:var(--surface-tertiary,#1F1F1F); }
                         .fst-page-btn.active { background:var(--accent-primary); color:white; border-color:var(--accent-primary); }
-                        .fst-hourly { display:flex; align-items:flex-end; gap:2px; height:80px; padding:4px 0; }
-                        .fst-hourly-bar { flex:1; background:rgba(16,185,129,0.3); border-radius:2px 2px 0 0; min-width:8px; transition:height 0.3s; position:relative; }
-                        .fst-hourly-bar:hover { background:rgba(16,185,129,0.6); }
+                        .fst-hourly { display:flex; align-items:flex-end; gap:2px; height:100px; padding:4px 0; }
+                        .fst-hourly-bar { flex:1; border-radius:3px 3px 0 0; min-width:8px; transition:height 0.4s ease-out, background 0.15s; position:relative; cursor:default; }
+                        .fst-hourly-bar:hover { filter:brightness(1.4); }
+                        .fst-two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+                        .fst-scroll-log { max-height:500px; overflow-y:auto; }
+                        @media (max-width:1100px) {
+                            .fst-two-col { grid-template-columns:1fr; }
+                        }
                         @media (max-width:768px) {
                             .fst-grid { grid-template-columns:repeat(2, 1fr); gap:8px; }
-                            .fst-log-row { grid-template-columns:1fr; gap:4px; }
+                            .fst-log-row { gap:4px 8px; padding:8px 6px; }
+                            .fst-log-action { min-width:0; }
                             .fst-filters { flex-direction:column; }
+                            .fst-filter { width:100%; }
                         }
                     </style>
                     <div class="table-container" style="display:flex;flex-direction:column;gap:16px;">
