@@ -78,6 +78,20 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_secret TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN category_id INTEGER DEFAULT NULL'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN community_visible INTEGER DEFAULT 1'); } catch(e) {}
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bot_analytics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            event TEXT NOT NULL,
+            bot_id INTEGER,
+            symbol TEXT,
+            meta TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (bot_id) REFERENCES bots(id)
+        )
+    `);
+
     try { db.run('ALTER TABLE news ADD COLUMN source TEXT DEFAULT NULL'); } catch(e) {}
     try { db.run('ALTER TABLE news ADD COLUMN external_id TEXT DEFAULT NULL'); } catch(e) {}
 
