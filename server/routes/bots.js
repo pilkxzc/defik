@@ -716,7 +716,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
         const cats = dbAll('SELECT * FROM bot_categories WHERE is_visible=1 ORDER BY sort_order');
         const bots = dbAll(`
             SELECT b.id, b.name, b.category_id, b.is_active, b.selected_symbol,
-                   b.profit, b.investment, b.mode,
+                   b.profit, b.investment, b.mode, b.community_visible,
                    bs.total_trades, bs.winning_trades
             FROM bots b LEFT JOIN bot_stats bs ON bs.bot_id = b.id ORDER BY b.id
         `);
@@ -859,6 +859,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 leverage: ts.leverage || null,
                 spread: ts.spread || null,
                 balance: b.investment || 0,
+                community_visible: b.community_visible !== undefined ? !!b.community_visible : true,
             };
         };
         const tree = cats.map(c => ({ ...c, bots: bots.filter(b => b.category_id === c.id).map(toCard) }));
