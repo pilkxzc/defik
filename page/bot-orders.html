@@ -881,6 +881,13 @@
         loadOrders();
         // Show view tabs (hidden in selector mode)
         document.getElementById('viewTabs').style.display = '';
+
+        // Auto-switch tab from URL param ?view=trades/positions/unfilled
+        const viewParam = urlParams.get('view');
+        if (viewParam && viewIdMap[viewParam]) {
+            const btn = document.querySelector(`#viewTabs .view-tab[data-view="${viewParam}"]`);
+            if (btn) btn.click();
+        }
     }
 
     // ═══════════════════════════════════════════

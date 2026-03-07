@@ -3198,30 +3198,52 @@ function _buildAdminFlyout(adminLink) {
             .af-item svg { flex-shrink:0; }
             .af-submenu-trigger { position:relative; }
             .af-submenu {
-                display:none; position:absolute; left:100%; top:-6px;
+                display:none; position:absolute; left:calc(100% - 4px); top:-6px;
                 background:var(--surface,#141414); border:1px solid rgba(255,255,255,0.1);
-                border-radius:12px; padding:4px; min-width:180px; max-height:360px;
+                border-radius:12px; padding:4px; min-width:180px; max-height:400px;
                 overflow-y:auto; scrollbar-width:none;
                 box-shadow:0 12px 40px rgba(0,0,0,0.6); z-index:10;
-                margin-left:4px;
+                padding-left:8px;
+            }
+            .af-submenu::before {
+                content:''; position:absolute; left:-8px; top:0; width:12px; height:100%;
             }
             .af-submenu::-webkit-scrollbar { display:none; }
-            .af-submenu-trigger:hover .af-submenu { display:flex; flex-direction:column; gap:1px; }
+            .af-submenu-trigger:hover > .af-submenu { display:flex; flex-direction:column; gap:1px; }
             .af-submenu-divider { height:1px; background:rgba(255,255,255,0.06); margin:2px 0; }
             .af-bot-name {
                 font-size:10px; font-weight:700; color:var(--text-tertiary);
                 padding:6px 10px 2px; text-transform:uppercase; letter-spacing:0.5px;
             }
+            .af-coin-wrap { position:relative; }
             .af-coin-link {
                 display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px;
                 color:var(--text-secondary); font-size:11px; font-weight:600;
                 text-decoration:none; transition:all .12s; font-family:'JetBrains Mono',monospace;
+                cursor:pointer;
             }
             .af-coin-link:hover { background:rgba(139,92,246,0.12); color:#C4B5FD; }
             .af-coin-dot {
                 width:5px; height:5px; border-radius:50%; background:var(--text-tertiary); flex-shrink:0;
             }
             .af-coin-dot.live { background:#10B981; box-shadow:0 0 4px rgba(16,185,129,0.5); }
+            .af-coin-submenu {
+                display:none; position:absolute; left:calc(100% - 4px); top:-4px;
+                background:var(--surface,#141414); border:1px solid rgba(255,255,255,0.1);
+                border-radius:10px; padding:4px; min-width:140px; z-index:11;
+                box-shadow:0 8px 24px rgba(0,0,0,0.5); padding-left:8px;
+            }
+            .af-coin-submenu::before {
+                content:''; position:absolute; left:-8px; top:0; width:12px; height:100%;
+            }
+            .af-coin-wrap:hover > .af-coin-submenu { display:flex; flex-direction:column; gap:1px; }
+            .af-coin-submenu a {
+                display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:7px;
+                color:var(--text-secondary); font-size:11px; font-weight:600;
+                text-decoration:none; transition:all .12s; white-space:nowrap;
+            }
+            .af-coin-submenu a:hover { background:rgba(139,92,246,0.12); color:#C4B5FD; }
+            .af-coin-submenu a svg { flex-shrink:0; }
         `;
         document.head.appendChild(s);
     }
@@ -3279,14 +3301,32 @@ function _buildAdminFlyout(adminLink) {
                         const sym = c.symbol || c;
                         const displaySym = sym.replace(/USDT|BUSD/gi, '');
                         const hasOpen = c.hasOpenTrade || false;
-                        return `<a href="/bot-orders/${b.id}?symbol=${sym}" class="af-coin-link">
-                            <span class="af-coin-dot${hasOpen ? ' live' : ''}"></span>${displaySym}
-                        </a>`;
+                        const base = `/bot-orders/${b.id}?symbol=${sym}`;
+                        return `<div class="af-coin-wrap">
+                            <div class="af-coin-link">
+                                <span class="af-coin-dot${hasOpen ? ' live' : ''}"></span>${displaySym}
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.3;"><polyline points="9 18 15 12 9 6"/></svg>
+                            </div>
+                            <div class="af-coin-submenu">
+                                <a href="${base}&view=orders"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Ордери</a>
+                                <a href="${base}&view=trades"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Угоди</a>
+                                <a href="${base}&view=positions"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>Позиції</a>
+                                <a href="${base}&view=unfilled" style="color:#EF4444;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Не виконані</a>
+                            </div>
+                        </div>`;
                     }).join('');
                     return `<div class="af-bot-name">${b.name}</div>${coinLinks}`;
                 }).join('<div class="af-submenu-divider"></div>');
-                // Close flyout on sub-link click
+                // Close flyout on any link click
                 container.querySelectorAll('a').forEach(a => a.addEventListener('click', () => flyout.classList.remove('open')));
+                // Also clicking the coin label directly goes to orders view
+                container.querySelectorAll('.af-coin-link').forEach(cl => {
+                    cl.addEventListener('click', function() {
+                        const wrap = this.closest('.af-coin-wrap');
+                        const firstLink = wrap?.querySelector('.af-coin-submenu a');
+                        if (firstLink) { flyout.classList.remove('open'); window.location.href = firstLink.href; }
+                    });
+                });
             } catch (e) {
                 const c = document.getElementById('afOrdersBotList');
                 if (c) c.innerHTML = '<span style="font-size:10px;color:var(--color-down);padding:6px 10px;">Помилка</span>';
