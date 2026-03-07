@@ -7303,36 +7303,38 @@
                 const isEntry = m.isEntry === true || (m.isEntry === undefined && Math.abs(m.pnl || 0) < 0.0001);
 
                 if (curSide === null) {
-                    // First trade — start a window
+                    if (!isEntry) continue; // skip exits without a prior entry
                     curSide = mSide;
                     curFrom = m.time;
                     curTo = m.time;
-                    openCount = isEntry ? 1 : 0;
+                    openCount = 1;
                 } else if (mSide === curSide) {
-                    // Same side — extend the window
                     curTo = m.time;
                     openCount += isEntry ? 1 : -1;
-                    if (openCount < 0) openCount = 0;
+                    // Position fully closed — end the window here
+                    if (openCount <= 0) {
+                        posWindows.push({ from: curFrom, to: curTo, trend: curSide === 'LONG' ? 1 : -1 });
+                        curSide = null;
+                        curFrom = null;
+                        curTo = null;
+                        openCount = 0;
+                    }
                 } else {
                     // Opposite side — close current window, start new
                     posWindows.push({ from: curFrom, to: curTo, trend: curSide === 'LONG' ? 1 : -1 });
-                    curSide = mSide;
-                    curFrom = m.time;
-                    curTo = m.time;
+                    curSide = isEntry ? mSide : null;
+                    curFrom = isEntry ? m.time : null;
+                    curTo = isEntry ? m.time : null;
                     openCount = isEntry ? 1 : 0;
                 }
             }
             // Candle interval in seconds
             const ivSec = klinesData.length > 1 ? klinesData[1].time - klinesData[0].time : 900;
 
-            // Close last window
-            if (curSide !== null) {
-                // If still has open entries, extend — but cap at 50 candle intervals past last trade
-                let lastTime = curTo;
-                if (openCount > 0 && klinesData.length > 0) {
-                    const chartEnd = klinesData[klinesData.length - 1].time;
-                    lastTime = Math.min(chartEnd, curTo + ivSec * 50);
-                }
+            // Close last window only if position is still open
+            if (curSide !== null && openCount > 0) {
+                const chartEnd = klinesData[klinesData.length - 1].time;
+                const lastTime = Math.min(chartEnd, curTo + ivSec * 50);
                 posWindows.push({ from: curFrom, to: lastTime, trend: curSide === 'LONG' ? 1 : -1 });
             }
 
