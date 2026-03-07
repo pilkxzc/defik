@@ -233,9 +233,9 @@
             min-height: 0 !important;
         }
         .right-panel.horizontal-layout > .panel-card.collapsed {
-            flex: 0 0 44px !important;
-            min-width: 44px !important;
-            width: 44px !important;
+            flex: 0 0 36px !important;
+            min-width: 36px !important;
+            width: 36px !important;
             height: auto !important;
             min-height: 0 !important;
             max-height: none !important;
@@ -1442,19 +1442,21 @@
         /* Tabs */
         .panel-tabs {
             display: flex;
-            gap: 4px;
-            padding: 12px 16px;
+            gap: 2px;
+            padding: 5px 10px;
             background: rgba(0,0,0,0.2);
             border-bottom: 1px solid rgba(255,255,255,0.05);
+            align-items: center;
+            min-height: 32px;
         }
 
         .panel-tab {
-            padding: 8px 16px;
+            padding: 4px 10px;
             background: transparent;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             color: var(--text-tertiary);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
@@ -1467,13 +1469,14 @@
         .subscribers-badge {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
+            gap: 3px;
+            padding: 2px 7px;
             background: rgba(139, 92, 246, 0.1);
             border-radius: var(--radius-full);
-            font-size: 12px;
+            font-size: 10px;
             color: #8B5CF6;
         }
+        .subscribers-badge svg { width: 10px; height: 10px; }
 
         /* Resizable Panels */
         .resizable-panel {
@@ -1505,10 +1508,10 @@
         .resizable-panel .panel-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
 
         .resizable-panel.collapsed {
-            min-height: 48px !important;
-            height: 48px !important;
-            max-height: 48px !important;
-            flex: 0 0 48px !important;
+            min-height: 36px !important;
+            height: 36px !important;
+            max-height: 36px !important;
+            flex: 0 0 36px !important;
             overflow: hidden !important;
         }
 
@@ -1657,11 +1660,11 @@
         }
 
         .panel-collapse-btn {
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             background: rgba(255, 255, 255, 0.05);
             border: none;
-            border-radius: 6px;
+            border-radius: 5px;
             color: var(--text-tertiary);
             cursor: pointer;
             display: flex;
@@ -1669,6 +1672,7 @@
             justify-content: center;
             transition: all 0.2s;
         }
+        .panel-collapse-btn svg { width: 12px; height: 12px; }
 
         .panel-collapse-btn:hover {
             background: rgba(255, 255, 255, 0.1);
@@ -1766,16 +1770,17 @@
         }
 
         .panel-header {
-            padding: 12px 16px;
+            padding: 6px 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             flex-shrink: 0;
+            min-height: 32px;
         }
 
         .panel-title {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 700;
             flex: 1;
         }
@@ -1817,8 +1822,8 @@
 
         /* ── Panel drag handle ── */
         .panel-drag-handle {
-            cursor: grab; color: var(--text-tertiary); opacity: 0.35;
-            padding: 4px 5px; font-size: 16px; line-height: 1;
+            cursor: grab; color: var(--text-tertiary); opacity: 0.25;
+            padding: 2px 3px; font-size: 12px; line-height: 1;
             transition: opacity 0.15s; user-select: none; flex-shrink: 0;
         }
         .panel-drag-handle:hover { opacity: 1; }
@@ -1840,10 +1845,11 @@
         /* ── Panel hide button ── */
         .panel-hide-btn {
             background: none; border: none; cursor: pointer;
-            color: var(--text-tertiary); padding: 3px;
-            display: flex; align-items: center; border-radius: 5px;
+            color: var(--text-tertiary); padding: 2px;
+            display: flex; align-items: center; border-radius: 4px;
             transition: color 0.15s, background 0.15s;
         }
+        .panel-hide-btn svg { width: 11px; height: 11px; }
         .panel-hide-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
 
         /* ── Hidden panel (via panel manager) ── */
@@ -3328,7 +3334,7 @@
                     <span class="panel-drag-handle" title="Перетягніть для зміни порядку">⠿</span>
                     <span class="panel-title">Статистика бота</span>
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <button onclick="openStatsModal()" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:6px;padding:3px 8px;color:#10B981;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;" title="Детальна статистика">Детальніше</button>
+                        <button onclick="openStatsModal()" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:5px;padding:2px 6px;color:#10B981;font-size:9px;font-weight:600;cursor:pointer;font-family:inherit;" title="Детальна статистика">Детальніше</button>
                         <div class="subscribers-badge" id="subscribersBadge">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                             <span id="subscribersCount">0</span>
@@ -8598,7 +8604,7 @@
                 }
             } else {
                 if (emaIndicatorId) {
-                    try { klChart.removeIndicator({ paneId: 'candle_pane', name: 'EMA' }); } catch(e) {}
+                    try { klChart.removeIndicator('candle_pane', 'EMA'); } catch(e) {}
                     emaIndicatorId = null;
                 }
             }
@@ -8612,7 +8618,7 @@
                 }
             } else {
                 if (bollIndicatorId) {
-                    try { klChart.removeIndicator({ paneId: 'candle_pane', name: 'BOLL' }); } catch(e) {}
+                    try { klChart.removeIndicator('candle_pane', 'BOLL'); } catch(e) {}
                     bollIndicatorId = null;
                 }
             }
@@ -10333,9 +10339,9 @@
                         if (s[panelId]?.heightBeforeCollapse) restoredH = s[panelId].heightBeforeCollapse;
                     } catch(e) {}
                 }
-                if (restoredH && restoredH > 48) {
+                if (restoredH && restoredH > 36) {
                     panel.style.height = restoredH + 'px';
-                } else if (!panel.style.height || panel.style.height === '48px') {
+                } else if (!panel.style.height || panel.style.height === '36px') {
                     // Default heights per panel
                     const defaults = { panelStats: 'auto', positionPanel: '160px', panelOrders: '' };
                     panel.style.height = defaults[panelId] || '160px';
