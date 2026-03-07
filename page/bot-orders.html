@@ -597,10 +597,6 @@
                 document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--text-tertiary);font-size:16px;">Доступ заборонено</div>';
                 return;
             }
-            if (user?.role === 'admin') {
-                const adminLink = document.getElementById('adminNavLink');
-                if (adminLink) adminLink.classList.remove('admin-hidden');
-            }
             if (isSelectorMode) {
                 showBotSelector();
             } else {
