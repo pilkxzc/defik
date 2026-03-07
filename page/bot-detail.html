@@ -1430,7 +1430,7 @@
         /* Resizable Panels */
         .resizable-panel {
             position: relative;
-            min-height: 120px;
+            min-height: 80px;
             transition: none;
             display: flex;
             flex-direction: column;
@@ -1702,7 +1702,9 @@
             flex-direction: column;
             gap: var(--gap-md);
             overflow-y: auto;
+            overflow-x: hidden;
             scrollbar-width: none;
+            min-height: 0; /* allow flex shrink in grid */
         }
         .right-panel::-webkit-scrollbar { display: none; }
 
@@ -2734,6 +2736,16 @@
             .right-panel {
                 grid-column: 2;
                 grid-row: 3;
+                overflow-y: visible;
+            }
+            /* In stacked layout, panels don't need fixed heights */
+            .right-panel .resizable-panel:not(.collapsed) {
+                height: auto !important;
+                min-height: 80px;
+            }
+            .right-panel .resizable-panel#panelOrders:not(.collapsed) {
+                min-height: 200px;
+                max-height: 500px;
             }
         }
 
@@ -2774,6 +2786,7 @@
                 grid-column: 1 !important;
                 grid-row: 3 !important;
                 padding: 12px;
+                overflow-y: visible;
             }
         }
         @media (max-width: 480px) {
@@ -3246,7 +3259,7 @@
             </div>
 
             <!-- Bot Stats Overview -->
-            <div class="panel-card resizable-panel" id="panelStats" data-panel="stats" style="height: auto; flex-shrink: 0;">
+            <div class="panel-card resizable-panel" id="panelStats" data-panel="stats" data-max-height="450" style="height: auto; flex-shrink: 0;">
                 <div class="resize-handle-w" data-panel="panelStats"></div>
                 <div class="panel-header" style="position:relative;">
                     <div class="color-edit-marker" data-target="panelStats" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelStats',this.value)"></div>
@@ -3339,7 +3352,7 @@
             </div>
 
             <!-- Current Position -->
-            <div class="panel-card resizable-panel" id="positionPanel" data-panel="position" data-max-height="450" style="height: auto; min-height: 48px;">
+            <div class="panel-card resizable-panel" id="positionPanel" data-panel="position" data-min-height="80" style="height: 160px; flex-shrink: 0;">
                 <div class="resize-handle-w" data-panel="positionPanel"></div>
                 <div class="panel-header" style="position:relative;">
                     <div class="color-edit-marker" data-target="positionPanel" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('positionPanel',this.value)"></div>
@@ -3359,7 +3372,7 @@
             </div>
 
             <!-- Open Orders & Trades -->
-            <div class="panel-card resizable-panel" id="panelOrders" data-panel="orders" style="flex: 1; min-height: 200px;">
+            <div class="panel-card resizable-panel" id="panelOrders" data-panel="orders" data-min-height="200" style="flex: 1; min-height: 200px;">
                 <div class="resize-handle-w" data-panel="panelOrders"></div>
                 <div class="panel-tabs" style="align-items:center;position:relative;">
                     <div class="color-edit-marker" data-target="panelOrders" title="Змінити колір панелі"><input type="color" value="#141414" onchange="setElementColor('panelOrders',this.value)"></div>
@@ -5659,7 +5672,7 @@
             saveUserTheme();
             // Apply panel backgrounds
             if (p.panelBg) {
-                ['panelStats','panelInstruments','positionPanel','panelOrders'].forEach(id => {
+                ['panelStats','positionPanel','panelOrders'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) {
                         el.style.backgroundColor = p.panelBg;
@@ -5669,7 +5682,7 @@
                     }
                 });
                 const panelColors = {};
-                ['panelStats','panelInstruments','positionPanel','panelOrders'].forEach(id => {
+                ['panelStats','positionPanel','panelOrders'].forEach(id => {
                     panelColors[id] = p.panelBg;
                 });
                 localStorage.setItem(`yamato_bot_${botId}_panelColors`, JSON.stringify(panelColors));
@@ -5684,7 +5697,7 @@
             if (typeof updateCandleColors === 'function') updateCandleColors();
             saveUserTheme();
             // Reset panel colors
-            ['panelStats','panelInstruments','positionPanel','panelOrders'].forEach(id => {
+            ['panelStats','positionPanel','panelOrders'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     el.style.backgroundColor = '';
@@ -10235,13 +10248,12 @@
                         if (panel) container.appendChild(panel);
                     });
                 }
-                const panelMinH = { panelStats: 280, panelInstruments: 80 };
                 Object.keys(sizes).forEach(panelId => {
                     if (panelId === '_order') return;
                     const panel = document.getElementById(panelId);
                     if (!panel) return;
-                    if (sizes[panelId].height) {
-                        const minH = panelMinH[panelId] || 80;
+                    if (sizes[panelId].height && !sizes[panelId].collapsed) {
+                        const minH = panel.dataset.minHeight ? parseInt(panel.dataset.minHeight) : 80;
                         panel.style.height = Math.max(sizes[panelId].height, minH) + 'px';
                     }
                     if (sizes[panelId].width) {
@@ -10268,13 +10280,23 @@
             const sizes = { _order: [] };
             panels.forEach(panel => {
                 sizes._order.push(panel.id);
-                sizes[panel.id] = {
-                    height: panel.offsetHeight,
-                    collapsed: panel.classList.contains('collapsed'),
+                const isCollapsed = panel.classList.contains('collapsed');
+                const entry = {
+                    height: isCollapsed ? 48 : panel.offsetHeight,
+                    collapsed: isCollapsed,
                     hidden: panel.classList.contains('panel-hidden'),
                     width: panel.style.width || '',
                     flex: panel.style.flex || ''
                 };
+                // Preserve heightBeforeCollapse if panel is collapsed
+                if (isCollapsed) {
+                    const prev = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
+                    try {
+                        const p = prev ? JSON.parse(prev) : {};
+                        if (p[panel.id]?.heightBeforeCollapse) entry.heightBeforeCollapse = p[panel.id].heightBeforeCollapse;
+                    } catch(e) {}
+                }
+                sizes[panel.id] = entry;
             });
             localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(sizes));
         }
@@ -10282,7 +10304,41 @@
         // Toggle panel collapse
         function togglePanelCollapse(panelId) {
             const panel = document.getElementById(panelId);
-            if (panel) { panel.classList.toggle('collapsed'); savePanelSizes(); }
+            if (!panel) return;
+            const wasCollapsed = panel.classList.contains('collapsed');
+            if (wasCollapsed) {
+                // Uncollapsing: restore saved height or default
+                panel.classList.remove('collapsed');
+                const saved = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
+                let restoredH = null;
+                if (saved) {
+                    try {
+                        const s = JSON.parse(saved);
+                        if (s[panelId]?.heightBeforeCollapse) restoredH = s[panelId].heightBeforeCollapse;
+                    } catch(e) {}
+                }
+                if (restoredH && restoredH > 48) {
+                    panel.style.height = restoredH + 'px';
+                } else if (!panel.style.height || panel.style.height === '48px') {
+                    // Default heights per panel
+                    const defaults = { panelStats: 'auto', positionPanel: '160px', panelOrders: '' };
+                    panel.style.height = defaults[panelId] || '160px';
+                    if (panelId === 'panelOrders') panel.style.flex = '1';
+                }
+            } else {
+                // Collapsing: save current height first
+                const curH = panel.offsetHeight;
+                panel.classList.add('collapsed');
+                // Save pre-collapse height
+                const saved = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
+                try {
+                    const s = saved ? JSON.parse(saved) : {};
+                    if (!s[panelId]) s[panelId] = {};
+                    s[panelId].heightBeforeCollapse = curH;
+                    localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(s));
+                } catch(e) {}
+            }
+            savePanelSizes();
         }
 
         // Toggle panel hidden (via eye icon or panel manager)
@@ -10419,32 +10475,31 @@
             });
 
             function calcMaxHeight(panel) {
-                // Per-panel hard cap from data-max-height attribute
                 const hardCap = panel.dataset.maxHeight ? parseInt(panel.dataset.maxHeight) : 99999;
-                // Limit panel growth so that the last flex:1 panel keeps its min-height
                 const container = panel.parentElement;
-                const ordersPanel = document.getElementById('panelOrders');
-                if (!ordersPanel || ordersPanel === panel || ordersPanel.classList.contains('panel-hidden')) return hardCap;
                 const containerH = container.offsetHeight;
                 const gap = parseFloat(getComputedStyle(container).gap) || 8;
                 let othersH = 0;
                 let visibleCount = 0;
                 Array.from(container.querySelectorAll('.resizable-panel')).forEach(p => {
-                    if (p === panel || p.classList.contains('panel-hidden')) return;
+                    if (p === panel || p.classList.contains('panel-hidden') || p.classList.contains('collapsed')) return;
                     visibleCount++;
-                    if (p.id === 'panelOrders') othersH += 200; // min-height for panelOrders
-                    else othersH += p.offsetHeight;
+                    // Use per-panel min-height or 80px fallback
+                    const pMinH = p.dataset.minHeight ? parseInt(p.dataset.minHeight) : (p.id === 'panelOrders' ? 200 : 80);
+                    othersH += Math.max(pMinH, p.classList.contains('collapsed') ? 48 : pMinH);
                 });
                 visibleCount++; // count the panel being resized
                 const gapsH = gap * Math.max(0, visibleCount - 1);
-                return Math.min(hardCap, Math.max(120, containerH - othersH - gapsH));
+                const panelMinH = panel.dataset.minHeight ? parseInt(panel.dataset.minHeight) : 80;
+                return Math.min(hardCap, Math.max(panelMinH, containerH - othersH - gapsH));
             }
 
             document.addEventListener('mousemove', (e) => {
                 if (!resizing || !currentResizePanel) return;
                 const deltaY = e.clientY - startY;
                 const maxH = calcMaxHeight(currentResizePanel);
-                const newHeight = Math.max(120, Math.min(maxH, startHeight + deltaY));
+                const minH = currentResizePanel.dataset.minHeight ? parseInt(currentResizePanel.dataset.minHeight) : 80;
+                const newHeight = Math.max(minH, Math.min(maxH, startHeight + deltaY));
                 currentResizePanel.style.height = newHeight + 'px';
                 if (currentResizePanel.classList.contains('collapsed')) {
                     currentResizePanel.classList.remove('collapsed');
@@ -10455,7 +10510,8 @@
                 if (!resizing || !currentResizePanel) return;
                 const deltaY = e.touches[0].clientY - startY;
                 const maxH = calcMaxHeight(currentResizePanel);
-                const newHeight = Math.max(120, Math.min(maxH, startHeight + deltaY));
+                const minH = currentResizePanel.dataset.minHeight ? parseInt(currentResizePanel.dataset.minHeight) : 80;
+                const newHeight = Math.max(minH, Math.min(maxH, startHeight + deltaY));
                 currentResizePanel.style.height = newHeight + 'px';
                 if (currentResizePanel.classList.contains('collapsed')) {
                     currentResizePanel.classList.remove('collapsed');
