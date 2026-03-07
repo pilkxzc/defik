@@ -973,7 +973,7 @@
         const start = (tradesPage - 1) * perPage;
         const pageTrades = trades.slice(start, start + perPage);
 
-        body.innerHTML = pageTrades.map(t => {
+        body.innerHTML = pageTrades.map((t, ti) => {
             const isBuy = t.side === 'BUY' || t.side === 'LONG';
             const pnl = parseFloat(t.pnl) || 0;
             const pnlStr = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
@@ -982,7 +982,7 @@
             const closeDt = t.closedAt ? new Date(t.closedAt) : null;
             const fmtD = d => d ? d.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + d.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
             const statusCls = t.status === 'closed' ? 'badge-filled' : t.status === 'open' ? 'badge-new' : 'badge-type';
-            return `<tr>
+            return `<tr style="cursor:pointer;" onclick="showTradeOnChart(${start + ti})">
                 <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${pnl >= 0 ? '#10B981' : '#EF4444'}" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(openDt)}</td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(closeDt)}</td>
@@ -1103,13 +1103,13 @@
         const start = (positionsPage - 1) * perPage;
         const pagePos = positions.slice(start, start + perPage);
 
-        body.innerHTML = pagePos.map(p => {
+        body.innerHTML = pagePos.map((p, pi) => {
             const isBuy = p.side === 'BUY' || p.side === 'LONG';
             const pnlStr = (p.pnl >= 0 ? '+' : '') + '$' + Math.abs(p.pnl).toFixed(2);
             const pnlCls = p.pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
             const fmtD = d => d ? new Date(d).toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + new Date(d).toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit' }) : '\u2014';
             const statusCls = p.status === 'closed' ? 'badge-filled' : 'badge-new';
-            return `<tr>
+            return `<tr style="cursor:pointer;" onclick="showPositionOnChart(${start + pi})">
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(p.openedAt)}</td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(p.closedAt)}</td>
                 <td class="mono">${(p.symbol || '').replace('USDT', '')}</td>
@@ -1451,6 +1451,7 @@
     let _chartViewStart = 0;     // viewport: first visible kline index
     let _chartViewCount = 200;   // viewport: number of visible klines
     let _isDragging = false;
+    let _wasDragging = false;  // track drag for click suppression
     let _dragStartX = 0;
     let _dragStartViewStart = 0;
     let _mouseX = -1, _mouseY = -1;  // crosshair
@@ -1493,6 +1494,199 @@
         if (o) showOrderDetail(o);
     };
 
+    window.showTradeOnChart = function(idx) {
+        const t = allTrades[idx];
+        if (!t) return;
+        // Create synthetic order-like object from trade
+        const synth = {
+            orderId: t.id || idx,
+            symbol: t.symbol || symbol,
+            side: t.side || t.positionSide || 'BUY',
+            type: 'TRADE',
+            price: parseFloat(t.price) || 0,
+            avgPrice: parseFloat(t.price) || 0,
+            stopPrice: 0,
+            quantity: parseFloat(t.quantity) || 0,
+            executedQty: parseFloat(t.quantity) || 0,
+            status: t.status === 'closed' ? 'FILLED' : 'NEW',
+            time: t.openedAt ? new Date(t.openedAt).getTime() : 0,
+            updateTime: t.closedAt ? new Date(t.closedAt).getTime() : 0,
+            _isTrade: true,
+            _tradeData: t
+        };
+        showOrderDetail(synth);
+    };
+
+    window.showPositionOnChart = function(idx) {
+        const p = allPositions[idx];
+        if (!p) return;
+        const synth = {
+            orderId: 'pos-' + idx,
+            symbol: p.symbol || symbol,
+            side: p.side || 'BUY',
+            type: 'POSITION',
+            price: p.entryPrice || 0,
+            avgPrice: p.exitPrice || 0,
+            stopPrice: 0,
+            quantity: p.quantity || 0,
+            executedQty: p.quantity || 0,
+            status: p.status === 'closed' ? 'FILLED' : 'NEW',
+            time: p.openedAt ? new Date(p.openedAt).getTime() : 0,
+            updateTime: p.closedAt ? new Date(p.closedAt).getTime() : 0,
+            _isPosition: true,
+            _positionData: p
+        };
+        showOrderDetail(synth);
+    };
+
+    // Build info panel HTML for order/trade/position
+    function buildInfoPanel(o, badgeSide, statusCls, fmtDt) {
+        let html = '';
+
+        if (o._isTrade) {
+            const t = o._tradeData;
+            const pnl = parseFloat(t.pnl) || 0;
+            const pnlPct = parseFloat(t.pnlPercent) || 0;
+            const pnlColor = pnl >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+            html = `<h4>Деталі угоди</h4>
+                <div class="info-row"><span class="info-label">ID</span><span class="info-value">${t.id || ''}</span></div>
+                <div class="info-row"><span class="info-label">Символ</span><span class="info-value">${t.symbol || ''}</span></div>
+                <div class="info-row"><span class="info-label">Сторона</span><span class="info-value"><span class="${badgeSide}">${t.side || t.positionSide || ''}</span></span></div>
+                <div class="info-row"><span class="info-label">Ціна входу</span><span class="info-value">$${fmtPrice(t.price)}</span></div>
+                <div class="info-row"><span class="info-label">К-сть</span><span class="info-value">${parseFloat(t.quantity || 0).toFixed(4)}</span></div>
+                <div class="info-row"><span class="info-label">PnL</span><span class="info-value" style="color:${pnlColor};font-weight:700;">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></div>
+                <div class="info-row"><span class="info-label">Статус</span><span class="info-value"><span class="${statusCls}">${t.status || ''}</span></span></div>
+                <div class="info-row"><span class="info-label">Відкрито</span><span class="info-value" style="font-size:10px;">${fmtDt(t.openedAt)}</span></div>
+                <div class="info-row"><span class="info-label">Закрито</span><span class="info-value" style="font-size:10px;">${fmtDt(t.closedAt)}</span></div>`;
+
+            // Find related orders for this trade
+            const relOrders = findRelatedOrders(o);
+            if (relOrders.length > 0) {
+                html += `<h4 style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">Пов'язані ордери (${relOrders.length})</h4>`;
+                relOrders.forEach(ro => {
+                    const roCls = ro.status === 'FILLED' ? 'badge-filled' : ro.status === 'CANCELED' ? 'badge-canceled' : 'badge-type';
+                    html += `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:10px;">
+                        <span class="${ro.side === 'BUY' ? 'badge-long' : 'badge-short'}" style="font-size:8px;">${ro.side}</span>
+                        <span class="badge-type" style="font-size:8px;">${(ro.type||'').replace(/_/g,' ')}</span>
+                        <span class="${roCls}" style="font-size:8px;">${ro.status}</span>
+                        <span style="color:var(--text-tertiary);">$${fmtPrice(ro.avgPrice > 0 ? ro.avgPrice : ro.price)}</span>
+                    </div>`;
+                });
+            }
+        } else if (o._isPosition) {
+            const p = o._positionData;
+            const pnl = p.pnl || 0;
+            const pnlColor = pnl >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+            html = `<h4>Деталі позиції</h4>
+                <div class="info-row"><span class="info-label">Символ</span><span class="info-value">${p.symbol || ''}</span></div>
+                <div class="info-row"><span class="info-label">Сторона</span><span class="info-value"><span class="${badgeSide}">${p.side}</span></span></div>
+                <div class="info-row"><span class="info-label">Ціна входу</span><span class="info-value">$${fmtPrice(p.entryPrice)}</span></div>
+                ${p.exitPrice > 0 ? `<div class="info-row"><span class="info-label">Ціна виходу</span><span class="info-value">$${fmtPrice(p.exitPrice)}</span></div>` : ''}
+                <div class="info-row"><span class="info-label">К-сть</span><span class="info-value">${p.quantity.toFixed(4)}</span></div>
+                <div class="info-row"><span class="info-label">PnL</span><span class="info-value" style="color:${pnlColor};font-weight:700;">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}</span></div>
+                <div class="info-row"><span class="info-label">Тривалість</span><span class="info-value">${fmtDuration(p.duration)}</span></div>
+                <div class="info-row"><span class="info-label">Статус</span><span class="info-value"><span class="${statusCls}">${p.status}</span></span></div>
+                <div class="info-row"><span class="info-label">Відкрито</span><span class="info-value" style="font-size:10px;">${fmtDt(p.openedAt)}</span></div>
+                <div class="info-row"><span class="info-label">Закрито</span><span class="info-value" style="font-size:10px;">${fmtDt(p.closedAt)}</span></div>`;
+
+            // Find related orders
+            const relOrders = findRelatedOrders(o);
+            if (relOrders.length > 0) {
+                html += `<h4 style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">Пов'язані ордери (${relOrders.length})</h4>`;
+                relOrders.forEach(ro => {
+                    const roCls = ro.status === 'FILLED' ? 'badge-filled' : ro.status === 'CANCELED' ? 'badge-canceled' : 'badge-type';
+                    html += `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:10px;">
+                        <span class="${ro.side === 'BUY' ? 'badge-long' : 'badge-short'}" style="font-size:8px;">${ro.side}</span>
+                        <span class="badge-type" style="font-size:8px;">${(ro.type||'').replace(/_/g,' ')}</span>
+                        <span class="${roCls}" style="font-size:8px;">${ro.status}</span>
+                        <span style="color:var(--text-tertiary);">$${fmtPrice(ro.avgPrice > 0 ? ro.avgPrice : ro.price)}</span>
+                    </div>`;
+                });
+            }
+        } else {
+            // Regular order
+            html = `<h4>Деталі ордеру</h4>
+                <div class="info-row"><span class="info-label">Order ID</span><span class="info-value">${o.orderId}</span></div>
+                <div class="info-row"><span class="info-label">Символ</span><span class="info-value">${o.symbol}</span></div>
+                <div class="info-row"><span class="info-label">Сторона</span><span class="info-value"><span class="${badgeSide}">${o.side}</span></span></div>
+                <div class="info-row"><span class="info-label">Тип</span><span class="info-value">${(o.type || '').replace(/_/g, ' ')}</span></div>
+                <div class="info-row"><span class="info-label">Ціна</span><span class="info-value">$${fmtPrice(o.price)}</span></div>
+                ${o.stopPrice > 0 ? `<div class="info-row"><span class="info-label">Stop ціна</span><span class="info-value">$${fmtPrice(o.stopPrice)}</span></div>` : ''}
+                ${o.avgPrice > 0 ? `<div class="info-row"><span class="info-label">Сер. ціна</span><span class="info-value">$${fmtPrice(o.avgPrice)}</span></div>` : ''}
+                <div class="info-row"><span class="info-label">К-сть</span><span class="info-value">${parseFloat(o.quantity || 0).toFixed(4)}</span></div>
+                <div class="info-row"><span class="info-label">Виконано</span><span class="info-value">${parseFloat(o.executedQty || 0).toFixed(4)}</span></div>
+                <div class="info-row"><span class="info-label">Статус</span><span class="info-value"><span class="${statusCls}">${o.status}</span></span></div>
+                <div class="info-row"><span class="info-label">Створено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.time)}</span></div>
+                <div class="info-row"><span class="info-label">Оновлено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.updateTime)}</span></div>`;
+
+            // Find related orders (same time bucket ± 1 candle)
+            const relOrders = findRelatedOrders(o);
+            if (relOrders.length > 0) {
+                html += `<h4 style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">Близькі ордери (${relOrders.length})</h4>`;
+                relOrders.forEach(ro => {
+                    const roCls = ro.status === 'FILLED' ? 'badge-filled' : ro.status === 'CANCELED' ? 'badge-canceled' : ro.status === 'EXPIRED' ? 'badge-expired' : 'badge-type';
+                    html += `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:10px;cursor:pointer;" onclick="showOrderDirect(${ro.orderId})">
+                        <span style="color:var(--text-tertiary);">#${ro.orderId}</span>
+                        <span class="${ro.side === 'BUY' ? 'badge-long' : 'badge-short'}" style="font-size:8px;">${ro.side}</span>
+                        <span class="badge-type" style="font-size:8px;">${(ro.type||'').replace(/_/g,' ')}</span>
+                        <span class="${roCls}" style="font-size:8px;">${ro.status}</span>
+                        <span style="color:var(--text-tertiary);">$${fmtPrice(ro.avgPrice > 0 ? ro.avgPrice : ro.price)}</span>
+                    </div>`;
+                });
+            }
+
+            // Find related trades
+            const relTrades = findRelatedTrades(o);
+            if (relTrades.length > 0) {
+                html += `<h4 style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">Пов'язані угоди (${relTrades.length})</h4>`;
+                relTrades.forEach(rt => {
+                    const pnl = parseFloat(rt.pnl) || 0;
+                    const pnlColor = pnl >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+                    html += `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:10px;">
+                        <span class="${(rt.side||'BUY') === 'BUY' || rt.side === 'LONG' ? 'badge-long' : 'badge-short'}" style="font-size:8px;">${rt.side || rt.positionSide || ''}</span>
+                        <span style="color:var(--text-tertiary);">$${fmtPrice(rt.price)}</span>
+                        <span style="color:${pnlColor};font-weight:600;">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}</span>
+                    </div>`;
+                });
+            }
+        }
+
+        return html;
+    }
+
+    // Find orders related to a given order/trade/position by time proximity
+    function findRelatedOrders(o) {
+        const oTime = o.time || 0;
+        const oUpdate = o.updateTime || 0;
+        const sym = o.symbol || symbol;
+        const intervalMs = _tfMs[_chartTF] || 900000;
+        const window = intervalMs * 3; // ±3 candles
+        return allOrders.filter(ro => {
+            if (ro.orderId === o.orderId) return false;
+            if (ro.symbol !== sym) return false;
+            const roTime = getOrderTime(ro);
+            return Math.abs(roTime - oTime) <= window || (oUpdate > 0 && Math.abs(roTime - oUpdate) <= window);
+        });
+    }
+
+    // Find trades related to a given order by time/price proximity
+    function findRelatedTrades(o) {
+        if (!tradesLoaded || allTrades.length === 0) return [];
+        const oTime = o.time || 0;
+        const oUpdate = o.updateTime || 0;
+        const sym = o.symbol || symbol;
+        const window = 60000; // ±60 seconds
+        return allTrades.filter(t => {
+            if (t.symbol !== sym) return false;
+            const tOpen = t.openedAt ? new Date(t.openedAt).getTime() : 0;
+            const tClose = t.closedAt ? new Date(t.closedAt).getTime() : 0;
+            return (tOpen > 0 && Math.abs(tOpen - oTime) <= window) ||
+                   (tOpen > 0 && oUpdate > 0 && Math.abs(tOpen - oUpdate) <= window) ||
+                   (tClose > 0 && Math.abs(tClose - oTime) <= window) ||
+                   (tClose > 0 && oUpdate > 0 && Math.abs(tClose - oUpdate) <= window);
+        });
+    }
+
     window.showOrderDetail = function(o) {
         const wasOpen = document.getElementById('chartOverlay').classList.contains('open');
         const prevSymbol = _chartOrder?.symbol;
@@ -1515,29 +1709,17 @@
         const isBuy = o.side === 'BUY';
         const badgeSide = isBuy ? 'badge-long' : 'badge-short';
         const statusCls = o.status === 'FILLED' ? 'badge-filled' : o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : o.status === 'EXPIRED' ? 'badge-expired' : 'badge-type';
+        const titleType = o._isTrade ? 'УГОДА' : o._isPosition ? 'ПОЗИЦІЯ' : (o.type || '').replace(/_/g, ' ');
+        const titleId = o._isTrade ? (o._tradeData.id || '') : o._isPosition ? '' : '#' + o.orderId;
         document.getElementById('chartTitle').innerHTML =
             `<span class="${badgeSide}">${o.side}</span>` +
-            `<span class="badge-type">${(o.type || '').replace(/_/g, ' ')}</span>` +
+            `<span class="badge-type">${titleType}</span>` +
             `<span class="${statusCls}">${o.status}</span>` +
-            `<span style="color:var(--text-secondary);font-size:12px;">#${o.orderId}</span>`;
+            (titleId ? `<span style="color:var(--text-secondary);font-size:12px;">${titleId}</span>` : '');
 
         // Info panel
         const fmtDt = d => d ? new Date(d).toLocaleDateString('uk-UA') + ' ' + new Date(d).toLocaleTimeString('uk-UA') : '\u2014';
-        document.getElementById('chartInfoPanel').innerHTML = `
-            <h4>Деталі ордеру</h4>
-            <div class="info-row"><span class="info-label">Order ID</span><span class="info-value">${o.orderId}</span></div>
-            <div class="info-row"><span class="info-label">Символ</span><span class="info-value">${o.symbol}</span></div>
-            <div class="info-row"><span class="info-label">Сторона</span><span class="info-value"><span class="${badgeSide}">${o.side}</span></span></div>
-            <div class="info-row"><span class="info-label">Тип</span><span class="info-value">${(o.type || '').replace(/_/g, ' ')}</span></div>
-            <div class="info-row"><span class="info-label">Ціна</span><span class="info-value">$${fmtPrice(o.price)}</span></div>
-            ${o.stopPrice > 0 ? `<div class="info-row"><span class="info-label">Stop ціна</span><span class="info-value">$${fmtPrice(o.stopPrice)}</span></div>` : ''}
-            ${o.avgPrice > 0 ? `<div class="info-row"><span class="info-label">Сер. ціна</span><span class="info-value">$${fmtPrice(o.avgPrice)}</span></div>` : ''}
-            <div class="info-row"><span class="info-label">К-сть</span><span class="info-value">${parseFloat(o.quantity || 0).toFixed(4)}</span></div>
-            <div class="info-row"><span class="info-label">Виконано</span><span class="info-value">${parseFloat(o.executedQty || 0).toFixed(4)}</span></div>
-            <div class="info-row"><span class="info-label">Статус</span><span class="info-value"><span class="${statusCls}">${o.status}</span></span></div>
-            <div class="info-row"><span class="info-label">Створено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.time)}</span></div>
-            <div class="info-row"><span class="info-label">Оновлено</span><span class="info-value" style="font-size:10px;">${fmtDt(o.updateTime)}</span></div>
-        `;
+        document.getElementById('chartInfoPanel').innerHTML = buildInfoPanel(o, badgeSide, statusCls, fmtDt);
 
         // Set active TF button (inline + dropdown)
         document.querySelectorAll('#chartTfGroup .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === _chartTF));
@@ -2272,10 +2454,12 @@
 
     window.addEventListener('mouseup', function() {
         if (_isDragging || _priceAxisDrag || _timeAxisDrag) {
+            _wasDragging = true;
             _isDragging = false;
             _priceAxisDrag = false;
             _timeAxisDrag = false;
             chartCanvas.style.cursor = 'crosshair';
+            setTimeout(() => { _wasDragging = false; }, 50);
         }
     });
 
@@ -2409,6 +2593,122 @@
                 document.querySelectorAll('#chartDrawToolbar .chart-draw-btn').forEach(b => b.classList.remove('active'));
                 drawChart();
             }
+        }
+    });
+
+    // Click on marker to show details (when NOT in drawing mode)
+    chartCanvas.addEventListener('click', function(e) {
+        if (_drawTool || _isDragging || _priceAxisDrag || _timeAxisDrag || _wasDragging) return;
+        const chart = this._chart;
+        const helpers = this._chartHelpers;
+        if (!chart || !helpers || !_showAllOrders || _chartKlines.length === 0) return;
+        const rect = this.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        if (mx < padLeft || mx > helpers.W - padRight || my < padTop || my > helpers.H - padBottom) return;
+
+        // Check distance to each marker cluster
+        const visible = chart.visible;
+        if (!visible || visible.length === 0) return;
+        const visStart = visible[0].time;
+        const visEnd = visible[visible.length - 1].time;
+        const intervalMs = _tfMs[_chartTF] || 900000;
+
+        // Build clusters same way as drawChart
+        const relevantOrders = allOrders.filter(o => {
+            const t = getOrderTime(o);
+            return t >= visStart - intervalMs && t <= visEnd + intervalMs;
+        });
+        const clusters = new Map();
+        relevantOrders.forEach(o => {
+            const oTime = getOrderTime(o);
+            const bucket = Math.floor(oTime / intervalMs);
+            const key = bucket + '_' + o.side;
+            if (!clusters.has(key)) clusters.set(key, []);
+            clusters.get(key).push(o);
+        });
+
+        let bestDist = 15; // max 15px click radius
+        let bestGroup = null;
+        clusters.forEach(group => {
+            const rep = group[0];
+            const oTime = getOrderTime(rep);
+            const ox = helpers.timeToX(oTime);
+            let sumP = 0, cnt = 0;
+            group.forEach(o => {
+                const p = parseFloat(o.price) > 0 ? parseFloat(o.price) : (o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : 0));
+                if (p > 0) { sumP += p; cnt++; }
+            });
+            if (cnt === 0) return;
+            const oy = helpers.priceToY(sumP / cnt);
+            const dist = Math.sqrt((mx - ox) ** 2 + (my - oy) ** 2);
+            if (dist < bestDist) { bestDist = dist; bestGroup = group; }
+        });
+
+        // Also check main order marker
+        if (_chartOrder) {
+            const orderTime = getOrderTime(_chartOrder);
+            const oPrice = parseFloat(_chartOrder.price) || parseFloat(_chartOrder.avgPrice) || parseFloat(_chartOrder.stopPrice) || 0;
+            if (oPrice > 0) {
+                const ox = helpers.timeToX(orderTime);
+                const oy = helpers.priceToY(oPrice);
+                const dist = Math.sqrt((mx - ox) ** 2 + (my - oy) ** 2);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestGroup = [_chartOrder];
+                }
+            }
+        }
+
+        if (bestGroup && bestGroup.length > 0) {
+            // If single order in cluster — show its detail
+            if (bestGroup.length === 1) {
+                const clicked = bestGroup[0];
+                // Don't reload chart if clicking same order
+                if (clicked.orderId !== _chartOrder?.orderId) {
+                    _chartOrder = clicked;
+                }
+                // Update info panel with full details
+                const isBuy = clicked.side === 'BUY';
+                const badgeSide2 = isBuy ? 'badge-long' : 'badge-short';
+                const statusCls2 = clicked.status === 'FILLED' ? 'badge-filled' : clicked.status === 'CANCELED' ? 'badge-canceled' : clicked.status === 'NEW' ? 'badge-new' : clicked.status === 'EXPIRED' ? 'badge-expired' : 'badge-type';
+                const fmtDt2 = d => d ? new Date(d).toLocaleDateString('uk-UA') + ' ' + new Date(d).toLocaleTimeString('uk-UA') : '\u2014';
+                document.getElementById('chartInfoPanel').innerHTML = buildInfoPanel(clicked, badgeSide2, statusCls2, fmtDt2);
+                document.getElementById('chartInfoPanel').classList.remove('hidden');
+                _showInfoPanel = true;
+                document.getElementById('chartToggleInfo').classList.add('active');
+                // Update title
+                document.getElementById('chartTitle').innerHTML =
+                    `<span class="${badgeSide2}">${clicked.side}</span>` +
+                    `<span class="badge-type">${(clicked.type || '').replace(/_/g, ' ')}</span>` +
+                    `<span class="${statusCls2}">${clicked.status}</span>` +
+                    `<span style="color:var(--text-secondary);font-size:12px;">#${clicked.orderId}</span>`;
+            } else {
+                // Multiple orders in cluster — show cluster summary
+                const fmtDt2 = d => d ? new Date(d).toLocaleDateString('uk-UA') + ' ' + new Date(d).toLocaleTimeString('uk-UA') : '\u2014';
+                let clusterHtml = `<h4>Кластер (${bestGroup.length} ордерів)</h4>`;
+                const filled = bestGroup.filter(o => o.status === 'FILLED').length;
+                const canceled = bestGroup.filter(o => o.status === 'CANCELED').length;
+                clusterHtml += `<div class="info-row"><span class="info-label">Виконано</span><span class="info-value">${filled}</span></div>`;
+                clusterHtml += `<div class="info-row"><span class="info-label">Скасовано</span><span class="info-value">${canceled}</span></div>`;
+                clusterHtml += `<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">`;
+                bestGroup.forEach(ro => {
+                    const roCls = ro.status === 'FILLED' ? 'badge-filled' : ro.status === 'CANCELED' ? 'badge-canceled' : ro.status === 'EXPIRED' ? 'badge-expired' : 'badge-type';
+                    clusterHtml += `<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:10px;cursor:pointer;" onclick="showOrderDirect(${ro.orderId})">
+                        <div><span style="color:var(--text-tertiary);">#${ro.orderId}</span>
+                        <span class="${ro.side === 'BUY' ? 'badge-long' : 'badge-short'}" style="font-size:8px;">${ro.side}</span>
+                        <span class="badge-type" style="font-size:8px;">${(ro.type||'').replace(/_/g,' ')}</span>
+                        <span class="${roCls}" style="font-size:8px;">${ro.status}</span></div>
+                        <div style="color:var(--text-tertiary);margin-top:2px;">$${fmtPrice(ro.avgPrice > 0 ? ro.avgPrice : ro.price)} &middot; ${parseFloat(ro.quantity||0).toFixed(4)} &middot; ${fmtDt2(getOrderTime(ro))}</div>
+                    </div>`;
+                });
+                clusterHtml += '</div>';
+                document.getElementById('chartInfoPanel').innerHTML = clusterHtml;
+                document.getElementById('chartInfoPanel').classList.remove('hidden');
+                _showInfoPanel = true;
+                document.getElementById('chartToggleInfo').classList.add('active');
+            }
+            drawChart();
         }
     });
 

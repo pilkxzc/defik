@@ -3206,10 +3206,10 @@ function _buildAdminFlyout(adminLink) {
                 padding-left:8px;
             }
             .af-submenu::before {
-                content:''; position:absolute; left:-8px; top:0; width:12px; height:100%;
+                content:''; position:absolute; left:-12px; top:0; width:16px; height:100%;
             }
             .af-submenu::-webkit-scrollbar { display:none; }
-            .af-submenu-trigger:hover > .af-submenu { display:flex; flex-direction:column; gap:1px; }
+            .af-submenu.open { display:flex; flex-direction:column; gap:1px; }
             .af-submenu-divider { height:1px; background:rgba(255,255,255,0.06); margin:2px 0; }
             .af-bot-name {
                 font-size:10px; font-weight:700; color:var(--text-tertiary);
@@ -3277,7 +3277,44 @@ function _buildAdminFlyout(adminLink) {
     // Load bots for orders submenu on first hover
     let _afBotsLoaded = false;
     const submenuTrigger = flyout.querySelector('.af-submenu-trigger');
-    if (submenuTrigger) {
+    const afSubmenu = flyout.querySelector('.af-submenu');
+    let _afSubmenuTimer = null;
+
+    if (submenuTrigger && afSubmenu) {
+        // Move submenu to body for proper z-index layering
+        document.body.appendChild(afSubmenu);
+
+        function _showAfSubmenu() {
+            clearTimeout(_afSubmenuTimer);
+            const rect = submenuTrigger.getBoundingClientRect();
+            afSubmenu.style.position = 'fixed';
+            afSubmenu.style.left = (rect.right + 4) + 'px';
+            afSubmenu.style.top = rect.top + 'px';
+            afSubmenu.style.zIndex = '9999998';
+            afSubmenu.classList.add('open');
+            // Clamp to viewport
+            requestAnimationFrame(() => {
+                const sr = afSubmenu.getBoundingClientRect();
+                if (sr.bottom > window.innerHeight - 8) {
+                    afSubmenu.style.top = Math.max(8, window.innerHeight - sr.height - 8) + 'px';
+                }
+            });
+        }
+        function _hideAfSubmenu() {
+            _afSubmenuTimer = setTimeout(() => {
+                if (!afSubmenu.matches(':hover') && !submenuTrigger.matches(':hover')) {
+                    afSubmenu.classList.remove('open');
+                    // Also close any coin submenus
+                    document.querySelectorAll('.af-coin-submenu.open').forEach(s => s.classList.remove('open'));
+                }
+            }, 120);
+        }
+
+        submenuTrigger.addEventListener('mouseenter', _showAfSubmenu);
+        submenuTrigger.addEventListener('mouseleave', _hideAfSubmenu);
+        afSubmenu.addEventListener('mouseenter', () => clearTimeout(_afSubmenuTimer));
+        afSubmenu.addEventListener('mouseleave', _hideAfSubmenu);
+
         submenuTrigger.addEventListener('mouseenter', async function() {
             if (_afBotsLoaded) return;
             _afBotsLoaded = true;
@@ -3328,6 +3365,7 @@ function _buildAdminFlyout(adminLink) {
                     document.body.appendChild(sub);
 
                     wrap.addEventListener('mouseenter', function() {
+                        clearTimeout(_afSubmenuTimer); // keep bots submenu open
                         if (_activeCoinSub && _activeCoinSub !== sub) _activeCoinSub.classList.remove('open');
                         const rect = link.getBoundingClientRect();
                         sub.style.left = (rect.right + 4) + 'px';
@@ -3343,11 +3381,10 @@ function _buildAdminFlyout(adminLink) {
                         _activeCoinSub = sub;
                     });
 
-                    sub.addEventListener('mouseenter', () => sub.classList.add('open'));
-                    sub.addEventListener('mouseleave', () => { sub.classList.remove('open'); _activeCoinSub = null; });
+                    sub.addEventListener('mouseenter', () => { sub.classList.add('open'); clearTimeout(_afSubmenuTimer); });
+                    sub.addEventListener('mouseleave', () => { sub.classList.remove('open'); _activeCoinSub = null; _hideAfSubmenu(); });
                     wrap.addEventListener('mouseleave', function(e) {
-                        // Don't close if moving to the submenu
-                        setTimeout(() => { if (!sub.matches(':hover')) { sub.classList.remove('open'); _activeCoinSub = null; } }, 80);
+                        setTimeout(() => { if (!sub.matches(':hover')) { sub.classList.remove('open'); _activeCoinSub = null; } }, 100);
                     });
 
                     // Click on coin name → go to orders
