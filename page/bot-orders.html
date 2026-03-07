@@ -961,22 +961,34 @@
         const endTime = orderTime + 250 * intervalMs;
 
         try {
-            // 1s not available on futures — use spot API
-            const base = _chartTF === '1s'
-                ? 'https://api.binance.com/api/v3/klines'
-                : 'https://fapi.binance.com/fapi/v1/klines';
-            // Fetch two batches to get ~500 bars
-            const [r1, r2] = await Promise.all([
-                fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=500`),
-                fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=500`)
-            ]);
-            const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
             const parseK = k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] });
-            // Merge and deduplicate by time (handle error responses)
             const map = new Map();
-            if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
-            if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+
+            // Try futures first, fallback to spot for 1s (or if futures fails)
+            const endpoints = _chartTF === '1s'
+                ? [
+                    `https://fapi.binance.com/fapi/v1/klines`,   // futures (may work on newer API)
+                    `https://api.binance.com/api/v3/klines`       // spot fallback
+                  ]
+                : [`https://fapi.binance.com/fapi/v1/klines`];
+
+            for (const base of endpoints) {
+                if (map.size > 0) break; // already got data
+                try {
+                    const [r1, r2] = await Promise.all([
+                        fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=500`),
+                        fetch(`${base}?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=500`)
+                    ]);
+                    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+                    if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                    if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                } catch (_) { /* try next endpoint */ }
+            }
+
             _chartKlines = [...map.values()].sort((a, b) => a.time - b.time);
+            if (_chartKlines.length === 0) {
+                console.warn(`No klines loaded for ${sym} @ ${_chartTF}. Endpoints tried: ${endpoints.join(', ')}`);
+            }
         } catch (e) {
             console.error('Chart klines error:', e);
             _chartKlines = [];
@@ -1006,23 +1018,28 @@
     async function fetchMoreKlines(direction) {
         if (_fetchingMore || _chartKlines.length === 0) return;
         _fetchingMore = true;
-        const intervalMs = _tfMs[_chartTF] || 900000;
         const sym = (_chartOrder?.symbol) || symbol;
-        const base = _chartTF === '1s'
-            ? 'https://api.binance.com/api/v3/klines'
-            : 'https://fapi.binance.com/fapi/v1/klines';
+        const endpoints = _chartTF === '1s'
+            ? ['https://fapi.binance.com/fapi/v1/klines', 'https://api.binance.com/api/v3/klines']
+            : ['https://fapi.binance.com/fapi/v1/klines'];
         try {
-            let url;
+            let params;
             if (direction === 'left') {
                 const earliest = _chartKlines[0].time;
-                url = `${base}?symbol=${sym}&interval=${_chartTF}&endTime=${earliest - 1}&limit=500`;
+                params = `symbol=${sym}&interval=${_chartTF}&endTime=${earliest - 1}&limit=500`;
             } else {
                 const latest = _chartKlines[_chartKlines.length - 1].time;
-                url = `${base}?symbol=${sym}&interval=${_chartTF}&startTime=${latest + 1}&limit=500`;
+                params = `symbol=${sym}&interval=${_chartTF}&startTime=${latest + 1}&limit=500`;
             }
-            const res = await fetch(url);
-            const raw = await res.json();
-            if (Array.isArray(raw) && raw.length > 0) {
+            let raw = null;
+            for (const base of endpoints) {
+                try {
+                    const r = await fetch(`${base}?${params}`);
+                    const data = await r.json();
+                    if (Array.isArray(data) && data.length > 0) { raw = data; break; }
+                } catch (_) {}
+            }
+            if (raw) {
                 const newK = raw.map(k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
                 const map = new Map();
                 _chartKlines.forEach(k => map.set(k.time, k));
@@ -1242,6 +1259,15 @@
             });
         }
 
+        // ── Interpolated X position for a timestamp (sub-candle precision) ──
+        const timeToX = (t) => {
+            if (visible.length < 2) return idxToX(0);
+            const intMs = _tfMs[_chartTF] || (visible[1].time - visible[0].time) || 1;
+            // Fractional index based on time
+            const fIdx = (t - visible[0].time) / intMs;
+            return padLeft + fIdx * candleW + candleW / 2;
+        };
+
         // ── All orders markers ──
         if (_showAllOrders && allOrders.length > 0) {
             const visStart = visible[0].time;
@@ -1253,13 +1279,11 @@
             });
             relevantOrders.forEach(o => {
                 const oTime = o.time || o.updateTime || 0;
-                let closestIdx = -1, dist = Infinity;
-                visible.forEach((k, i) => { const d = Math.abs(k.time - oTime); if (d < dist) { dist = d; closestIdx = i; } });
-                if (closestIdx < 0) return;
                 // Use price where order was placed (limit price), fallback to avg/stop
                 const oPrice = parseFloat(o.price) > 0 ? parseFloat(o.price) : (o.avgPrice > 0 ? o.avgPrice : (o.stopPrice > 0 ? o.stopPrice : 0));
                 if (!oPrice || oPrice <= 0) return;
-                const ox = idxToX(closestIdx);
+                const ox = timeToX(oTime);
+                if (ox < padLeft - 5 || ox > W - padRight + 5) return;
                 const oy = priceToY(oPrice);
                 if (oy < padTop - 8 || oy > H - padBottom + 8) return;
                 const isBuy = o.side === 'BUY';
@@ -1295,11 +1319,9 @@
         const oFillPrice = parseFloat(_chartOrder.avgPrice) || 0;
         const oStopP = parseFloat(_chartOrder.stopPrice) || 0;
         const orderPrice = oPlacePrice > 0 ? oPlacePrice : (oFillPrice > 0 ? oFillPrice : oStopP);
-        let orderIdx = -1, minDist = Infinity;
-        visible.forEach((k, i) => { const d = Math.abs(k.time - orderTime); if (d < minDist) { minDist = d; orderIdx = i; } });
 
-        if (orderIdx >= 0 && orderPrice > 0) {
-            const ox = idxToX(orderIdx);
+        if (orderPrice > 0) {
+            const ox = timeToX(orderTime);
             const oy = priceToY(orderPrice);
             const isBuy = _chartOrder.side === 'BUY';
             const mColor = isBuy ? '#22D3EE' : '#F59E0B';

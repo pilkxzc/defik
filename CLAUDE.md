@@ -4,6 +4,7 @@
 - **Backend**: Node.js + Express, `server/server.js` is the entry point
 - **Database**: SQLite via `sql.js` (in-memory, saved to file) — `server/database.sqlite`
 - **Sessions**: Custom `FileSessionStore` → `server/sessions.json`
+- **Cache**: Redis (ioredis) with automatic in-memory fallback
 - **Frontend**: Vanilla JS + HTML/CSS, one React chart widget built with Vite
 - **Deployment**: PM2 (fork mode), served from `/var/www/defisit` on VPS
 
@@ -14,12 +15,16 @@
 ├── server/                    ← All backend code
 │   ├── server.js              ← Entry point, routes, HTTP/HTTPS
 │   ├── config/index.js        ← PORT, HTTPS_PORT, HOST, paths, env vars
-│   ├── db/index.js            ← SQLite init, dbGet/dbAll/dbRun helpers
+│   ├── db/index.js            ← SQLite init, dbGet/dbAll/dbRun helpers (32 tables)
 │   ├── middleware/
 │   │   ├── session.js         ← FileSessionStore (custom), cookie config
 │   │   ├── beta.js            ← Beta gate — checks req.session.betaAccess
 │   │   ├── auth.js            ← requireAuth middleware
-│   │   └── maintenance.js     ← Maintenance mode toggle
+│   │   ├── maintenance.js     ← Maintenance mode toggle
+│   │   ├── errorHandler.js    ← AppError class + global error handler
+│   │   ├── rateLimiter.js     ← express-rate-limit based limiters
+│   │   ├── rateLimit.js       ← Redis-backed rate limiting + memory fallback
+│   │   └── activityTracker.js ← Logs every request to activity_log table
 │   ├── routes/
 │   │   ├── auth.js            ← /api/auth/* (login, register, logout, me)
 │   │   ├── market.js          ← /api/market/*
@@ -31,7 +36,8 @@
 │   │   ├── subscription.js    ← /api/subscription/*
 │   │   ├── orders.js          ← /api/orders/*
 │   │   ├── admin.js           ← /api/admin/*
-│   │   └── history.js         ← /api/history/*
+│   │   ├── history.js         ← /api/history/*
+│   │   └── community.js       ← /api/community/* (Telegram posts proxy)
 │   ├── services/
 │   │   ├── binance.js         ← Binance API client (DO NOT CHANGE fetch logic)
 │   │   ├── candleCollector.js ← Fills candles.sqlite from Binance WS
@@ -39,10 +45,16 @@
 │   │   ├── email.js           ← Email sending (nodemailer)
 │   │   ├── telegram.js        ← Telegram bot
 │   │   ├── notifications.js   ← In-app notifications
-│   │   └── blockchain.js      ← Blockchain utils
+│   │   ├── blockchain.js      ← Blockchain utils
+│   │   ├── newsCollector.js   ← Auto-collects exchange news on schedule
+│   │   └── backup.js          ← Database backups to Google Drive (OAuth2)
 │   ├── socket/index.js        ← Socket.IO init
 │   ├── utils/
-│   │   ├── ip.js, ssl.js, time.js
+│   │   ├── ip.js              ← IP address utilities
+│   │   ├── ssl.js             ← SSL certificate management
+│   │   ├── time.js            ← Time/timezone utilities
+│   │   ├── bruteForce.js      ← Login attempt tracking + lockout (10 attempts / 15 min)
+│   │   └── redis.js           ← Redis client init + memory fallback
 │   └── sessions.json          ← Active sessions (managed by FileSessionStore)
 │
 ├── page/                      ← HTML pages (served as static files)
@@ -50,22 +62,27 @@
 │   ├── reglogin.html          ← /login and /register
 │   ├── datedos.html           ← /dashboard
 │   ├── portfolio.html         ← /portfolio
-│   ├── bots.html              ← /bots  (⚠️ large file ~2000+ lines)
+│   ├── bots.html              ← /bots  (large file ~2000+ lines)
 │   ├── bot-detail.html        ← /bot/:id (admin only, desktop only)
-│   ├── bot-stats.html         ← /bot-stats/:id  (⚠️ large)
-│   ├── profile.html           ← /profile  (⚠️ large)
+│   ├── bot-stats.html         ← /bot-stats/:id  (large)
+│   ├── bot-orders.html        ← /bot-orders/:id — bot order history
+│   ├── bot-community-stats.html ← /bot-community-stats
+│   ├── dashboards-bot.html    ← /bot-dashboard/:id — individual bot dashboard
+│   ├── profile.html           ← /profile  (large)
 │   ├── admin.html             ← /admin
 │   ├── news.html              ← /news
 │   ├── subscriptions.html     ← /subscriptions
 │   ├── community.html         ← /community
-│   ├── datedos.html           ← /dashboard
+│   ├── docs.html              ← /docs — documentation page
 │   ├── reset-password.html    ← /reset-password
 │   ├── verify-email.html      ← /verify-email
+│   ├── emergency.html         ← /emergency — emergency stop
 │   ├── 403.html, 404erors.html, 500.html, 502.html
-│   └── loading*.html          ← Transition loading screens
+│   ├── loading.html           ← /loadingcube
+│   └── loadingdachbot.html    ← /loadingdachbot
 │
 ├── css/
-│   ├── variables.css          ← ⭐ Shared design tokens (:root vars + * reset)
+│   ├── variables.css          ← Shared design tokens (:root vars + * reset)
 │   ├── shared-layout.css      ← Shared nav/layout (sidebar, mobile nav, etc.)
 │   ├── mobile.css             ← Mobile-specific styles
 │   ├── responsive.css         ← Breakpoints
@@ -79,19 +96,30 @@
 │   ├── dashboard.js           ← Dashboard page logic
 │   ├── dashboard-customizer.js← Dashboard widget drag/resize
 │   ├── admin.js               ← Admin panel logic
-│   ├── chart/chart.js         ← ⭐ Built React chart widget (Vite output, DO NOT EDIT)
+│   ├── tracker.js             ← Activity/usage tracking
+│   ├── bug-reporter.js        ← Client-side bug reporting
+│   ├── emergency-stop.js      ← Emergency stop controls
+│   ├── chart/chart.js         ← Built React chart widget (Vite output, DO NOT EDIT)
 │   └── terminal/              ← Bot terminal split into modules
 │       ├── init.js
 │       ├── controls.js
 │       ├── data.js
 │       └── renderers.js
 │
-├── chart/                     ← Old React chart source (Vite project)
-├── _src/                      ← New React chart source (Vite, builds to js/chart/chart.js)
+├── _src/                      ← React chart source (Vite, builds to js/chart/chart.js)
 │   └── src/
-│       ├── components/        ← ChartWidget, TVChartWidget, etc.
-│       └── datafeed/          ← TradingView datafeed (history, realtime, symbology)
+│       ├── main.tsx, main.ts  ← Entry points
+│       ├── overlays.ts        ← Chart overlays
+│       ├── klpro-datafeed.ts  ← KL Pro datafeed
+│       ├── components/        ← ChartWidget, TVChartWidget, TimeframeSelector, WsStatusIndicator
+│       ├── datafeed/          ← TradingView datafeed (history, realtime, symbology)
+│       ├── hooks/             ← useBinanceWs, useKlineBuffer
+│       └── types/             ← binance.ts, tradingview.d.ts
 │
+├── chart/                     ← Old React chart source (kept for reference)
+├── ecosystem.config.js        ← PM2 configuration
+├── .env.example               ← Environment variable template
+├── deploy.sh                  ← Deployment script
 └── logo.svg
 ```
 
@@ -106,30 +134,54 @@
 | `/bots` | `page/bots.html` | Bots list |
 | `/bot/:id` | `page/bot-detail.html` | Admin only + desktop only |
 | `/bot-stats/:id` | `page/bot-stats.html` | Bot statistics |
+| `/bot-orders/:id` | `page/bot-orders.html` | Bot order history |
+| `/bot-community-stats` | `page/bot-community-stats.html` | Community bot stats |
+| `/bot-dashboard/:id` | `page/dashboards-bot.html` | Individual bot dashboard |
 | `/profile` | `page/profile.html` | User profile |
 | `/admin` | `page/admin.html` | Admin panel |
 | `/news` | `page/news.html` | News |
 | `/subscriptions` | `page/subscriptions.html` | Plans/pricing |
 | `/community` | `page/community.html` | Community/socials |
+| `/docs` | `page/docs.html` | Documentation |
+| `/emergency` | `page/emergency.html` | Emergency stop |
 | `/reset-password` | `page/reset-password.html` | |
 | `/verify-email` | `page/verify-email.html` | |
 
-## API Endpoints (key ones)
+## API Endpoints
 
 ```
-POST /api/auth/login        → routes/auth.js
-POST /api/auth/register     → routes/auth.js
-POST /api/auth/logout       → routes/auth.js
-GET  /api/auth/me           → routes/auth.js
-GET  /api/market/prices     → routes/market.js
-GET  /api/bots              → routes/bots.js
-GET  /api/bots/:id          → routes/bots.js
-POST /api/bots              → routes/bots.js
-GET  /api/portfolio         → routes/portfolio.js
-GET  /api/profile           → routes/profile.js
-POST /api/profile/update    → routes/profile.js
-GET  /api/notifications     → routes/notifications.js
-GET  /api/admin/users       → routes/admin.js
+# Auth
+POST /api/auth/login           → routes/auth.js
+POST /api/auth/register        → routes/auth.js
+POST /api/auth/logout          → routes/auth.js
+GET  /api/auth/me              → routes/auth.js
+
+# Market
+GET  /api/market/prices        → routes/market.js
+
+# Bots
+GET  /api/bots                 → routes/bots.js
+GET  /api/bots/:id             → routes/bots.js
+POST /api/bots                 → routes/bots.js
+
+# Portfolio & Orders
+GET  /api/portfolio            → routes/portfolio.js
+GET  /api/orders/*             → routes/orders.js
+
+# Profile
+GET  /api/profile              → routes/profile.js
+POST /api/profile/update       → routes/profile.js
+
+# Other
+GET  /api/notifications        → routes/notifications.js
+GET  /api/admin/*              → routes/admin.js
+GET  /api/history/*            → routes/history.js
+GET  /api/faucet/*             → routes/faucet.js
+GET  /api/subscription/*       → routes/subscription.js
+
+# Community (Telegram integration)
+GET  /api/community/tg-posts       → routes/community.js
+GET  /api/community/tg-photo/:fileId → routes/community.js
 ```
 
 ## Auth & Session Architecture
@@ -145,22 +197,49 @@ GET  /api/admin/users       → routes/admin.js
   /api/auth/login, /api/auth/register, /api/auth/logout, /api/auth/me
   ```
 - `requireAuth` middleware (`middleware/auth.js`) — use on protected API routes
+- **Brute force protection**: 10 failed attempts → 15 min lockout (per IP + email)
+- **Rate limiting**: 5 req/min on auth endpoints, 100 req/min general API
 
-## Database Schema (main tables)
+## Database Schema (32 tables)
 
+**User & Auth:**
 - `users` — id, email, password (bcrypt), full_name, balance, demo_balance, real_balance, active_account, role, is_banned, totp_secret, totp_enabled, subscription_plan, telegram_id
+- `passkeys` — WebAuthn passkey storage
+- `login_attempts` — failed login tracking (brute force protection)
+- `login_codes` — login verification codes
+- `password_reset_tokens`, `email_verification_tokens`
+- `permissions`, `user_permissions` — role-based permissions
+
+**Bot Management:**
 - `bots` — id, user_id, name, type, pair, investment, profit, is_active, binance_api_key, binance_api_secret, mode, display_settings, account_type, selected_symbol, trading_settings
 - `bot_trades` — trades executed by bots
 - `bot_stats` — aggregated per-bot stats
 - `bot_subscribers` — users subscribed to a bot
-- `transactions` — deposit/withdrawal records
-- `orders` — limit/market orders
+- `bot_position_blocks` — grouped trade positions
+- `bot_notification_settings` — notification preferences per bot
+- `bot_symbol_settings` — visible symbols per bot
+- `bot_categories` — bot categorization (AI BOT, Grid Bot, Neutral Bot)
+- `bot_analytics` — bot event tracking
+- `bot_order_history` — historical orders per bot
+
+**Portfolio & Trading:**
 - `holdings` — current token holdings per user
-- `notifications` — in-app notifications
-- `news` — news articles
+- `orders` — limit/market orders
+- `transactions` — deposit/withdrawal records
+- `portfolio_snapshots` — monthly portfolio snapshots
 - `wallets` — tracked crypto wallets
-- `passkeys` — WebAuthn passkeys
-- `password_reset_tokens`, `email_verification_tokens`
+- `payment_methods` — payment method storage
+
+**Content:**
+- `news` — news articles with categories
+- `notifications` — in-app notifications
+- `tg_posts` — cached Telegram channel posts
+
+**Admin & Logging:**
+- `activity_log` — comprehensive user activity logging (IP, user-agent, country, path, method, status, duration)
+- `admin_audit_log` — admin action auditing
+- `bug_reports` — user bug reports
+- `backup_history` — database backup records
 
 DB helpers in `server/db/index.js`:
 - `dbGet(sql, params)` — returns one row or null
@@ -202,6 +281,15 @@ These files are 1000+ lines, use `offset` + `limit` when reading:
 - **Old source**: `chart/` — kept for reference
 - **Usage**: Loaded in `page/datedos.html` via `<script src="/js/chart/chart.js">`
 - Connects to Binance WebSocket directly from the browser (intentional, do not proxy)
+
+## Background Services
+
+Started in `startServer()` within `server.js`:
+- `startCollector()` — candle data collection from Binance WS
+- `startBackupSchedule()` — database backups to Google Drive
+- `startNewsCollector()` — exchange news auto-collection
+- `initTelegramBot()` — Telegram bot initialization
+- `initSocket()` — Socket.IO WebSocket server
 
 ## Social Links (real, from community.html)
 - Telegram: `https://t.me/+Bf85Gs-LpSUyNmFi`
