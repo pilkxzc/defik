@@ -48,14 +48,27 @@ function botHasCredentials(bot) {
 
 /** Make a signed Binance Futures request with given credentials */
 async function makeBinanceSignedReq(apiKey, apiSecret, endpoint, params = {}) {
+    if (_binanceBanUntil > Date.now()) {
+        throw new Error('Binance IP temporarily banned, retrying later');
+    }
     const baseUrl   = 'https://fapi.binance.com';
     const timestamp = await getBinanceServerTime('futures');
     const qs        = new URLSearchParams({ ...params, timestamp }).toString();
     const signature = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
-    const r         = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${signature}`, {
-        headers: { 'X-MBX-APIKEY': apiKey }, timeout: 10000
-    });
-    return r.data;
+    try {
+        const r = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${signature}`, {
+            headers: { 'X-MBX-APIKEY': apiKey }, timeout: 10000
+        });
+        return r.data;
+    } catch (error) {
+        const status = error.response?.status;
+        if (status === 418 || status === 429) {
+            const banMsg = error.response?.data?.msg || '';
+            const banMatch = banMsg.match(/until\s+(\d+)/);
+            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000;
+        }
+        throw error;
+    }
 }
 
 /** Run a signed request across ALL bot credentials in parallel, return merged array of results */
@@ -119,18 +132,24 @@ async function fetchMultiAccountFuturesData(credentials) {
     return merged;
 }
 
-// ── In-memory cache to prevent Binance rate-limit (429) ──────────────────────
+// ── In-memory cache to prevent Binance rate-limit (429/418) ─────────────────
 const _serverTimeCache   = { value: null, ts: 0 };           // TTL 30s
-const _binanceDataCache  = {};                                // keyed by apiKey, TTL 8s
+const _binanceDataCache  = {};                                // keyed by apiKey, TTL 15s
 const _binanceDataInFlight = {};                              // prevent duplicate concurrent fetches
+let _binanceBanUntil = 0;                                     // IP ban expiry timestamp (ms)
 
 // ── Binance helpers ───────────────────────────────────────────────────────────
 
 async function getBinanceServerTime(accountType = 'futures') {
     const now = Date.now();
+
+    // If IP is banned, don't even try — use local time
+    if (_binanceBanUntil > now) {
+        return now;
+    }
+
     // Cache server time for 30 seconds — avoids hammering /time endpoint
     if (_serverTimeCache.value && (now - _serverTimeCache.ts) < 30_000) {
-        // Adjust cached value by elapsed time so signature timestamps stay fresh
         return _serverTimeCache.value + (now - _serverTimeCache.ts);
     }
     try {
@@ -141,7 +160,16 @@ async function getBinanceServerTime(accountType = 'futures') {
         _serverTimeCache.ts    = now;
         return response.data.serverTime;
     } catch (error) {
-        console.error('Failed to get Binance server time:', error.message);
+        // Detect IP ban (418) or rate limit (429)
+        const status = error.response?.status;
+        if (status === 418 || status === 429) {
+            const banMsg = error.response?.data?.msg || '';
+            const banMatch = banMsg.match(/until\s+(\d+)/);
+            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : now + 120_000;
+            console.error(`Binance IP banned until ${new Date(_binanceBanUntil).toISOString()}`);
+        } else {
+            console.error('Failed to get Binance server time:', error.message);
+        }
         return now;
     }
 }
@@ -167,8 +195,8 @@ async function fetchBinanceFuturesData(apiKey, apiSecret) {
     const cacheKey = apiKey;
     const now      = Date.now();
 
-    // Return cached data if fresh (8 seconds)
-    if (_binanceDataCache[cacheKey] && (now - _binanceDataCache[cacheKey].ts) < 8_000) {
+    // Return cached data if fresh (15 seconds)
+    if (_binanceDataCache[cacheKey] && (now - _binanceDataCache[cacheKey].ts) < 15_000) {
         return _binanceDataCache[cacheKey].data;
     }
 
@@ -193,6 +221,9 @@ async function fetchBinanceFuturesData(apiKey, apiSecret) {
 }
 
 async function _fetchBinanceFuturesDataRaw(apiKey, apiSecret) {
+    if (_binanceBanUntil > Date.now()) {
+        throw new Error('Binance IP temporarily banned');
+    }
     try {
         const baseUrl   = 'https://fapi.binance.com';
         const timestamp = await getBinanceServerTime('futures');
@@ -241,6 +272,12 @@ async function _fetchBinanceFuturesDataRaw(apiKey, apiSecret) {
             incomeHistory:    incomeHistory.slice(0, 50).map(i => ({ symbol: i.symbol, incomeType: i.incomeType, income: parseFloat(i.income), time: i.time, info: i.info }))
         };
     } catch (error) {
+        const status = error.response?.status;
+        if (status === 418 || status === 429) {
+            const banMsg = error.response?.data?.msg || '';
+            const banMatch = banMsg.match(/until\s+(\d+)/);
+            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000;
+        }
         logBinanceError('Binance data fetch error:', error);
         throw new Error(error.response?.data?.msg || 'Failed to fetch Binance data');
     }
