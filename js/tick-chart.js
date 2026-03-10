@@ -236,15 +236,9 @@ class TickChart {
 
     _onWheel(e) {
         e.preventDefault();
-        if (e.ctrlKey || e.metaKey) {
-            // Zoom
-            const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-            this._zoom = Math.max(0.2, Math.min(10, this._zoom * zoomDelta));
-        } else {
-            // Pan
-            const delta = Math.sign(e.deltaY) * Math.max(3, Math.floor(10 / this._zoom));
-            this._scrollOffset = Math.max(0, this._scrollOffset + delta);
-        }
+        // Scroll = zoom (like normal chart behaviour)
+        const zoomDelta = e.deltaY > 0 ? 0.92 : 1.08;
+        this._zoom = Math.max(0.1, Math.min(20, this._zoom * zoomDelta));
         this._dirty = true;
     }
 
