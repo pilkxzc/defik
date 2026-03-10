@@ -1269,6 +1269,49 @@ router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'
     }
 });
 
+// ── Verify all multi-account credentials ──
+router.get('/api/bots/:id/multi-credentials/verify', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        const multiCreds = getMultiCredentials(bot);
+        if (!multiCreds || multiCreds.length === 0) return res.json({ accounts: [], total: 0 });
+
+        const results = await Promise.allSettled(
+            multiCreds.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures'))
+        );
+
+        const accounts = results.map((r, i) => {
+            const keyPreview = multiCreds[i].tk.slice(0, 8) + '...' + multiCreds[i].tk.slice(-6);
+            if (r.status === 'fulfilled' && r.value.success) {
+                const d = r.value.data;
+                return {
+                    index: i,
+                    key: keyPreview,
+                    status: 'ok',
+                    balance: parseFloat(d.totalWalletBalance || 0),
+                    unrealizedPnl: parseFloat(d.totalUnrealizedProfit || 0),
+                    availableBalance: parseFloat(d.availableBalance || 0),
+                    positions: (d.positions || []).filter(p => parseFloat(p.positionAmt) !== 0).length
+                };
+            } else {
+                const errMsg = r.status === 'fulfilled' ? r.value.error : (r.reason?.message || 'Unknown error');
+                return { index: i, key: keyPreview, status: 'error', error: errMsg };
+            }
+        });
+
+        const okCount  = accounts.filter(a => a.status === 'ok').length;
+        const totalBal = accounts.filter(a => a.status === 'ok').reduce((s, a) => s + a.balance, 0);
+        const totalPnl = accounts.filter(a => a.status === 'ok').reduce((s, a) => s + a.unrealizedPnl, 0);
+
+        res.json({ accounts, total: multiCreds.length, ok: okCount, totalBalance: totalBal, totalUnrealizedPnl: totalPnl });
+    } catch (err) {
+        console.error('Verify multi-credentials error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Reset bot statistics ──
 router.post('/api/bots/:id/reset-stats', requireAuth, requireRole('admin'), (req, res) => {
     try {
