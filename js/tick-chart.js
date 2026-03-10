@@ -244,7 +244,8 @@ class TickChart {
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
             const pxPerTick = this._pxPerTick || 2;
-            this._scrollOffset = Math.max(0, this._dragStartOffset - Math.round(dx / pxPerTick));
+            const maxOffset = Math.max(0, this.ticks.length - 30);
+            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - Math.round(dx / pxPerTick)));
             this.canvas.style.cursor = 'grabbing';
         }
         this._dirty = true;
@@ -258,19 +259,28 @@ class TickChart {
 
     _onWheel(e) {
         e.preventDefault();
-        if (e.ctrlKey || e.metaKey) {
-            // Ctrl+scroll = zoom
-            const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-            this._zoom = Math.max(0.1, Math.min(20, this._zoom * zoomDelta));
-        } else {
-            // Scroll = pan along time axis
-            const step = Math.max(5, Math.floor(20 / this._zoom));
-            this._scrollOffset = Math.max(0, this._scrollOffset + (e.deltaY > 0 ? step : -step));
-        }
+        const PADDING_RIGHT = 70;
+        const chartW = (this.W || 600) - PADDING_RIGHT;
+        const r = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+
+        // Scroll = zoom anchored on mouse position (standard chart UX)
+        const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.1, Math.min(20, this._zoom * zoomDelta));
+
+        const baseVisible = Math.max(100, Math.floor(chartW / 2));
+        const oldVC = Math.max(30, Math.floor(baseVisible / this._zoom));
+        const newVC = Math.max(30, Math.floor(baseVisible / newZoom));
+        const f = Math.max(0, Math.min(1, mx / chartW)); // 0=left 1=right
+
+        this._zoom = newZoom;
+        // Keep the tick under cursor stationary
+        this._scrollOffset = Math.max(0, this._scrollOffset + (1 - f) * (oldVC - newVC));
         this._dirty = true;
     }
 
     _onMouseDown(e) {
+        if (e.button !== 0) return; // left button only
         this._isDragging = true;
         this._dragStartX = e.clientX;
         this._dragStartOffset = this._scrollOffset;
@@ -318,7 +328,8 @@ class TickChart {
             const t = e.touches[0];
             const dx = t.clientX - this._touchStartX;
             const pxPerTick = this._pxPerTick || 2;
-            this._scrollOffset = Math.max(0, this._touchStartOffset - Math.round(dx / pxPerTick));
+            const maxOffset = Math.max(0, this.ticks.length - 30);
+            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._touchStartOffset - Math.round(dx / pxPerTick)));
             const r = this.canvas.getBoundingClientRect();
             this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
             this._dirty = true;
