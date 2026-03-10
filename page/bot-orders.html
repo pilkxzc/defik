@@ -1838,7 +1838,7 @@
                 trades.sort((a, b) => a.time - b.time);
                 _tickChart.loadHistory(trades);
 
-                // Add order marker
+                // Add order marker (primary = highlighted with guide lines)
                 const orderMarker = {
                     time: orderTime / 1000,
                     price: parseFloat(o.price) || parseFloat(o.stopPrice) || 0,
@@ -1846,8 +1846,12 @@
                     isEntry: o.side === 'BUY',
                     pnl: 0,
                     count: 1,
+                    _primary: true,
                 };
-                if (orderMarker.price > 0) _tickChart.setMarkers([orderMarker]);
+                if (orderMarker.price > 0) {
+                    _tickChart.setMarkers([orderMarker]);
+                    _tickChart.centerOnTime(orderTime);
+                }
             } catch (e) {
                 console.warn('[TickChart] Failed to fetch aggTrades:', e.message);
             }

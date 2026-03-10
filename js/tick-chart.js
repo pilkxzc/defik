@@ -125,7 +125,29 @@ class TickChart {
             pnl:     +m.pnl || 0,
             count:   m.count || 1,
             symbol:  m.symbol || '',
+            _primary: !!m._primary,
         }));
+        this._dirty = true;
+    }
+
+    /** Center the viewport on a specific time (ms) */
+    centerOnTime(timeMs) {
+        if (this.ticks.length < 2) return;
+        // Find the tick index closest to timeMs
+        let bestIdx = 0, bestDist = Infinity;
+        for (let i = 0; i < this.ticks.length; i++) {
+            const d = Math.abs(this.ticks[i].time - timeMs);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+        // Calculate scroll offset to center this index
+        const W = this.W || 600;
+        const PADDING_RIGHT = 70;
+        const chartW = W - PADDING_RIGHT;
+        const baseVisible = Math.max(100, Math.floor(chartW / 2));
+        const visibleCount = Math.max(30, Math.floor(baseVisible / this._zoom));
+        const halfVisible = Math.floor(visibleCount / 2);
+        // scrollOffset = distance from end
+        this._scrollOffset = Math.max(0, this.ticks.length - 1 - bestIdx - halfVisible);
         this._dirty = true;
     }
 
@@ -503,6 +525,73 @@ class TickChart {
         // ── Trade markers ──
         this._hoveredMarker = null;
         const visibleMarkers = this.markers.filter(m => m.time >= visStartTime && m.time <= visEndTime);
+
+        // Draw primary marker guidelines first (behind everything)
+        for (const m of visibleMarkers) {
+            if (!m._primary) continue;
+            const px = timeToX(m.time);
+            const py = priceToY(m.price);
+            if (px < 0 || px > chartW) continue;
+            const isLong = m.side === 'LONG' || m.side === 'BUY';
+            const pColor = isLong ? colors.markerLong : colors.markerShort;
+
+            // Vertical guide line
+            ctx.save();
+            ctx.strokeStyle = pColor;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 3]);
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(px, PADDING_TOP);
+            ctx.lineTo(px, H - PADDING_BOTTOM);
+            ctx.stroke();
+
+            // Horizontal price guide line
+            ctx.beginPath();
+            ctx.moveTo(0, py);
+            ctx.lineTo(chartW, py);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            ctx.restore();
+
+            // Price label on Y-axis
+            const plblW = 64, plblH = 18;
+            ctx.fillStyle = pColor;
+            ctx.beginPath();
+            ctx.roundRect(chartW + 2, py - plblH / 2, plblW, plblH, 3);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px -apple-system, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(this._fmtPrice(m.price), chartW + 2 + plblW / 2, py + 3.5);
+
+            // Time label on X-axis
+            const d = new Date(m.time);
+            const tLbl = d.getHours().toString().padStart(2, '0') + ':' +
+                         d.getMinutes().toString().padStart(2, '0') + ':' +
+                         d.getSeconds().toString().padStart(2, '0');
+            const tLblW = 52;
+            ctx.fillStyle = pColor;
+            ctx.beginPath();
+            ctx.roundRect(px - tLblW / 2, H - PADDING_BOTTOM + 2, tLblW, 16, 3);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 9px -apple-system, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(tLbl, px, H - PADDING_BOTTOM + 13);
+
+            // Glow circle at the point
+            ctx.beginPath();
+            ctx.arc(px, py, 10, 0, Math.PI * 2);
+            ctx.fillStyle = pColor + '20';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(px, py, 6, 0, Math.PI * 2);
+            ctx.fillStyle = pColor + '40';
+            ctx.fill();
+        }
+
         for (const m of visibleMarkers) {
             const mx = timeToX(m.time);
             const my = priceToY(m.price);
