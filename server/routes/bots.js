@@ -1236,33 +1236,38 @@ router.patch('/api/bots/:id/api-keys', requireAuth, requireRole('admin', 'modera
 // ── Multi-account credentials ──
 router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'), async (req, res) => {
     try {
-        const { credentials } = req.body;
-        if (!Array.isArray(credentials)) return res.status(400).json({ error: 'credentials must be an array of {tk, tk_secret}' });
+        const { credentials, skipValidation } = req.body;
+        if (!Array.isArray(credentials) || credentials.length === 0) return res.status(400).json({ error: 'credentials must be a non-empty array of {tk, tk_secret}' });
 
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
-        // Validate all credentials in parallel
-        const tests = await Promise.allSettled(
-            credentials.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures'))
-        );
-        const valid = [], failed = [];
-        tests.forEach((t, i) => {
-            if (t.status === 'fulfilled' && t.value.success) {
-                valid.push({ tk: credentials[i].tk, tk_secret: credentials[i].tk_secret });
-            } else {
-                failed.push(i);
-            }
-        });
+        // Filter out entries without both fields
+        const cleaned = credentials.filter(c => c.tk && c.tk_secret);
+        if (cleaned.length === 0) return res.status(400).json({ error: 'No valid credentials provided' });
 
-        if (valid.length === 0) return res.status(400).json({ error: 'No valid credentials provided' });
+        let toSave = cleaned, failed = [];
+        if (!skipValidation) {
+            const tests = await Promise.allSettled(
+                cleaned.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures'))
+            );
+            toSave = []; failed = [];
+            tests.forEach((t, i) => {
+                if (t.status === 'fulfilled' && t.value.success) {
+                    toSave.push({ tk: cleaned[i].tk, tk_secret: cleaned[i].tk_secret });
+                } else {
+                    failed.push(i);
+                }
+            });
+            if (toSave.length === 0) return res.status(400).json({ error: 'Жоден акаунт не пройшов перевірку. Використайте "Зберегти без перевірки" щоб зберегти примусово.' });
+        }
 
         let settings = {};
         try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
-        settings.multi_credentials = valid;
+        settings.multi_credentials = toSave.map(c => ({ tk: c.tk, tk_secret: c.tk_secret }));
         dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
 
-        res.json({ success: true, total: credentials.length, valid: valid.length, failed });
+        res.json({ success: true, total: credentials.length, valid: toSave.length, failed, skippedValidation: !!skipValidation });
     } catch (err) {
         console.error('Save multi-credentials error:', err);
         res.status(500).json({ error: err.message });
@@ -1378,6 +1383,13 @@ router.put('/api/bots/:id/trading-settings', requireAuth, (req, res) => {
 
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
         if (bot.user_id !== req.session.userId && !isAdmin) return res.status(403).json({ error: 'Access denied' });
+
+        // Preserve multi_credentials — they are managed by a separate endpoint
+        let existing = {};
+        try { existing = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
+        if (existing.multi_credentials) {
+            settings.multi_credentials = existing.multi_credentials;
+        }
 
         dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
         res.json({ success: true, settings });

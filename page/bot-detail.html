@@ -3945,14 +3945,19 @@
                             Додати акаунт
                         </button>
 
-                        <div id="multiAccSaveWrap" style="display:none;margin-top:12px;display:flex;gap:8px;">
-                            <button onclick="saveMultiCredentials()" style="flex:1;padding:10px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer;font-size:14px;">
-                                Зберегти всі акаунти
-                            </button>
-                            <button onclick="verifyMultiCredentials()" id="multiAccVerifyBtn" style="padding:10px 16px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;white-space:nowrap;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-                                Перевірити
-                            </button>
+                        <div id="multiAccSaveWrap" style="display:none;margin-top:12px;">
+                            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                                <button onclick="saveMultiCredentials(false)" style="flex:1;padding:10px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer;font-size:14px;">
+                                    Зберегти
+                                </button>
+                                <button onclick="saveMultiCredentials(true)" style="padding:10px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text-secondary);font-weight:500;cursor:pointer;font-size:12px;white-space:nowrap;" title="Зберегти без перевірки API ключів">
+                                    Без перевірки
+                                </button>
+                                <button onclick="verifyMultiCredentials()" id="multiAccVerifyBtn" style="padding:10px 12px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+                                    Перевірити
+                                </button>
+                            </div>
                         </div>
                         <div id="multiAccStatus" style="margin-top:8px;font-size:12px;"></div>
 
@@ -9207,7 +9212,7 @@
             `).join('');
         }
 
-        async function saveMultiCredentials() {
+        async function saveMultiCredentials(skipValidation) {
             const statusEl = document.getElementById('multiAccStatus');
             if (multiAccounts.length === 0) {
                 statusEl.style.color = '#EF4444';
@@ -9215,22 +9220,26 @@
                 return;
             }
             statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.textContent = 'Перевірка ' + multiAccounts.length + ' акаунтів...';
+            statusEl.textContent = skipValidation ? 'Збереження...' : ('Перевірка ' + multiAccounts.length + ' акаунтів...');
 
             try {
                 const res = await fetch(`/api/bots/${botId}/multi-credentials`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ credentials: multiAccounts })
+                    body: JSON.stringify({ credentials: multiAccounts, skipValidation: !!skipValidation })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
 
-                const failedMsg = data.failed?.length > 0 ? ` (${data.failed.length} не пройшли перевірку)` : '';
-                statusEl.style.color = '#22C55E';
-                statusEl.textContent = 'Збережено: ' + data.valid + ' з ' + data.total + ' акаунтів' + failedMsg;
+                if (skipValidation) {
+                    statusEl.style.color = '#22C55E';
+                    statusEl.textContent = 'Збережено ' + data.valid + ' акаунтів (без перевірки)';
+                } else {
+                    const failedMsg = data.failed?.length > 0 ? ` (${data.failed.length} не пройшли перевірку)` : '';
+                    statusEl.style.color = '#22C55E';
+                    statusEl.textContent = 'Збережено: ' + data.valid + ' з ' + data.total + ' акаунтів' + failedMsg;
+                }
 
-                // Reload data
                 loadChartData(true);
             } catch (e) {
                 statusEl.style.color = '#EF4444';
