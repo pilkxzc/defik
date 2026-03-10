@@ -4282,6 +4282,31 @@
         let lastKnownPosition = null;
         let isAdmin = false;
         let demoMode = false;
+
+        // Retry helper for server-side endpoints that return 503 during Binance IP ban
+        async function fetchWithRetry(url, opts = {}, maxAttempts = 4) {
+            let lastErr;
+            for (let i = 0; i < maxAttempts; i++) {
+                try {
+                    const resp = await fetch(url, opts);
+                    if (resp.status === 503) {
+                        const body = await resp.json().catch(() => ({}));
+                        const wait = (body.retryAfter || 5) * 1000;
+                        console.warn(`[fetchWithRetry] 503 on ${url}, retry in ${wait}ms (${i+1}/${maxAttempts})`);
+                        await new Promise(r => setTimeout(r, wait));
+                        continue;
+                    }
+                    return resp;
+                } catch (e) {
+                    lastErr = e;
+                    const wait = 2000 * Math.pow(2, i);
+                    console.warn(`[fetchWithRetry] Network error on ${url}, retry in ${wait}ms`, e.message);
+                    await new Promise(r => setTimeout(r, wait));
+                }
+            }
+            throw lastErr || new Error('fetchWithRetry: all attempts failed');
+        }
+
         // klinesData shared for overlay/snap calculations
         let klinesData = [];
         let klinesVersion = 0;
@@ -6772,18 +6797,20 @@
         // Load symbols with prices
         async function loadSymbols() {
             try {
-                const response = await fetch(`/api/bots/${botId}/symbols`);
-                const data = await response.json();
+                // Fetch exchangeInfo directly from Binance (user's IP, avoids server ban)
+                const eiResp = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+                const eiData = await eiResp.json();
 
-                if (!response.ok) throw new Error(data.error);
-
-                allSymbols = data.symbols;
-                let detectedSymbol = data.selected;
+                allSymbols = (eiData.symbols || [])
+                    .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+                    .map(s => ({ symbol: s.symbol, baseAsset: s.baseAsset, quoteAsset: s.quoteAsset }))
+                    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+                let detectedSymbol = botDetails?.bot?.selectedSymbol || 'BTCUSDT';
 
                 // Auto-detect actual symbol from live data
                 // Priority: open positions > recent trades > instruments > DB selected
                 try {
-                    const liveRes = await fetch(`/api/bots/${botId}/data`, { credentials: 'include' });
+                    const liveRes = await fetchWithRetry(`/api/bots/${botId}/data`, { credentials: 'include' }, 2);
                     if (liveRes.ok) {
                         const liveData = await liveRes.json();
                         const activePos = (liveData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
@@ -6796,9 +6823,10 @@
                 } catch (e) { /* fallback to data.selected */ }
 
                 // Also check instruments from botDetails
-                if (detectedSymbol === data.selected && botDetails?.instruments?.length > 0) {
+                const dbSelected = botDetails?.bot?.selectedSymbol || 'BTCUSDT';
+                if (detectedSymbol === dbSelected && botDetails?.instruments?.length > 0) {
                     // If DB selected is BTCUSDT (default) but bot traded other symbols, use latest instrument
-                    if (data.selected === 'BTCUSDT' && botDetails.instruments[0] !== 'BTCUSDT') {
+                    if (dbSelected === 'BTCUSDT' && botDetails.instruments[0] !== 'BTCUSDT') {
                         detectedSymbol = botDetails.instruments[0];
                     }
                 }
@@ -7254,18 +7282,14 @@
                         .catch(() => { if (klChart) klChart.applyMoreData([], true); });
                     return;
                 }
-                const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=500&endTime=${end}`;
-                fetch(url, { credentials: 'include' })
+                const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=500&endTime=${end}`;
+                fetch(url)
                     .then(r => r.json())
-                    .then(data => {
-                        const raw = data.klines || [];
-                        const bars = raw
-                            .filter(k => k.time != null && !isNaN(+k.open))
-                            .map(k => ({
-                                timestamp: k.time * 1000,
-                                open: +k.open, high: +k.high, low: +k.low, close: +k.close,
-                                volume: +(k.volume || 0),
-                            }));
+                    .then(raw => {
+                        if (!Array.isArray(raw)) { if (klChart) klChart.applyMoreData([], true); return; }
+                        const bars = raw.map(([t, o, h, l, c, v]) => ({
+                            timestamp: t, open: +o, high: +h, low: +l, close: +c, volume: +v,
+                        }));
                         _afterMoreData(bars);
                         if (klChart) klChart.applyMoreData(bars, bars.length === 0);
                     })
@@ -7412,7 +7436,7 @@
         // Load bot info
         async function loadBotInfo() {
             try {
-                const response = await fetch(`/api/bots/${botId}/data`);
+                const response = await fetchWithRetry(`/api/bots/${botId}/data`);
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error);
@@ -7531,20 +7555,16 @@
                 return;
             }
 
-            const url = `/api/bots/${botId}/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${Date.now()}`;
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${Date.now()}`;
             try {
-                const r = await fetch(url, { credentials: 'include' });
-                const data = await r.json();
+                const r = await fetch(url);
+                const raw = await r.json();
                 if (_chartLoadGen !== myGen) { return; }
-                const raw = data.klines || [];
-                const bars = raw
-                    .filter(k => k.time != null && !isNaN(+k.open))
-                    .map(k => ({
-                        timestamp: k.time * 1000,
-                        open: +k.open, high: +k.high, low: +k.low, close: +k.close,
-                        volume: +(k.volume || 0),
-                    }));
-                if (klChart) klChart.applyNewData(bars); // always apply — clears if empty
+                if (!Array.isArray(raw)) { if (klChart) klChart.applyNewData([]); return; }
+                const bars = raw.map(([t, o, h, l, c, v]) => ({
+                    timestamp: t, open: +o, high: +h, low: +l, close: +c, volume: +v,
+                }));
+                if (klChart) klChart.applyNewData(bars);
                 if (bars.length > 0) {
                     klinesData = bars.map(b => ({
                         time: Math.floor(b.timestamp / 1000),
@@ -7909,7 +7929,7 @@
             }
 
             try {
-                const response = await fetch(`/api/bots/${botId}/chart-data?symbol=${currentSymbol}`);
+                const response = await fetchWithRetry(`/api/bots/${botId}/chart-data?symbol=${currentSymbol}`);
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error || 'Помилка завантаження даних');
