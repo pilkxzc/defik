@@ -1795,9 +1795,26 @@
         document.getElementById('chartInfoPanel').classList.toggle('hidden', !_showInfoPanel);
 
         // If chart was already open with same symbol — just navigate, don't reload
-        if (wasOpen && prevSymbol === o.symbol && _chartKlines.length > 0) {
-            centerOnOrder();
-            drawChart();
+        if (wasOpen && prevSymbol === o.symbol) {
+            if (_tickChart && _chartTF === '1s') {
+                // Tick chart: if order is within loaded data range, just recenter
+                const orderTime = getOrderTime(o);
+                const ticks = _tickChart.ticks;
+                if (ticks.length > 1 && orderTime >= ticks[0].time && orderTime <= ticks[ticks.length - 1].time) {
+                    const mp = parseFloat(o.avgPrice) || parseFloat(o.price) || parseFloat(o.stopPrice) || 0;
+                    if (mp > 0) {
+                        _tickChart.setMarkers([{ time: orderTime / 1000, price: mp, side: o.side || 'BUY', isEntry: o.side === 'BUY', pnl: 0, count: 1, _primary: true }]);
+                        _tickChart.centerOnTime(orderTime);
+                    }
+                } else {
+                    loadChartKlines();
+                }
+            } else if (_chartKlines.length > 0) {
+                centerOnOrder();
+                drawChart();
+            } else {
+                loadChartKlines();
+            }
         } else {
             loadChartKlines();
         }
@@ -1839,19 +1856,22 @@
                 _tickChart.loadHistory(trades);
 
                 // Add order marker (primary = highlighted with guide lines)
+                const markerPrice = parseFloat(o.avgPrice) || parseFloat(o.price) || parseFloat(o.stopPrice) || 0;
                 const orderMarker = {
                     time: orderTime / 1000,
-                    price: parseFloat(o.price) || parseFloat(o.stopPrice) || 0,
+                    price: markerPrice,
                     side: o.side || 'BUY',
                     isEntry: o.side === 'BUY',
                     pnl: 0,
                     count: 1,
                     _primary: true,
                 };
-                if (orderMarker.price > 0) {
+                if (markerPrice > 0) {
                     _tickChart.setMarkers([orderMarker]);
                     _tickChart.centerOnTime(orderTime);
                 }
+                // Connect WS for live tick updates
+                _tickChart.connectWs(sym);
             } catch (e) {
                 console.warn('[TickChart] Failed to fetch aggTrades:', e.message);
             }
@@ -2865,8 +2885,14 @@
     // Reset view (center on order + reset price scale)
     document.getElementById('chartResetView').addEventListener('click', function() {
         _priceScale = 1;
-        centerOnOrder();
-        drawChart();
+        if (_tickChart && _chartOrder) {
+            _tickChart._zoom = 1;
+            _tickChart._scrollOffset = 0;
+            _tickChart.centerOnTime(getOrderTime(_chartOrder));
+        } else {
+            centerOnOrder();
+            drawChart();
+        }
     });
 
     // Close chart
