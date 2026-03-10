@@ -733,6 +733,7 @@
 </nav>
 
 <script src="/js/app.js"></script>
+<script src="/js/tick-chart.js"></script>
 <script>
 (function() {
     // Mobile nav
@@ -1503,6 +1504,7 @@
     // ═══════════════════════════════════════════
     let _chartOrder = null;
     let _chartTF = '15m';
+    let _tickChart = null;
     let _chartKlines = [];       // full kline buffer
     let _showAllOrders = true;   // toggle for showing all orders
     let _showOrderLevels = true; // toggle for order price levels
@@ -1810,11 +1812,53 @@
 
         const o = _chartOrder;
         const orderTime = getOrderTime(o);
-        const intervalMs = _tfMs[_chartTF] || 900000;
         const sym = o.symbol || symbol;
 
-        // For 1s: fetch more candles (1000 each side ≈ 33 min) since each bar = 1 sec
-        const barsPerSide = _chartTF === '1s' ? 1000 : 500;
+        // ── Tick chart mode for 1s ──
+        if (_chartTF === '1s') {
+            // Hide canvas, show tick chart
+            document.getElementById('chartCanvas').style.display = 'none';
+            if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
+            const wrap = document.getElementById('chartWrap');
+            _tickChart = new TickChart(wrap, { maxTicks: 3000 });
+
+            // Fetch aggTrades around order time (±5 min window, up to 1000 per req)
+            const halfWindow = 5 * 60 * 1000; // 5 min in ms
+            try {
+                const [r1, r2] = await Promise.all([
+                    fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${orderTime - halfWindow}&endTime=${orderTime}&limit=1000`),
+                    fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${orderTime}&endTime=${orderTime + halfWindow}&limit=1000`)
+                ]);
+                const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+                const trades = [];
+                if (Array.isArray(d1)) d1.forEach(d => trades.push({ price: d.p, time: d.T, qty: d.q }));
+                if (Array.isArray(d2)) d2.forEach(d => trades.push({ price: d.p, time: d.T, qty: d.q }));
+                trades.sort((a, b) => a.time - b.time);
+                _tickChart.loadHistory(trades);
+
+                // Add order marker
+                const orderMarker = {
+                    time: orderTime / 1000,
+                    price: parseFloat(o.price) || parseFloat(o.stopPrice) || 0,
+                    side: o.side || 'BUY',
+                    isEntry: o.side === 'BUY',
+                    pnl: 0,
+                    count: 1,
+                };
+                if (orderMarker.price > 0) _tickChart.setMarkers([orderMarker]);
+            } catch (e) {
+                console.warn('[TickChart] Failed to fetch aggTrades:', e.message);
+            }
+            loader.style.display = 'none';
+            return;
+        }
+
+        // ── Normal kline mode — destroy tick chart if active ──
+        if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
+        document.getElementById('chartCanvas').style.display = '';
+
+        const intervalMs = _tfMs[_chartTF] || 900000;
+        const barsPerSide = 500;
         const startTime = orderTime - barsPerSide * intervalMs;
         const endTime = orderTime + barsPerSide * intervalMs;
         const limit = Math.min(1000, barsPerSide);
@@ -1823,48 +1867,16 @@
             const parseK = k => ({ time: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] });
             const map = new Map();
 
-            // Endpoint strategy:
-            // - For 1s: Binance Futures doesn't support 1s, go straight to spot
-            // - Others: use futures
-            const endpoints = _chartTF === '1s'
-                ? [{ url: 'https://api.binance.com/api/v3/klines', src: 'spot' }]
-                : [{ url: 'https://fapi.binance.com/fapi/v1/klines', src: 'futures' }];
-
-            for (const ep of endpoints) {
-                if (map.size > 0) break;
-                try {
-                    const [r1, r2] = await Promise.all([
-                        fetch(`${ep.url}?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=${limit}`),
-                        fetch(`${ep.url}?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=${limit}`)
-                    ]);
-                    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
-                    if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
-                    if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
-                    if (map.size > 0) _chartDataSource = ep.src;
-                } catch (_) { /* try next endpoint */ }
-            }
-
-            // If 1s spot returned no data — auto-upgrade to 1m
-            if (map.size === 0 && _chartTF === '1s') {
-                console.warn(`No 1s data for ${sym}, auto-upgrading to 1m`);
-                _chartTF = '1m';
-                _chartDataSource = 'futures';
-                const intMs2 = _tfMs['1m'];
-                const st2 = orderTime - 500 * intMs2;
-                const et2 = orderTime + 500 * intMs2;
-                try {
-                    const [r1, r2] = await Promise.all([
-                        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1m&startTime=${st2}&endTime=${orderTime}&limit=500`),
-                        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1m&startTime=${orderTime}&endTime=${et2}&limit=500`)
-                    ]);
-                    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
-                    if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
-                    if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
-                } catch (_) {}
-                // Update TF buttons to reflect auto-change
-                document.querySelectorAll('#chartTfGroup .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === '1m'));
-                document.querySelectorAll('#chartTfDropdown .chart-tf-btn[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === '1m'));
-            }
+            try {
+                const [r1, r2] = await Promise.all([
+                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${startTime}&endTime=${orderTime}&limit=${limit}`),
+                    fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${_chartTF}&startTime=${orderTime}&endTime=${endTime}&limit=${limit}`)
+                ]);
+                const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+                if (Array.isArray(d1)) d1.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                if (Array.isArray(d2)) d2.forEach(k => { const p = parseK(k); map.set(p.time, p); });
+                if (map.size > 0) _chartDataSource = 'futures';
+            } catch (_) {}
 
             _chartKlines = [...map.values()].sort((a, b) => a.time - b.time);
             if (_chartKlines.length === 0) {
@@ -2851,6 +2863,7 @@
         document.getElementById('chartOverlay').classList.remove('open');
         document.getElementById('chartBackdrop').classList.remove('open');
         _chartOrder = null;
+        if (_tickChart) { _tickChart.destroy(); _tickChart = null; document.getElementById('chartCanvas').style.display = ''; }
     }
     document.getElementById('chartClose').addEventListener('click', closeChart);
     document.addEventListener('keydown', e => {

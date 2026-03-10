@@ -1248,6 +1248,10 @@ router.get('/api/bots/:id/info', requireAuth, requireRole('admin', 'moderator'),
 
 router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
     try {
+        if (_binanceBanUntil > Date.now()) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        }
+
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
@@ -1517,11 +1521,16 @@ router.get('/api/bots/:id/klines', requireAuth, async (req, res) => {
             return res.status(400).json({ error: `Interval '${interval}' is not supported by klines endpoint.` });
         }
 
+        // Check Binance IP ban
+        if (_binanceBanUntil > Date.now()) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        }
+
         const params = { symbol, interval, limit };
         if (endTime)   params.endTime   = endTime;
         if (startTime) params.startTime = startTime;
 
-        const response = await axios.get('https://fapi.binance.com/fapi/v1/klines', { params });
+        const response = await axios.get('https://fapi.binance.com/fapi/v1/klines', { params, timeout: 10000 });
         const klines = response.data.map(k => ({
             time: Math.floor(k[0] / 1000), open: parseFloat(k[1]),
             high: parseFloat(k[2]), low: parseFloat(k[3]),
@@ -1530,6 +1539,12 @@ router.get('/api/bots/:id/klines', requireAuth, async (req, res) => {
 
         res.json({ klines, symbol, interval, hasMore: klines.length >= limit });
     } catch (error) {
+        const status = error.response?.status;
+        if (status === 418 || status === 429) {
+            const banMsg = error.response?.data?.msg || '';
+            const banMatch = banMsg.match(/until\s+(\d+)/);
+            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000;
+        }
         console.error('Klines error:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch klines' });
     }
@@ -1537,6 +1552,10 @@ router.get('/api/bots/:id/klines', requireAuth, async (req, res) => {
 
 router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
     try {
+        if (_binanceBanUntil > Date.now()) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        }
+
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
@@ -1685,6 +1704,10 @@ router.patch('/api/bots/:id/symbol', requireAuth, requireRole('admin', 'moderato
 
 router.get('/api/bots/:id/symbols', requireAuth, async (req, res) => {
     try {
+        if (_binanceBanUntil > Date.now()) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        }
+
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
