@@ -167,8 +167,9 @@ async function init() {
         document.getElementById('subscribeBtn')?.addEventListener('click', toggleSubscribe);
         document.getElementById('saveCopyBtn')?.addEventListener('click', saveCopyTrading);
 
-        // Real-time klines — refresh every 10 sec
+        // Real-time klines — refresh every 10 sec (skip if tick chart is handling it via WS)
         setInterval(async () => {
+            if (window._tickChart) return; // tick chart has its own WS feed
             await fetchKlines(getSymbol(), currentTF);
             if (activeTab === 'overview') renderLiveChart();
         }, 10000);
@@ -220,6 +221,12 @@ async function init() {
 //  RESIZE
 // ═══════════════════════════════════════════
 window.addEventListener('resize', () => {
+    // Tick chart handles its own resize via ResizeObserver
+    if (window._tickChart) {
+        if (activeTab === 'overview') renderEquityChart();
+        if (activeTab === 'statistics') renderDrawdownChart();
+        return;
+    }
     // Reset resize flag so klinecharts re-measures on next render
     if (window._klineChart) window._klineChart._resizedOnce = false;
     if (activeTab === 'overview') {

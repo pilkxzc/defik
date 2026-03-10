@@ -76,6 +76,19 @@ async function selectSymbol(sym) {
     currentSymbol = sym;
     renderSymbolSelector();
 
+    // If tick chart is active, restart it with new symbol
+    if (TICK_TFS.has(currentTF) && window._tickChart) {
+        window._tickChart.destroy();
+        const el = document.getElementById('liveChartCanvas');
+        if (el && window.TickChart) {
+            window._tickChart = new TickChart(el, { maxTicks: 2000 });
+            window._tickChart.start(sym);
+        }
+        await fetchTradeMarkers();
+        applyPeriod();
+        return;
+    }
+
     // Reset so applyNewData is used for fresh data
     if (window._klineChart) window._klineChart._dataLoaded = false;
 
@@ -107,11 +120,29 @@ function switchTab(tabName) {
     });
 }
 
+const TICK_TFS = new Set(['1s','2s','3s','5s']);
+
 function setChartTF(tf) {
     currentTF = tf;
     document.querySelectorAll('.chart-tf-btn[data-tf]').forEach(b =>
         b.classList.toggle('active', b.dataset.tf === tf)
     );
+
+    if (TICK_TFS.has(tf)) {
+        // Switch to tick chart mode
+        disposeKlineChart();
+        const el = document.getElementById('liveChartCanvas');
+        if (window._tickChart) { window._tickChart.destroy(); window._tickChart = null; }
+        if (el && window.TickChart) {
+            window._tickChart = new TickChart(el, { maxTicks: 2000 });
+            window._tickChart.start(getSymbol()).then(() => {});
+        }
+        return;
+    }
+
+    // Normal klinecharts mode — destroy tick chart if active
+    if (window._tickChart) { window._tickChart.destroy(); window._tickChart = null; }
+
     // Reset so applyNewData is used for fresh data
     if (window._klineChart) window._klineChart._dataLoaded = false;
     Promise.all([

@@ -2971,6 +2971,7 @@
     <link rel="stylesheet" href="/css/scrollbar.css">
     <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 768px)">
     <script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
+    <script src="/js/tick-chart.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -4263,6 +4264,8 @@
         let klChart = null;             // klinecharts chart instance
         let klWs = null;                // WebSocket for real-time data
         let klWsGen = 0;                // generation counter for WS reconnects
+        let _tickChart = null;          // TickChart instance for sub-5s
+        const TICK_TFS = new Set(['1s','2s','3s','5s']);
         let currentSymbol = 'BTCUSDT';
         let currentInterval = '1m';
         let trendOverlayGroup = 'trend-0';   // overlay group for trend lines
@@ -7439,26 +7442,42 @@
 
         // Reload chart for current symbol/interval
         function loadKlines() {
-            if (!window.klinecharts) return;
-            // Rebuild chart instance — guarantees a clean visual re-render.
-            // applyNewData() on an existing klinecharts instance does not reliably
-            // re-render when the symbol/price range changes.
-            _buildKlChart();
-            document.getElementById('chartLoading').style.display = 'flex';
-            document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
+            _disconnectKlineWs();
             klinesData = [];
             lastMarkersKey = '';
             _chartLoadGen++;
-            const _myLoadGen = _chartLoadGen; // capture — prevents stale .then() from firing
-            _disconnectKlineWs();
+            const _myLoadGen = _chartLoadGen;
+
+            // Tick chart mode for sub-5s timeframes
+            if (TICK_TFS.has(currentInterval)) {
+                // Destroy klinecharts if it exists
+                if (klChart) { try { klChart.dispose(); } catch(e) {} klChart = null; }
+                // Create/reuse tick chart
+                const chartEl = document.getElementById('chart');
+                if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
+                _tickChart = new TickChart(chartEl, { maxTicks: 2000 });
+                document.getElementById('chartLoading').style.display = 'flex';
+                document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
+                _tickChart.start(currentSymbol).then(() => {
+                    if (_chartLoadGen !== _myLoadGen) return;
+                    document.getElementById('chartLoading').style.display = 'none';
+                });
+                return;
+            }
+
+            // Normal klinecharts mode
+            if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
+            if (!window.klinecharts) return;
+            _buildKlChart();
+            document.getElementById('chartLoading').style.display = 'flex';
+            document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
             _fetchKlines().then(() => {
-                if (_chartLoadGen !== _myLoadGen) return; // newer loadKlines already running
+                if (_chartLoadGen !== _myLoadGen) return;
                 document.getElementById('chartLoading').style.display = 'none';
                 _connectKlineWs();
                 if (lastChartData) drawPriceLines(lastChartData);
                 loadTradeMarkers();
                 applyIndicators();
-                // If a trade was clicked while on a different symbol, highlight it now
                 if (_pendingHighlight) {
                     const ph = _pendingHighlight;
                     _pendingHighlight = null;

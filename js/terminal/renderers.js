@@ -567,6 +567,14 @@ let _klineMarkerIdx = 0;
 let _klineMarkerRegistered = false;
 let _tradeGroupingEnabled = true;
 
+function disposeKlineChart() {
+    if (_klineChart) {
+        try { _klineChart.dispose(); } catch(e) {}
+        _klineChart = null;
+        window._klineChart = null;
+    }
+}
+
 function toggleTradeGrouping() {
     _tradeGroupingEnabled = !_tradeGroupingEnabled;
     const btn = document.getElementById('indGroupTrades');
@@ -783,11 +791,14 @@ function initChartInteraction() {
 }
 
 function renderLiveChart() {
-    const chart = _getOrInitKlineChart();
-
     // Update symbol label
     const symbolLabel = document.getElementById('chartSymbolLabel');
     if (symbolLabel) symbolLabel.textContent = getSymbol();
+
+    // If tick chart is active, skip klinecharts rendering
+    if (window._tickChart) return;
+
+    const chart = _getOrInitKlineChart();
 
     if (!chart) return;
 
