@@ -3913,6 +3913,45 @@
                             Зберегти та перевірити з'єднання
                         </button>
                     </div>
+
+                    <!-- Multi-account credentials -->
+                    <div class="settings-section" style="margin-top:24px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                            <h3 style="margin:0;">Мульті-акаунти</h3>
+                            <span id="multiAccBadge" style="font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,0.15);color:var(--accent-primary);font-weight:600;display:none;">0 акаунтів</span>
+                        </div>
+                        <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:16px;">Об'єднайте декілька Binance акаунтів в один віртуальний. Лімітки, позиції та баланси з усіх акаунтів відображатимуться разом.</p>
+
+                        <div id="multiAccList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+
+                        <div id="multiAccAddForm" style="display:none;background:var(--surface-secondary);border-radius:12px;padding:14px;margin-bottom:12px;">
+                            <div class="setting-item" style="margin-bottom:8px;">
+                                <label style="font-size:12px;">API Ключ</label>
+                                <input type="text" class="setting-input" id="multiAccKey" placeholder="API Key..." autocomplete="off" style="font-family:monospace;font-size:11px;">
+                            </div>
+                            <div class="setting-item" style="margin-bottom:12px;">
+                                <label style="font-size:12px;">API Секрет</label>
+                                <input type="password" class="setting-input" id="multiAccSecret" placeholder="API Secret..." autocomplete="off" style="font-family:monospace;font-size:11px;">
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button onclick="addMultiAcc()" style="flex:1;padding:8px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer;font-size:13px;">Додати</button>
+                                <button onclick="toggleMultiAccForm(false)" style="padding:8px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:13px;">Скасувати</button>
+                            </div>
+                            <div id="multiAccAddStatus" style="margin-top:8px;font-size:12px;"></div>
+                        </div>
+
+                        <button onclick="toggleMultiAccForm(true)" id="multiAccAddBtn" style="width:100%;padding:10px;background:rgba(255,255,255,0.06);border:1px dashed rgba(255,255,255,0.15);border-radius:8px;color:var(--text-secondary);font-weight:500;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Додати акаунт
+                        </button>
+
+                        <div id="multiAccSaveWrap" style="display:none;margin-top:12px;">
+                            <button onclick="saveMultiCredentials()" style="width:100%;padding:10px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer;font-size:14px;">
+                                Зберегти всі акаунти
+                            </button>
+                        </div>
+                        <div id="multiAccStatus" style="margin-top:8px;font-size:12px;"></div>
+                    </div>
                 </div>
 
             </div>
@@ -9047,6 +9086,7 @@
             // Show API Keys tab for admins
             const apiBtn = document.getElementById('tabBtnApiKeys');
             if (apiBtn) apiBtn.style.display = isAdmin ? 'flex' : 'none';
+            if (isAdmin) loadMultiCredentials();
         }
 
         function toggleSecretVisibility() {
@@ -9087,6 +9127,124 @@
             } catch (e) {
                 statusEl.style.color = '#EF4444';
                 statusEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' + e.message;
+            }
+        }
+
+        // ── Multi-account credentials ──────────────────────────
+        let multiAccounts = []; // [{tk, tk_secret}]
+
+        function toggleMultiAccForm(show) {
+            document.getElementById('multiAccAddForm').style.display = show ? 'block' : 'none';
+            document.getElementById('multiAccAddBtn').style.display = show ? 'none' : 'flex';
+            if (show) {
+                document.getElementById('multiAccKey').value = '';
+                document.getElementById('multiAccSecret').value = '';
+                document.getElementById('multiAccAddStatus').textContent = '';
+                document.getElementById('multiAccKey').focus();
+            }
+        }
+
+        function addMultiAcc() {
+            const tk = document.getElementById('multiAccKey').value.trim();
+            const tkSecret = document.getElementById('multiAccSecret').value.trim();
+            const statusEl = document.getElementById('multiAccAddStatus');
+            if (!tk || !tkSecret) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Обидва поля обов\'язкові';
+                return;
+            }
+            if (multiAccounts.some(a => a.tk === tk)) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Цей ключ вже додано';
+                return;
+            }
+            multiAccounts.push({ tk, tk_secret: tkSecret });
+            renderMultiAccList();
+            toggleMultiAccForm(false);
+        }
+
+        function removeMultiAcc(index) {
+            multiAccounts.splice(index, 1);
+            renderMultiAccList();
+        }
+
+        function renderMultiAccList() {
+            const list = document.getElementById('multiAccList');
+            const badge = document.getElementById('multiAccBadge');
+            const saveWrap = document.getElementById('multiAccSaveWrap');
+
+            if (multiAccounts.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px;">Немає додаткових акаунтів</div>';
+                badge.style.display = 'none';
+                saveWrap.style.display = 'none';
+                return;
+            }
+
+            badge.style.display = 'inline';
+            badge.textContent = multiAccounts.length + ' акаунт' + (multiAccounts.length > 1 ? (multiAccounts.length < 5 ? 'и' : 'ів') : '');
+            saveWrap.style.display = 'block';
+
+            list.innerHTML = multiAccounts.map((a, i) => `
+                <div style="display:flex;align-items:center;gap:10px;background:var(--surface-secondary);border-radius:10px;padding:10px 14px;">
+                    <div style="width:32px;height:32px;border-radius:8px;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <span style="font-size:13px;font-weight:700;color:var(--accent-primary);">${i + 1}</span>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-family:monospace;font-size:11px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.tk.slice(0, 8)}...${a.tk.slice(-6)}</div>
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">Secret: ${'*'.repeat(12)}</div>
+                    </div>
+                    <button onclick="removeMultiAcc(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='#EF4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='var(--text-tertiary)';this.style.background='none'" title="Видалити">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function saveMultiCredentials() {
+            const statusEl = document.getElementById('multiAccStatus');
+            if (multiAccounts.length === 0) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Додайте хоча б один акаунт';
+                return;
+            }
+            statusEl.style.color = 'var(--text-tertiary)';
+            statusEl.textContent = 'Перевірка ' + multiAccounts.length + ' акаунтів...';
+
+            try {
+                const res = await fetch(`/api/bots/${botId}/multi-credentials`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credentials: multiAccounts })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+
+                const failedMsg = data.failed?.length > 0 ? ` (${data.failed.length} не пройшли перевірку)` : '';
+                statusEl.style.color = '#22C55E';
+                statusEl.textContent = 'Збережено: ' + data.valid + ' з ' + data.total + ' акаунтів' + failedMsg;
+
+                // Reload data
+                loadChartData(true);
+            } catch (e) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = e.message;
+            }
+        }
+
+        async function loadMultiCredentials() {
+            try {
+                const res = await fetch(`/api/bots/${botId}/trading-settings`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const mc = data?.settings?.multi_credentials;
+                if (Array.isArray(mc) && mc.length > 0) {
+                    multiAccounts = mc.map(c => ({ tk: c.tk, tk_secret: c.tk_secret }));
+                    renderMultiAccList();
+                } else {
+                    renderMultiAccList();
+                }
+            } catch (e) {
+                renderMultiAccList();
             }
         }
 

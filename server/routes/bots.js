@@ -1309,6 +1309,16 @@ router.get('/api/bots/:id/trading-settings', requireAuth, (req, res) => {
         let settings = {};
         try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
 
+        // Hide secrets from non-admins
+        const user    = dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]);
+        const isAdmin = user && (user.role === 'admin' || user.role === 'moderator');
+        if (!isAdmin && settings.multi_credentials) {
+            settings.multi_credentials = settings.multi_credentials.map(c => ({
+                tk: c.tk.slice(0, 8) + '...',
+                tk_secret: '***'
+            }));
+        }
+
         res.json({ settings });
     } catch (error) {
         console.error('Get trading settings error:', error);
