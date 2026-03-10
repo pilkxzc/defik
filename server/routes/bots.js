@@ -21,6 +21,71 @@ function logBinanceError(label, err) {
     }
 }
 
+// ── Multi-account helpers ────────────────────────────────────────────────────
+
+function getMultiCredentials(bot) {
+    try {
+        const ts = JSON.parse(bot.trading_settings || '{}');
+        if (ts.multi_credentials && Array.isArray(ts.multi_credentials) && ts.multi_credentials.length > 0) {
+            return ts.multi_credentials;
+        }
+    } catch (e) {}
+    return null;
+}
+
+/**
+ * Fetch futures data from multiple Binance accounts in parallel and merge
+ * into a single virtual account view.
+ */
+async function fetchMultiAccountFuturesData(credentials) {
+    const results = await Promise.allSettled(
+        credentials.map(c => fetchBinanceFuturesData(c.tk, c.tk_secret))
+    );
+
+    const merged = {
+        account: { totalWalletBalance: 0, totalUnrealizedProfit: 0, totalMarginBalance: 0, availableBalance: 0 },
+        positions: [],
+        openOrders: [],
+        limitOrders: [],
+        stopOrders: [],
+        takeProfitOrders: [],
+        recentTrades: [],
+        incomeHistory: []
+    };
+
+    let successCount = 0;
+    for (const r of results) {
+        if (r.status !== 'fulfilled') continue;
+        const d = r.value;
+        successCount++;
+        merged.account.totalWalletBalance    += d.account.totalWalletBalance;
+        merged.account.totalUnrealizedProfit += d.account.totalUnrealizedProfit;
+        merged.account.totalMarginBalance    += d.account.totalMarginBalance;
+        merged.account.availableBalance      += d.account.availableBalance;
+        merged.positions.push(...(d.positions || []));
+        merged.openOrders.push(...(d.openOrders || []));
+        merged.limitOrders.push(...(d.limitOrders || []));
+        merged.stopOrders.push(...(d.stopOrders || []));
+        merged.takeProfitOrders.push(...(d.takeProfitOrders || []));
+        merged.recentTrades.push(...(d.recentTrades || []));
+        merged.incomeHistory.push(...(d.incomeHistory || []));
+    }
+
+    if (successCount === 0) throw new Error('All Binance accounts failed to respond');
+
+    // Sort by time descending
+    merged.recentTrades.sort((a, b) => b.time - a.time);
+    merged.incomeHistory.sort((a, b) => b.time - a.time);
+    merged.limitOrders.sort((a, b) => b.time - a.time);
+    merged.openOrders.sort((a, b) => b.time - a.time);
+
+    // Trim
+    merged.recentTrades  = merged.recentTrades.slice(0, 50);
+    merged.incomeHistory = merged.incomeHistory.slice(0, 100);
+
+    return merged;
+}
+
 // ── In-memory cache to prevent Binance rate-limit (429) ──────────────────────
 const _serverTimeCache   = { value: null, ts: 0 };           // TTL 30s
 const _binanceDataCache  = {};                                // keyed by apiKey, TTL 8s
@@ -1095,9 +1160,17 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
     try {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
 
-        const binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+        // Multi-account mode: fetch from all credentials in parallel
+        const multiCreds = getMultiCredentials(bot);
+        let binanceData;
+        if (multiCreds) {
+            binanceData = await fetchMultiAccountFuturesData(multiCreds);
+        } else {
+            if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
+            binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+        }
+
         res.json({
             bot: {
                 id: bot.id, name: bot.name, mode: bot.mode, accountType: bot.account_type,
@@ -1156,6 +1229,42 @@ router.patch('/api/bots/:id/api-keys', requireAuth, requireRole('admin', 'modera
         res.json({ success: true, balance });
     } catch (err) {
         console.error('Save API keys error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Multi-account credentials ──
+router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { credentials } = req.body;
+        if (!Array.isArray(credentials)) return res.status(400).json({ error: 'credentials must be an array of {tk, tk_secret}' });
+
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        // Validate all credentials in parallel
+        const tests = await Promise.allSettled(
+            credentials.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures'))
+        );
+        const valid = [], failed = [];
+        tests.forEach((t, i) => {
+            if (t.status === 'fulfilled' && t.value.success) {
+                valid.push({ tk: credentials[i].tk, tk_secret: credentials[i].tk_secret });
+            } else {
+                failed.push(i);
+            }
+        });
+
+        if (valid.length === 0) return res.status(400).json({ error: 'No valid credentials provided' });
+
+        let settings = {};
+        try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
+        settings.multi_credentials = valid;
+        dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
+
+        res.json({ success: true, total: credentials.length, valid: valid.length, failed });
+    } catch (err) {
+        console.error('Save multi-credentials error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1275,34 +1384,69 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
     try {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
 
         const symbol    = req.query.symbol || bot.selected_symbol || 'BTCUSDT';
         const baseUrl   = 'https://fapi.binance.com';
-        const timestamp = await getBinanceServerTime('futures');
-        const sign      = (qs) => crypto.createHmac('sha256', bot.binance_api_secret).update(qs).digest('hex');
-        const makeReq   = async (endpoint, params = {}) => {
-            const qs = new URLSearchParams({ ...params, timestamp }).toString();
-            const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sign(qs)}`, {
-                headers: { 'X-MBX-APIKEY': bot.binance_api_key }, timeout: 10000
-            });
-            return r.data;
-        };
+        const multiCreds = getMultiCredentials(bot);
 
-        let account, openOrders, allOrders = [];
-        try {
-            [account, openOrders] = await Promise.all([
+        // Helper: fetch account + openOrders + allOrders for one credential pair
+        async function fetchChartForCred(apiKey, apiSecret) {
+            const ts   = await getBinanceServerTime('futures');
+            const sign = (qs) => crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
+            const makeReq = async (endpoint, params = {}) => {
+                const qs = new URLSearchParams({ ...params, timestamp: ts }).toString();
+                const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sign(qs)}`, {
+                    headers: { 'X-MBX-APIKEY': apiKey }, timeout: 10000
+                });
+                return r.data;
+            };
+            const [acc, orders] = await Promise.all([
                 makeReq('/fapi/v2/account'),
                 makeReq('/fapi/v1/openOrders', { symbol })
             ]);
-        } catch (apiError) {
-            logBinanceError('[chart-data] Binance API error:', apiError);
-            return res.status(500).json({ error: apiError.response?.data?.msg || 'Failed to fetch data from Binance' });
+            let all = [];
+            try { all = await makeReq('/fapi/v1/allOrders', { symbol, limit: 100 }); } catch (e) {}
+            return { account: acc, openOrders: orders, allOrders: all };
         }
 
-        try { allOrders = await makeReq('/fapi/v1/allOrders', { symbol, limit: 100 }); } catch (e) {}
+        let account, openOrders, allOrders = [];
+        if (multiCreds) {
+            // Fetch from all accounts in parallel and merge
+            const results = await Promise.allSettled(
+                multiCreds.map(c => fetchChartForCred(c.tk, c.tk_secret))
+            );
+            const merged = { positions: [], totalWalletBalance: 0, totalUnrealizedProfit: 0, availableBalance: 0 };
+            const mergedOpen = [], mergedAll = [];
+            let successCount = 0;
+            for (const r of results) {
+                if (r.status !== 'fulfilled') continue;
+                successCount++;
+                const d = r.value;
+                merged.totalWalletBalance    += parseFloat(d.account.totalWalletBalance) || 0;
+                merged.totalUnrealizedProfit += parseFloat(d.account.totalUnrealizedProfit) || 0;
+                merged.availableBalance      += parseFloat(d.account.availableBalance) || 0;
+                merged.positions.push(...(d.account.positions || []));
+                mergedOpen.push(...(d.openOrders || []));
+                mergedAll.push(...(d.allOrders || []));
+            }
+            if (successCount === 0) return res.status(500).json({ error: 'All Binance accounts failed' });
+            account = { totalWalletBalance: merged.totalWalletBalance, totalUnrealizedProfit: merged.totalUnrealizedProfit, availableBalance: merged.availableBalance, positions: merged.positions };
+            openOrders = mergedOpen;
+            allOrders  = mergedAll;
+        } else {
+            if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
+            try {
+                const d = await fetchChartForCred(bot.binance_api_key, bot.binance_api_secret);
+                account    = d.account;
+                openOrders = d.openOrders;
+                allOrders  = d.allOrders;
+            } catch (apiError) {
+                logBinanceError('[chart-data] Binance API error:', apiError);
+                return res.status(500).json({ error: apiError.response?.data?.msg || 'Failed to fetch data from Binance' });
+            }
+        }
 
-        const activePositions    = account.positions?.filter(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0) || [];
+        const activePositions    = (account.positions || []).filter(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
         const position          = activePositions[0] || null;
         const stopOrders        = openOrders.filter(o => o.type === 'STOP' || o.type === 'STOP_MARKET' || o.type === 'TRAILING_STOP_MARKET');
         const takeProfitOrders  = openOrders.filter(o => o.type === 'TAKE_PROFIT' || o.type === 'TAKE_PROFIT_MARKET');
@@ -1398,8 +1542,14 @@ router.get('/api/bots/:id/symbols', requireAuth, async (req, res) => {
         // Auto-detect active symbol from positions
         let selected = bot.selected_symbol || 'BTCUSDT';
         try {
-            if (bot.binance_api_key && bot.binance_api_secret) {
-                const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+            const multiCreds = getMultiCredentials(bot);
+            let binData;
+            if (multiCreds) {
+                binData = await fetchMultiAccountFuturesData(multiCreds);
+            } else if (bot.binance_api_key && bot.binance_api_secret) {
+                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+            }
+            if (binData) {
                 const activePos = (binData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
                 if (activePos) {
                     selected = activePos.symbol;
@@ -1433,8 +1583,14 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
         // Auto-detect active symbol from positions or latest trade
         let activeSymbol = bot.selected_symbol || 'BTCUSDT';
         try {
-            if (bot.binance_api_key && bot.binance_api_secret) {
-                const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+            const multiCreds = getMultiCredentials(bot);
+            let binData;
+            if (multiCreds) {
+                binData = await fetchMultiAccountFuturesData(multiCreds);
+            } else if (bot.binance_api_key && bot.binance_api_secret) {
+                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+            }
+            if (binData) {
                 const activePos = (binData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
                 if (activePos) {
                     activeSymbol = activePos.symbol;
