@@ -82,9 +82,14 @@ async function selectSymbol(sym) {
         const el = document.getElementById('liveChartCanvas');
         if (el && window.TickChart) {
             window._tickChart = new TickChart(el, { maxTicks: 2000 });
-            window._tickChart.start(sym);
+            window._tickChart.start(sym).then(() => {
+                if (window._tickChart && typeof tradeMarkers !== 'undefined') {
+                    window._tickChart.setMarkers(tradeMarkers);
+                }
+            });
         }
         await fetchTradeMarkers();
+        if (window._tickChart) window._tickChart.setMarkers(tradeMarkers);
         applyPeriod();
         return;
     }
@@ -135,7 +140,14 @@ function setChartTF(tf) {
         if (window._tickChart) { window._tickChart.destroy(); window._tickChart = null; }
         if (el && window.TickChart) {
             window._tickChart = new TickChart(el, { maxTicks: 2000 });
-            window._tickChart.start(getSymbol()).then(() => {});
+            window._tickChart.start(getSymbol()).then(() => {
+                // Load trade markers onto tick chart
+                fetchTradeMarkers().then(() => {
+                    if (window._tickChart && typeof tradeMarkers !== 'undefined') {
+                        window._tickChart.setMarkers(tradeMarkers);
+                    }
+                });
+            });
         }
         return;
     }

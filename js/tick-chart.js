@@ -1,12 +1,12 @@
 'use strict';
 /**
  * TickChart — lightweight canvas-based tick/line chart for sub-5s timeframes.
- * Renders trade-by-trade price as a continuous line.
+ * Renders trade-by-trade price as a continuous line with trade markers.
  *
  * Usage:
  *   const tc = new TickChart(containerEl, { maxTicks: 2000 });
- *   tc.loadHistory(trades);      // [{price, time, qty}]
- *   tc.addTick({price, time, qty});
+ *   tc.start(symbol);
+ *   tc.setMarkers(markers);  // [{time (sec), price, side, isEntry, pnl, count}]
  *   tc.destroy();
  */
 class TickChart {
@@ -14,15 +14,25 @@ class TickChart {
         this.container = container;
         this.maxTicks  = opts.maxTicks || 2000;
         this.ticks     = [];       // [{price, time, qty}]
+        this.markers   = [];       // [{time (ms), price, side, isEntry, pnl, count, symbol}]
         this._ws       = null;
         this._wsGen    = 0;
         this._raf      = null;
         this._dirty    = true;
         this._mouse    = null;     // {x, y} or null
         this._scrollOffset = 0;    // pan offset (0 = latest at right edge)
+        this._zoom     = 1;        // zoom factor (1 = default, >1 = zoomed in)
         this._isDragging   = false;
         this._dragStartX   = 0;
         this._dragStartOffset = 0;
+        this._hoveredMarker = null; // marker under cursor
+
+        // Touch state
+        this._touchId      = null;
+        this._touchStartX  = 0;
+        this._touchStartOffset = 0;
+        this._pinchDist    = 0;
+        this._pinchZoom    = 1;
 
         // Colors from CSS vars
         const cs = getComputedStyle(document.documentElement);
@@ -36,11 +46,14 @@ class TickChart {
             down:       cs.getPropertyValue('--color-down').trim()    || '#EF4444',
             accent:     cs.getPropertyValue('--accent-primary').trim()|| '#10B981',
             crosshair:  'rgba(255,255,255,0.2)',
+            markerLong:  '#22D3EE',
+            markerShort: '#F59E0B',
+            markerMixed: '#8B5CF6',
         };
 
         // Create canvas
         this.canvas = document.createElement('canvas');
-        this.canvas.style.cssText = 'width:100%;height:100%;display:block;cursor:crosshair;';
+        this.canvas.style.cssText = 'width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;';
         this.container.innerHTML = '';
         this.container.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
@@ -50,7 +63,7 @@ class TickChart {
         this._ro.observe(this.container);
         this._resize();
 
-        // Events
+        // Mouse events
         this._onMouseMove = this._onMouseMove.bind(this);
         this._onMouseLeave = this._onMouseLeave.bind(this);
         this._onWheel = this._onWheel.bind(this);
@@ -61,6 +74,15 @@ class TickChart {
         this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
         this.canvas.addEventListener('mousedown', this._onMouseDown);
         window.addEventListener('mouseup', this._onMouseUp);
+
+        // Touch events
+        this._onTouchStart = this._onTouchStart.bind(this);
+        this._onTouchMove  = this._onTouchMove.bind(this);
+        this._onTouchEnd   = this._onTouchEnd.bind(this);
+        this.canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
+        this.canvas.addEventListener('touchmove',  this._onTouchMove,  { passive: false });
+        this.canvas.addEventListener('touchend',    this._onTouchEnd);
+        this.canvas.addEventListener('touchcancel', this._onTouchEnd);
 
         // Render loop
         this._loop();
@@ -89,6 +111,21 @@ class TickChart {
         }
         // Auto-scroll to latest if user hasn't panned
         if (this._scrollOffset <= 2) this._scrollOffset = 0;
+        this._dirty = true;
+    }
+
+    /** Set trade markers. Each marker: {time (seconds!), price, side, isEntry, pnl, count, symbol} */
+    setMarkers(markers) {
+        // Convert time from seconds to ms for internal use
+        this.markers = (markers || []).map(m => ({
+            time:    (m.time || 0) * 1000,
+            price:   +m.price || 0,
+            side:    m.side || '',
+            isEntry: !!m.isEntry,
+            pnl:     +m.pnl || 0,
+            count:   m.count || 1,
+            symbol:  m.symbol || '',
+        }));
         this._dirty = true;
     }
 
@@ -131,7 +168,6 @@ class TickChart {
 
     /** Fetch recent trades from Binance REST + connect WS */
     async start(symbol) {
-        // Fetch history
         try {
             const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${symbol.toUpperCase()}&limit=1000`;
             const resp = await fetch(url);
@@ -142,7 +178,6 @@ class TickChart {
         } catch (e) {
             console.warn('[TickChart] Failed to fetch history:', e.message);
         }
-        // Connect WS
         this.connectWs(symbol);
     }
 
@@ -159,6 +194,10 @@ class TickChart {
         this.canvas.removeEventListener('wheel', this._onWheel);
         this.canvas.removeEventListener('mousedown', this._onMouseDown);
         window.removeEventListener('mouseup', this._onMouseUp);
+        this.canvas.removeEventListener('touchstart', this._onTouchStart);
+        this.canvas.removeEventListener('touchmove', this._onTouchMove);
+        this.canvas.removeEventListener('touchend', this._onTouchEnd);
+        this.canvas.removeEventListener('touchcancel', this._onTouchEnd);
         this.container.innerHTML = '';
     }
 
@@ -175,6 +214,8 @@ class TickChart {
         this._dirty = true;
     }
 
+    // ── Mouse ──
+
     _onMouseMove(e) {
         const r = this.canvas.getBoundingClientRect();
         this._mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -189,13 +230,21 @@ class TickChart {
 
     _onMouseLeave() {
         this._mouse = null;
+        this._hoveredMarker = null;
         this._dirty = true;
     }
 
     _onWheel(e) {
         e.preventDefault();
-        const delta = Math.sign(e.deltaY) * 5;
-        this._scrollOffset = Math.max(0, this._scrollOffset + delta);
+        if (e.ctrlKey || e.metaKey) {
+            // Zoom
+            const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+            this._zoom = Math.max(0.2, Math.min(10, this._zoom * zoomDelta));
+        } else {
+            // Pan
+            const delta = Math.sign(e.deltaY) * Math.max(3, Math.floor(10 / this._zoom));
+            this._scrollOffset = Math.max(0, this._scrollOffset + delta);
+        }
         this._dirty = true;
     }
 
@@ -211,6 +260,59 @@ class TickChart {
             this.canvas.style.cursor = 'crosshair';
         }
     }
+
+    // ── Touch ──
+
+    _onTouchStart(e) {
+        e.preventDefault();
+        if (e.touches.length === 2) {
+            // Pinch zoom
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            this._pinchDist = Math.sqrt(dx * dx + dy * dy);
+            this._pinchZoom = this._zoom;
+        } else if (e.touches.length === 1) {
+            const t = e.touches[0];
+            this._touchId = t.identifier;
+            this._touchStartX = t.clientX;
+            this._touchStartOffset = this._scrollOffset;
+            const r = this.canvas.getBoundingClientRect();
+            this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
+            this._dirty = true;
+        }
+    }
+
+    _onTouchMove(e) {
+        e.preventDefault();
+        if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (this._pinchDist > 0) {
+                this._zoom = Math.max(0.2, Math.min(10, this._pinchZoom * (dist / this._pinchDist)));
+                this._dirty = true;
+            }
+        } else if (e.touches.length === 1) {
+            const t = e.touches[0];
+            const dx = t.clientX - this._touchStartX;
+            const pxPerTick = this._pxPerTick || 2;
+            this._scrollOffset = Math.max(0, this._touchStartOffset - Math.round(dx / pxPerTick));
+            const r = this.canvas.getBoundingClientRect();
+            this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
+            this._dirty = true;
+        }
+    }
+
+    _onTouchEnd(e) {
+        if (e.touches.length === 0) {
+            this._touchId = null;
+            this._pinchDist = 0;
+            this._mouse = null;
+            this._dirty = true;
+        }
+    }
+
+    // ── Render loop ──
 
     _loop() {
         if (this._dirty) {
@@ -238,13 +340,18 @@ class TickChart {
         const chartW = W - PADDING_RIGHT;
         const chartH = H - PADDING_TOP - PADDING_BOTTOM;
 
-        // Determine visible range
-        const visibleCount = Math.max(100, Math.floor(chartW / 2));
+        // Determine visible range based on zoom
+        const baseVisible = Math.max(100, Math.floor(chartW / 2));
+        const visibleCount = Math.max(30, Math.floor(baseVisible / this._zoom));
         const endIdx = Math.max(0, ticks.length - 1 - this._scrollOffset);
         const startIdx = Math.max(0, endIdx - visibleCount);
         const visible = ticks.slice(startIdx, endIdx + 1);
 
         if (visible.length < 2) return;
+
+        // Time range of visible ticks
+        const visStartTime = visible[0].time;
+        const visEndTime   = visible[visible.length - 1].time;
 
         // Price range
         let minP = Infinity, maxP = -Infinity;
@@ -252,8 +359,15 @@ class TickChart {
             if (t.price < minP) minP = t.price;
             if (t.price > maxP) maxP = t.price;
         }
+        // Also include marker prices in range
+        for (const m of this.markers) {
+            if (m.time >= visStartTime && m.time <= visEndTime) {
+                if (m.price < minP) minP = m.price;
+                if (m.price > maxP) maxP = m.price;
+            }
+        }
         const spread = maxP - minP || maxP * 0.001 || 1;
-        const pad = spread * 0.08;
+        const pad = spread * 0.1;
         minP -= pad;
         maxP += pad;
 
@@ -262,6 +376,23 @@ class TickChart {
 
         const priceToY = (p) => PADDING_TOP + chartH - ((p - minP) / (maxP - minP)) * chartH;
         const idxToX   = (i) => i * pxPerTick;
+        const timeToX  = (ms) => {
+            // Binary search for nearest tick index by time
+            let lo = 0, hi = visible.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (visible[mid].time < ms) lo = mid + 1; else hi = mid;
+            }
+            // Interpolate between lo-1 and lo
+            if (lo > 0 && lo < visible.length) {
+                const t0 = visible[lo - 1].time, t1 = visible[lo].time;
+                if (t1 !== t0) {
+                    const frac = (ms - t0) / (t1 - t0);
+                    return idxToX(lo - 1 + frac);
+                }
+            }
+            return idxToX(lo);
+        };
 
         // Background
         ctx.fillStyle = colors.bg;
@@ -303,19 +434,13 @@ class TickChart {
         const firstPrice = visible[0].price;
         const lastPrice  = visible[visible.length - 1].price;
         const lineColor  = lastPrice >= firstPrice ? colors.up : colors.down;
+        const baseRgb = lastPrice >= firstPrice ? '16,185,129' : '239,68,68';
 
         // Gradient fill under line
         const grad = ctx.createLinearGradient(0, PADDING_TOP, 0, PADDING_TOP + chartH);
-        const baseRgb = lastPrice >= firstPrice ? '16,185,129' : '239,68,68';
         grad.addColorStop(0, `rgba(${baseRgb},0.12)`);
         grad.addColorStop(1, `rgba(${baseRgb},0.0)`);
 
-        ctx.beginPath();
-        ctx.moveTo(idxToX(0), priceToY(visible[0].price));
-        for (let i = 1; i < visible.length; i++) {
-            ctx.lineTo(idxToX(i), priceToY(visible[i].price));
-        }
-        // Fill area
         const fillPath = new Path2D();
         fillPath.moveTo(idxToX(0), priceToY(visible[0].price));
         for (let i = 1; i < visible.length; i++) {
@@ -362,19 +487,96 @@ class TickChart {
         ctx.fillText(this._fmtPrice(curPrice), chartW + 2 + lblW / 2, curY + 3.5);
 
         // Dot at latest point
-        const lastX = idxToX(visible.length - 1);
-        const lastY = priceToY(lastPrice);
-        ctx.beginPath();
-        ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
-        ctx.fillStyle = lineColor;
-        ctx.fill();
-        // Glow
-        ctx.beginPath();
-        ctx.arc(lastX, lastY, 6, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${baseRgb},0.3)`;
-        ctx.fill();
+        if (this._scrollOffset <= 2) {
+            const lastX = idxToX(visible.length - 1);
+            const lastY = priceToY(lastPrice);
+            ctx.beginPath();
+            ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+            ctx.fillStyle = lineColor;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(lastX, lastY, 6, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${baseRgb},0.3)`;
+            ctx.fill();
+        }
 
-        // Crosshair
+        // ── Trade markers ──
+        this._hoveredMarker = null;
+        const visibleMarkers = this.markers.filter(m => m.time >= visStartTime && m.time <= visEndTime);
+        for (const m of visibleMarkers) {
+            const mx = timeToX(m.time);
+            const my = priceToY(m.price);
+            if (mx < 0 || mx > chartW) continue;
+
+            const isLong = m.side === 'LONG' || m.side === 'BUY';
+            const isMixed = m.count > 1 && !m.isEntry;
+            const mColor = isMixed ? colors.markerMixed : (isLong ? colors.markerLong : colors.markerShort);
+
+            if (m.count > 1) {
+                // Grouped: diamond
+                const sz = 7;
+                ctx.beginPath();
+                ctx.moveTo(mx, my - sz);
+                ctx.lineTo(mx + sz, my);
+                ctx.lineTo(mx, my + sz);
+                ctx.lineTo(mx - sz, my);
+                ctx.closePath();
+                ctx.fillStyle = mColor + '30';
+                ctx.fill();
+                ctx.strokeStyle = mColor;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                // Count label
+                ctx.fillStyle = mColor;
+                ctx.font = 'bold 9px -apple-system, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(String(m.count), mx, my + 3);
+            } else if (m.isEntry) {
+                // Entry: triangle
+                const sz = 6;
+                const tipY = my;
+                const baseY = isLong ? my + sz * 2 : my - sz * 2;
+                ctx.beginPath();
+                ctx.moveTo(mx, tipY);
+                ctx.lineTo(mx - sz, baseY);
+                ctx.lineTo(mx + sz, baseY);
+                ctx.closePath();
+                // Dark outline
+                ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.strokeStyle = mColor;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.fillStyle = mColor + '25';
+                ctx.fill();
+            } else {
+                // Exit: circle
+                const r = 5;
+                ctx.beginPath();
+                ctx.arc(mx, my, r + 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(mx, my, r, 0, Math.PI * 2);
+                ctx.fillStyle = m.pnl >= 0 ? colors.up + '30' : colors.down + '30';
+                ctx.fill();
+                ctx.strokeStyle = m.pnl >= 0 ? colors.up : colors.down;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            // Check if mouse is near this marker
+            if (this._mouse) {
+                const dx = this._mouse.x - mx;
+                const dy = this._mouse.y - my;
+                if (dx * dx + dy * dy < 200) { // ~14px radius
+                    this._hoveredMarker = { ...m, _x: mx, _y: my, _isLong: isLong };
+                }
+            }
+        }
+
+        // ── Crosshair ──
         if (this._mouse && this._mouse.x < chartW && this._mouse.y > PADDING_TOP && this._mouse.y < H - PADDING_BOTTOM) {
             const mx = this._mouse.x;
             const my = this._mouse.y;
@@ -394,58 +596,56 @@ class TickChart {
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Snap to nearest tick
-            const nearIdx = Math.round(mx / pxPerTick);
-            if (nearIdx >= 0 && nearIdx < visible.length) {
-                const tick = visible[nearIdx];
-                const sx = idxToX(nearIdx);
-                const sy = priceToY(tick.price);
+            // Marker tooltip takes priority over regular tooltip
+            if (this._hoveredMarker) {
+                const hm = this._hoveredMarker;
+                const isLong = hm._isLong;
+                const lines = [];
+                if (hm.isEntry) {
+                    lines.push((isLong ? 'LONG' : 'SHORT') + ' Entry');
+                } else {
+                    lines.push((isLong ? 'LONG' : 'SHORT') + ' Exit');
+                }
+                lines.push('Price: ' + this._fmtPrice(hm.price));
+                if (!hm.isEntry) {
+                    const pnlStr = (hm.pnl >= 0 ? '+' : '') + hm.pnl.toFixed(2);
+                    lines.push('PnL: ' + pnlStr);
+                }
+                if (hm.count > 1) lines.push('Count: ' + hm.count);
+                const d = new Date(hm.time);
+                lines.push(d.getHours().toString().padStart(2, '0') + ':' +
+                           d.getMinutes().toString().padStart(2, '0') + ':' +
+                           d.getSeconds().toString().padStart(2, '0'));
 
-                // Snap dot
-                ctx.beginPath();
-                ctx.arc(sx, sy, 4, 0, Math.PI * 2);
-                ctx.fillStyle = colors.accent;
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
+                this._drawTooltip(ctx, hm._x, hm._y, lines, chartW, PADDING_TOP);
+            } else {
+                // Snap to nearest tick
+                const nearIdx = Math.round(mx / pxPerTick);
+                if (nearIdx >= 0 && nearIdx < visible.length) {
+                    const tick = visible[nearIdx];
+                    const sx = idxToX(nearIdx);
+                    const sy = priceToY(tick.price);
 
-                // Tooltip
-                const d = new Date(tick.time);
-                const timeStr = d.getHours().toString().padStart(2, '0') + ':' +
-                                d.getMinutes().toString().padStart(2, '0') + ':' +
-                                d.getSeconds().toString().padStart(2, '0') + '.' +
-                                d.getMilliseconds().toString().padStart(3, '0');
-                const priceStr = this._fmtPrice(tick.price);
-                const qtyStr = tick.qty ? ('Qty: ' + tick.qty.toFixed(4)) : '';
+                    // Snap dot
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = colors.accent;
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
 
-                ctx.font = '11px -apple-system, monospace';
-                const lines = [priceStr, timeStr];
-                if (qtyStr) lines.push(qtyStr);
-                const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16;
-                const th = lines.length * 16 + 8;
-                let tx = sx + 12;
-                let ty = sy - th - 6;
-                if (tx + tw > chartW) tx = sx - tw - 12;
-                if (ty < PADDING_TOP) ty = sy + 10;
+                    // Tooltip
+                    const d = new Date(tick.time);
+                    const timeStr = d.getHours().toString().padStart(2, '0') + ':' +
+                                    d.getMinutes().toString().padStart(2, '0') + ':' +
+                                    d.getSeconds().toString().padStart(2, '0') + '.' +
+                                    d.getMilliseconds().toString().padStart(3, '0');
+                    const priceStr = this._fmtPrice(tick.price);
+                    const lines = [priceStr, timeStr];
+                    if (tick.qty) lines.push('Qty: ' + tick.qty.toFixed(4));
 
-                ctx.fillStyle = 'rgba(26,26,26,0.92)';
-                ctx.beginPath();
-                ctx.roundRect(tx, ty, tw, th, 6);
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                ctx.fillStyle = '#fff';
-                ctx.textAlign = 'left';
-                ctx.font = 'bold 11px -apple-system, monospace';
-                ctx.fillText(priceStr, tx + 8, ty + 16);
-                ctx.font = '10px -apple-system, monospace';
-                ctx.fillStyle = colors.textSec;
-                ctx.fillText(timeStr, tx + 8, ty + 32);
-                if (qtyStr) {
-                    ctx.fillText(qtyStr, tx + 8, ty + 48);
+                    this._drawTooltip(ctx, sx, sy, lines, chartW, PADDING_TOP);
                 }
             }
 
@@ -459,6 +659,36 @@ class TickChart {
             ctx.font = '10px -apple-system, monospace';
             ctx.textAlign = 'center';
             ctx.fillText(this._fmtPrice(hoverPrice), chartW + 34, my + 3);
+        }
+    }
+
+    _drawTooltip(ctx, anchorX, anchorY, lines, chartW, paddingTop) {
+        ctx.font = '11px -apple-system, monospace';
+        const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16;
+        const th = lines.length * 16 + 8;
+        let tx = anchorX + 12;
+        let ty = anchorY - th - 6;
+        if (tx + tw > chartW) tx = anchorX - tw - 12;
+        if (ty < paddingTop) ty = anchorY + 10;
+
+        ctx.fillStyle = 'rgba(26,26,26,0.92)';
+        ctx.beginPath();
+        ctx.roundRect(tx, ty, tw, th, 6);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        for (let i = 0; i < lines.length; i++) {
+            if (i === 0) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px -apple-system, monospace';
+            } else {
+                ctx.fillStyle = this.colors.textSec;
+                ctx.font = '10px -apple-system, monospace';
+            }
+            ctx.fillText(lines[i], tx + 8, ty + 16 + i * 16);
         }
     }
 

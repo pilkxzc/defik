@@ -185,7 +185,11 @@ async function init() {
         // Trade markers every 60 sec
         setInterval(async () => {
             await fetchTradeMarkers();
-            if (activeTab === 'overview') renderLiveChart();
+            if (window._tickChart) {
+                window._tickChart.setMarkers(tradeMarkers);
+            } else if (activeTab === 'overview') {
+                renderLiveChart();
+            }
         }, 60000);
 
         // Re-sync trades every 2 min to catch any trades closed on Binance

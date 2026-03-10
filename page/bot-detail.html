@@ -7458,9 +7458,17 @@
                 _tickChart = new TickChart(chartEl, { maxTicks: 2000 });
                 document.getElementById('chartLoading').style.display = 'flex';
                 document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
-                _tickChart.start(currentSymbol).then(() => {
+                _tickChart.start(currentSymbol).then(async () => {
                     if (_chartLoadGen !== _myLoadGen) return;
                     document.getElementById('chartLoading').style.display = 'none';
+                    // Load trade markers for tick chart
+                    try {
+                        const resp = await fetch(`/api/bots/${botId}/trade-markers?symbol=${currentSymbol}`, { credentials: 'include' });
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            if (_tickChart && data.markers) _tickChart.setMarkers(data.markers);
+                        }
+                    } catch(e) {}
                 });
                 return;
             }
