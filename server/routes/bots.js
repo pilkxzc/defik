@@ -162,7 +162,14 @@ async function fetchMultiAccountFuturesData(credentials) {
         merged.incomeHistory.push(...(d.incomeHistory || []));
     }
 
-    if (successCount === 0) throw new Error('All Binance accounts failed to respond');
+    // Collect errors from failed accounts
+    const errors = [];
+    results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+            const keyPreview = credentials[i].tk ? credentials[i].tk.slice(0, 8) + '...' + credentials[i].tk.slice(-6) : '?';
+            errors.push({ index: i, key: keyPreview, error: r.reason?.message || 'Unknown error' });
+        }
+    });
 
     // Sort by time descending
     merged.recentTrades.sort((a, b) => b.time - a.time);
@@ -174,6 +181,7 @@ async function fetchMultiAccountFuturesData(credentials) {
     merged.recentTrades  = merged.recentTrades.slice(0, 50);
     merged.incomeHistory = merged.incomeHistory.slice(0, 100);
 
+    merged._meta = { total: credentials.length, ok: successCount, errors };
     return merged;
 }
 
@@ -1630,7 +1638,16 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
             binanceData = await fetchMultiAccountFuturesData(multiCreds);
         } else {
             if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
-            binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
+            try {
+                binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
+            } catch (singleErr) {
+                // Return empty data with error info instead of 500
+                binanceData = {
+                    account: { totalWalletBalance: 0, totalUnrealizedProfit: 0, totalMarginBalance: 0, availableBalance: 0 },
+                    positions: [], openOrders: [], limitOrders: [], stopOrders: [], takeProfitOrders: [], recentTrades: [], incomeHistory: [],
+                    _meta: { total: 1, ok: 0, errors: [{ index: 0, key: bot.binance_api_key.slice(0, 8) + '...' + bot.binance_api_key.slice(-6), error: singleErr.message }] }
+                };
+            }
         }
 
         res.json({
@@ -2024,7 +2041,21 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
             mergedOpen.push(...(d.openOrders || []));
             mergedAll.push(...(d.allOrders || []));
         }
-        if (successCount === 0) return res.status(500).json({ error: 'All Binance accounts failed' });
+        if (successCount === 0) {
+            // Collect error details for the frontend
+            const errors = results.map((r, i) => {
+                if (r.status === 'rejected') {
+                    const keyPreview = credPairs[i].apiKey ? credPairs[i].apiKey.slice(0, 8) + '...' + credPairs[i].apiKey.slice(-6) : '?';
+                    return { key: keyPreview, error: r.reason?.message || 'Unknown error', proxy: credPairs[i].proxy || null };
+                }
+                return null;
+            }).filter(Boolean);
+            return res.json({
+                positions: [], openOrders: [], limitOrders: [], stopOrders: [], takeProfitOrders: [], canceledOrders: [], orderHistory: [],
+                account: { totalWalletBalance: 0, totalUnrealizedProfit: 0, availableBalance: 0 },
+                _meta: { total: credPairs.length, ok: 0, errors }
+            });
+        }
 
         const account    = { totalWalletBalance: merged.totalWalletBalance, totalUnrealizedProfit: merged.totalUnrealizedProfit, availableBalance: merged.availableBalance, positions: merged.positions };
         const openOrders = mergedOpen.filter(o => o.symbol === symbol);
