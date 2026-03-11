@@ -195,8 +195,8 @@ async function fetchBinanceFuturesData(apiKey, apiSecret) {
     const cacheKey = apiKey;
     const now      = Date.now();
 
-    // Return cached data if fresh (15 seconds)
-    if (_binanceDataCache[cacheKey] && (now - _binanceDataCache[cacheKey].ts) < 15_000) {
+    // Return cached data if fresh (30 seconds — avoids rate-limit bans)
+    if (_binanceDataCache[cacheKey] && (now - _binanceDataCache[cacheKey].ts) < 30_000) {
         return _binanceDataCache[cacheKey].data;
     }
 

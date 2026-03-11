@@ -4283,29 +4283,19 @@
         let isAdmin = false;
         let demoMode = false;
 
-        // Retry helper for server-side endpoints that return 503 during Binance IP ban
-        async function fetchWithRetry(url, opts = {}, maxAttempts = 4) {
-            let lastErr;
-            for (let i = 0; i < maxAttempts; i++) {
-                try {
-                    const resp = await fetch(url, opts);
-                    if (resp.status === 503) {
-                        const body = await resp.json().catch(() => ({}));
-                        // Cap wait to 10s — don't wait the full ban duration
-                        const wait = Math.min((body.retryAfter || 5), 10) * 1000;
-                        console.warn(`[fetchWithRetry] 503 on ${url}, retry in ${wait}ms (${i+1}/${maxAttempts})`);
-                        await new Promise(r => setTimeout(r, wait));
-                        continue;
-                    }
-                    return resp;
-                } catch (e) {
-                    lastErr = e;
-                    const wait = Math.min(2000 * Math.pow(2, i), 10000);
-                    console.warn(`[fetchWithRetry] Network error on ${url}, retry in ${wait}ms`, e.message);
-                    await new Promise(r => setTimeout(r, wait));
+        // Fetch that handles 503 gracefully — returns null instead of blocking
+        async function fetchSafe(url, opts = {}) {
+            try {
+                const resp = await fetch(url, opts);
+                if (resp.status === 503) {
+                    console.warn(`[fetchSafe] 503 on ${url} — Binance ban active, will retry on next poll`);
+                    return null;
                 }
+                return resp;
+            } catch (e) {
+                console.warn(`[fetchSafe] Network error on ${url}:`, e.message);
+                return null;
             }
-            throw lastErr || new Error('fetchWithRetry: all attempts failed');
         }
 
         // klinesData shared for overlay/snap calculations
@@ -6811,8 +6801,8 @@
                 // Auto-detect actual symbol from live data
                 // Priority: open positions > recent trades > instruments > DB selected
                 try {
-                    const liveRes = await fetchWithRetry(`/api/bots/${botId}/data`, { credentials: 'include' }, 2);
-                    if (liveRes.ok) {
+                    const liveRes = await fetchSafe(`/api/bots/${botId}/data`, { credentials: 'include' });
+                    if (liveRes && liveRes.ok) {
                         const liveData = await liveRes.json();
                         const activePos = (liveData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
                         if (activePos) {
@@ -7437,7 +7427,8 @@
         // Load bot info
         async function loadBotInfo() {
             try {
-                const response = await fetchWithRetry(`/api/bots/${botId}/data`);
+                const response = await fetchSafe(`/api/bots/${botId}/data`);
+                if (!response) return; // 503 or network error — will retry on next poll
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error);
@@ -7930,7 +7921,11 @@
             }
 
             try {
-                const response = await fetchWithRetry(`/api/bots/${botId}/chart-data?symbol=${currentSymbol}`);
+                const response = await fetchSafe(`/api/bots/${botId}/chart-data?symbol=${currentSymbol}`);
+                if (!response) {
+                    if (showLoading) document.getElementById('chartLoading').style.display = 'none';
+                    return; // 503 — will retry on next 15s poll
+                }
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error || 'Помилка завантаження даних');
