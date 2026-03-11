@@ -3930,9 +3930,13 @@
                                 <label style="font-size:12px;">API Ключ</label>
                                 <input type="text" class="setting-input" id="multiAccKey" placeholder="API Key..." autocomplete="off" style="font-family:monospace;font-size:11px;">
                             </div>
-                            <div class="setting-item" style="margin-bottom:12px;">
+                            <div class="setting-item" style="margin-bottom:8px;">
                                 <label style="font-size:12px;">API Секрет</label>
                                 <input type="password" class="setting-input" id="multiAccSecret" placeholder="API Secret..." autocomplete="off" style="font-family:monospace;font-size:11px;">
+                            </div>
+                            <div class="setting-item" style="margin-bottom:12px;">
+                                <label style="font-size:12px;">Проксі <span style="color:var(--text-tertiary);font-weight:400;">(опціонально)</span></label>
+                                <input type="text" class="setting-input" id="multiAccProxy" placeholder="IP:PORT:LOGIN:PASS" autocomplete="off" style="font-family:monospace;font-size:11px;">
                             </div>
                             <div style="display:flex;gap:8px;">
                                 <button onclick="addMultiAcc()" style="flex:1;padding:8px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer;font-size:13px;">Додати</button>
@@ -9186,7 +9190,7 @@
         }
 
         // ── Multi-account credentials ──────────────────────────
-        let multiAccounts = []; // [{tk, tk_secret}]
+        let multiAccounts = []; // [{tk, tk_secret, proxy}]
 
         function toggleMultiAccForm(show) {
             document.getElementById('multiAccAddForm').style.display = show ? 'block' : 'none';
@@ -9194,6 +9198,7 @@
             if (show) {
                 document.getElementById('multiAccKey').value = '';
                 document.getElementById('multiAccSecret').value = '';
+                document.getElementById('multiAccProxy').value = '';
                 document.getElementById('multiAccAddStatus').textContent = '';
                 document.getElementById('multiAccKey').focus();
             }
@@ -9202,10 +9207,11 @@
         function addMultiAcc() {
             const tk = document.getElementById('multiAccKey').value.trim();
             const tkSecret = document.getElementById('multiAccSecret').value.trim();
+            const proxy = document.getElementById('multiAccProxy').value.trim();
             const statusEl = document.getElementById('multiAccAddStatus');
             if (!tk || !tkSecret) {
                 statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Обидва поля обов\'язкові';
+                statusEl.textContent = 'API Ключ та Секрет обов\'язкові';
                 return;
             }
             if (multiAccounts.some(a => a.tk === tk)) {
@@ -9213,7 +9219,7 @@
                 statusEl.textContent = 'Цей ключ вже додано';
                 return;
             }
-            multiAccounts.push({ tk, tk_secret: tkSecret });
+            multiAccounts.push({ tk, tk_secret: tkSecret, proxy: proxy || '' });
             renderMultiAccList();
             toggleMultiAccForm(false);
         }
@@ -9239,20 +9245,29 @@
             badge.textContent = multiAccounts.length + ' акаунт' + (multiAccounts.length > 1 ? (multiAccounts.length < 5 ? 'и' : 'ів') : '');
             saveWrap.style.display = 'block';
 
-            list.innerHTML = multiAccounts.map((a, i) => `
+            list.innerHTML = multiAccounts.map((a, i) => {
+                const proxyDisplay = a.proxy ? a.proxy.split(':').slice(0, 2).join(':') + ':***' : 'без проксі';
+                const proxyColor = a.proxy ? 'rgba(16,185,129,0.7)' : 'var(--text-tertiary)';
+                return `
                 <div style="display:flex;align-items:center;gap:10px;background:var(--surface-secondary);border-radius:10px;padding:10px 14px;">
                     <div style="width:32px;height:32px;border-radius:8px;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <span style="font-size:13px;font-weight:700;color:var(--accent-primary);">${i + 1}</span>
                     </div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-family:monospace;font-size:11px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.tk.slice(0, 8)}...${a.tk.slice(-6)}</div>
-                        <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">Secret: ${'*'.repeat(12)}</div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:2px;">
+                            <span style="font-size:10px;color:var(--text-tertiary);">Secret: ${'*'.repeat(12)}</span>
+                            <span style="font-size:10px;color:${proxyColor};">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                                ${proxyDisplay}
+                            </span>
+                        </div>
                     </div>
                     <button onclick="removeMultiAcc(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='#EF4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='var(--text-tertiary)';this.style.background='none'" title="Видалити">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
                     </button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
 
         async function saveMultiCredentials(skipValidation) {
@@ -9335,6 +9350,10 @@
                     } else {
                         html += `<div style="font-size:10px;color:#EF4444;margin-top:2px;">${a.error}</div>`;
                     }
+                    if (a.proxy) {
+                        const pParts = a.proxy.split(':');
+                        html += `<div style="font-size:10px;color:rgba(16,185,129,0.7);margin-top:1px;">Proxy: ${pParts[0]}:${pParts[1]}:***</div>`;
+                    }
                     html += `</div></div>`;
                 });
 
@@ -9354,7 +9373,7 @@
                 const data = await res.json();
                 const mc = data?.settings?.multi_credentials;
                 if (Array.isArray(mc) && mc.length > 0) {
-                    multiAccounts = mc.map(c => ({ tk: c.tk, tk_secret: c.tk_secret }));
+                    multiAccounts = mc.map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || '' }));
                     renderMultiAccList();
                 } else {
                     renderMultiAccList();

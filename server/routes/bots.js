@@ -1706,7 +1706,7 @@ router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
         // Filter out entries without both fields
-        const cleaned = credentials.filter(c => c.tk && c.tk_secret);
+        const cleaned = credentials.filter(c => c.tk && c.tk_secret).map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || null }));
         if (cleaned.length === 0) return res.status(400).json({ error: 'No valid credentials provided' });
 
         let toSave = cleaned, failed = [];
@@ -1752,11 +1752,13 @@ router.get('/api/bots/:id/multi-credentials/verify', requireAuth, requireRole('a
 
         const accounts = results.map((r, i) => {
             const keyPreview = multiCreds[i].tk.slice(0, 8) + '...' + multiCreds[i].tk.slice(-6);
+            const proxy = multiCreds[i].proxy || '';
             if (r.status === 'fulfilled' && r.value.success) {
                 const d = r.value.data;
                 return {
                     index: i,
                     key: keyPreview,
+                    proxy,
                     status: 'ok',
                     balance: parseFloat(d.totalWalletBalance || 0),
                     unrealizedPnl: parseFloat(d.totalUnrealizedProfit || 0),
@@ -1765,7 +1767,7 @@ router.get('/api/bots/:id/multi-credentials/verify', requireAuth, requireRole('a
                 };
             } else {
                 const errMsg = r.status === 'fulfilled' ? r.value.error : (r.reason?.message || 'Unknown error');
-                return { index: i, key: keyPreview, status: 'error', error: errMsg };
+                return { index: i, key: keyPreview, proxy, status: 'error', error: errMsg };
             }
         });
 
