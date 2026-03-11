@@ -3936,7 +3936,13 @@
                             </div>
                             <div class="setting-item" style="margin-bottom:12px;">
                                 <label style="font-size:12px;">Проксі <span style="color:var(--text-tertiary);font-weight:400;">(опціонально)</span></label>
-                                <input type="text" class="setting-input" id="multiAccProxy" placeholder="IP:PORT:LOGIN:PASS" autocomplete="off" style="font-family:monospace;font-size:11px;">
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <input type="text" class="setting-input" id="multiAccProxy" placeholder="IP:PORT:LOGIN:PASS" autocomplete="off" style="font-family:monospace;font-size:11px;flex:1;">
+                                    <button type="button" onclick="testNewAccProxy()" id="newAccProxyTestBtn" style="padding:7px 10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Тест
+                                    </button>
+                                </div>
+                                <div id="newAccProxyStatus" style="font-size:11px;margin-top:4px;min-height:14px;"></div>
                             </div>
                             <div style="display:flex;gap:8px;">
                                 <button onclick="addMultiAcc()" style="flex:1;padding:8px;background:var(--accent-primary);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer;font-size:13px;">Додати</button>
@@ -9200,7 +9206,51 @@
                 document.getElementById('multiAccSecret').value = '';
                 document.getElementById('multiAccProxy').value = '';
                 document.getElementById('multiAccAddStatus').textContent = '';
+                document.getElementById('newAccProxyStatus').textContent = '';
                 document.getElementById('multiAccKey').focus();
+            }
+        }
+
+        async function testNewAccProxy() {
+            const proxy = document.getElementById('multiAccProxy').value.trim();
+            const statusEl = document.getElementById('newAccProxyStatus');
+            const btn = document.getElementById('newAccProxyTestBtn');
+            if (!proxy) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Введiть проксi';
+                return;
+            }
+            const parts = proxy.split(':');
+            if (parts.length < 2) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Формат: IP:PORT:LOGIN:PASS';
+                return;
+            }
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            statusEl.style.color = 'var(--text-tertiary)';
+            statusEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:4px;"></span>Перевiрка...';
+            try {
+                const apiKey = document.getElementById('multiAccKey').value.trim();
+                const res = await fetch(`/api/bots/${botId}/test-proxy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ proxy, apiKey })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    statusEl.style.color = '#10B981';
+                    statusEl.textContent = 'OK — ' + (data.ip || 'з\'єднано') + (data.latency ? ' (' + data.latency + 'ms)' : '');
+                } else {
+                    statusEl.style.color = '#EF4444';
+                    statusEl.textContent = data.error || 'Помилка з\'єднання';
+                }
+            } catch (e) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
             }
         }
 
@@ -9224,9 +9274,68 @@
             toggleMultiAccForm(false);
         }
 
+        let editingAccIndex = -1;
+
         function removeMultiAcc(index) {
             multiAccounts.splice(index, 1);
+            if (editingAccIndex === index) editingAccIndex = -1;
+            else if (editingAccIndex > index) editingAccIndex--;
             renderMultiAccList();
+        }
+
+        function editMultiAcc(index) {
+            editingAccIndex = editingAccIndex === index ? -1 : index;
+            renderMultiAccList();
+        }
+
+        function saveMultiAccEdit(index) {
+            const proxyInput = document.getElementById('editProxy_' + index);
+            if (proxyInput) multiAccounts[index].proxy = proxyInput.value.trim();
+            editingAccIndex = -1;
+            renderMultiAccList();
+        }
+
+        async function testProxyConn(index) {
+            const proxyInput = document.getElementById('editProxy_' + index);
+            const statusEl = document.getElementById('editProxyStatus_' + index);
+            const btn = document.getElementById('editProxyTestBtn_' + index);
+            const proxy = proxyInput ? proxyInput.value.trim() : '';
+            if (!proxy) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Введiть проксi';
+                return;
+            }
+            const parts = proxy.split(':');
+            if (parts.length < 2) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Формат: IP:PORT:LOGIN:PASS';
+                return;
+            }
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            statusEl.style.color = 'var(--text-tertiary)';
+            statusEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:4px;"></span>Перевiрка...';
+            try {
+                const res = await fetch(`/api/bots/${botId}/test-proxy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ proxy, apiKey: multiAccounts[index]?.tk || '' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    statusEl.style.color = '#10B981';
+                    statusEl.textContent = 'OK — ' + (data.ip || 'з\'єднано') + (data.latency ? ' (' + data.latency + 'ms)' : '');
+                } else {
+                    statusEl.style.color = '#EF4444';
+                    statusEl.textContent = data.error || 'Помилка з\'єднання';
+                }
+            } catch (e) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
         }
 
         function renderMultiAccList() {
@@ -9248,25 +9357,49 @@
             list.innerHTML = multiAccounts.map((a, i) => {
                 const proxyDisplay = a.proxy ? a.proxy.split(':').slice(0, 2).join(':') + ':***' : 'без проксі';
                 const proxyColor = a.proxy ? 'rgba(16,185,129,0.7)' : 'var(--text-tertiary)';
-                return `
-                <div style="display:flex;align-items:center;gap:10px;background:var(--surface-secondary);border-radius:10px;padding:10px 14px;">
-                    <div style="width:32px;height:32px;border-radius:8px;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        <span style="font-size:13px;font-weight:700;color:var(--accent-primary);">${i + 1}</span>
-                    </div>
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-family:monospace;font-size:11px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.tk.slice(0, 8)}...${a.tk.slice(-6)}</div>
-                        <div style="display:flex;gap:8px;align-items:center;margin-top:2px;">
-                            <span style="font-size:10px;color:var(--text-tertiary);">Secret: ${'*'.repeat(12)}</span>
-                            <span style="font-size:10px;color:${proxyColor};">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-                                ${proxyDisplay}
-                            </span>
-                        </div>
-                    </div>
-                    <button onclick="removeMultiAcc(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='#EF4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='var(--text-tertiary)';this.style.background='none'" title="Видалити">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-                    </button>
-                </div>`;
+                const isEditing = editingAccIndex === i;
+
+                let html = `<div style="background:var(--surface-secondary);border-radius:10px;padding:10px 14px;${isEditing ? 'border:1px solid rgba(16,185,129,0.25);' : ''}">`;
+                html += `<div style="display:flex;align-items:center;gap:10px;">`;
+                html += `<div style="width:32px;height:32px;border-radius:8px;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">`;
+                html += `<span style="font-size:13px;font-weight:700;color:var(--accent-primary);">${i + 1}</span></div>`;
+                html += `<div style="flex:1;min-width:0;">`;
+                html += `<div style="font-family:monospace;font-size:11px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.tk.slice(0, 8)}...${a.tk.slice(-6)}</div>`;
+                html += `<div style="display:flex;gap:8px;align-items:center;margin-top:2px;">`;
+                html += `<span style="font-size:10px;color:var(--text-tertiary);">Secret: ${'*'.repeat(12)}</span>`;
+                html += `<span style="font-size:10px;color:${proxyColor};">`;
+                html += `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>`;
+                html += `${proxyDisplay}</span></div></div>`;
+
+                // Edit button
+                html += `<button onclick="editMultiAcc(${i})" style="background:none;border:none;color:${isEditing ? 'var(--accent-primary)' : 'var(--text-tertiary)'};cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='var(--accent-primary)';this.style.background='rgba(16,185,129,0.1)'" onmouseout="this.style.color='${isEditing ? 'var(--accent-primary)' : 'var(--text-tertiary)'}';this.style.background='none'" title="Редагувати">`;
+                html += `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`;
+
+                // Delete button
+                html += `<button onclick="removeMultiAcc(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='#EF4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='var(--text-tertiary)';this.style.background='none'" title="Видалити">`;
+                html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>`;
+                html += `</div>`;
+
+                // Inline edit form
+                if (isEditing) {
+                    html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">`;
+                    html += `<div style="margin-bottom:8px;">`;
+                    html += `<label style="font-size:11px;color:var(--text-tertiary);display:block;margin-bottom:4px;">Проксі (IP:PORT:LOGIN:PASS)</label>`;
+                    html += `<div style="display:flex;gap:6px;align-items:center;">`;
+                    html += `<input type="text" id="editProxy_${i}" value="${a.proxy || ''}" placeholder="IP:PORT:LOGIN:PASS" style="flex:1;padding:7px 10px;background:var(--bg-app);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text-primary);font-family:monospace;font-size:11px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='rgba(16,185,129,0.4)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">`;
+                    html += `<button id="editProxyTestBtn_${i}" onclick="testProxyConn(${i})" style="padding:7px 10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:4px;">`;
+                    html += `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Тест</button>`;
+                    html += `</div>`;
+                    html += `<div id="editProxyStatus_${i}" style="font-size:11px;margin-top:4px;min-height:16px;"></div>`;
+                    html += `</div>`;
+                    html += `<div style="display:flex;gap:6px;">`;
+                    html += `<button onclick="saveMultiAccEdit(${i})" style="flex:1;padding:6px;background:var(--accent-primary);border:none;border-radius:6px;color:white;font-weight:600;cursor:pointer;font-size:12px;">Застосувати</button>`;
+                    html += `<button onclick="editMultiAcc(${i})" style="padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--text-secondary);cursor:pointer;font-size:12px;">Скасувати</button>`;
+                    html += `</div></div>`;
+                }
+
+                html += `</div>`;
+                return html;
             }).join('');
         }
 

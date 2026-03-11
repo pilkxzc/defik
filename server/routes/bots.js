@@ -1782,6 +1782,34 @@ router.get('/api/bots/:id/multi-credentials/verify', requireAuth, requireRole('a
     }
 });
 
+// ── Test proxy connection ──────────────────────────────────────
+router.post('/api/bots/:id/test-proxy', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { proxy } = req.body;
+        if (!proxy) return res.status(400).json({ error: 'proxy is required' });
+
+        const agent = getProxyAgent(proxy);
+        if (!agent) return res.status(400).json({ error: 'Invalid proxy format' });
+
+        const start = Date.now();
+        const resp = await axios.get('https://api.ipify.org?format=json', {
+            httpsAgent: agent,
+            proxy: false,
+            timeout: 10000
+        });
+        const latency = Date.now() - start;
+
+        res.json({ success: true, ip: resp.data?.ip || '?', latency });
+    } catch (err) {
+        const msg = err.code === 'ECONNREFUSED' ? 'З\'єднання вiдхилено'
+                  : err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED' ? 'Таймаут з\'єднання'
+                  : err.code === 'ENOTFOUND' ? 'Хост не знайдено'
+                  : err.response?.status === 407 ? 'Невiрний логiн/пароль проксi'
+                  : err.message || 'Помилка з\'єднання';
+        res.json({ success: false, error: msg });
+    }
+});
+
 // ── Reset bot statistics ──
 router.post('/api/bots/:id/reset-stats', requireAuth, requireRole('admin'), (req, res) => {
     try {
