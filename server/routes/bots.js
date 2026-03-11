@@ -2601,11 +2601,13 @@ router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
 
         const symbol = req.query.symbol || bot.selected_symbol || 'BTCUSDT';
 
-        // Fetch from all accounts and merge
+        // Fetch from all accounts and merge (tag each order with account key preview)
         const allOrders = [];
-        await Promise.allSettled(credPairs.map(async (cred) => {
+        await Promise.allSettled(credPairs.map(async (cred, ci) => {
             try {
+                const keyPreview = cred.apiKey.slice(0, 8) + '...' + cred.apiKey.slice(-6);
                 const data = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/allOrders', { symbol, limit: 500 }, cred.proxy);
+                (data || []).forEach(o => { o._accKey = keyPreview; o._accIndex = ci; });
                 allOrders.push(...(data || []));
             } catch (e) {}
         }));
@@ -2623,6 +2625,9 @@ router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
             } catch (e) { /* duplicate */ }
         }
 
+        // Collect unique account keys for filter
+        const accountKeys = [...new Set(allOrders.map(o => o._accKey).filter(Boolean))];
+
         const orders = allOrders.map(o => ({
             orderId: o.orderId,
             symbol: o.symbol,
@@ -2635,10 +2640,12 @@ router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
             executedQty: parseFloat(o.executedQty) || 0,
             status: o.status,
             time: o.time,
-            updateTime: o.updateTime
+            updateTime: o.updateTime,
+            accountKey: o._accKey || null,
+            accountIndex: o._accIndex ?? null
         })).sort((a, b) => b.time - a.time);
 
-        res.json({ orders });
+        res.json({ orders, accountKeys });
     } catch (error) {
         console.error('Order history error:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch order history' });

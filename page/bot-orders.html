@@ -482,13 +482,16 @@
                 <option value="30">30 днів</option>
                 <option value="90">90 днів</option>
             </select>
+            <select class="time-select" id="accountFilter" style="display:none;">
+                <option value="all">Всi акаунти</option>
+            </select>
         </div>
 
         <!-- Table -->
         <div class="orders-card">
             <div class="orders-table-wrap">
                 <table class="orders-tbl">
-                    <thead>
+                    <thead id="ordersHead">
                         <tr>
                             <th style="width:32px;"></th>
                             <th class="sortable active-sort desc" data-sort="time">Дата</th>
@@ -759,6 +762,7 @@
     let statusFilter = 'all';
     let typeFilter = 'all';
     let timeFilter = 0;
+    let accountFilter = 'all';
     let searchQuery = '';
     let currentPage = 1;
     const perPage = 50;
@@ -1341,6 +1345,31 @@
             if (!res.ok) throw new Error('Failed');
             const data = await res.json();
             allOrders = data.orders || [];
+
+            // Build account filter dropdown + account column
+            const accSelect = document.getElementById('accountFilter');
+            const keys = data.accountKeys || [...new Set(allOrders.map(o => o.accountKey).filter(Boolean))];
+            const isMulti = keys.length > 1;
+            if (isMulti) {
+                accSelect.style.display = '';
+                accSelect.innerHTML = '<option value="all">Всi акаунти (' + keys.length + ')</option>';
+                keys.forEach((k, i) => {
+                    accSelect.innerHTML += '<option value="' + k + '">' + (i + 1) + '. ' + k + '</option>';
+                });
+                // Add "Акаунт" column to table header if not already there
+                const headRow = document.querySelector('#ordersHead tr');
+                if (headRow && !headRow.querySelector('[data-sort="account"]')) {
+                    const th = document.createElement('th');
+                    th.className = 'sortable';
+                    th.dataset.sort = 'account';
+                    th.textContent = 'Акаунт';
+                    headRow.insertBefore(th, headRow.children[3]); // after Order ID
+                }
+            } else {
+                accSelect.style.display = 'none';
+            }
+            window._isMultiAcc = isMulti;
+
             applyFilters();
         } catch (e) {
             document.getElementById('ordersBody').innerHTML =
@@ -1358,6 +1387,9 @@
 
     function applyFilters() {
         let orders = allOrders.slice();
+
+        // Account filter
+        if (accountFilter !== 'all') orders = orders.filter(o => o.accountKey === accountFilter);
 
         // Side filter
         if (sideFilter !== 'all') orders = orders.filter(o => o.side === sideFilter);
@@ -1390,7 +1422,8 @@
                 (o.symbol || '').toLowerCase().includes(q) ||
                 (o.side || '').toLowerCase().includes(q) ||
                 (o.type || '').toLowerCase().replace(/_/g, ' ').includes(q) ||
-                (o.status || '').toLowerCase().includes(q)
+                (o.status || '').toLowerCase().includes(q) ||
+                (o.accountKey || '').toLowerCase().includes(q)
             );
         }
 
@@ -1400,6 +1433,7 @@
             let va, vb;
             switch (sortKey) {
                 case 'orderId':     va = a.orderId || 0; vb = b.orderId || 0; break;
+                case 'account':     return dir * (a.accountKey || '').localeCompare(b.accountKey || '');
                 case 'symbol':      return dir * (a.symbol || '').localeCompare(b.symbol || '');
                 case 'side':        return dir * (a.side || '').localeCompare(b.side || '');
                 case 'type':        return dir * (a.type || '').localeCompare(b.type || '');
@@ -1434,8 +1468,11 @@
 
     function renderTable() {
         const body = document.getElementById('ordersBody');
+        const showAcc = window._isMultiAcc;
+        const colSpan = showAcc ? 11 : 10;
+
         if (filteredOrders.length === 0) {
-            body.innerHTML = `<tr><td colspan="10"><div class="empty-state">
+            body.innerHTML = `<tr><td colspan="${colSpan}"><div class="empty-state">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 <div>Ордерів не знайдено</div>
             </div></td></tr>`;
@@ -1461,10 +1498,12 @@
             const dt = o.time ? new Date(o.time) : (o.updateTime ? new Date(o.updateTime) : null);
             const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
             const orderType = (o.type || '\u2014').replace(/_/g, ' ');
+            const accTd = showAcc ? `<td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);white-space:nowrap;" title="${o.accountKey || ''}">${o.accountKey ? (o.accountIndex + 1) + '.' + o.accountKey.slice(0, 6) : '\u2014'}</td>` : '';
             return `<tr style="cursor:pointer;" onclick="showOrderByIdx(${start + pi})">
                 <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
                 <td class="mono" style="font-size:10px;" title="${o.orderId}">${o.orderId}</td>
+                ${accTd}
                 <td class="mono">${(o.symbol || '').replace('USDT', '')}</td>
                 <td><span class="${badgeSide}">${o.side}</span></td>
                 <td><span class="badge-type">${orderType}</span></td>
@@ -3045,6 +3084,12 @@
     // Time filter
     document.getElementById('timeFilter').addEventListener('change', function() {
         timeFilter = parseInt(this.value);
+        currentPage = 1;
+        applyFilters();
+    });
+
+    document.getElementById('accountFilter').addEventListener('change', function() {
+        accountFilter = this.value;
         currentPage = 1;
         applyFilters();
     });
