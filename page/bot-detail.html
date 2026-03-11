@@ -5375,7 +5375,7 @@
         }
 
         let _pendingBlockHighlight = null;
-        function highlightPositionBlock(block) {
+        async function highlightPositionBlock(block) {
             // Switch symbol if the block belongs to a different pair
             const blockSymbol = (block.symbol || block.sym || '').toUpperCase().replace(/^[^:]+:/, '');
             if (blockSymbol && blockSymbol !== currentSymbol) {
@@ -5394,6 +5394,35 @@
 
             // ---- Tick chart branch ----
             if (_tickChart) {
+                const _bStartMs = block.startTime || (block.startedAt ? new Date(block.startedAt).getTime() : 0);
+
+                // Check if block time is within current tick data
+                const ticks = _tickChart.ticks;
+                const inRange = ticks.length > 1 && _bStartMs &&
+                    _bStartMs >= ticks[0].time - 5000 &&
+                    _bStartMs <= ticks[ticks.length - 1].time + 5000;
+
+                if (!inRange && _bStartMs) {
+                    _tickChart.disconnectWs();
+                    try {
+                        const startMs = _bStartMs - 60000;
+                        const endMs   = (block.endTime || _bStartMs) + 60000;
+                        const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${currentSymbol.toUpperCase()}&startTime=${startMs}&endTime=${endMs}&limit=1000`;
+                        const resp = await fetch(url);
+                        const data = await resp.json();
+                        if (Array.isArray(data) && data.length > 0) {
+                            _tickChart.loadHistory(data.map(d => ({ price: d.p, time: d.T, qty: d.q })));
+                        }
+                    } catch(e) {}
+                    try {
+                        const resp = await fetch(`/api/bots/${botId}/trade-markers?symbol=${currentSymbol}`, { credentials: 'include' });
+                        if (resp.ok) {
+                            const mdata = await resp.json();
+                            if (_tickChart && mdata.markers) _tickChart.setMarkers(mdata.markers);
+                        }
+                    } catch(e) {}
+                }
+
                 _tickHighlightLevels = [];
                 if (block.avgEntry > 0) {
                     _tickHighlightLevels.push({
@@ -5413,8 +5442,6 @@
                 }
                 _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
 
-                // Center on entry time
-                const _bStartMs = block.startTime || (block.startedAt ? new Date(block.startedAt).getTime() : 0);
                 if (_bStartMs) {
                     _tickChart.centerOnTime(_bStartMs);
                 }
@@ -8605,7 +8632,7 @@
         // ===== TRADE HIGHLIGHT (click on history row) =====
         let highlightedTradeRow = null;
 
-        function highlightTrade(trade, rowEl, noNavigate) {
+        async function highlightTrade(trade, rowEl, noNavigate) {
             // If the trade belongs to a different symbol, switch first — highlight after load
             const tradeSymbol = (trade.symbol || '').toUpperCase().replace(/^[^:]+:/, '');
             if (tradeSymbol && tradeSymbol !== currentSymbol) {
@@ -8636,15 +8663,47 @@
 
             // ---- Tick chart branch ----
             if (_tickChart) {
+                const tradeTimeMs = openTime * 1000;
+
+                // Check if the trade time is within the current tick data
+                const ticks = _tickChart.ticks;
+                const inRange = ticks.length > 1 &&
+                    tradeTimeMs >= ticks[0].time - 5000 &&
+                    tradeTimeMs <= ticks[ticks.length - 1].time + 5000;
+
+                // If trade is outside current data — fetch historical ticks from Binance
+                if (!inRange && !noNavigate) {
+                    _tickChart.disconnectWs();
+                    try {
+                        const startMs = tradeTimeMs - 60000; // 1 min before
+                        const endMs   = tradeTimeMs + 60000; // 1 min after
+                        const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${currentSymbol.toUpperCase()}&startTime=${startMs}&endTime=${endMs}&limit=1000`;
+                        const resp = await fetch(url);
+                        const data = await resp.json();
+                        if (Array.isArray(data) && data.length > 0) {
+                            _tickChart.loadHistory(data.map(d => ({ price: d.p, time: d.T, qty: d.q })));
+                        }
+                    } catch(e) {
+                        console.warn('[highlightTrade] Failed to fetch historical ticks:', e.message);
+                    }
+                    // Reload markers for the visible time range
+                    try {
+                        const resp = await fetch(`/api/bots/${botId}/trade-markers?symbol=${currentSymbol}`, { credentials: 'include' });
+                        if (resp.ok) {
+                            const mdata = await resp.json();
+                            if (_tickChart && mdata.markers) _tickChart.setMarkers(mdata.markers);
+                        }
+                    } catch(e) {}
+                }
+
+                // Set highlight levels
                 _tickHighlightLevels = [];
-                // Entry level
                 _tickHighlightLevels.push({
                     price: price,
                     label: `Entry $${price.toFixed(2)}`,
                     color: entryColor,
                     dash: [8, 3],
                 });
-                // Close level
                 if (closePrice) {
                     const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
                     _tickHighlightLevels.push({
@@ -8658,7 +8717,7 @@
 
                 // Center on trade time
                 if (!noNavigate && openTime) {
-                    _tickChart.centerOnTime(openTime * 1000);
+                    _tickChart.centerOnTime(tradeTimeMs);
                 }
                 return;
             }
