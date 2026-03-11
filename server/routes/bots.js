@@ -1851,6 +1851,83 @@ router.post('/api/bots/:id/test-proxy', requireAuth, requireRole('admin'), async
     }
 });
 
+// ── Auto-match proxies to accounts ────────────────────────────
+router.post('/api/bots/:id/auto-match-proxies', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { proxies, credentials } = req.body;
+        if (!Array.isArray(proxies) || proxies.length === 0) return res.status(400).json({ error: 'proxies array required' });
+        if (!Array.isArray(credentials) || credentials.length === 0) return res.status(400).json({ error: 'credentials array required' });
+
+        // 1) Test all proxies connectivity + resolve IPs in parallel
+        const proxyTests = await Promise.allSettled(
+            proxies.map(async (p) => {
+                const agent = getProxyAgent(p);
+                if (!agent) throw new Error('Invalid format');
+                const resp = await axios.get('https://api.ipify.org?format=json', { httpsAgent: agent, proxy: false, timeout: 10000 });
+                return { proxy: p, ip: resp.data?.ip || null };
+            })
+        );
+
+        const validProxies = []; // [{proxy, ip}]
+        const restrictedProxies = [];
+        proxyTests.forEach((t, i) => {
+            if (t.status === 'fulfilled' && t.value.ip) {
+                validProxies.push(t.value);
+            } else {
+                restrictedProxies.push({ proxy: proxies[i], ip: null, error: t.reason?.message || 'Connection failed' });
+            }
+        });
+
+        if (validProxies.length === 0) {
+            return res.json({ matches: [], unmatchedAccounts: credentials.map((c, i) => ({ index: i, key: c.tk.slice(0, 8) + '...' + c.tk.slice(-6) })), restrictedProxies });
+        }
+
+        // 2) For each account, try each valid proxy until one works with Binance
+        const matches = [];
+        const usedProxies = new Set();
+        const unmatchedAccounts = [];
+
+        // Run accounts sequentially to avoid burning through proxies
+        for (let ai = 0; ai < credentials.length; ai++) {
+            const cred = credentials[ai];
+            const keyPreview = cred.tk.slice(0, 8) + '...' + cred.tk.slice(-6);
+            let found = false;
+
+            // Try all unused proxies in parallel for this account
+            const available = validProxies.filter(p => !usedProxies.has(p.proxy));
+            if (available.length === 0) {
+                unmatchedAccounts.push({ index: ai, key: keyPreview });
+                continue;
+            }
+
+            const tests = await Promise.allSettled(
+                available.map(p => testBinanceCredentials(cred.tk, cred.tk_secret, 'futures', p.proxy))
+            );
+
+            for (let pi = 0; pi < tests.length; pi++) {
+                if (tests[pi].status === 'fulfilled' && tests[pi].value.success) {
+                    matches.push({ accIndex: ai, accKey: keyPreview, proxy: available[pi].proxy, proxyIp: available[pi].ip });
+                    usedProxies.add(available[pi].proxy);
+                    found = true;
+                    break;
+                }
+                // Check if it's a restricted location error for this proxy
+                const errMsg = tests[pi].status === 'fulfilled' ? tests[pi].value.error : (tests[pi].reason?.message || '');
+                if (errMsg.includes('restricted location') && !restrictedProxies.some(r => r.proxy === available[pi].proxy)) {
+                    restrictedProxies.push({ proxy: available[pi].proxy, ip: available[pi].ip, error: 'Restricted location' });
+                }
+            }
+
+            if (!found) unmatchedAccounts.push({ index: ai, key: keyPreview });
+        }
+
+        res.json({ matches, unmatchedAccounts, restrictedProxies, totalProxies: proxies.length, validProxies: validProxies.length });
+    } catch (err) {
+        console.error('Auto-match proxies error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Reset bot statistics ──
 router.post('/api/bots/:id/reset-stats', requireAuth, requireRole('admin'), (req, res) => {
     try {

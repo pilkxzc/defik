@@ -3974,6 +3974,23 @@
 
                         <!-- Verification results -->
                         <div id="multiAccVerifyResults" style="display:none;margin-top:16px;"></div>
+
+                        <!-- Auto-match proxies -->
+                        <div id="proxyAutoMatchWrap" style="display:none;margin-top:16px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                                <h4 style="margin:0;font-size:14px;">Авто-пiдбiр проксi</h4>
+                            </div>
+                            <p style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">Вставте проксi в будь-якому форматi (кожне з нового рядка). Система перебере всi комбiнацiї i автоматично прив'яже вiдповiднi проксi до акаунтiв.</p>
+                            <textarea id="proxyBulkInput" placeholder="IP:PORT:LOGIN:PASS&#10;IP PORT LOGIN PASS&#10;login:pass@ip:port&#10;..." style="width:100%;min-height:100px;padding:10px;background:var(--bg-app);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text-primary);font-family:monospace;font-size:11px;resize:vertical;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='rgba(16,185,129,0.4)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'"></textarea>
+                            <div style="display:flex;gap:8px;margin-top:8px;">
+                                <button onclick="runProxyAutoMatch()" id="proxyAutoMatchBtn" style="flex:1;padding:10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                    Знайти вiдповiднiсть
+                                </button>
+                            </div>
+                            <div id="proxyAutoMatchStatus" style="margin-top:8px;font-size:12px;"></div>
+                            <div id="proxyAutoMatchResults" style="margin-top:10px;"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -8029,12 +8046,24 @@
             html += '<button onclick="this.parentElement.parentElement.style.display=\'none\'" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:2px;font-size:18px;line-height:1;">&times;</button>';
             html += '</div>';
             meta.errors.forEach(e => {
+                const err = e.error || 'Unknown error';
+                const isRestricted = err.includes('restricted location');
+                const isIpWhitelist = err.includes('Invalid API-key, IP');
                 html += '<div style="background:rgba(239,68,68,0.08);border-radius:8px;padding:8px 10px;margin-top:6px;">';
                 html += '<div style="font-family:monospace;font-size:11px;color:var(--text-primary);">' + (e.key || '?') + '</div>';
-                html += '<div style="font-size:11px;color:#EF4444;margin-top:2px;">' + (e.error || 'Unknown error') + '</div>';
+                html += '<div style="font-size:11px;color:#EF4444;margin-top:2px;">' + err + '</div>';
                 if (e.proxy) {
                     const pp = e.proxy.split(':');
-                    html += '<div style="font-size:10px;color:#F59E0B;margin-top:3px;">Proxy: ' + pp[0] + ':' + pp[1] + ' — додайте IP проксi до вайтлiсту API ключа</div>';
+                    if (isRestricted) {
+                        html += '<div style="font-size:10px;color:#EF4444;margin-top:3px;background:rgba(239,68,68,0.1);padding:4px 6px;border-radius:4px;">Proxy ' + pp[0] + ':' + pp[1] + ' — IP з заблокованого регiону Binance. Замiнiть на проксi з дозволеної країни</div>';
+                    } else if (isIpWhitelist) {
+                        // Extract request IP from error if available
+                        const ipMatch = err.match(/request ip:\s*([\d.]+)/);
+                        const whitelistIp = ipMatch ? ipMatch[1] : pp[0];
+                        html += '<div style="font-size:10px;color:#F59E0B;margin-top:3px;background:rgba(245,158,11,0.1);padding:4px 6px;border-radius:4px;">Додайте <b style="user-select:all;cursor:text;">' + whitelistIp + '</b> до вайтлiсту API ключа на Binance</div>';
+                    } else {
+                        html += '<div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">Proxy: ' + pp[0] + ':' + pp[1] + '</div>';
+                    }
                 }
                 html += '</div>';
             });
@@ -9235,6 +9264,21 @@
             }
         }
 
+        // ── Proxy format parser ──────────────────────────────────
+        function parseProxy(raw) {
+            if (!raw) return null;
+            raw = raw.trim();
+            if (!raw) return null;
+            // login:pass@ip:port
+            const atMatch = raw.match(/^(.+?):(.+?)@([\d.]+)[:\s]+(\d+)$/);
+            if (atMatch) return atMatch[3] + ':' + atMatch[4] + ':' + atMatch[1] + ':' + atMatch[2];
+            // Split by any whitespace or colon
+            const parts = raw.split(/[\s:]+/).filter(Boolean);
+            if (parts.length >= 4) return parts[0] + ':' + parts[1] + ':' + parts[2] + ':' + parts[3];
+            if (parts.length >= 2) return parts[0] + ':' + parts[1];
+            return null;
+        }
+
         // ── Multi-account credentials ──────────────────────────
         let multiAccounts = []; // [{tk, tk_secret, proxy}]
 
@@ -9252,18 +9296,18 @@
         }
 
         async function testNewAccProxy() {
-            const proxy = document.getElementById('multiAccProxy').value.trim();
+            const rawProxy = document.getElementById('multiAccProxy').value.trim();
             const statusEl = document.getElementById('newAccProxyStatus');
             const btn = document.getElementById('newAccProxyTestBtn');
-            if (!proxy) {
+            if (!rawProxy) {
                 statusEl.style.color = '#EF4444';
                 statusEl.textContent = 'Введiть проксi';
                 return;
             }
-            const parts = proxy.split(':');
-            if (parts.length < 2) {
+            const proxy = parseProxy(rawProxy);
+            if (!proxy) {
                 statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Формат: IP:PORT:LOGIN:PASS';
+                statusEl.textContent = 'Невiрний формат проксi';
                 return;
             }
             btn.disabled = true;
@@ -9297,11 +9341,17 @@
         function addMultiAcc() {
             const tk = document.getElementById('multiAccKey').value.trim();
             const tkSecret = document.getElementById('multiAccSecret').value.trim();
-            const proxy = document.getElementById('multiAccProxy').value.trim();
+            const rawProxy = document.getElementById('multiAccProxy').value.trim();
+            const proxy = parseProxy(rawProxy);
             const statusEl = document.getElementById('multiAccAddStatus');
             if (!tk || !tkSecret) {
                 statusEl.style.color = '#EF4444';
                 statusEl.textContent = 'API Ключ та Секрет обов\'язкові';
+                return;
+            }
+            if (rawProxy && !proxy) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Невiрний формат проксi';
                 return;
             }
             if (multiAccounts.some(a => a.tk === tk)) {
@@ -9330,7 +9380,10 @@
 
         function saveMultiAccEdit(index) {
             const proxyInput = document.getElementById('editProxy_' + index);
-            if (proxyInput) multiAccounts[index].proxy = proxyInput.value.trim();
+            if (proxyInput) {
+                const parsed = parseProxy(proxyInput.value);
+                multiAccounts[index].proxy = parsed || '';
+            }
             editingAccIndex = -1;
             renderMultiAccList();
         }
@@ -9339,16 +9392,16 @@
             const proxyInput = document.getElementById('editProxy_' + index);
             const statusEl = document.getElementById('editProxyStatus_' + index);
             const btn = document.getElementById('editProxyTestBtn_' + index);
-            const proxy = proxyInput ? proxyInput.value.trim() : '';
-            if (!proxy) {
+            const rawProxy = proxyInput ? proxyInput.value.trim() : '';
+            if (!rawProxy) {
                 statusEl.style.color = '#EF4444';
                 statusEl.textContent = 'Введiть проксi';
                 return;
             }
-            const parts = proxy.split(':');
-            if (parts.length < 2) {
+            const proxy = parseProxy(rawProxy);
+            if (!proxy) {
                 statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Формат: IP:PORT:LOGIN:PASS';
+                statusEl.textContent = 'Невiрний формат проксi';
                 return;
             }
             btn.disabled = true;
@@ -9383,16 +9436,19 @@
             const badge = document.getElementById('multiAccBadge');
             const saveWrap = document.getElementById('multiAccSaveWrap');
 
+            const autoMatchWrap = document.getElementById('proxyAutoMatchWrap');
             if (multiAccounts.length === 0) {
                 list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px;">Немає додаткових акаунтів</div>';
                 badge.style.display = 'none';
                 saveWrap.style.display = 'none';
+                if (autoMatchWrap) autoMatchWrap.style.display = 'none';
                 return;
             }
 
             badge.style.display = 'inline';
             badge.textContent = multiAccounts.length + ' акаунт' + (multiAccounts.length > 1 ? (multiAccounts.length < 5 ? 'и' : 'ів') : '');
             saveWrap.style.display = 'block';
+            if (autoMatchWrap) autoMatchWrap.style.display = 'block';
 
             list.innerHTML = multiAccounts.map((a, i) => {
                 const proxyDisplay = a.proxy ? a.proxy.split(':').slice(0, 2).join(':') + ':***' : 'без проксі';
@@ -9552,6 +9608,103 @@
                 resultsEl.innerHTML = html;
             } catch (e) {
                 resultsEl.innerHTML = `<div style="text-align:center;padding:12px;color:#EF4444;font-size:13px;">${e.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
+
+        async function runProxyAutoMatch() {
+            const textarea = document.getElementById('proxyBulkInput');
+            const statusEl = document.getElementById('proxyAutoMatchStatus');
+            const resultsEl = document.getElementById('proxyAutoMatchResults');
+            const btn = document.getElementById('proxyAutoMatchBtn');
+
+            const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+            const proxies = lines.map(parseProxy).filter(Boolean);
+
+            if (proxies.length === 0) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Не знайдено жодного валiдного проксi';
+                return;
+            }
+            if (multiAccounts.length === 0) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Спочатку додайте акаунти';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            statusEl.style.color = 'var(--text-tertiary)';
+            statusEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:4px;"></span>Перебираємо ' + proxies.length + ' проксi x ' + multiAccounts.length + ' акаунтiв...';
+            resultsEl.innerHTML = '';
+
+            try {
+                const res = await fetch(`/api/bots/${botId}/auto-match-proxies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ proxies, credentials: multiAccounts })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+
+                // Apply matches
+                let applied = 0;
+                if (data.matches && data.matches.length > 0) {
+                    data.matches.forEach(m => {
+                        if (multiAccounts[m.accIndex]) {
+                            multiAccounts[m.accIndex].proxy = m.proxy;
+                            applied++;
+                        }
+                    });
+                    renderMultiAccList();
+                }
+
+                // Build results HTML
+                let html = '';
+                if (applied > 0) {
+                    html += '<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px;margin-bottom:8px;">';
+                    html += '<div style="font-weight:700;font-size:13px;color:#10B981;margin-bottom:6px;">' + applied + '/' + multiAccounts.length + ' акаунтiв отримали проксi</div>';
+                    data.matches.forEach(m => {
+                        html += '<div style="font-size:11px;color:var(--text-primary);margin-top:3px;font-family:monospace;">';
+                        html += (m.accKey || '?') + ' ← ' + m.proxyIp;
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                // Unmatched accounts
+                const unmatchedAccs = data.unmatchedAccounts || [];
+                if (unmatchedAccs.length > 0) {
+                    html += '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px;margin-bottom:8px;">';
+                    html += '<div style="font-weight:700;font-size:12px;color:#EF4444;margin-bottom:4px;">Без проксi:</div>';
+                    unmatchedAccs.forEach(u => {
+                        html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;font-family:monospace;">' + u.key + '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                // Restricted proxies
+                const restricted = data.restrictedProxies || [];
+                if (restricted.length > 0) {
+                    html += '<div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;padding:10px;margin-bottom:8px;">';
+                    html += '<div style="font-weight:700;font-size:12px;color:#EF4444;margin-bottom:4px;">Заблокованi регiони:</div>';
+                    restricted.forEach(r => {
+                        html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;font-family:monospace;">' + r.proxy + ' → ' + (r.ip || '?') + ' — ' + r.error + '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                statusEl.style.color = applied > 0 ? '#10B981' : '#F59E0B';
+                statusEl.textContent = applied > 0
+                    ? 'Готово! ' + applied + ' збiгiв знайдено. Натиснiть "Зберегти" щоб зафiксувати.'
+                    : 'Жодного збiгу не знайдено. Перевiрте вайтлiсти або замiнiть проксi.';
+
+                resultsEl.innerHTML = html;
+            } catch (e) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = e.message;
             } finally {
                 btn.disabled = false;
                 btn.style.opacity = '1';
