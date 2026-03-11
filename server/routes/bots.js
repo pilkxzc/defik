@@ -4,7 +4,7 @@ const axios   = require('axios');
 const crypto  = require('crypto');
 const router  = express.Router();
 
-const { dbGet, dbAll, dbRun, saveDatabase } = require('../db');
+const { dbGet, dbAll, dbRun, dbTransaction, saveDatabase } = require('../db');
 const { requireAuth, requireRole }          = require('../middleware/auth');
 const { getClientIP }                       = require('../utils/ip');
 const { sendUserNotification, getIo }       = require('../socket');
@@ -329,26 +329,77 @@ async function fetchBinanceFuturesData(apiKey, apiSecret) {
     };
 }
 
-function updateBotStats(botId) {
-    const trades       = dbAll('SELECT * FROM bot_trades WHERE bot_id = ?', [botId]);
-    const closedTrades = trades.filter(t => t.status === 'closed');
+/**
+ * Resolve (or auto-create) a strategy ID for a given bot + symbol.
+ * strategy name defaults to 'default' — admin can rename later.
+ */
+function resolveStrategyId(botId, symbol, strategyName) {
+    const name = strategyName || 'default';
+    const existing = dbGet(
+        'SELECT id FROM bot_strategies WHERE bot_id = ? AND strategy = ? AND symbol = ?',
+        [botId, name, symbol]
+    );
+    if (existing) return existing.id;
+    const result = dbRun(
+        'INSERT INTO bot_strategies (bot_id, strategy, symbol) VALUES (?, ?, ?)',
+        [botId, name, symbol]
+    );
+    return result.lastInsertRowid;
+}
+
+/** Find strategy_id by bot_id + symbol (any strategy name). Returns first match or null. */
+function findStrategyBySymbol(botId, symbol) {
+    const row = dbGet('SELECT id FROM bot_strategies WHERE bot_id = ? AND symbol = ? LIMIT 1', [botId, symbol]);
+    return row ? row.id : null;
+}
+
+function _calcStats(closedTrades) {
     const winningTrades = closedTrades.filter(t => t.pnl > 0).length;
     const losingTrades  = closedTrades.filter(t => t.pnl < 0).length;
     const totalPnl      = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const bestTrade     = closedTrades.length > 0 ? Math.max(...closedTrades.map(t => t.pnl || 0)) : 0;
     const worstTrade    = closedTrades.length > 0 ? Math.min(...closedTrades.map(t => t.pnl || 0)) : 0;
+    return { total: closedTrades.length, winningTrades, losingTrades, totalPnl, bestTrade, worstTrade };
+}
 
-    const existing = dbGet('SELECT * FROM bot_stats WHERE bot_id = ?', [botId]);
+function updateBotStats(botId) {
+    // 1. Global bot stats (bot_id level, strategy_id IS NULL) — backward compat
+    const allTrades    = dbAll('SELECT * FROM bot_trades WHERE bot_id = ?', [botId]);
+    const allClosed    = allTrades.filter(t => t.status === 'closed');
+    const globalStats  = _calcStats(allClosed);
+
+    const existing = dbGet('SELECT id FROM bot_stats WHERE bot_id = ? AND strategy_id IS NULL', [botId]);
     if (existing) {
         dbRun(
-            'UPDATE bot_stats SET total_trades = ?, winning_trades = ?, losing_trades = ?, total_pnl = ?, best_trade = ?, worst_trade = ?, last_updated = CURRENT_TIMESTAMP WHERE bot_id = ?',
-            [closedTrades.length, winningTrades, losingTrades, totalPnl, bestTrade, worstTrade, botId]
+            'UPDATE bot_stats SET total_trades = ?, winning_trades = ?, losing_trades = ?, total_pnl = ?, best_trade = ?, worst_trade = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?',
+            [globalStats.total, globalStats.winningTrades, globalStats.losingTrades, globalStats.totalPnl, globalStats.bestTrade, globalStats.worstTrade, existing.id]
         );
     } else {
         dbRun(
-            'INSERT INTO bot_stats (bot_id, total_trades, winning_trades, losing_trades, total_pnl, best_trade, worst_trade) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [botId, closedTrades.length, winningTrades, losingTrades, totalPnl, bestTrade, worstTrade]
+            'INSERT INTO bot_stats (bot_id, strategy_id, total_trades, winning_trades, losing_trades, total_pnl, best_trade, worst_trade) VALUES (?, NULL, ?, ?, ?, ?, ?, ?)',
+            [botId, globalStats.total, globalStats.winningTrades, globalStats.losingTrades, globalStats.totalPnl, globalStats.bestTrade, globalStats.worstTrade]
         );
+    }
+
+    // 2. Per-strategy stats
+    const strategies = dbAll('SELECT id FROM bot_strategies WHERE bot_id = ?', [botId]);
+    for (const s of strategies) {
+        const sTrades = dbAll('SELECT * FROM bot_trades WHERE bot_id = ? AND strategy_id = ?', [botId, s.id]);
+        const sClosed = sTrades.filter(t => t.status === 'closed');
+        const st      = _calcStats(sClosed);
+
+        const sExisting = dbGet('SELECT id FROM bot_stats WHERE bot_id = ? AND strategy_id = ?', [botId, s.id]);
+        if (sExisting) {
+            dbRun(
+                'UPDATE bot_stats SET total_trades = ?, winning_trades = ?, losing_trades = ?, total_pnl = ?, best_trade = ?, worst_trade = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?',
+                [st.total, st.winningTrades, st.losingTrades, st.totalPnl, st.bestTrade, st.worstTrade, sExisting.id]
+            );
+        } else {
+            dbRun(
+                'INSERT INTO bot_stats (bot_id, strategy_id, total_trades, winning_trades, losing_trades, total_pnl, best_trade, worst_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [botId, s.id, st.total, st.winningTrades, st.losingTrades, st.totalPnl, st.bestTrade, st.worstTrade]
+            );
+        }
     }
 }
 
@@ -356,7 +407,7 @@ function updateBotStats(botId) {
 function rebuildPositionBlocks(botId) {
     const MAX_BLOCKS = 5000;
     const trades = dbAll(
-        'SELECT id, symbol, side, position_side, quantity, price, pnl, status, opened_at, closed_at FROM bot_trades WHERE bot_id = ? ORDER BY opened_at ASC',
+        'SELECT id, symbol, side, position_side, quantity, price, pnl, status, opened_at, closed_at, strategy_id FROM bot_trades WHERE bot_id = ? ORDER BY opened_at ASC',
         [botId]
     );
 
@@ -406,9 +457,9 @@ function rebuildPositionBlocks(botId) {
     dbRun('DELETE FROM bot_position_blocks WHERE bot_id = ?', [botId]);
     for (const b of kept) {
         dbRun(
-            `INSERT INTO bot_position_blocks (bot_id, symbol, side, trade_count, total_qty, avg_entry, avg_exit, total_pnl, is_open, started_at, ended_at, trade_ids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [botId, b.symbol, b.side, b.trade_count, b.total_qty, b.avg_entry, b.avg_exit, b.total_pnl, b.is_open ? 1 : 0, b.started_at, b.ended_at, b.trade_ids]
+            `INSERT INTO bot_position_blocks (bot_id, strategy_id, symbol, side, trade_count, total_qty, avg_entry, avg_exit, total_pnl, is_open, started_at, ended_at, trade_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [botId, b.strategy_id || null, b.symbol, b.side, b.trade_count, b.total_qty, b.avg_entry, b.avg_exit, b.total_pnl, b.is_open ? 1 : 0, b.started_at, b.ended_at, b.trade_ids]
         );
     }
     saveDatabase();
@@ -446,7 +497,9 @@ function buildBlockObj(sym, side, trades) {
     const isOpen = trades.some(t => t.status === 'open');
     const tradeIds = trades.map(t => t.id).join(',');
 
-    return { symbol: sym, side, trade_count: trades.length, total_qty: totalQty, avg_entry: avgEntry, avg_exit: avgExit, total_pnl: totalPnl, is_open: isOpen, started_at: startedAt, ended_at: endedAt, trade_ids: tradeIds };
+    // Use strategy_id from first trade in block (all trades in a symbol block share the same strategy)
+    const strategyId = trades[0].strategy_id || null;
+    return { symbol: sym, side, trade_count: trades.length, total_qty: totalQty, avg_entry: avgEntry, avg_exit: avgExit, total_pnl: totalPnl, is_open: isOpen, started_at: startedAt, ended_at: endedAt, trade_ids: tradeIds, strategy_id: strategyId };
 }
 
 // Fix orphaned trades: pair open entries with standalone closed exits by time/symbol/side
@@ -576,6 +629,9 @@ async function syncBinanceTrades(botId) {
         const newTrades = []; // Collect new trades for subscriber notifications
         for (const symbol of symbols) {
             try {
+                // Resolve strategy_id for this bot+symbol (auto-creates if needed)
+                const strategyId = resolveStrategyId(botId, symbol);
+
                 // Paginate backwards to fetch ALL historical trades from ALL accounts
                 const trades = [];
                 const seenIds = new Set();
@@ -614,7 +670,7 @@ async function syncBinanceTrades(botId) {
                 trades.sort((a, b) => a.time - b.time);
 
                 if (trades.length > 0) {
-                    console.log(`[Bot ${botId}] ${symbol}: processing ${trades.length} trades`);
+                    console.log(`[Bot ${botId}] ${symbol}: processing ${trades.length} trades (strategy=${strategyId})`);
                 }
 
                 for (const t of trades) {
@@ -670,15 +726,15 @@ async function syncBinanceTrades(botId) {
                                     ['closed', pnl, tradeTime, tradeId, openRow.id]);
                             } else {
                                 dbRun(
-                                    'INSERT INTO bot_trades (bot_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                    [botId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide]
+                                    'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                    [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide]
                                 );
                             }
                         } else {
                             // Entry fill
                             dbRun(
-                                'INSERT INTO bot_trades (bot_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                [botId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide]
+                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide]
                             );
                         }
                         newTrades.push({
@@ -687,7 +743,8 @@ async function syncBinanceTrades(botId) {
                             price: parseFloat(t.price),
                             qty: parseFloat(t.qty),
                             pnl,
-                            isEntry
+                            isEntry,
+                            strategyId
                         });
                         totalSaved++;
                     }
@@ -712,7 +769,17 @@ async function syncBinanceTrades(botId) {
             console.log(`[Bot ${botId}] Fixed ${missingCloseTime.length} closed trades missing closed_at`);
         }
 
-        if (totalSaved > 0 || repaired > 0 || symbols.length > 0 || missingCloseTime.length > 0) {
+        // Backfill strategy_id for old trades that don't have one yet
+        const orphanedStrategyTrades = dbAll(
+            'SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ? AND strategy_id IS NULL',
+            [botId]
+        );
+        for (const row of orphanedStrategyTrades) {
+            const sId = resolveStrategyId(botId, row.symbol);
+            dbRun('UPDATE bot_trades SET strategy_id = ? WHERE bot_id = ? AND symbol = ? AND strategy_id IS NULL', [sId, botId, row.symbol]);
+        }
+
+        if (totalSaved > 0 || repaired > 0 || symbols.length > 0 || missingCloseTime.length > 0 || orphanedStrategyTrades.length > 0) {
             updateBotStats(botId);
             rebuildPositionBlocks(botId);
         }
@@ -929,7 +996,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             SELECT b.id, b.name, b.category_id, b.is_active, b.selected_symbol,
                    b.profit, b.investment, b.mode, b.community_visible,
                    bs.total_trades, bs.winning_trades
-            FROM bots b LEFT JOIN bot_stats bs ON bs.bot_id = b.id ORDER BY b.id
+            FROM bots b LEFT JOIN bot_stats bs ON bs.bot_id = b.id AND bs.strategy_id IS NULL ORDER BY b.id
         `);
 
         // Check which bots the current user is subscribed to
@@ -1007,6 +1074,19 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             botSymbolStats[b.id] = map;
         });
 
+        // Preload strategies per bot
+        const botStrategies = {};
+        const allStrategies = dbAll(`
+            SELECT s.id, s.bot_id, s.strategy, s.symbol, s.is_active,
+                   bs.total_trades, bs.winning_trades, bs.total_pnl
+            FROM bot_strategies s
+            LEFT JOIN bot_stats bs ON bs.strategy_id = s.id AND bs.bot_id = s.bot_id
+        `);
+        allStrategies.forEach(s => {
+            if (!botStrategies[s.bot_id]) botStrategies[s.bot_id] = [];
+            botStrategies[s.bot_id].push(s);
+        });
+
         const toCard = b => {
             const act = botActivity[b.id] || {};
             const lastMs = act.lastTradeAt ? new Date(act.lastTradeAt).getTime() : 0;
@@ -1054,6 +1134,17 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             // Uptime: time since bot creation
             const createdAt = b.created_at || null;
 
+            // Strategies for this bot
+            const strategies = (botStrategies[b.id] || []).map(s => ({
+                id: s.id,
+                strategy: s.strategy,
+                symbol: s.symbol,
+                isActive: !!s.is_active,
+                totalTrades: s.total_trades || 0,
+                winRate: s.total_trades > 0 ? Math.round(((s.winning_trades || 0) / s.total_trades) * 100) : 0,
+                totalPnl: s.total_pnl || 0
+            }));
+
             return {
                 id: b.id, name: b.name, is_active: !!b.is_active,
                 realStatus,
@@ -1065,6 +1156,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 winRate: b.total_trades > 0 ? Math.round((b.winning_trades / b.total_trades) * 100) : null,
                 totalTrades: b.total_trades || 0,
                 instruments,
+                strategies,
                 isSubscribed: userSubscriptions.has(b.id),
                 createdAt,
                 leverage: ts.leverage || null,
@@ -1291,6 +1383,195 @@ router.get('/api/bots/analytics/stats', requireAuth, requireRole('admin', 'moder
     }
 });
 
+// ── Bot Strategies CRUD ──────────────────────────────────────────────────────
+
+// List all strategies for a bot
+router.get('/api/bots/:id/strategies', requireAuth, (req, res) => {
+    try {
+        const strategies = dbAll(
+            `SELECT s.*, bs.total_trades, bs.winning_trades, bs.losing_trades, bs.total_pnl, bs.best_trade, bs.worst_trade
+             FROM bot_strategies s
+             LEFT JOIN bot_stats bs ON bs.strategy_id = s.id AND bs.bot_id = s.bot_id
+             WHERE s.bot_id = ? ORDER BY s.created_at ASC`,
+            [req.params.id]
+        );
+
+        // Count open trades per strategy
+        const openCounts = {};
+        const openRows = dbAll(
+            "SELECT strategy_id, COUNT(*) as c FROM bot_trades WHERE bot_id = ? AND status = 'open' AND strategy_id IS NOT NULL GROUP BY strategy_id",
+            [req.params.id]
+        );
+        openRows.forEach(r => { openCounts[r.strategy_id] = r.c; });
+
+        res.json({
+            strategies: strategies.map(s => ({
+                id: s.id,
+                botId: s.bot_id,
+                strategy: s.strategy,
+                symbol: s.symbol,
+                isActive: !!s.is_active,
+                settings: JSON.parse(s.settings || '{}'),
+                createdAt: s.created_at,
+                stats: {
+                    totalTrades: s.total_trades || 0,
+                    winningTrades: s.winning_trades || 0,
+                    losingTrades: s.losing_trades || 0,
+                    totalPnl: s.total_pnl || 0,
+                    bestTrade: s.best_trade || 0,
+                    worstTrade: s.worst_trade || 0,
+                    winRate: s.total_trades > 0 ? Math.round((s.winning_trades / s.total_trades) * 100) : 0
+                },
+                openTrades: openCounts[s.id] || 0
+            }))
+        });
+    } catch (error) {
+        console.error('Get strategies error:', error);
+        res.status(500).json({ error: 'Failed to fetch strategies' });
+    }
+});
+
+// Create a new strategy
+router.post('/api/bots/:id/strategies', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const { strategy, symbol, settings } = req.body;
+        if (!symbol) return res.status(400).json({ error: 'symbol is required' });
+
+        const bot = dbGet('SELECT id FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        const name = strategy || 'default';
+        const existing = dbGet(
+            'SELECT id FROM bot_strategies WHERE bot_id = ? AND strategy = ? AND symbol = ?',
+            [req.params.id, name, symbol]
+        );
+        if (existing) return res.status(409).json({ error: 'Strategy with this name+symbol already exists', existingId: existing.id });
+
+        const result = dbRun(
+            'INSERT INTO bot_strategies (bot_id, strategy, symbol, settings) VALUES (?, ?, ?, ?)',
+            [req.params.id, name, symbol, JSON.stringify(settings || {})]
+        );
+
+        res.json({ success: true, strategyId: result.lastInsertRowid });
+    } catch (error) {
+        console.error('Create strategy error:', error);
+        res.status(500).json({ error: 'Failed to create strategy' });
+    }
+});
+
+// Update a strategy (rename, change settings, toggle active)
+router.patch('/api/bots/:id/strategies/:strategyId', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const s = dbGet('SELECT * FROM bot_strategies WHERE id = ? AND bot_id = ?', [req.params.strategyId, req.params.id]);
+        if (!s) return res.status(404).json({ error: 'Strategy not found' });
+
+        const { strategy, is_active, settings } = req.body;
+        const updates = [], params = [];
+        if (strategy !== undefined)  { updates.push('strategy = ?');  params.push(strategy); }
+        if (is_active !== undefined) { updates.push('is_active = ?'); params.push(is_active ? 1 : 0); }
+        if (settings !== undefined)  { updates.push('settings = ?');  params.push(JSON.stringify(settings)); }
+
+        if (updates.length > 0) {
+            params.push(req.params.strategyId);
+            dbRun(`UPDATE bot_strategies SET ${updates.join(', ')} WHERE id = ?`, params);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Update strategy error:', error);
+        res.status(500).json({ error: 'Failed to update strategy' });
+    }
+});
+
+// Delete a strategy (and optionally its trades)
+router.delete('/api/bots/:id/strategies/:strategyId', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
+    try {
+        const s = dbGet('SELECT * FROM bot_strategies WHERE id = ? AND bot_id = ?', [req.params.strategyId, req.params.id]);
+        if (!s) return res.status(404).json({ error: 'Strategy not found' });
+
+        const deleteTrades = req.query.deleteTrades === '1';
+        if (deleteTrades) {
+            dbRun('DELETE FROM bot_trades WHERE strategy_id = ?', [req.params.strategyId]);
+            dbRun('DELETE FROM bot_position_blocks WHERE strategy_id = ?', [req.params.strategyId]);
+        } else {
+            // Unlink trades — set strategy_id to NULL
+            dbRun('UPDATE bot_trades SET strategy_id = NULL WHERE strategy_id = ?', [req.params.strategyId]);
+            dbRun('UPDATE bot_position_blocks SET strategy_id = NULL WHERE strategy_id = ?', [req.params.strategyId]);
+        }
+
+        dbRun('DELETE FROM bot_stats WHERE strategy_id = ?', [req.params.strategyId]);
+        dbRun('DELETE FROM bot_strategies WHERE id = ?', [req.params.strategyId]);
+
+        // Recalculate bot-level stats
+        updateBotStats(parseInt(req.params.id));
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete strategy error:', error);
+        res.status(500).json({ error: 'Failed to delete strategy' });
+    }
+});
+
+// Get trades for a specific strategy
+router.get('/api/bots/:id/strategies/:strategyId/trades', requireAuth, (req, res) => {
+    try {
+        const { limit = 50, offset = 0, status } = req.query;
+        let query = 'SELECT * FROM bot_trades WHERE bot_id = ? AND strategy_id = ?';
+        const params = [req.params.id, req.params.strategyId];
+
+        if (status) { query += ' AND status = ?'; params.push(status); }
+        query += ' ORDER BY opened_at DESC LIMIT ? OFFSET ?';
+        params.push(parseInt(limit), parseInt(offset));
+
+        const trades = dbAll(query, params);
+        const total = dbGet('SELECT COUNT(*) as c FROM bot_trades WHERE bot_id = ? AND strategy_id = ?', [req.params.id, req.params.strategyId]);
+
+        res.json({
+            trades: trades.map(t => ({
+                id: t.id, symbol: t.symbol, side: t.side, type: t.type,
+                quantity: t.quantity, price: t.price, pnl: t.pnl, pnlPercent: t.pnl_percent,
+                status: t.status, openedAt: t.opened_at, closedAt: t.closed_at,
+                positionSide: t.position_side || null
+            })),
+            total: total?.c || 0
+        });
+    } catch (error) {
+        console.error('Strategy trades error:', error);
+        res.status(500).json({ error: 'Failed to fetch strategy trades' });
+    }
+});
+
+// Get stats for a specific strategy with timeframe support
+router.get('/api/bots/:id/strategies/:strategyId/stats', requireAuth, (req, res) => {
+    try {
+        const tf = req.query.timeframe || 'all';
+        const tfMs = { '30m': 30*60*1000, '1h': 60*60*1000, '2h': 2*60*60*1000, '4h': 4*60*60*1000, '1d': 86400000, '7d': 7*86400000 }[tf] || 0;
+
+        let trades;
+        if (tfMs > 0) {
+            const since = new Date(Date.now() - tfMs).toISOString();
+            trades = dbAll('SELECT pnl, side FROM bot_trades WHERE bot_id = ? AND strategy_id = ? AND status = ? AND closed_at >= ?',
+                [req.params.id, req.params.strategyId, 'closed', since]);
+        } else {
+            trades = dbAll('SELECT pnl, side FROM bot_trades WHERE bot_id = ? AND strategy_id = ? AND status = ?',
+                [req.params.id, req.params.strategyId, 'closed']);
+        }
+
+        const wins = trades.filter(t => parseFloat(t.pnl) > 0);
+        const losses = trades.filter(t => parseFloat(t.pnl) <= 0);
+        const totalPnl = trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
+        const winRate = trades.length > 0 ? (wins.length / trades.length * 100) : 0;
+        const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + parseFloat(t.pnl), 0) / wins.length : 0;
+        const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + parseFloat(t.pnl), 0) / losses.length) : 0;
+        const profitFactor = avgLoss * losses.length > 0 ? (avgWin * wins.length) / (avgLoss * losses.length) : 0;
+
+        res.json({ totalPnl, winRate, avgWin, avgLoss, profitFactor, totalTrades: trades.length, wins: wins.length, losses: losses.length });
+    } catch (error) {
+        console.error('Strategy stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch strategy stats' });
+    }
+});
+
 // Simple bot info (no Binance call)
 router.get('/api/bots/:id/info', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
     try {
@@ -1497,9 +1778,9 @@ router.post('/api/bots/:id/reset-stats', requireAuth, requireRole('admin'), (req
             dbRun('UPDATE bots SET profit = profit + ? WHERE id = ?', [adj, req.params.id]);
         }
 
-        // Rebuild stats
+        // Rebuild stats (both global and per-strategy)
         dbRun('DELETE FROM bot_stats WHERE bot_id = ?', [req.params.id]);
-        updateBotStats(req.params.id);
+        updateBotStats(parseInt(req.params.id));
 
         res.json({ success: true });
     } catch (error) {
@@ -1567,7 +1848,8 @@ router.delete('/api/bots/:id', requireAuth, requireRole('admin', 'moderator'), (
         // Clean up all related records before deleting the bot
         const relatedTables = [
             'bot_trades', 'bot_stats', 'bot_subscribers', 'bot_symbol_settings',
-            'bot_analytics', 'bot_notification_settings', 'bot_position_blocks', 'bot_order_history'
+            'bot_analytics', 'bot_notification_settings', 'bot_position_blocks', 'bot_order_history',
+            'bot_strategies'
         ];
         for (const table of relatedTables) {
             try { dbRun(`DELETE FROM "${table}" WHERE bot_id = ?`, [botId]); } catch(e) {}
@@ -1691,9 +1973,10 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
                 try {
                     const exists = dbGet('SELECT id FROM bot_order_history WHERE bot_id = ? AND order_id = ?', [bot.id, o.orderId]);
                     if (!exists) {
+                        const sId = o.symbol ? findStrategyBySymbol(bot.id, o.symbol) : null;
                         dbRun(
-                            'INSERT INTO bot_order_history (bot_id, order_id, symbol, side, type, price, stop_price, quantity, status, canceled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                            [bot.id, o.orderId, o.symbol, o.side, o.type, o.price, o.stopPrice, o.origQty, o.status, new Date(o.updateTime).toISOString()]
+                            'INSERT INTO bot_order_history (bot_id, strategy_id, order_id, symbol, side, type, price, stop_price, quantity, status, canceled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [bot.id, sId, o.orderId, o.symbol, o.side, o.type, o.price, o.stopPrice, o.origQty, o.status, new Date(o.updateTime).toISOString()]
                         );
                     }
                 } catch (dbErr) { console.error('Error saving order history:', dbErr.message); }
@@ -1806,7 +2089,7 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
         const creator       = dbGet('SELECT id, full_name, avatar FROM users WHERE id = ?', [bot.user_id]);
-        let stats           = dbGet('SELECT * FROM bot_stats WHERE bot_id = ?', [req.params.id]);
+        let stats           = dbGet('SELECT * FROM bot_stats WHERE bot_id = ? AND strategy_id IS NULL', [req.params.id]);
         if (!stats) stats   = { total_trades: 0, winning_trades: 0, losing_trades: 0, total_pnl: 0, max_drawdown: 0, best_trade: 0, worst_trade: 0, avg_trade_duration: 0 };
 
         const subscriberCount = dbGet('SELECT COUNT(*) as count FROM bot_subscribers WHERE bot_id = ? AND status = ?', [req.params.id, 'active']);
@@ -1868,9 +2151,24 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
             recentTrades: recentTrades.map(t => ({
                 id: t.id, symbol: t.symbol, side: t.side, type: t.type,
                 quantity: t.quantity, price: t.price, pnl: t.pnl, pnlPercent: t.pnl_percent,
-                status: t.status, openedAt: t.opened_at, closedAt: t.closed_at
+                status: t.status, openedAt: t.opened_at, closedAt: t.closed_at,
+                strategyId: t.strategy_id || null
             })),
-            instruments: instruments.map(i => i.symbol)
+            instruments: instruments.map(i => i.symbol),
+            strategies: dbAll(
+                `SELECT s.*, bs.total_trades, bs.winning_trades, bs.losing_trades, bs.total_pnl
+                 FROM bot_strategies s
+                 LEFT JOIN bot_stats bs ON bs.strategy_id = s.id AND bs.bot_id = s.bot_id
+                 WHERE s.bot_id = ? ORDER BY s.created_at ASC`,
+                [req.params.id]
+            ).map(s => ({
+                id: s.id, strategy: s.strategy, symbol: s.symbol, isActive: !!s.is_active,
+                stats: {
+                    totalTrades: s.total_trades || 0, winningTrades: s.winning_trades || 0,
+                    losingTrades: s.losing_trades || 0, totalPnl: s.total_pnl || 0,
+                    winRate: s.total_trades > 0 ? Math.round(((s.winning_trades || 0) / s.total_trades) * 100) : 0
+                }
+            }))
         });
     } catch (error) {
         console.error('Bot details error:', error);
@@ -1943,13 +2241,18 @@ router.patch('/api/bots/:id/copy-trading', requireAuth, async (req, res) => {
 
 router.get('/api/bots/:id/position-blocks', requireAuth, (req, res) => {
     try {
-        const { limit = 100, offset = 0, open } = req.query;
+        const { limit = 100, offset = 0, open, strategy_id } = req.query;
         let query = 'SELECT * FROM bot_position_blocks WHERE bot_id = ?';
         const params = [req.params.id];
 
         if (open === '1') { query += ' AND is_open = 1'; }
+        if (strategy_id) { query += ' AND strategy_id = ?'; params.push(parseInt(strategy_id)); }
 
-        const total = dbGet(`SELECT COUNT(*) as c FROM bot_position_blocks WHERE bot_id = ?${open === '1' ? ' AND is_open = 1' : ''}`, [req.params.id]);
+        let countQuery = 'SELECT COUNT(*) as c FROM bot_position_blocks WHERE bot_id = ?';
+        const countParams = [req.params.id];
+        if (open === '1') { countQuery += ' AND is_open = 1'; }
+        if (strategy_id) { countQuery += ' AND strategy_id = ?'; countParams.push(parseInt(strategy_id)); }
+        const total = dbGet(countQuery, countParams);
 
         query += ' ORDER BY started_at DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
@@ -1963,7 +2266,8 @@ router.get('/api/bots/:id/position-blocks', requireAuth, (req, res) => {
                 avgEntry: b.avg_entry, avgExit: b.avg_exit,
                 totalPnl: b.total_pnl, isOpen: !!b.is_open,
                 startedAt: b.started_at, endedAt: b.ended_at,
-                tradeIds: b.trade_ids
+                tradeIds: b.trade_ids,
+                strategyId: b.strategy_id || null
             })),
             total: total?.c || 0
         });
@@ -2055,16 +2359,22 @@ router.post('/api/bots/:id/copy-now', requireAuth, async (req, res) => {
 
 router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
     try {
-        const { limit = 50, offset = 0, status } = req.query;
+        const { limit = 50, offset = 0, status, strategy_id } = req.query;
         let query  = 'SELECT * FROM bot_trades WHERE bot_id = ?';
         const params = [req.params.id];
 
         if (status) { query += ' AND status = ?'; params.push(status); }
+        if (strategy_id) { query += ' AND strategy_id = ?'; params.push(parseInt(strategy_id)); }
         query += ' ORDER BY opened_at DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
 
         const trades = dbAll(query, params);
-        const total  = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE bot_id = ?', [req.params.id]);
+
+        let countQuery = 'SELECT COUNT(*) as count FROM bot_trades WHERE bot_id = ?';
+        const countParams = [req.params.id];
+        if (status) { countQuery += ' AND status = ?'; countParams.push(status); }
+        if (strategy_id) { countQuery += ' AND strategy_id = ?'; countParams.push(parseInt(strategy_id)); }
+        const total = dbGet(countQuery, countParams);
 
         res.json({
             trades: trades.map(t => ({
@@ -2073,7 +2383,8 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
                 status: t.status, openedAt: t.opened_at, closedAt: t.closed_at,
                 positionSide: t.position_side || null,
                 binanceTradeId: t.binance_trade_id || null,
-                binanceCloseTradeId: t.binance_close_trade_id || null
+                binanceCloseTradeId: t.binance_close_trade_id || null,
+                strategyId: t.strategy_id || null
             })),
             total: total?.count || 0
         });
@@ -2125,8 +2436,9 @@ router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
             try {
                 const exists = dbGet('SELECT id FROM bot_order_history WHERE bot_id = ? AND order_id = ?', [bot.id, o.orderId]);
                 if (!exists) {
-                    dbRun('INSERT INTO bot_order_history (bot_id, order_id, symbol, side, type, price, stop_price, quantity, status, canceled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [bot.id, o.orderId, o.symbol, o.side, o.type, o.price, o.stopPrice, o.origQty, o.status, new Date(o.updateTime).toISOString()]);
+                    const sId = o.symbol ? findStrategyBySymbol(bot.id, o.symbol) : null;
+                    dbRun('INSERT INTO bot_order_history (bot_id, strategy_id, order_id, symbol, side, type, price, stop_price, quantity, status, canceled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [bot.id, sId, o.orderId, o.symbol, o.side, o.type, o.price, o.stopPrice, o.origQty, o.status, new Date(o.updateTime).toISOString()]);
                 }
             } catch (e) { /* duplicate */ }
         }
@@ -2212,12 +2524,14 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
 
 router.post('/api/bots/:id/trades', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
     try {
-        const { symbol, side, type, quantity, price, pnl, pnlPercent, status } = req.body;
+        const { symbol, side, type, quantity, price, pnl, pnlPercent, status, strategy_id } = req.body;
+        // Auto-resolve strategy if not provided
+        const sId = strategy_id || (symbol ? resolveStrategyId(parseInt(req.params.id), symbol) : null);
         const result = dbRun(
-            'INSERT INTO bot_trades (bot_id, symbol, side, type, quantity, price, pnl, pnl_percent, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [req.params.id, symbol, side, type, quantity, price, pnl || 0, pnlPercent || 0, status || 'open']
+            'INSERT INTO bot_trades (bot_id, strategy_id, symbol, side, type, quantity, price, pnl, pnl_percent, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [req.params.id, sId, symbol, side, type, quantity, price, pnl || 0, pnlPercent || 0, status || 'open']
         );
-        updateBotStats(req.params.id);
+        updateBotStats(parseInt(req.params.id));
         res.json({ success: true, tradeId: result.lastInsertRowid });
     } catch (error) {
         console.error('Record trade error:', error);
@@ -2234,6 +2548,7 @@ router.post('/api/bots/:id/resync-trades', requireAuth, async (req, res) => {
         const before = dbGet('SELECT COUNT(*) as count FROM bot_trades WHERE bot_id = ?', [req.params.id]);
         dbRun('DELETE FROM bot_trades WHERE bot_id = ?', [req.params.id]);
         dbRun('DELETE FROM bot_position_blocks WHERE bot_id = ?', [req.params.id]);
+        dbRun('DELETE FROM bot_stats WHERE bot_id = ?', [req.params.id]);
         saveDatabase();
 
         const result  = await syncBinanceTrades(req.params.id);
@@ -2429,14 +2744,19 @@ router.get('/api/bots/:id/stats', requireAuth, async (req, res) => {
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
         const tf = req.query.timeframe || 'all';
+        const strategyId = req.query.strategy_id ? parseInt(req.query.strategy_id) : null;
         const tfMs = { '30m': 30*60*1000, '1h': 60*60*1000, '2h': 2*60*60*1000, '4h': 4*60*60*1000, '1d': 86400000, '7d': 7*86400000 }[tf] || 0;
 
         let trades;
+        let baseQuery = 'SELECT pnl, side FROM bot_trades WHERE bot_id = ? AND status = ?';
+        const baseParams = [req.params.id, 'closed'];
+        if (strategyId) { baseQuery += ' AND strategy_id = ?'; baseParams.push(strategyId); }
+
         if (tfMs > 0) {
             const since = new Date(Date.now() - tfMs).toISOString();
-            trades = dbAll('SELECT pnl, side FROM bot_trades WHERE bot_id = ? AND status = ? AND closed_at >= ?', [req.params.id, 'closed', since]);
+            trades = dbAll(baseQuery + ' AND closed_at >= ?', [...baseParams, since]);
         } else {
-            trades = dbAll('SELECT pnl, side FROM bot_trades WHERE bot_id = ? AND status = ?', [req.params.id, 'closed']);
+            trades = dbAll(baseQuery, baseParams);
         }
 
         const wins = trades.filter(t => parseFloat(t.pnl) > 0);

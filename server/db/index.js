@@ -84,6 +84,27 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bots ADD COLUMN category_id INTEGER DEFAULT NULL'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN community_visible INTEGER DEFAULT 1'); } catch(e) {}
 
+    // ── Bot strategies: unique strategy+symbol per bot ──
+    db.run(`
+        CREATE TABLE IF NOT EXISTS bot_strategies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bot_id INTEGER NOT NULL,
+            strategy TEXT NOT NULL DEFAULT 'default',
+            symbol TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            settings TEXT DEFAULT '{}',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bot_id) REFERENCES bots(id),
+            UNIQUE(bot_id, strategy, symbol)
+        )
+    `);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_strategies_bot_id ON bot_strategies(bot_id)'); } catch(e) {}
+
+    // Add strategy_id to tables that already exist at this point
+    try { db.run('ALTER TABLE bot_trades ADD COLUMN strategy_id INTEGER REFERENCES bot_strategies(id)'); } catch(e) {}
+    try { db.run('ALTER TABLE bot_order_history ADD COLUMN strategy_id INTEGER REFERENCES bot_strategies(id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_trades_strategy_id ON bot_trades(strategy_id)'); } catch(e) {}
+
     db.run(`
         CREATE TABLE IF NOT EXISTS bot_symbol_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -318,13 +339,46 @@ async function initDatabase() {
             FOREIGN KEY (bot_id) REFERENCES bots(id)
         )
     `);
+    try { db.run('ALTER TABLE bot_position_blocks ADD COLUMN strategy_id INTEGER REFERENCES bot_strategies(id)'); } catch(e) {}
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_trades_binance_id ON bot_trades(bot_id, binance_trade_id) WHERE binance_trade_id IS NOT NULL'); } catch(e) {}
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_trades_close_id ON bot_trades(bot_id, binance_close_trade_id) WHERE binance_close_trade_id IS NOT NULL'); } catch(e) {}
+
+    // Migrate bot_stats: remove UNIQUE constraint on bot_id (now multiple rows per bot: global + per-strategy)
+    try {
+        const tableInfo = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='bot_stats'");
+        const createSql = tableInfo[0]?.values[0]?.[0] || '';
+        if (createSql.includes('bot_id INTEGER NOT NULL UNIQUE')) {
+            console.log('Migrating bot_stats: removing UNIQUE constraint on bot_id...');
+            db.run(`CREATE TABLE bot_stats_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bot_id INTEGER NOT NULL,
+                strategy_id INTEGER REFERENCES bot_strategies(id),
+                total_trades INTEGER DEFAULT 0,
+                winning_trades INTEGER DEFAULT 0,
+                losing_trades INTEGER DEFAULT 0,
+                total_pnl REAL DEFAULT 0,
+                max_drawdown REAL DEFAULT 0,
+                best_trade REAL DEFAULT 0,
+                worst_trade REAL DEFAULT 0,
+                avg_trade_duration INTEGER DEFAULT 0,
+                last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (bot_id) REFERENCES bots(id)
+            )`);
+            db.run(`INSERT INTO bot_stats_new (id, bot_id, total_trades, winning_trades, losing_trades, total_pnl, max_drawdown, best_trade, worst_trade, avg_trade_duration, last_updated)
+                    SELECT id, bot_id, total_trades, winning_trades, losing_trades, total_pnl, max_drawdown, best_trade, worst_trade, avg_trade_duration, last_updated FROM bot_stats`);
+            db.run('DROP TABLE bot_stats');
+            db.run('ALTER TABLE bot_stats_new RENAME TO bot_stats');
+            console.log('bot_stats migration complete.');
+        }
+    } catch(e) {
+        // Table doesn't exist yet — will be created below
+    }
 
     db.run(`
         CREATE TABLE IF NOT EXISTS bot_stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            bot_id INTEGER NOT NULL UNIQUE,
+            bot_id INTEGER NOT NULL,
+            strategy_id INTEGER REFERENCES bot_strategies(id),
             total_trades INTEGER DEFAULT 0,
             winning_trades INTEGER DEFAULT 0,
             losing_trades INTEGER DEFAULT 0,
@@ -337,6 +391,9 @@ async function initDatabase() {
             FOREIGN KEY (bot_id) REFERENCES bots(id)
         )
     `);
+    try { db.run('ALTER TABLE bot_stats ADD COLUMN strategy_id INTEGER REFERENCES bot_strategies(id)'); } catch(e) {}
+    try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_stats_bot_strategy ON bot_stats(bot_id, COALESCE(strategy_id, 0))'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_stats_strategy_id ON bot_stats(strategy_id)'); } catch(e) {}
 
     db.run(`
         CREATE TABLE IF NOT EXISTS bot_notification_settings (
