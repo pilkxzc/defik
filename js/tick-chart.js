@@ -45,6 +45,12 @@ class TickChart {
         this._pinchDist    = 0;
         this._pinchBarSpacing = 0;
 
+        // Infinite scroll (load older history)
+        this._symbol       = '';      // current symbol for history fetches
+        this._loadingMore  = false;   // prevents concurrent fetches
+        this._noMoreHistory = false;  // true when Binance returns 0 results
+        this._maxHistoryTicks = 20000; // max total ticks to keep in memory
+
         // Colors from CSS vars
         const cs = getComputedStyle(document.documentElement);
         this.colors = {
@@ -104,13 +110,15 @@ class TickChart {
     // ── Public API ──────────────────────────────────────────────
 
     loadHistory(trades) {
-        this.ticks = trades.slice(-this.maxTicks).map(t => ({
+        this.ticks = trades.slice(-this._maxHistoryTicks).map(t => ({
             price: +t.price || +t.p || 0,
             time:  +t.time  || +t.T || +t.E || Date.now(),
             qty:   +t.qty   || +t.q || 0
         }));
         this._scrollOffset = 0;
         this._barSpacing = 0; // auto-init on next draw
+        this._noMoreHistory = false;
+        this._loadingMore = false;
         this._dirty = true;
     }
 
@@ -120,11 +128,12 @@ class TickChart {
             time:  +t.time  || +t.T || +t.E || Date.now(),
             qty:   +t.qty   || +t.q || 0
         });
-        if (this.ticks.length > this.maxTicks) {
-            this.ticks.splice(0, this.ticks.length - this.maxTicks);
+        const limit = Math.max(this.maxTicks, this._maxHistoryTicks);
+        if (this.ticks.length > limit) {
+            this.ticks.splice(0, this.ticks.length - limit);
         }
-        // Auto-scroll to latest if user hasn't panned
-        if (this._scrollOffset <= 2) this._scrollOffset = 0;
+        // Auto-scroll to latest only if user is viewing the live edge
+        if (this._scrollOffset < 1) this._scrollOffset = 0;
         this._dirty = true;
     }
 
@@ -224,8 +233,10 @@ class TickChart {
 
     /** Fetch recent trades from Binance REST + connect WS */
     async start(symbol) {
+        this._symbol = symbol.toUpperCase();
+        this._noMoreHistory = false;
         try {
-            const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${symbol.toUpperCase()}&limit=1000`;
+            const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&limit=1000`;
             const resp = await fetch(url);
             const data = await resp.json();
             if (Array.isArray(data)) {
@@ -235,6 +246,40 @@ class TickChart {
             console.warn('[TickChart] Failed to fetch history:', e.message);
         }
         this.connectWs(symbol);
+    }
+
+    /** Load older history when user scrolls to left edge */
+    async _loadMoreHistory() {
+        if (this._loadingMore || this._noMoreHistory || !this._symbol || this.ticks.length < 2) return;
+        this._loadingMore = true;
+        try {
+            const oldestTime = this.ticks[0].time;
+            const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&endTime=${oldestTime - 1}&limit=1000`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                this._noMoreHistory = true;
+                return;
+            }
+            const newTicks = data.map(d => ({
+                price: +d.p || 0,
+                time:  +d.T || 0,
+                qty:   +d.q || 0
+            }));
+            // Prepend and trim from end if over limit
+            const oldLen = this.ticks.length;
+            this.ticks = [...newTicks, ...this.ticks];
+            if (this.ticks.length > this._maxHistoryTicks) {
+                this.ticks = this.ticks.slice(0, this._maxHistoryTicks);
+            }
+            // Adjust scroll offset so the view stays in the same place
+            this._scrollOffset += (this.ticks.length - oldLen);
+            this._dirty = true;
+        } catch (e) {
+            console.warn('[TickChart] Failed to load more history:', e.message);
+        } finally {
+            this._loadingMore = false;
+        }
     }
 
     getLastPrice() {
@@ -283,6 +328,10 @@ class TickChart {
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
             this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - dx / spacing));
             this.canvas.style.cursor = 'grabbing';
+            // Load more history when near left edge
+            if (this._scrollOffset >= maxOffset - visibleCount * 0.3) {
+                this._loadMoreHistory();
+            }
         }
         this._dirty = true;
     }
@@ -296,21 +345,40 @@ class TickChart {
     _onWheel(e) {
         e.preventDefault();
         const chartW = (this.W || 600) - TC_PADDING_RIGHT;
-        const r = this.canvas.getBoundingClientRect();
-        const mx = e.clientX - r.left;
 
         // Init barSpacing if needed
         if (this._barSpacing <= 0) {
             this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
         }
 
-        // Zoom speed: 15% per wheel notch (matches klinecharts feel)
+        const absX = Math.abs(e.deltaX);
+        const absY = Math.abs(e.deltaY);
+
+        // Horizontal scroll or Shift+scroll → PAN (like klinecharts drag)
+        if (absX > absY || e.shiftKey) {
+            const delta = e.shiftKey ? e.deltaY : e.deltaX;
+            const spacing = this._barSpacing || 2;
+            const panTicks = delta / spacing;
+            const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
+            const maxOffset = Math.max(0, this.ticks.length - visibleCount);
+            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._scrollOffset + panTicks));
+            this._dirty = true;
+            // Load more history when near left edge
+            if (this._scrollOffset >= maxOffset - visibleCount * 0.3) {
+                this._loadMoreHistory();
+            }
+            return;
+        }
+
+        // Vertical scroll → ZOOM (anchored on cursor)
+        const r = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+
         const factor = e.deltaY > 0 ? 0.85 : 1.176;
         const minSpacing = Math.max(0.3, chartW / Math.max(this.ticks.length, 100));
         const maxSpacing = chartW / 5;
         const newSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._barSpacing * factor));
 
-        // Anchor zoom on cursor position (keep tick under cursor stationary)
         const oldVisible = chartW / this._barSpacing;
         const newVisible = chartW / newSpacing;
         const f = Math.max(0, Math.min(1, mx / chartW));
@@ -383,6 +451,10 @@ class TickChart {
             const r = this.canvas.getBoundingClientRect();
             this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
             this._dirty = true;
+            // Load more history when near left edge
+            if (this._scrollOffset >= maxOffset - visibleCount * 0.3) {
+                this._loadMoreHistory();
+            }
         }
     }
 
