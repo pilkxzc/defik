@@ -3,6 +3,7 @@ const express = require('express');
 const axios   = require('axios');
 const crypto  = require('crypto');
 const router  = express.Router();
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const { dbGet, dbAll, dbRun, dbTransaction, saveDatabase } = require('../db');
 const { requireAuth, requireRole }          = require('../middleware/auth');
@@ -21,6 +22,57 @@ function logBinanceError(label, err) {
     }
 }
 
+// ── Proxy helpers ────────────────────────────────────────────────────────────
+
+/** Cache of HttpsProxyAgent instances keyed by proxy string */
+const _proxyAgentCache = {};
+
+/**
+ * Parse proxy string "IP:PORT:LOGIN:PASS" → HttpsProxyAgent (or null).
+ * Agents are cached so we reuse TCP connections (keep-alive).
+ */
+function getProxyAgent(proxyStr) {
+    if (!proxyStr) return null;
+    if (_proxyAgentCache[proxyStr]) return _proxyAgentCache[proxyStr];
+
+    const parts = proxyStr.split(':');
+    if (parts.length < 2) return null;
+    const [ip, port, login, pass] = parts;
+    const url = (login && pass) ? `http://${login}:${pass}@${ip}:${port}` : `http://${ip}:${port}`;
+
+    const agent = new HttpsProxyAgent(url, { keepAlive: true });
+    _proxyAgentCache[proxyStr] = agent;
+    return agent;
+}
+
+/** Build axios request config with proxy (if any) */
+function axiosCfg(apiKey, proxy, timeout = 10000) {
+    const cfg = { headers: { 'X-MBX-APIKEY': apiKey }, timeout };
+    const agent = getProxyAgent(proxy);
+    if (agent) { cfg.httpsAgent = agent; cfg.proxy = false; }
+    return cfg;
+}
+
+// ── Per-proxy ban tracking (each proxy IP has its own Binance rate limit) ─────
+const _proxyBanUntil = {};   // { proxyStr|'direct': timestamp }
+
+function isBanned(proxy) {
+    const key = proxy || 'direct';
+    return (_proxyBanUntil[key] || 0) > Date.now();
+}
+function setBan(proxy, untilMs) {
+    const key = proxy || 'direct';
+    _proxyBanUntil[key] = untilMs;
+}
+function handleBanError(proxy, error) {
+    const status = error.response?.status;
+    if (status === 418 || status === 429) {
+        const banMsg = error.response?.data?.msg || '';
+        const banMatch = banMsg.match(/until\s+(\d+)/);
+        setBan(proxy, banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000);
+    }
+}
+
 // ── Multi-account helpers ────────────────────────────────────────────────────
 
 function getMultiCredentials(bot) {
@@ -33,11 +85,11 @@ function getMultiCredentials(bot) {
     return null;
 }
 
-/** Returns array of {apiKey, apiSecret} for a bot — works for both single and multi-account */
+/** Returns array of {apiKey, apiSecret, proxy} for a bot — works for both single and multi-account */
 function getBotCredentialPairs(bot) {
     const multi = getMultiCredentials(bot);
-    if (multi) return multi.map(c => ({ apiKey: c.tk, apiSecret: c.tk_secret }));
-    if (bot.binance_api_key && bot.binance_api_secret) return [{ apiKey: bot.binance_api_key, apiSecret: bot.binance_api_secret }];
+    if (multi) return multi.map(c => ({ apiKey: c.tk, apiSecret: c.tk_secret, proxy: c.proxy || bot.proxy || null }));
+    if (bot.binance_api_key && bot.binance_api_secret) return [{ apiKey: bot.binance_api_key, apiSecret: bot.binance_api_secret, proxy: bot.proxy || null }];
     return [];
 }
 
@@ -46,27 +98,20 @@ function botHasCredentials(bot) {
     return getBotCredentialPairs(bot).length > 0;
 }
 
-/** Make a signed Binance Futures request with given credentials */
-async function makeBinanceSignedReq(apiKey, apiSecret, endpoint, params = {}) {
-    if (_binanceBanUntil > Date.now()) {
+/** Make a signed Binance Futures request with given credentials + proxy */
+async function makeBinanceSignedReq(apiKey, apiSecret, endpoint, params = {}, proxy = null) {
+    if (isBanned(proxy)) {
         throw new Error('Binance IP temporarily banned, retrying later');
     }
     const baseUrl   = 'https://fapi.binance.com';
-    const timestamp = await getBinanceServerTime('futures');
+    const timestamp = await getBinanceServerTime('futures', proxy);
     const qs        = new URLSearchParams({ ...params, timestamp }).toString();
     const signature = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
     try {
-        const r = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${signature}`, {
-            headers: { 'X-MBX-APIKEY': apiKey }, timeout: 10000
-        });
+        const r = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${signature}`, axiosCfg(apiKey, proxy));
         return r.data;
     } catch (error) {
-        const status = error.response?.status;
-        if (status === 418 || status === 429) {
-            const banMsg = error.response?.data?.msg || '';
-            const banMatch = banMsg.match(/until\s+(\d+)/);
-            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000;
-        }
+        handleBanError(proxy, error);
         throw error;
     }
 }
@@ -75,7 +120,7 @@ async function makeBinanceSignedReq(apiKey, apiSecret, endpoint, params = {}) {
 async function forEachBotCred(bot, fn) {
     const creds = getBotCredentialPairs(bot);
     if (creds.length === 0) return [];
-    const results = await Promise.allSettled(creds.map(c => fn(c.apiKey, c.apiSecret)));
+    const results = await Promise.allSettled(creds.map(c => fn(c.apiKey, c.apiSecret, c.proxy)));
     return results.filter(r => r.status === 'fulfilled').map(r => r.value);
 }
 
@@ -85,7 +130,7 @@ async function forEachBotCred(bot, fn) {
  */
 async function fetchMultiAccountFuturesData(credentials) {
     const results = await Promise.allSettled(
-        credentials.map(c => fetchBinanceFuturesData(c.tk, c.tk_secret))
+        credentials.map(c => fetchBinanceFuturesData(c.tk, c.tk_secret, c.proxy || null))
     );
 
     const merged = {
@@ -133,61 +178,52 @@ async function fetchMultiAccountFuturesData(credentials) {
 }
 
 // ── In-memory cache to prevent Binance rate-limit (429/418) ─────────────────
-const _serverTimeCache       = { value: null, ts: 0 };       // TTL 30s
+const _serverTimeCache       = {};                             // keyed by proxy|'direct' — { value, ts }
 const _rawBinanceCache       = {};                            // keyed by apiKey — raw Binance responses
 const _rawBinanceInFlight    = {};                            // dedup concurrent raw fetches
 const _allOrdersCache        = {};                            // keyed by `${apiKey}:${symbol}`
 const _allOrdersInFlight     = {};                            // dedup concurrent allOrders fetches
-let _binanceBanUntil = 0;                                     // IP ban expiry timestamp (ms)
 const RAW_CACHE_TTL          = 30_000;                        // 30 seconds
 const ALL_ORDERS_CACHE_TTL   = 60_000;                        // 60 seconds
 
 // ── Binance helpers ───────────────────────────────────────────────────────────
 
-async function getBinanceServerTime(accountType = 'futures') {
+async function getBinanceServerTime(accountType = 'futures', proxy = null) {
     const now = Date.now();
+    const cacheKey = proxy || 'direct';
 
-    // If IP is banned, don't even try — use local time
-    if (_binanceBanUntil > now) {
-        return now;
-    }
+    if (isBanned(proxy)) return now;
 
-    // Cache server time for 30 seconds — avoids hammering /time endpoint
-    if (_serverTimeCache.value && (now - _serverTimeCache.ts) < 30_000) {
-        return _serverTimeCache.value + (now - _serverTimeCache.ts);
+    const cached = _serverTimeCache[cacheKey];
+    if (cached && cached.value && (now - cached.ts) < 30_000) {
+        return cached.value + (now - cached.ts);
     }
     try {
         const base     = accountType === 'futures' ? 'https://fapi.binance.com' : 'https://api.binance.com';
         const endpoint = accountType === 'futures' ? '/fapi/v1/time' : '/api/v3/time';
-        const response = await axios.get(`${base}${endpoint}`, { timeout: 5000 });
-        _serverTimeCache.value = response.data.serverTime;
-        _serverTimeCache.ts    = now;
+        const cfg      = { timeout: 5000 };
+        const agent    = getProxyAgent(proxy);
+        if (agent) { cfg.httpsAgent = agent; cfg.proxy = false; }
+        const response = await axios.get(`${base}${endpoint}`, cfg);
+        _serverTimeCache[cacheKey] = { value: response.data.serverTime, ts: now };
         return response.data.serverTime;
     } catch (error) {
-        // Detect IP ban (418) or rate limit (429)
-        const status = error.response?.status;
-        if (status === 418 || status === 429) {
-            const banMsg = error.response?.data?.msg || '';
-            const banMatch = banMsg.match(/until\s+(\d+)/);
-            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : now + 120_000;
-            console.error(`Binance IP banned until ${new Date(_binanceBanUntil).toISOString()}`);
-        } else {
+        handleBanError(proxy, error);
+        if (error.response?.status !== 418 && error.response?.status !== 429) {
             console.error('Failed to get Binance server time:', error.message);
         }
         return now;
     }
 }
 
-async function testBinanceCredentials(apiKey, apiSecret, accountType = 'futures') {
+async function testBinanceCredentials(apiKey, apiSecret, accountType = 'futures', proxy = null) {
     try {
         const base      = accountType === 'futures' ? 'https://fapi.binance.com' : 'https://api.binance.com';
-        const timestamp = await getBinanceServerTime(accountType);
+        const timestamp = await getBinanceServerTime(accountType, proxy);
         const qs        = `timestamp=${timestamp}`;
         const signature = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
         const endpoint  = accountType === 'futures' ? '/fapi/v2/account' : '/api/v3/account';
-        const response  = await axios.get(`${base}${endpoint}?${qs}&signature=${signature}`, {
-            headers: { 'X-MBX-APIKEY': apiKey }
-        });
+        const response  = await axios.get(`${base}${endpoint}?${qs}&signature=${signature}`, axiosCfg(apiKey, proxy));
         return { success: true, data: response.data };
     } catch (error) {
         console.error('Binance test error:', error.response?.data || error.message);
@@ -200,14 +236,14 @@ async function testBinanceCredentials(apiKey, apiSecret, accountType = 'futures'
  * Returns raw API responses: { account, openOrders, userTrades, income }
  * ALL endpoints should use this instead of making direct Binance API calls.
  */
-async function fetchRawBinanceData(apiKey, apiSecret) {
+async function fetchRawBinanceData(apiKey, apiSecret, proxy = null) {
     const now = Date.now();
     if (_rawBinanceCache[apiKey] && (now - _rawBinanceCache[apiKey].ts) < RAW_CACHE_TTL) {
         return _rawBinanceCache[apiKey].data;
     }
     if (_rawBinanceInFlight[apiKey]) return _rawBinanceInFlight[apiKey];
 
-    const promise = _doFetchRawBinanceData(apiKey, apiSecret)
+    const promise = _doFetchRawBinanceData(apiKey, apiSecret, proxy)
         .then(data => {
             _rawBinanceCache[apiKey] = { data, ts: Date.now() };
             delete _rawBinanceInFlight[apiKey];
@@ -222,34 +258,30 @@ async function fetchRawBinanceData(apiKey, apiSecret) {
     return promise;
 }
 
-async function _doFetchRawBinanceData(apiKey, apiSecret) {
-    if (_binanceBanUntil > Date.now()) throw new Error('Binance IP temporarily banned');
+async function _doFetchRawBinanceData(apiKey, apiSecret, proxy = null) {
+    if (isBanned(proxy)) throw new Error('Binance IP temporarily banned');
     try {
         const baseUrl   = 'https://fapi.binance.com';
-        const timestamp = await getBinanceServerTime('futures');
+        const timestamp = await getBinanceServerTime('futures', proxy);
         const sign      = (qs) => crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
+        const cfg       = axiosCfg(apiKey, proxy);
         const makeReq   = async (endpoint, params = {}) => {
             const qs = new URLSearchParams({ ...params, timestamp }).toString();
-            const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sign(qs)}`, {
-                headers: { 'X-MBX-APIKEY': apiKey }, timeout: 10000
-            });
+            const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sign(qs)}`, cfg);
             return r.data;
         };
 
-        const account    = await makeReq('/fapi/v2/account');
-        const openOrders = await makeReq('/fapi/v1/openOrders');
-        let userTrades = [], income = [];
-        try { userTrades = await makeReq('/fapi/v1/userTrades', { limit: 50 }); } catch (e) {}
-        try { income     = await makeReq('/fapi/v1/income',     { limit: 100 }); } catch (e) {}
+        // Fire all requests in parallel — no delays needed, each proxy has its own rate limit
+        const [account, openOrders, userTrades, income] = await Promise.all([
+            makeReq('/fapi/v2/account'),
+            makeReq('/fapi/v1/openOrders'),
+            makeReq('/fapi/v1/userTrades', { limit: 50 }).catch(() => []),
+            makeReq('/fapi/v1/income',     { limit: 100 }).catch(() => [])
+        ]);
 
         return { account, openOrders, userTrades, income };
     } catch (error) {
-        const status = error.response?.status;
-        if (status === 418 || status === 429) {
-            const banMsg = error.response?.data?.msg || '';
-            const banMatch = banMsg.match(/until\s+(\d+)/);
-            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000;
-        }
+        handleBanError(proxy, error);
         logBinanceError('Raw Binance data fetch error:', error);
         throw new Error(error.response?.data?.msg || 'Failed to fetch Binance data');
     }
@@ -259,7 +291,7 @@ async function _doFetchRawBinanceData(apiKey, apiSecret) {
  * Fetch allOrders for a specific symbol — cached 60s, deduplicated.
  * Only used by /chart-data endpoint.
  */
-async function fetchCachedAllOrders(apiKey, apiSecret, symbol) {
+async function fetchCachedAllOrders(apiKey, apiSecret, symbol, proxy = null) {
     const cacheKey = `${apiKey}:${symbol}`;
     const now = Date.now();
     if (_allOrdersCache[cacheKey] && (now - _allOrdersCache[cacheKey].ts) < ALL_ORDERS_CACHE_TTL) {
@@ -268,13 +300,11 @@ async function fetchCachedAllOrders(apiKey, apiSecret, symbol) {
     if (_allOrdersInFlight[cacheKey]) return _allOrdersInFlight[cacheKey];
 
     const promise = (async () => {
-        if (_binanceBanUntil > Date.now()) throw new Error('Binance IP temporarily banned');
-        const timestamp = await getBinanceServerTime('futures');
+        if (isBanned(proxy)) throw new Error('Binance IP temporarily banned');
+        const timestamp = await getBinanceServerTime('futures', proxy);
         const qs   = new URLSearchParams({ symbol, limit: 100, timestamp }).toString();
         const sign = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
-        const r    = await axios.get(`https://fapi.binance.com/fapi/v1/allOrders?${qs}&signature=${sign}`, {
-            headers: { 'X-MBX-APIKEY': apiKey }, timeout: 10000
-        });
+        const r    = await axios.get(`https://fapi.binance.com/fapi/v1/allOrders?${qs}&signature=${sign}`, axiosCfg(apiKey, proxy));
         return r.data;
     })()
         .then(data => {
@@ -295,8 +325,8 @@ async function fetchCachedAllOrders(apiKey, apiSecret, symbol) {
  * Fetch formatted Binance Futures data (used by /data endpoint).
  * Consumes from the centralized raw cache — no duplicate API calls.
  */
-async function fetchBinanceFuturesData(apiKey, apiSecret) {
-    const raw = await fetchRawBinanceData(apiKey, apiSecret);
+async function fetchBinanceFuturesData(apiKey, apiSecret, proxy = null) {
+    const raw = await fetchRawBinanceData(apiKey, apiSecret, proxy);
     const { account, openOrders, userTrades: recentTrades, income: incomeHistory } = raw;
 
     const positions        = account.positions?.filter(p => parseFloat(p.positionAmt) !== 0) || [];
@@ -590,23 +620,22 @@ async function syncBinanceTrades(botId) {
 
         const baseUrl  = 'https://fapi.binance.com';
 
-        function buildMakeReq(apiKey, apiSecret) {
+        function buildMakeReq(apiKey, apiSecret, proxy = null) {
+            const cfg = axiosCfg(apiKey, proxy, 15000);
             return async (endpoint, params = {}) => {
                 const p  = { ...params, timestamp: Date.now() };
                 const qs = new URLSearchParams(p).toString();
                 const sig = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
-                const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sig}`, {
-                    headers: { 'X-MBX-APIKEY': apiKey }, timeout: 15000
-                });
+                const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sig}`, cfg);
                 return r.data;
             };
         }
 
         const discoveredSymbols = new Set();
 
-        // Discover symbols from ALL accounts in parallel
+        // Discover symbols from ALL accounts in parallel (each uses its own proxy)
         await Promise.allSettled(credPairs.map(async (cred) => {
-            const makeReq = buildMakeReq(cred.apiKey, cred.apiSecret);
+            const makeReq = buildMakeReq(cred.apiKey, cred.apiSecret, cred.proxy);
             try {
                 const income = await makeReq('/fapi/v1/income', { limit: 1000, incomeType: 'REALIZED_PNL' });
                 income.forEach(i => { if (i.symbol) discoveredSymbols.add(i.symbol); });
@@ -636,8 +665,9 @@ async function syncBinanceTrades(botId) {
                 const trades = [];
                 const seenIds = new Set();
 
-                for (const cred of credPairs) {
-                    const makeReq = buildMakeReq(cred.apiKey, cred.apiSecret);
+                // Fetch trades from ALL accounts in parallel (each uses its own proxy/IP)
+                await Promise.allSettled(credPairs.map(async (cred) => {
+                    const makeReq = buildMakeReq(cred.apiKey, cred.apiSecret, cred.proxy);
                     let endTime = undefined;
                     for (let page = 0; page < 20; page++) {
                         const params = { symbol, limit: 1000 };
@@ -645,26 +675,21 @@ async function syncBinanceTrades(botId) {
 
                         let batch;
                         try { batch = await makeReq('/fapi/v1/userTrades', params); } catch(e) { break; }
-                    if (!batch || batch.length === 0) break;
+                        if (!batch || batch.length === 0) break;
 
-                    let newCount = 0;
-                    for (const t of batch) {
-                        if (!seenIds.has(t.id)) {
-                            seenIds.add(t.id);
-                            trades.push(t);
-                            newCount++;
+                        let newCount = 0;
+                        for (const t of batch) {
+                            if (!seenIds.has(t.id)) {
+                                seenIds.add(t.id);
+                                trades.push(t);
+                                newCount++;
+                            }
                         }
+
+                        if (batch.length < 1000 || newCount === 0) break;
+                        endTime = Math.min(...batch.map(t => t.time)) - 1;
                     }
-
-                    if (batch.length < 1000 || newCount === 0) break; // reached beginning of history
-
-                    // Move endTime to just before the oldest trade in this batch
-                    endTime = Math.min(...batch.map(t => t.time)) - 1;
-
-                    // Small delay to respect rate limits between pages
-                    await new Promise(r => setTimeout(r, 150));
-                    }
-                } // end credPairs loop
+                }));
 
                 // Process oldest-first so entry fills are inserted before their exit fills
                 trades.sort((a, b) => a.time - b.time);
@@ -872,14 +897,14 @@ async function reconcileOpenTrades(botId) {
         const openTrades = dbAll('SELECT * FROM bot_trades WHERE bot_id = ? AND status = ?', [botId, 'open']);
         if (openTrades.length === 0) return 0;
 
-        // Fetch positions from ALL accounts and merge
+        // Fetch positions from ALL accounts and merge (each with its own proxy)
         const allPositions = [];
         const multiCreds = getMultiCredentials(bot);
         if (multiCreds) {
             const merged = await fetchMultiAccountFuturesData(multiCreds);
             allPositions.push(...(merged.positions || []));
         } else {
-            const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+            const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
             allPositions.push(...(binData.positions || []));
         }
 
@@ -916,14 +941,12 @@ async function reconcileOpenTrades(botId) {
         let fixed = 0;
         for (const [symbol, trades] of Object.entries(bySymbol)) {
             try {
-                // Fetch fills from ALL accounts and merge
+                // Fetch fills from ALL accounts in parallel (each with its own proxy)
                 const allFills = [];
-                for (const cred of credPairs) {
-                    try {
-                        const f = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/userTrades', { symbol, limit: 200 });
-                        allFills.push(...f);
-                    } catch (e) {}
-                }
+                const fillResults = await Promise.allSettled(credPairs.map(cred =>
+                    makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/userTrades', { symbol, limit: 200 }, cred.proxy)
+                ));
+                fillResults.forEach(r => { if (r.status === 'fulfilled') allFills.push(...r.value); });
                 const fills = allFills;
 
                 for (const trade of trades) {
@@ -968,8 +991,7 @@ async function reconcileOpenTrades(botId) {
                     fixed++;
                 }
 
-                // Small delay between symbols
-                await new Promise(r => setTimeout(r, 120));
+                // No delay needed — requests go through per-account proxies
             } catch (symErr) {
                 console.log(`[Bot ${botId}] reconcile skip ${symbol}:`, symErr.message);
             }
@@ -1585,8 +1607,8 @@ router.get('/api/bots/:id/info', requireAuth, requireRole('admin', 'moderator'),
 
 router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
     try {
-        if (_binanceBanUntil > Date.now()) {
-            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        if (isBanned(null)) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable' });
         }
 
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
@@ -1608,7 +1630,7 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
             binanceData = await fetchMultiAccountFuturesData(multiCreds);
         } else {
             if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
-            binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+            binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
         }
 
         res.json({
@@ -1627,7 +1649,7 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
 
 router.patch('/api/bots/:id/settings', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
     try {
-        const { name, mode, displaySettings, community_visible, category_id, pair, type, account_type, selected_symbol, investment } = req.body;
+        const { name, mode, displaySettings, community_visible, category_id, pair, type, account_type, selected_symbol, investment, proxy } = req.body;
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
@@ -1642,6 +1664,7 @@ router.patch('/api/bots/:id/settings', requireAuth, requireRole('admin', 'modera
         if (account_type !== undefined)       { updates.push('account_type = ?');       params.push(account_type); }
         if (selected_symbol !== undefined)    { updates.push('selected_symbol = ?');    params.push(selected_symbol); }
         if (investment !== undefined)         { updates.push('investment = ?');         params.push(parseFloat(investment) || 0); }
+        if (proxy !== undefined)             { updates.push('proxy = ?');             params.push(proxy || null); }
 
         if (updates.length > 0) { params.push(req.params.id); dbRun(`UPDATE bots SET ${updates.join(', ')} WHERE id = ?`, params); }
 
@@ -1689,12 +1712,12 @@ router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'
         let toSave = cleaned, failed = [];
         if (!skipValidation) {
             const tests = await Promise.allSettled(
-                cleaned.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures'))
+                cleaned.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures', c.proxy || null))
             );
             toSave = []; failed = [];
             tests.forEach((t, i) => {
                 if (t.status === 'fulfilled' && t.value.success) {
-                    toSave.push({ tk: cleaned[i].tk, tk_secret: cleaned[i].tk_secret });
+                    toSave.push({ tk: cleaned[i].tk, tk_secret: cleaned[i].tk_secret, proxy: cleaned[i].proxy || null });
                 } else {
                     failed.push(i);
                 }
@@ -1704,7 +1727,7 @@ router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'
 
         let settings = {};
         try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
-        settings.multi_credentials = toSave.map(c => ({ tk: c.tk, tk_secret: c.tk_secret }));
+        settings.multi_credentials = toSave.map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || null }));
         dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
 
         res.json({ success: true, total: credentials.length, valid: toSave.length, failed, skippedValidation: !!skipValidation });
@@ -1724,7 +1747,7 @@ router.get('/api/bots/:id/multi-credentials/verify', requireAuth, requireRole('a
         if (!multiCreds || multiCreds.length === 0) return res.json({ accounts: [], total: 0 });
 
         const results = await Promise.allSettled(
-            multiCreds.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures'))
+            multiCreds.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures', c.proxy || null))
         );
 
         const accounts = results.map((r, i) => {
@@ -1879,8 +1902,8 @@ router.get('/api/bots/:id/klines', requireAuth, async (req, res) => {
         }
 
         // Check Binance IP ban
-        if (_binanceBanUntil > Date.now()) {
-            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        if (isBanned(null)) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable' });
         }
 
         const params = { symbol, interval, limit };
@@ -1896,12 +1919,7 @@ router.get('/api/bots/:id/klines', requireAuth, async (req, res) => {
 
         res.json({ klines, symbol, interval, hasMore: klines.length >= limit });
     } catch (error) {
-        const status = error.response?.status;
-        if (status === 418 || status === 429) {
-            const banMsg = error.response?.data?.msg || '';
-            const banMatch = banMsg.match(/until\s+(\d+)/);
-            _binanceBanUntil = banMatch ? parseInt(banMatch[1]) : Date.now() + 120_000;
-        }
+        handleBanError(null, error);
         console.error('Klines error:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch klines' });
     }
@@ -1909,8 +1927,8 @@ router.get('/api/bots/:id/klines', requireAuth, async (req, res) => {
 
 router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
     try {
-        if (_binanceBanUntil > Date.now()) {
-            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        if (isBanned(null)) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable' });
         }
 
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
@@ -1931,9 +1949,9 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
         // Fetch from all accounts using centralized cache (no duplicate API calls)
         const results = await Promise.allSettled(
             credPairs.map(async (cred) => {
-                const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret);
+                const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret, cred.proxy);
                 let allOrders = [];
-                try { allOrders = await fetchCachedAllOrders(cred.apiKey, cred.apiSecret, symbol); } catch (e) {}
+                try { allOrders = await fetchCachedAllOrders(cred.apiKey, cred.apiSecret, symbol, cred.proxy); } catch (e) {}
                 return { account: raw.account, openOrders: raw.openOrders, allOrders };
             })
         );
@@ -2043,8 +2061,8 @@ router.patch('/api/bots/:id/symbol', requireAuth, requireRole('admin', 'moderato
 
 router.get('/api/bots/:id/symbols', requireAuth, async (req, res) => {
     try {
-        if (_binanceBanUntil > Date.now()) {
-            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        if (isBanned(null)) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable' });
         }
 
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
@@ -2064,7 +2082,7 @@ router.get('/api/bots/:id/symbols', requireAuth, async (req, res) => {
             if (multiCreds) {
                 binData = await fetchMultiAccountFuturesData(multiCreds);
             } else if (bot.binance_api_key && bot.binance_api_secret) {
-                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
             }
             if (binData) {
                 const activePos = (binData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
@@ -2105,7 +2123,7 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
             if (multiCreds) {
                 binData = await fetchMultiAccountFuturesData(multiCreds);
             } else if (bot.binance_api_key && bot.binance_api_secret) {
-                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret);
+                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
             }
             if (binData) {
                 const activePos = (binData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
@@ -2318,7 +2336,7 @@ router.post('/api/bots/:id/copy-now', requireAuth, async (req, res) => {
         const credPairs = getBotCredentialPairs(bot);
         await Promise.allSettled(credPairs.map(async (cred) => {
             try {
-                const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret);
+                const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret, cred.proxy);
                 allBotOrders.push(...(raw.openOrders || []).filter(o => o.symbol === symbol));
             } catch (e) {}
         }));
@@ -2425,7 +2443,7 @@ router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
         const allOrders = [];
         await Promise.allSettled(credPairs.map(async (cred) => {
             try {
-                const data = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/allOrders', { symbol, limit: 500 });
+                const data = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/allOrders', { symbol, limit: 500 }, cred.proxy);
                 allOrders.push(...(data || []));
             } catch (e) {}
         }));
@@ -2467,8 +2485,8 @@ router.get('/api/bots/:id/order-history', requireAuth, async (req, res) => {
 
 router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
     try {
-        if (_binanceBanUntil > Date.now()) {
-            return res.status(503).json({ error: 'Binance temporarily unavailable', retryAfter: Math.ceil((_binanceBanUntil - Date.now()) / 1000) });
+        if (isBanned(null)) {
+            return res.status(503).json({ error: 'Binance temporarily unavailable' });
         }
 
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
@@ -2483,7 +2501,7 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
         const allOpenOrders = [], allPositions = [];
         await Promise.allSettled(credPairs.map(async (cred) => {
             try {
-                const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret);
+                const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret, cred.proxy);
                 // Filter openOrders by symbol (raw cache stores ALL open orders)
                 allOpenOrders.push(...(raw.openOrders || []).filter(o => o.symbol === symbol));
                 // Get positions from account data (equivalent to positionRisk)
@@ -2611,7 +2629,7 @@ router.get('/api/bots/:id/trade-markers', requireAuth, async (req, res) => {
         const fills = [];
         await Promise.allSettled(credPairs.map(async (cred) => {
             try {
-                const data = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/userTrades', { symbol, limit: 1000 });
+                const data = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/userTrades', { symbol, limit: 1000 }, cred.proxy);
                 fills.push(...(data || []));
             } catch (e) {}
         }));
@@ -2787,15 +2805,14 @@ async function periodicReconcile() {
             WHERE (b.binance_api_key IS NOT NULL AND b.binance_api_key != '')
                OR (b.trading_settings LIKE '%multi_credentials%')
         `);
-        for (const bot of botsWithOpen) {
+        // Reconcile all bots in parallel — each uses its own proxy/IP
+        await Promise.allSettled(botsWithOpen.map(async (bot) => {
             try {
                 await reconcileOpenTrades(bot.id);
             } catch (e) {
                 console.log(`[periodicReconcile] bot ${bot.id} error:`, e.message);
             }
-            // Small delay between bots to avoid rate limits
-            await new Promise(r => setTimeout(r, 500));
-        }
+        }));
     } catch (e) {
         console.error('[periodicReconcile] error:', e.message);
     } finally {

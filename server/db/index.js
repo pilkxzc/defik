@@ -81,6 +81,7 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bots ADD COLUMN trading_settings TEXT DEFAULT "{}"'); } catch(e) {}
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_key TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_subscribers ADD COLUMN user_binance_api_secret TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE bots ADD COLUMN proxy TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN category_id INTEGER DEFAULT NULL'); } catch(e) {}
     try { db.run('ALTER TABLE bots ADD COLUMN community_visible INTEGER DEFAULT 1'); } catch(e) {}
 
