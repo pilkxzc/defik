@@ -1955,7 +1955,8 @@
                 _tickChart.loadHistory(trades);
 
                 // Add order marker (primary = highlighted with guide lines)
-                const markerPrice = parseFloat(o.avgPrice) || parseFloat(o.price) || parseFloat(o.stopPrice) || 0;
+                // Use placement price (price/stopPrice) first, fill price (avgPrice) as fallback
+                const markerPrice = (parseFloat(o.price) > 0 ? parseFloat(o.price) : 0) || (parseFloat(o.stopPrice) > 0 ? parseFloat(o.stopPrice) : 0) || parseFloat(o.avgPrice) || 0;
                 const orderMarker = {
                     time: orderTime / 1000,
                     price: markerPrice,
@@ -1965,10 +1966,10 @@
                     count: 1,
                     _primary: true,
                 };
-                // Build markers: current order + all orders in time range
-                const allMarkers = [];
+                // Build markers: current order + all orders in time range, grouped by time
+                const rawMarkers = [];
                 if (markerPrice > 0) {
-                    allMarkers.push(orderMarker);
+                    rawMarkers.push(orderMarker);
                 }
                 if (_showAllOrders && allOrders.length > 0) {
                     const halfWin = 5 * 60 * 1000;
@@ -1976,17 +1977,32 @@
                         if (ro.orderId === o.orderId) return;
                         const roTime = getOrderTime(ro);
                         if (roTime < orderTime - halfWin || roTime > orderTime + halfWin) return;
-                        const rp = parseFloat(ro.avgPrice) || parseFloat(ro.price) || parseFloat(ro.stopPrice) || 0;
+                        const rp = (parseFloat(ro.price) > 0 ? parseFloat(ro.price) : 0) || (parseFloat(ro.stopPrice) > 0 ? parseFloat(ro.stopPrice) : 0) || parseFloat(ro.avgPrice) || 0;
                         if (rp <= 0) return;
-                        allMarkers.push({
+                        rawMarkers.push({
                             time: roTime / 1000, price: rp,
                             side: ro.side || 'BUY', isEntry: ro.side === 'BUY',
                             pnl: 0, count: 1, _primary: false
                         });
                     });
                 }
-                if (allMarkers.length > 0) {
-                    _tickChart.setMarkers(allMarkers);
+                // Cluster markers within 1 second of each other
+                const clustered = [];
+                const clusterWindow = 1; // seconds
+                const sorted = rawMarkers.slice().sort((a, b) => a.time - b.time);
+                for (const m of sorted) {
+                    const last = clustered.length > 0 ? clustered[clustered.length - 1] : null;
+                    if (last && !last._primary && !m._primary && Math.abs(m.time - last.time) <= clusterWindow && m.side === last.side) {
+                        // Merge into existing cluster
+                        last.price = (last.price * last.count + m.price) / (last.count + 1);
+                        last.count += 1;
+                        last.pnl += m.pnl;
+                    } else {
+                        clustered.push({ ...m });
+                    }
+                }
+                if (clustered.length > 0) {
+                    _tickChart.setMarkers(clustered);
                     _tickChart.centerOnTime(orderTime);
                 }
                 // Pass order price levels to tick chart

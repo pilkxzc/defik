@@ -419,12 +419,10 @@ class TickChart {
             if (t.price < minP) minP = t.price;
             if (t.price > maxP) maxP = t.price;
         }
-        // Also include marker prices in range
+        // Always include ALL marker prices in range so they never go off-screen
         for (const m of this.markers) {
-            if (m.time >= visStartTime && m.time <= visEndTime) {
-                if (m.price < minP) minP = m.price;
-                if (m.price > maxP) maxP = m.price;
-            }
+            if (m.price < minP) minP = m.price;
+            if (m.price > maxP) maxP = m.price;
         }
         // Also include level prices in range
         for (const lv of this.levels) {
@@ -603,7 +601,12 @@ class TickChart {
 
         // ── Trade markers ──
         this._hoveredMarker = null;
-        const visibleMarkers = this.markers.filter(m => m.time >= visStartTime && m.time <= visEndTime);
+        // Show all markers — clamp time to visible range so they stay on-screen
+        const visibleMarkers = this.markers.filter(m => {
+            // Always show markers within the loaded tick time range + some margin
+            const margin = (visEndTime - visStartTime) * 0.5;
+            return m.time >= visStartTime - margin && m.time <= visEndTime + margin;
+        });
 
         // Draw primary marker guidelines first (behind everything)
         for (const m of visibleMarkers) {

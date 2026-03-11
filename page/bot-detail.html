@@ -4303,6 +4303,8 @@
         let positionOverlayIds = [];         // overlay ids for all position markers
         let orderLineOverlays = new Map();   // key → overlay id (price level lines)
         let highlightOverlayIds = [];        // overlay ids for trade highlight (klinecharts)
+        let _tickBaseLevels = [];            // base levels from drawPriceLines (for tick chart)
+        let _tickHighlightLevels = [];       // highlight levels from highlightTrade (for tick chart)
         let statsChartOverlayIds = [];       // overlay ids for stats period markers
         const savedPositionPerInterval = {};
         let lastMarkersKey = '';
@@ -4534,6 +4536,11 @@
                 try { if (klChart) klChart.removeOverlay({ id }); } catch(e) {}
             });
             orderLineOverlays.clear();
+            // Also clear tick chart levels
+            if (_tickChart) {
+                _tickBaseLevels = [];
+                _tickChart.setLevels([..._tickHighlightLevels]);
+            }
         }
 
         // ==================== STATS MODAL (Phase 7) ====================
@@ -5379,12 +5386,43 @@
             _pendingBlockHighlight = null;
 
             clearTradeHighlight(false);
-            if (!klChart || klinesData.length < 2) return;
 
             const isLong = block.side === 'LONG';
             const entryColor = isLong ? userTheme.colors.long : userTheme.colors.short;
             const pnlColor = block.totalPnl >= 0 ? userTheme.colors.tp || userTheme.colors.long : '#F97316';
             const fmtP = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
+
+            // ---- Tick chart branch ----
+            if (_tickChart) {
+                _tickHighlightLevels = [];
+                if (block.avgEntry > 0) {
+                    _tickHighlightLevels.push({
+                        price: block.avgEntry,
+                        label: `Entry $${fmtP(block.avgEntry)}`,
+                        color: entryColor,
+                        dash: [8, 3],
+                    });
+                }
+                if (block.avgExit > 0) {
+                    _tickHighlightLevels.push({
+                        price: block.avgExit,
+                        label: `Exit $${fmtP(block.avgExit)}`,
+                        color: pnlColor,
+                        dash: [8, 3],
+                    });
+                }
+                _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
+
+                // Center on entry time
+                const _bStartMs = block.startTime || (block.startedAt ? new Date(block.startedAt).getTime() : 0);
+                if (_bStartMs) {
+                    _tickChart.centerOnTime(_bStartMs);
+                }
+                return;
+            }
+
+            // ---- Klinecharts branch ----
+            if (!klChart || klinesData.length < 2) return;
 
             // Entry price level
             if (block.avgEntry > 0) {
@@ -7515,6 +7553,19 @@
                             if (_tickChart && data.markers) _tickChart.setMarkers(data.markers);
                         }
                     } catch(e) {}
+                    // Draw price lines on tick chart if data available
+                    if (lastChartData) drawPriceLines(lastChartData);
+                    // Apply pending trade highlight
+                    if (_pendingHighlight) {
+                        const ph = _pendingHighlight;
+                        _pendingHighlight = null;
+                        highlightTrade(ph.trade, ph.rowEl, ph.noNavigate);
+                    }
+                    if (_pendingBlockHighlight) {
+                        const pb = _pendingBlockHighlight;
+                        _pendingBlockHighlight = null;
+                        highlightPositionBlock(pb);
+                    }
                 });
                 return;
             }
@@ -8395,6 +8446,76 @@
 
         function drawPriceLines(data) {
             lastChartData = data;
+
+            // Build desired lines list (shared by klinecharts and tick chart)
+            function buildDesiredLines() {
+                const lines = [];
+                if (displaySettings.positions) {
+                    const posArr = data.positions || (data.position ? [data.position] : []);
+                    posArr.forEach(pos => {
+                        if (!pos || !pos.entryPrice || pos.entryPrice <= 0) return;
+                        const isLong = pos.side === 'LONG';
+                        lines.push({
+                            price: pos.entryPrice,
+                            color: isLong ? userTheme.colors.long : userTheme.colors.short,
+                            label: isLong ? 'Long Entry' : 'Short Entry',
+                            dash: [6, 4],
+                        });
+                    });
+                }
+                if (displaySettings.limits) {
+                    (data.limitOrders || []).forEach(o => {
+                        const isBuy = o.side === 'BUY';
+                        lines.push({
+                            price: o.price,
+                            color: isBuy ? userTheme.colors.long : userTheme.colors.short,
+                            label: isBuy ? 'Buy Limit' : 'Sell Limit',
+                            dash: [6, 4],
+                        });
+                    });
+                }
+                if (displaySettings.stops) {
+                    (data.stopOrders || []).forEach(o => {
+                        lines.push({
+                            price: o.stopPrice,
+                            color: userTheme.colors.stop,
+                            label: o.side === 'BUY' ? 'Stop Buy' : 'Stop Sell',
+                            dash: [4, 4],
+                        });
+                    });
+                }
+                if (displaySettings.tps) {
+                    (data.takeProfitOrders || []).forEach(o => {
+                        lines.push({
+                            price: o.stopPrice,
+                            color: userTheme.colors.tp,
+                            label: 'Take Profit',
+                            dash: [4, 4],
+                        });
+                    });
+                }
+                return lines;
+            }
+
+            // Tick chart branch
+            if (_tickChart) {
+                if (!demoMode && botStatusLoaded && !botIsRunning) {
+                    const hasLiveData = (data.stopOrders?.length > 0) || (data.takeProfitOrders?.length > 0)
+                        || (data.limitOrders?.length > 0)
+                        || (data.positions?.some(p => p && p.entryPrice > 0))
+                        || (data.position && data.position.entryPrice > 0);
+                    if (!hasLiveData) {
+                        _tickBaseLevels = [];
+                        _tickChart.setLevels(_tickHighlightLevels);
+                        return;
+                    }
+                }
+                _tickBaseLevels = buildDesiredLines();
+                _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
+                return;
+            }
+
+            // Klinecharts branch
             if (!klChart || klinesData.length < 2) return;
             // Only clear lines if bot is stopped AND there are no live orders/positions from Binance
             if (!demoMode && botStatusLoaded && !botIsRunning) {
@@ -8498,8 +8619,6 @@
             highlightedTradeRow = rowEl;
             if (rowEl) rowEl.classList.add('highlighted');
 
-            if (!klChart || klinesData.length < 2) return;
-
             const openTime  = trade.openedAt ? Math.floor(new Date(trade.openedAt).getTime() / 1000) : null;
             const price     = parseFloat(trade.price || 0);
             const pnl       = parseFloat(trade.pnl   || 0);
@@ -8514,6 +8633,38 @@
             }
 
             const entryColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
+
+            // ---- Tick chart branch ----
+            if (_tickChart) {
+                _tickHighlightLevels = [];
+                // Entry level
+                _tickHighlightLevels.push({
+                    price: price,
+                    label: `Entry $${price.toFixed(2)}`,
+                    color: entryColor,
+                    dash: [8, 3],
+                });
+                // Close level
+                if (closePrice) {
+                    const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
+                    _tickHighlightLevels.push({
+                        price: closePrice,
+                        label: `Close $${closePrice.toFixed(2)}`,
+                        color: pnlColor,
+                        dash: [8, 3],
+                    });
+                }
+                _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
+
+                // Center on trade time
+                if (!noNavigate && openTime) {
+                    _tickChart.centerOnTime(openTime * 1000);
+                }
+                return;
+            }
+
+            // ---- Klinecharts branch ----
+            if (!klChart || klinesData.length < 2) return;
 
             // Entry price level overlay
             try {
@@ -8589,6 +8740,11 @@
         function clearTradeHighlight(hideOverlay = true) {
             if (klChart) {
                 try { klChart.removeOverlay({ groupId: 'highlight' }); } catch(e) {}
+            }
+            // Clear tick chart highlight levels
+            if (_tickChart && _tickHighlightLevels.length > 0) {
+                _tickHighlightLevels = [];
+                _tickChart.setLevels([..._tickBaseLevels]);
             }
             highlightOverlayIds = [];
             if (highlightedTradeRow) {
