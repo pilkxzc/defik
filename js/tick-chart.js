@@ -31,8 +31,8 @@ class TickChart {
         this._raf      = null;
         this._dirty    = true;
         this._mouse    = null;     // {x, y} or null
-        this._scrollOffset = 0;    // pan offset (0 = latest at right edge)
-        this._zoom     = 1;        // zoom factor (1 = default, >1 = zoomed in)
+        this._scrollOffset = 0;    // pan offset in ticks (0 = latest at right edge)
+        this._barSpacing   = 0;    // px per tick (0 = auto-init on first draw)
         this._isDragging   = false;
         this._dragStartX   = 0;
         this._dragStartOffset = 0;
@@ -43,7 +43,7 @@ class TickChart {
         this._touchStartX  = 0;
         this._touchStartOffset = 0;
         this._pinchDist    = 0;
-        this._pinchZoom    = 1;
+        this._pinchBarSpacing = 0;
 
         // Colors from CSS vars
         const cs = getComputedStyle(document.documentElement);
@@ -110,6 +110,7 @@ class TickChart {
             qty:   +t.qty   || +t.q || 0
         }));
         this._scrollOffset = 0;
+        this._barSpacing = 0; // auto-init on next draw
         this._dirty = true;
     }
 
@@ -166,8 +167,10 @@ class TickChart {
         // Calculate scroll offset to center this index
         const W = this.W || 600;
         const chartW = W - TC_PADDING_RIGHT;
-        const baseVisible = Math.max(100, Math.floor(chartW / 2));
-        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / this._zoom));
+        if (this._barSpacing <= 0) {
+            this._barSpacing = chartW / Math.min(this.ticks.length, 300);
+        }
+        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / this._barSpacing));
         const halfVisible = Math.floor(visibleCount / 2);
         // scrollOffset = distance from end
         this._scrollOffset = Math.max(0, this.ticks.length - 1 - bestIdx - halfVisible);
@@ -274,9 +277,11 @@ class TickChart {
         this._mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
-            const pxPerTick = this._pxPerTick || 2;
-            const maxOffset = Math.max(0, this.ticks.length - TC_MIN_VISIBLE);
-            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - Math.round(dx / pxPerTick)));
+            const spacing = this._barSpacing || this._pxPerTick || 2;
+            const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+            const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
+            const maxOffset = Math.max(0, this.ticks.length - visibleCount);
+            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - dx / spacing));
             this.canvas.style.cursor = 'grabbing';
         }
         this._dirty = true;
@@ -294,18 +299,24 @@ class TickChart {
         const r = this.canvas.getBoundingClientRect();
         const mx = e.clientX - r.left;
 
-        // Scroll = zoom anchored on mouse position (standard chart UX)
-        const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-        const newZoom = Math.max(0.1, Math.min(20, this._zoom * zoomDelta));
+        // Init barSpacing if needed
+        if (this._barSpacing <= 0) {
+            this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
+        }
 
-        const baseVisible = Math.max(100, Math.floor(chartW / 2));
-        const oldVC = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / this._zoom));
-        const newVC = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / newZoom));
-        const f = Math.max(0, Math.min(1, mx / chartW)); // 0=left 1=right
+        // Zoom speed: 15% per wheel notch (matches klinecharts feel)
+        const factor = e.deltaY > 0 ? 0.85 : 1.176;
+        const minSpacing = Math.max(0.3, chartW / Math.max(this.ticks.length, 100));
+        const maxSpacing = chartW / 5;
+        const newSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._barSpacing * factor));
 
-        this._zoom = newZoom;
-        // Keep the tick under cursor stationary
-        this._scrollOffset = Math.max(0, this._scrollOffset + (1 - f) * (oldVC - newVC));
+        // Anchor zoom on cursor position (keep tick under cursor stationary)
+        const oldVisible = chartW / this._barSpacing;
+        const newVisible = chartW / newSpacing;
+        const f = Math.max(0, Math.min(1, mx / chartW));
+
+        this._scrollOffset = Math.max(0, this._scrollOffset + (1 - f) * (oldVisible - newVisible));
+        this._barSpacing = newSpacing;
         this._dirty = true;
     }
 
@@ -332,7 +343,11 @@ class TickChart {
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             this._pinchDist = Math.sqrt(dx * dx + dy * dy);
-            this._pinchZoom = this._zoom;
+            if (this._barSpacing <= 0) {
+                const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+                this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
+            }
+            this._pinchBarSpacing = this._barSpacing;
         } else if (e.touches.length === 1) {
             const t = e.touches[0];
             this._touchId = t.identifier;
@@ -350,16 +365,21 @@ class TickChart {
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (this._pinchDist > 0) {
-                this._zoom = Math.max(0.2, Math.min(10, this._pinchZoom * (dist / this._pinchDist)));
+            if (this._pinchDist > 0 && this._pinchBarSpacing > 0) {
+                const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+                const minSpacing = Math.max(0.3, chartW / Math.max(this.ticks.length, 100));
+                const maxSpacing = chartW / 5;
+                this._barSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._pinchBarSpacing * (dist / this._pinchDist)));
                 this._dirty = true;
             }
         } else if (e.touches.length === 1) {
             const t = e.touches[0];
             const dx = t.clientX - this._touchStartX;
-            const pxPerTick = this._pxPerTick || 2;
-            const maxOffset = Math.max(0, this.ticks.length - TC_MIN_VISIBLE);
-            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._touchStartOffset - Math.round(dx / pxPerTick)));
+            const spacing = this._barSpacing || this._pxPerTick || 2;
+            const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+            const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
+            const maxOffset = Math.max(0, this.ticks.length - visibleCount);
+            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._touchStartOffset - dx / spacing));
             const r = this.canvas.getBoundingClientRect();
             this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
             this._dirty = true;
@@ -400,10 +420,16 @@ class TickChart {
         const chartW = W - TC_PADDING_RIGHT;
         const chartH = H - TC_PADDING_TOP - TC_PADDING_BOTTOM;
 
-        // Determine visible range based on zoom
-        const baseVisible = Math.max(100, Math.floor(chartW / 2));
-        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / this._zoom));
-        const endIdx = Math.max(0, ticks.length - 1 - this._scrollOffset);
+        // Init barSpacing on first draw (show ~300 ticks by default, similar to klinecharts)
+        if (this._barSpacing <= 0) {
+            this._barSpacing = chartW / Math.min(ticks.length, 300);
+        }
+
+        // Determine visible range from barSpacing (px per tick)
+        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / this._barSpacing));
+        const maxOffset = Math.max(0, ticks.length - visibleCount);
+        if (this._scrollOffset > maxOffset) this._scrollOffset = maxOffset;
+        const endIdx = Math.max(0, ticks.length - 1 - Math.round(this._scrollOffset));
         const startIdx = Math.max(0, endIdx - visibleCount);
         const visible = ticks.slice(startIdx, endIdx + 1);
 
