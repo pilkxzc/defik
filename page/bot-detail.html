@@ -9240,7 +9240,7 @@
                 const data = await res.json();
                 if (data.success) {
                     statusEl.style.color = '#10B981';
-                    statusEl.textContent = 'OK — ' + (data.ip || 'з\'єднано') + (data.latency ? ' (' + data.latency + 'ms)' : '');
+                    statusEl.innerHTML = '<span style="color:#10B981;">OK</span> — IP: <b style="user-select:all;cursor:text;">' + (data.ip || '?') + '</b>' + (data.latency ? ' (' + data.latency + 'ms)' : '') + '<br><span style="color:#F59E0B;font-size:10px;">Додайте цей IP до вайтлiсту API ключа на Binance</span>';
                 } else {
                     statusEl.style.color = '#EF4444';
                     statusEl.textContent = data.error || 'Помилка з\'єднання';
@@ -9324,7 +9324,7 @@
                 const data = await res.json();
                 if (data.success) {
                     statusEl.style.color = '#10B981';
-                    statusEl.textContent = 'OK — ' + (data.ip || 'з\'єднано') + (data.latency ? ' (' + data.latency + 'ms)' : '');
+                    statusEl.innerHTML = '<span style="color:#10B981;">OK</span> — IP: <b style="user-select:all;cursor:text;">' + (data.ip || '?') + '</b>' + (data.latency ? ' (' + data.latency + 'ms)' : '') + '<br><span style="color:#F59E0B;font-size:10px;">Додайте цей IP до вайтлiсту API ключа на Binance</span>';
                 } else {
                     statusEl.style.color = '#EF4444';
                     statusEl.textContent = data.error || 'Помилка з\'єднання';
@@ -9424,11 +9424,30 @@
 
                 if (skipValidation) {
                     statusEl.style.color = '#22C55E';
-                    statusEl.textContent = 'Збережено ' + data.valid + ' акаунтів (без перевірки)';
+                    statusEl.textContent = 'Збережено ' + data.saved + ' акаунтів (без перевірки)';
                 } else {
-                    const failedMsg = data.failed?.length > 0 ? ` (${data.failed.length} не пройшли перевірку)` : '';
-                    statusEl.style.color = '#22C55E';
-                    statusEl.textContent = 'Збережено: ' + data.valid + ' з ' + data.total + ' акаунтів' + failedMsg;
+                    const allOk = data.failed?.length === 0;
+                    statusEl.style.whiteSpace = 'pre-line';
+
+                    if (allOk) {
+                        statusEl.style.color = '#22C55E';
+                        statusEl.textContent = 'Збережено ' + data.saved + ' акаунтів. Binance: ' + data.valid + '/' + data.total + ' OK';
+                    } else {
+                        let html = '<div style="color:#22C55E;margin-bottom:6px;">Збережено ' + data.saved + ' акаунтів. Binance: ' + data.valid + '/' + data.total + ' OK</div>';
+                        data.failed.forEach(f => {
+                            html += '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:8px 10px;margin-top:6px;">';
+                            html += '<div style="font-family:monospace;font-size:11px;color:var(--text-primary);">' + f.key + '</div>';
+                            html += '<div style="font-size:11px;color:#EF4444;margin-top:2px;">' + f.error + '</div>';
+                            if (f.proxyIp) {
+                                html += '<div style="margin-top:6px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:6px;padding:6px 8px;">';
+                                html += '<div style="font-size:11px;color:#F59E0B;">Додайте цей IP до вайтлiсту API ключа на Binance:</div>';
+                                html += '<div style="font-family:monospace;font-size:13px;font-weight:700;color:#FBBF24;margin-top:3px;user-select:all;cursor:text;">' + f.proxyIp + '</div>';
+                                html += '</div>';
+                            }
+                            html += '</div>';
+                        });
+                        statusEl.innerHTML = html;
+                    }
                 }
 
                 loadChartData(true);

@@ -1709,28 +1709,52 @@ router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'
         const cleaned = credentials.filter(c => c.tk && c.tk_secret).map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || null }));
         if (cleaned.length === 0) return res.status(400).json({ error: 'No valid credentials provided' });
 
-        let toSave = cleaned, failed = [];
+        // Always save all credentials (proxy must persist even if Binance rejects the IP)
+        let settings = {};
+        try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
+        settings.multi_credentials = cleaned.map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || null }));
+        dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
+
+        let results = [];
         if (!skipValidation) {
+            // Resolve proxy IPs in parallel (for whitelist hints)
+            const proxyIps = await Promise.allSettled(
+                cleaned.map(c => {
+                    if (!c.proxy) return Promise.resolve(null);
+                    const ag = getProxyAgent(c.proxy);
+                    if (!ag) return Promise.resolve(null);
+                    return axios.get('https://api.ipify.org?format=json', { httpsAgent: ag, proxy: false, timeout: 8000 })
+                        .then(r => r.data?.ip || null).catch(() => null);
+                })
+            );
+
             const tests = await Promise.allSettled(
                 cleaned.map(c => testBinanceCredentials(c.tk, c.tk_secret, 'futures', c.proxy || null))
             );
-            toSave = []; failed = [];
-            tests.forEach((t, i) => {
+            results = tests.map((t, i) => {
+                const keyPreview = cleaned[i].tk.slice(0, 8) + '...' + cleaned[i].tk.slice(-6);
+                const proxyIp = proxyIps[i]?.status === 'fulfilled' ? proxyIps[i].value : null;
                 if (t.status === 'fulfilled' && t.value.success) {
-                    toSave.push({ tk: cleaned[i].tk, tk_secret: cleaned[i].tk_secret, proxy: cleaned[i].proxy || null });
+                    return { index: i, key: keyPreview, status: 'ok', proxyIp };
                 } else {
-                    failed.push(i);
+                    const errMsg = t.status === 'fulfilled' ? t.value.error : (t.reason?.message || 'Unknown error');
+                    return { index: i, key: keyPreview, status: 'error', error: errMsg, proxyIp };
                 }
             });
-            if (toSave.length === 0) return res.status(400).json({ error: 'Жоден акаунт не пройшов перевірку. Використайте "Зберегти без перевірки" щоб зберегти примусово.' });
         }
 
-        let settings = {};
-        try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
-        settings.multi_credentials = toSave.map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || null }));
-        dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
+        const okCount = results.filter(r => r.status === 'ok').length;
+        const failedList = results.filter(r => r.status === 'error');
 
-        res.json({ success: true, total: credentials.length, valid: toSave.length, failed, skippedValidation: !!skipValidation });
+        res.json({
+            success: true,
+            total: cleaned.length,
+            valid: skipValidation ? cleaned.length : okCount,
+            failed: failedList,
+            results,
+            skippedValidation: !!skipValidation,
+            saved: cleaned.length
+        });
     } catch (err) {
         console.error('Save multi-credentials error:', err);
         res.status(500).json({ error: err.message });
