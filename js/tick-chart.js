@@ -62,6 +62,8 @@ class TickChart {
             markerMixed: '#8B5CF6',
         };
 
+        this.levels = [];  // [{price, label, color, dash}]
+
         // Create canvas
         this.canvas = document.createElement('canvas');
         this.canvas.style.cssText = 'width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;';
@@ -137,6 +139,17 @@ class TickChart {
             count:   m.count || 1,
             symbol:  m.symbol || '',
             _primary: !!m._primary,
+        }));
+        this._dirty = true;
+    }
+
+    /** Set price level lines. Each level: {price, label, color, dash} */
+    setLevels(levels) {
+        this.levels = (levels || []).map(l => ({
+            price: +l.price || 0,
+            label: l.label || '',
+            color: l.color || '#C4B5FD',
+            dash:  l.dash || [6, 4],
         }));
         this._dirty = true;
     }
@@ -413,6 +426,13 @@ class TickChart {
                 if (m.price > maxP) maxP = m.price;
             }
         }
+        // Also include level prices in range
+        for (const lv of this.levels) {
+            if (lv.price > 0) {
+                if (lv.price < minP) minP = lv.price;
+                if (lv.price > maxP) maxP = lv.price;
+            }
+        }
         const spread = maxP - minP || maxP * 0.001 || 1;
         const pad = spread * 0.1;
         minP -= pad;
@@ -477,11 +497,45 @@ class TickChart {
             ctx.fillText(lbl, x, H - 6);
         }
 
-        // Price line
-        const firstPrice = visible[0].price;
+        // ── Level lines (limit, stop, avg) ──
+        for (const lv of this.levels) {
+            if (lv.price <= 0) continue;
+            const ly = priceToY(lv.price);
+            if (ly < TC_PADDING_TOP - 10 || ly > H - TC_PADDING_BOTTOM + 10) continue;
+            ctx.save();
+            ctx.setLineDash(lv.dash || [6, 4]);
+            ctx.strokeStyle = lv.color + '66';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, Math.round(ly) + 0.5);
+            ctx.lineTo(chartW, Math.round(ly) + 0.5);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            // Label bg
+            ctx.font = 'bold 9px -apple-system, monospace';
+            const tw = ctx.measureText(lv.label).width + 8;
+            ctx.fillStyle = lv.color + '22';
+            ctx.fillRect(4, ly - 8, tw, 16);
+            ctx.strokeStyle = lv.color + '44';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(4, ly - 8, tw, 16);
+            ctx.fillStyle = lv.color;
+            ctx.textAlign = 'left';
+            ctx.fillText(lv.label, 8, ly + 3);
+            // Right side price tag
+            const rpLabel = this._fmtPrice(lv.price);
+            const rpw = ctx.measureText(rpLabel).width + 6;
+            ctx.fillStyle = lv.color + '33';
+            ctx.fillRect(chartW + 2, ly - 8, rpw, 16);
+            ctx.fillStyle = lv.color;
+            ctx.fillText(rpLabel, chartW + 5, ly + 3);
+            ctx.restore();
+        }
+
+        // Price line — single color, no blinking
         const lastPrice  = visible[visible.length - 1].price;
-        const lineColor  = lastPrice >= firstPrice ? colors.up : colors.down;
-        const baseRgb = lastPrice >= firstPrice ? '16,185,129' : '239,68,68';
+        const lineColor  = colors.accent;
+        const baseRgb = '16,185,129';
 
         // Gradient fill under line
         const grad = ctx.createLinearGradient(0, TC_PADDING_TOP, 0, TC_PADDING_TOP + chartH);
