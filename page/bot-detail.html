@@ -11505,13 +11505,27 @@
             // Real-time order polling every 10 seconds (lightweight — only open orders)
             setInterval(loadOrdersOnly, 10000);
 
-            // Full chart data refresh every 15 seconds (position + account balance)
-            setInterval(loadChartData, 15000);
-
-            // Real-time trade markers: refresh every 5 seconds to pick up new trades
+            // Chart data refresh — 5s on tick timeframe, 15s otherwise
+            let _chartDataPollTick = 0;
             setInterval(() => {
-                if (!demoMode && klChart && klinesData.length > 0) {
+                _chartDataPollTick++;
+                const isTick = TICK_TFS.has(currentInterval);
+                if (isTick || _chartDataPollTick % 3 === 0) {
+                    loadChartData();
+                }
+            }, 5000);
+
+            // Real-time trade markers: refresh every 5 seconds (both klinecharts and tick chart)
+            setInterval(() => {
+                if (demoMode) return;
+                if (klChart && klinesData.length > 0) {
                     loadTradeMarkers();
+                } else if (_tickChart) {
+                    // Refresh tick chart markers
+                    fetch(`/api/bots/${botId}/trade-markers?symbol=${currentSymbol}`, { credentials: 'include' })
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => { if (_tickChart && data?.markers) _tickChart.setMarkers(data.markers); })
+                        .catch(() => {});
                 }
             }, 5000);
 

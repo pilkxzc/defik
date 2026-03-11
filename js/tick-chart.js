@@ -445,14 +445,18 @@ class TickChart {
             if (t.price < minP) minP = t.price;
             if (t.price > maxP) maxP = t.price;
         }
-        // Always include ALL marker prices in range so they never go off-screen
+        // Include only VISIBLE markers in price range (markers within visible time window)
+        const timeMargin = (visEndTime - visStartTime) * 0.5;
         for (const m of this.markers) {
-            if (m.price < minP) minP = m.price;
-            if (m.price > maxP) maxP = m.price;
+            if (m.time >= visStartTime - timeMargin && m.time <= visEndTime + timeMargin) {
+                if (m.price < minP) minP = m.price;
+                if (m.price > maxP) maxP = m.price;
+            }
         }
-        // Also include level prices in range
+        // Include levels only if they're within reasonable range of visible prices (±20% of spread)
+        const visSpread = maxP - minP || maxP * 0.001 || 1;
         for (const lv of this.levels) {
-            if (lv.price > 0) {
+            if (lv.price > 0 && lv.price >= minP - visSpread * 0.5 && lv.price <= maxP + visSpread * 0.5) {
                 if (lv.price < minP) minP = lv.price;
                 if (lv.price > maxP) maxP = lv.price;
             }
