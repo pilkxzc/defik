@@ -14,57 +14,57 @@ const rateLimitHandler = (req, res) => {
     });
 };
 
+// Create rate limiter with dynamic Redis/memory store selection
+function createLimiter(config) {
+    let _limiter = null;
+    let _usingRedis = null;
+
+    return (req, res, next) => {
+        const redisAvailable = getRedisStatus().available;
+        if (!_limiter || redisAvailable !== _usingRedis) {
+            _usingRedis = redisAvailable;
+            const storeOpt = redisAvailable
+                ? { store: new RedisStore({
+                    sendCommand: (...args) => redisClient.call(...args),
+                    prefix: config._prefix
+                  }) }
+                : {};
+            _limiter = rateLimit({ ...config, ...storeOpt });
+            if (redisAvailable && _usingRedis !== null) {
+                console.log(`[RateLimit] ${config._prefix} switched to Redis store`);
+            }
+        }
+        return _limiter(req, res, next);
+    };
+}
+
 // Auth endpoints rate limiter - 5 requests per minute per IP
-// Applied to login, register, password reset endpoints
-const authRateLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 5, // 5 requests per window per IP
-    standardHeaders: true, // Return rate limit info in RateLimit-* headers (RFC draft)
-    legacyHeaders: true, // Also send X-RateLimit-* headers for backwards compatibility
+const authRateLimiter = createLimiter({
+    _prefix: 'rl:auth:',
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: true,
     handler: rateLimitHandler,
-    skip: (req) => {
-        // Skip rate limiting for health checks or specific routes if needed
-        return false;
-    },
-    // Use Redis if available, otherwise fall back to memory store
-    store: getRedisStatus().available
-        ? new RedisStore({
-            // @ts-expect-error - Known issue: the `call` function is not present in @types/ioredis
-            sendCommand: (...args) => redisClient.call(...args),
-            prefix: 'rl:auth:'
-        })
-        : undefined // undefined = use default memory store
-    // Use default keyGenerator (req.ip) - handles IPv6 correctly
+    skip: () => false
 });
 
 // General API rate limiter - 100 requests per minute per user/IP
-// Applied to all API endpoints except auth endpoints (which have stricter limits)
-const apiRateLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 100, // 100 requests per window
-    standardHeaders: true, // Return rate limit info in RateLimit-* headers (RFC draft)
-    legacyHeaders: true, // Also send X-RateLimit-* headers for backwards compatibility
+const apiRateLimiter = createLimiter({
+    _prefix: 'rl:api:',
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: true,
     handler: rateLimitHandler,
     skip: (req) => {
-        // Skip endpoints that have stricter auth rate limiting
         const authPaths = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/reset-password'];
         return authPaths.some(path => req.path === path);
     },
-    // Use Redis if available, otherwise fall back to memory store
-    store: getRedisStatus().available
-        ? new RedisStore({
-            // @ts-expect-error - Known issue: the `call` function is not present in @types/ioredis
-            sendCommand: (...args) => redisClient.call(...args),
-            prefix: 'rl:api:'
-        })
-        : undefined, // undefined = use default memory store
     keyGenerator: (req, res) => {
-        // Rate limit by user ID if authenticated
-        // For unauthenticated requests, use default IP handling (res.locals.keyGenerator)
         if (req.session && req.session.userId) {
             return `user:${req.session.userId}`;
         }
-        // Fallback to default IP key generator (handles IPv6 correctly)
         return res.locals.keyGenerator?.(req, res);
     }
 });

@@ -25,7 +25,9 @@ class FileSessionStore extends session.Store {
 
     save() {
         try {
-            fs.writeFileSync(SESSIONS_PATH, JSON.stringify(this.sessions, null, 2));
+            const tmpPath = SESSIONS_PATH + '.tmp';
+            fs.writeFileSync(tmpPath, JSON.stringify(this.sessions, null, 2));
+            fs.renameSync(tmpPath, SESSIONS_PATH);
         } catch (err) {
             console.error('Error saving sessions:', err);
         }
@@ -146,7 +148,7 @@ function createSessionMiddleware() {
         resave: false,
         saveUninitialized: false,
         cookie: {
-            secure: false,
+            secure: process.env.NODE_ENV === 'production',
             httpOnly: true,
             sameSite: 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days

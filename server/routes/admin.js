@@ -1409,7 +1409,7 @@ const ADMIN_TABLES = [
 router.get('/api/admin/tables', requireAuth, requireRole('admin'), requireDbAccess, (req, res) => {
     try {
         const tables = ADMIN_TABLES.map(name => {
-            const countResult = dbGet(`SELECT COUNT(*) as count FROM ${name}`);
+            const countResult = dbGet(`SELECT COUNT(*) as count FROM "${name}"`);
             return { name, rowCount: countResult ? countResult.count : 0 };
         });
         res.json({ tables });
@@ -1424,7 +1424,7 @@ router.get('/api/admin/tables/:name/schema', requireAuth, requireRole('admin'), 
         const tableName = req.params.name;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
 
-        const columns = dbAll(`PRAGMA table_info(${tableName})`);
+        const columns = dbAll(`PRAGMA table_info("${tableName}")`);
         res.json({
             table: tableName,
             columns: columns.map(col => ({
@@ -1448,11 +1448,11 @@ router.get('/api/admin/tables/:name', requireAuth, requireRole('admin'), require
         const offset         = (parseInt(page) - 1) * parseInt(limit);
         const validSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
 
-        const columns    = dbAll(`PRAGMA table_info(${tableName})`);
+        const columns    = dbAll(`PRAGMA table_info("${tableName}")`);
         const columnNames = columns.map(c => c.name);
         const validSortBy = columnNames.includes(sortBy) ? sortBy : 'id';
 
-        let query = `SELECT * FROM ${tableName}`, countQuery = `SELECT COUNT(*) as count FROM ${tableName}`;
+        let query = `SELECT * FROM "${tableName}"`, countQuery = `SELECT COUNT(*) as count FROM "${tableName}"`;
         const params = [], countParams = [];
 
         if (search) {
@@ -1460,14 +1460,14 @@ router.get('/api/admin/tables/:name', requireAuth, requireRole('admin'), require
                 ['TEXT', 'VARCHAR', 'CHAR'].some(t => columns.find(c => c.name === col)?.type?.toUpperCase().includes(t))
             );
             if (textCols.length > 0) {
-                const where = ` WHERE ${textCols.map(col => `${col} LIKE ?`).join(' OR ')}`;
+                const where = ` WHERE ${textCols.map(col => `"${col}" LIKE ?`).join(' OR ')}`;
                 query      += where;
                 countQuery += where;
                 textCols.forEach(() => { params.push(`%${search}%`); countParams.push(`%${search}%`); });
             }
         }
 
-        query += ` ORDER BY ${validSortBy} ${validSortOrder} LIMIT ? OFFSET ?`;
+        query += ` ORDER BY "${validSortBy}" ${validSortOrder} LIMIT ? OFFSET ?`;
         params.push(parseInt(limit), offset);
 
         const rows        = dbAll(query, params);
@@ -1495,25 +1495,28 @@ router.put('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), req
         const { name: tableName, id: recordId } = req.params;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
 
-        const columns     = dbAll(`PRAGMA table_info(${tableName})`);
+        const columns     = dbAll(`PRAGMA table_info("${tableName}")`);
         const columnNames = columns.map(c => c.name);
 
         const validUpdates = {};
         for (const [key, value] of Object.entries(req.body)) {
             if (columnNames.includes(key) && key !== 'id' && key !== 'created_at') {
-                validUpdates[key] = value;
+                // Validate column name: only alphanumeric + underscore
+                if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+                    validUpdates[key] = value;
+                }
             }
         }
         if (Object.keys(validUpdates).length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
-        const setClause = Object.keys(validUpdates).map(k => `${k} = ?`).join(', ');
+        const setClause = Object.keys(validUpdates).map(k => `"${k}" = ?`).join(', ');
         const values    = [...Object.values(validUpdates), recordId];
-        dbRun(`UPDATE ${tableName} SET ${setClause} WHERE id = ?`, values);
+        dbRun(`UPDATE "${tableName}" SET ${setClause} WHERE id = ?`, values);
 
         logAdminAction(req.session.userId, 'UPDATE_RECORD', tableName, recordId, JSON.stringify(validUpdates), getClientIP(req));
         saveDatabase();
 
-        const updated = dbGet(`SELECT * FROM ${tableName} WHERE id = ?`, [recordId]);
+        const updated = dbGet(`SELECT * FROM "${tableName}" WHERE id = ?`, [recordId]);
         res.json({ success: true, record: updated });
     } catch (error) {
         console.error('Update record error:', error);
@@ -1526,23 +1529,25 @@ router.post('/api/admin/tables/:name', requireAuth, requireRole('admin'), requir
         const tableName = req.params.name;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
 
-        const columns     = dbAll(`PRAGMA table_info(${tableName})`);
+        const columns     = dbAll(`PRAGMA table_info("${tableName}")`);
         const columnNames = columns.map(c => c.name);
 
         const validData = {};
         for (const [key, value] of Object.entries(req.body)) {
-            if (columnNames.includes(key) && key !== 'id') validData[key] = value;
+            if (columnNames.includes(key) && key !== 'id' && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+                validData[key] = value;
+            }
         }
         if (Object.keys(validData).length === 0) return res.status(400).json({ error: 'No valid fields provided' });
 
-        const columnList  = Object.keys(validData).join(', ');
+        const columnList  = Object.keys(validData).map(k => `"${k}"`).join(', ');
         const placeholders = Object.keys(validData).map(() => '?').join(', ');
-        const result = dbRun(`INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders})`, Object.values(validData));
+        const result = dbRun(`INSERT INTO "${tableName}" (${columnList}) VALUES (${placeholders})`, Object.values(validData));
 
         logAdminAction(req.session.userId, 'CREATE_RECORD', tableName, result.lastInsertRowid, JSON.stringify(validData), getClientIP(req));
         saveDatabase();
 
-        const created = dbGet(`SELECT * FROM ${tableName} WHERE id = ?`, [result.lastInsertRowid]);
+        const created = dbGet(`SELECT * FROM "${tableName}" WHERE id = ?`, [result.lastInsertRowid]);
         res.json({ success: true, record: created });
     } catch (error) {
         console.error('Create record error:', error);
@@ -1555,10 +1560,10 @@ router.delete('/api/admin/tables/:name/:id', requireAuth, requireRole('admin'), 
         const { name: tableName, id: recordId } = req.params;
         if (!ADMIN_TABLES.includes(tableName)) return res.status(400).json({ error: 'Invalid table name' });
 
-        const record = dbGet(`SELECT * FROM ${tableName} WHERE id = ?`, [recordId]);
+        const record = dbGet(`SELECT * FROM "${tableName}" WHERE id = ?`, [recordId]);
         if (!record) return res.status(404).json({ error: 'Record not found' });
 
-        dbRun(`DELETE FROM ${tableName} WHERE id = ?`, [recordId]);
+        dbRun(`DELETE FROM "${tableName}" WHERE id = ?`, [recordId]);
         logAdminAction(req.session.userId, 'DELETE_RECORD', tableName, recordId, JSON.stringify(record), getClientIP(req));
         saveDatabase();
 

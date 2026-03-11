@@ -1255,6 +1255,15 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
 
+        // Ownership check: admin/moderator or bot owner
+        const user = dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]);
+        const isPrivileged = user && (user.role === 'admin' || user.role === 'moderator');
+        if (!isPrivileged && bot.user_id !== req.session.userId) {
+            // Allow subscribers to view
+            const sub = dbGet('SELECT id FROM bot_subscribers WHERE bot_id = ? AND user_id = ?', [bot.id, req.session.userId]);
+            if (!sub) return res.status(403).json({ error: 'Access denied' });
+        }
+
         // Multi-account mode: fetch from all credentials in parallel
         const multiCreds = getMultiCredentials(bot);
         let binanceData;
@@ -1495,9 +1504,19 @@ router.put('/api/bots/:id/trading-settings', requireAuth, (req, res) => {
 
 router.delete('/api/bots/:id', requireAuth, requireRole('admin', 'moderator'), (req, res) => {
     try {
-        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
+        const botId = req.params.id;
+        const bot = dbGet('SELECT * FROM bots WHERE id = ?', [botId]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        dbRun('DELETE FROM bots WHERE id = ?', [req.params.id]);
+
+        // Clean up all related records before deleting the bot
+        const relatedTables = [
+            'bot_trades', 'bot_stats', 'bot_subscribers', 'bot_symbol_settings',
+            'bot_analytics', 'bot_notification_settings', 'bot_position_blocks', 'bot_order_history'
+        ];
+        for (const table of relatedTables) {
+            try { dbRun(`DELETE FROM "${table}" WHERE bot_id = ?`, [botId]); } catch(e) {}
+        }
+        dbRun('DELETE FROM bots WHERE id = ?', [botId]);
         res.json({ success: true });
     } catch (error) {
         console.error('Delete bot error:', error);
@@ -1558,6 +1577,14 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
 
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+        // Ownership check: admin/moderator or bot owner
+        const user = dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]);
+        const isPrivileged = user && (user.role === 'admin' || user.role === 'moderator');
+        if (!isPrivileged && bot.user_id !== req.session.userId) {
+            const sub = dbGet('SELECT id FROM bot_subscribers WHERE bot_id = ? AND user_id = ?', [bot.id, req.session.userId]);
+            if (!sub) return res.status(403).json({ error: 'Access denied' });
+        }
 
         const symbol    = req.query.symbol || bot.selected_symbol || 'BTCUSDT';
         const baseUrl   = 'https://fapi.binance.com';

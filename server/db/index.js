@@ -15,6 +15,9 @@ async function initDatabase() {
         db = new SQL.Database();
     }
 
+    // Enable foreign key constraint enforcement
+    db.run('PRAGMA foreign_keys = ON');
+
     db.run(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -385,16 +388,6 @@ async function initDatabase() {
     try { db.run('ALTER TABLE activity_log ADD COLUMN session_id TEXT'); } catch(e) {}
 
     db.run(`
-        CREATE TABLE IF NOT EXISTS login_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ip_address TEXT NOT NULL,
-            user_email TEXT,
-            success INTEGER DEFAULT 0,
-            attempt_time TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
-    db.run(`
         CREATE TABLE IF NOT EXISTS payment_methods (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -577,6 +570,16 @@ async function initDatabase() {
         db.run("UPDATE users SET role = 'admin' WHERE email = ?", [ADMIN_EMAIL]);
     } catch(e) {}
 
+    // Indexes for frequently queried tables
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_activity_log_user_id ON activity_log(user_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_activity_log_user_created ON activity_log(user_id, created_at DESC)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_analytics_bot_id ON bot_analytics(bot_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_user_id ON portfolio_snapshots(user_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_trades_bot_id ON bot_trades(bot_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_order_history_bot_id ON bot_order_history(bot_id)'); } catch(e) {}
+
     saveDatabase();
     console.log('Database initialized');
 }
@@ -604,7 +607,9 @@ function _saveDatabaseNow() {
     try {
         const data   = db.export();
         const buffer = Buffer.from(data);
-        fs.writeFileSync(DB_PATH, buffer);
+        const tmpPath = DB_PATH + '.tmp';
+        fs.writeFileSync(tmpPath, buffer);
+        fs.renameSync(tmpPath, DB_PATH);
         _lastSaveTime = Date.now();
     } catch (error) {
         console.error('Error saving database:', error);
@@ -657,17 +662,45 @@ function dbRun(sql, params = []) {
 }
 
 // Insert without immediate save — for high-frequency logging
-let _savePending = false;
+let _batchTimer = null;
 function dbInsertNoSave(sql, params = []) {
     try {
         db.run(sql, params);
-        if (!_savePending) {
-            _savePending = true;
-            setTimeout(() => { _savePending = false; saveDatabase(); }, 5000);
+        if (!_batchTimer) {
+            _batchTimer = setTimeout(() => { _batchTimer = null; saveDatabase(); }, 5000);
         }
     } catch (error) {
         console.error('dbInsertNoSave error:', error.message);
     }
 }
 
-module.exports = { initDatabase, saveDatabase, dbGet, dbAll, dbRun, dbInsertNoSave, getDb: () => db };
+// Run multiple operations atomically in a transaction
+function dbTransaction(operations) {
+    try {
+        db.run('BEGIN TRANSACTION');
+        const results = [];
+        for (const { sql, params } of operations) {
+            db.run(sql, params || []);
+            const lastInsertRowid = db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0];
+            results.push({ lastInsertRowid });
+        }
+        db.run('COMMIT');
+        saveDatabase();
+        return results;
+    } catch (error) {
+        try { db.run('ROLLBACK'); } catch(e) {}
+        console.error('dbTransaction error:', error.message);
+        throw error;
+    }
+}
+
+// Flush pending writes on process exit
+function flushPendingWrites() {
+    if (_batchTimer) { clearTimeout(_batchTimer); _batchTimer = null; }
+    if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+    _saveDatabaseNow();
+}
+process.on('SIGTERM', flushPendingWrites);
+process.on('SIGINT', flushPendingWrites);
+
+module.exports = { initDatabase, saveDatabase, dbGet, dbAll, dbRun, dbInsertNoSave, dbTransaction, getDb: () => db };

@@ -1,6 +1,20 @@
 'use strict';
-const { dbInsertNoSave } = require('../db');
+const { dbInsertNoSave, dbRun } = require('../db');
 const { getClientIP } = require('../utils/ip');
+
+// Auto-cleanup activity_log records older than 30 days (runs daily)
+const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
+const CLEANUP_DAYS = 30;
+function startActivityCleanup() {
+    const cleanup = () => {
+        try {
+            dbRun(`DELETE FROM activity_log WHERE created_at < datetime('now', '-${CLEANUP_DAYS} days')`);
+        } catch (e) { /* silent */ }
+    };
+    // Run first cleanup after 60s (let server start up), then daily
+    setTimeout(() => { cleanup(); setInterval(cleanup, CLEANUP_INTERVAL); }, 60_000);
+}
+startActivityCleanup();
 
 // Paths to skip tracking (static assets, health checks)
 const SKIP_PREFIXES = [

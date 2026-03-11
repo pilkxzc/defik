@@ -23,6 +23,17 @@ function getOAuth2Client() {
 
     if (siteSettings.googleDriveTokens) {
         oauth2Client.setCredentials(siteSettings.googleDriveTokens);
+
+        // Save refreshed tokens automatically when Google refreshes the access_token
+        oauth2Client.on('tokens', (tokens) => {
+            console.log('[Backup] Google OAuth tokens refreshed');
+            // Merge new tokens (Google may or may not return a new refresh_token)
+            siteSettings.googleDriveTokens = {
+                ...siteSettings.googleDriveTokens,
+                ...tokens
+            };
+            saveSettings();
+        });
     }
 
     return oauth2Client;
@@ -132,10 +143,21 @@ async function performBackup(triggeredBy = 'manual') {
 
         return { success: true, filename, size, driveFileId: driveFile.id };
     } catch (error) {
+        const errMsg = error.message || String(error);
         dbRun(
             'UPDATE backup_history SET status = ?, error_message = ?, completed_at = ? WHERE id = ?',
-            ['failed', error.message, getLocalTime(), backupId]
+            ['failed', errMsg, getLocalTime(), backupId]
         );
+
+        // If refresh token is invalid, clear stored tokens so admin knows to re-authorize
+        if (errMsg.includes('invalid_grant') || errMsg.includes('Token has been expired or revoked')) {
+            console.error('[Backup] Google OAuth refresh token is invalid — clearing stored tokens. Re-authorize in Admin > Backup.');
+            siteSettings.googleDriveTokens = null;
+            siteSettings.googleDriveBackupEnabled = false;
+            saveSettings();
+            stopBackupSchedule();
+        }
+
         throw error;
     }
 }

@@ -128,15 +128,15 @@ function createToastContainer() {
 
 // SVG Icons for notifications
 const notificationIcons = {
-    success: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
-    error: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60063B" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
-    warning: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
-    info: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
-    login: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
-    security: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>`,
-    transaction: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
-    bot: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg>`,
-    system: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60063B" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`
+    success: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+    error: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60063B" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
+    warning: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+    info: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+    login: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
+    security: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>`,
+    transaction: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
+    bot: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg>`,
+    system: `<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60063B" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`
 };
 
 // Get notification icon by type
@@ -695,16 +695,24 @@ async function loadNotifications() {
             return;
         }
 
-        list.innerHTML = data.notifications.map(notif => `
-            <div class="notif-item ${notif.is_read ? '' : 'unread'}" onclick="markNotificationRead(${notif.id})">
+        list.innerHTML = data.notifications.map(notif => {
+            const safeTitle = (notif.title || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const safeMsg   = (notif.message || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const id = parseInt(notif.id) || 0;
+            return `
+            <div class="notif-item ${notif.is_read ? '' : 'unread'}" data-notif-id="${id}">
                 <div class="notif-item-icon">${getNotificationIcon(notif.type)}</div>
                 <div class="notif-item-content">
-                    <div class="notif-item-title">${notif.title || ''}</div>
-                    <div class="notif-item-message">${notif.message || ''}</div>
+                    <div class="notif-item-title">${safeTitle}</div>
+                    <div class="notif-item-message">${safeMsg}</div>
                     <div class="notif-item-time">${getTimeAgo(notif.created_at)}</div>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
+        // Bind click handlers via delegation instead of inline onclick
+        list.querySelectorAll('.notif-item[data-notif-id]').forEach(el => {
+            el.addEventListener('click', () => markNotificationRead(parseInt(el.dataset.notifId)));
+        });
 
         // Update badge and header unread count
         notificationCount = data.unreadCount || 0;
@@ -1850,10 +1858,10 @@ async function updatePortfolioPage() {
         // Update holdings
         updateUserBalance(portfolio.totalValue);
 
-        // Update transactions
+        // Update transactions (limit to 100 for performance)
         const txList = document.querySelector('.scroll-y .history-item')?.parentElement;
         if (txList && portfolio.transactions.length > 0) {
-            txList.innerHTML = portfolio.transactions.map(tx => createTransactionItem(tx)).join('');
+            txList.innerHTML = portfolio.transactions.slice(0, 100).map(tx => createTransactionItem(tx)).join('');
         }
 
         // Update allocation chart

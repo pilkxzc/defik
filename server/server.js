@@ -51,7 +51,10 @@ async function createApp() {
         crossOriginEmbedderPolicy: false
     }));
 
-    app.use(cors({ origin: '*' }));
+    app.use(cors({
+        origin: process.env.CORS_ORIGIN || 'https://tradingarena.space',
+        credentials: true
+    }));
     app.use(express.json({ limit: '20mb' }));
     app.use(express.urlencoded({ extended: true, limit: '20mb' }));
     app.use(maintenanceMiddleware);

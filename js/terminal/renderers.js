@@ -63,7 +63,12 @@ function renderNavAvatar() {
     if (!el || !currentUser) return;
 
     if (currentUser.avatar) {
-        el.innerHTML = `<img src="${currentUser.avatar}" alt="" class="nav-avatar-img">`;
+        const img = document.createElement('img');
+        img.src = currentUser.avatar;
+        img.alt = '';
+        img.className = 'nav-avatar-img';
+        el.innerHTML = '';
+        el.appendChild(img);
     } else {
         const name = currentUser.fullName || currentUser.email || '';
         const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';

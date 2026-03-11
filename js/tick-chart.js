@@ -9,10 +9,21 @@
  *   tc.setMarkers(markers);  // [{time (sec), price, side, isEntry, pnl, count}]
  *   tc.destroy();
  */
+
+// Layout constants
+const TC_PADDING_RIGHT  = 70;
+const TC_PADDING_TOP    = 12;
+const TC_PADDING_BOTTOM = 28;
+const TC_MAX_TICKS      = 2000;
+const TC_MIN_VISIBLE    = 30;
+const TC_GRID_STEPS     = 5;
+const TC_WS_MAX_RETRIES = 10;
+const TC_WS_BASE_DELAY  = 2000;
+
 class TickChart {
     constructor(container, opts = {}) {
         this.container = container;
-        this.maxTicks  = opts.maxTicks || 2000;
+        this.maxTicks  = opts.maxTicks || TC_MAX_TICKS;
         this.ticks     = [];       // [{price, time, qty}]
         this.markers   = [];       // [{time (ms), price, side, isEntry, pnl, count, symbol}]
         this._ws       = null;
@@ -141,10 +152,9 @@ class TickChart {
         }
         // Calculate scroll offset to center this index
         const W = this.W || 600;
-        const PADDING_RIGHT = 70;
-        const chartW = W - PADDING_RIGHT;
+        const chartW = W - TC_PADDING_RIGHT;
         const baseVisible = Math.max(100, Math.floor(chartW / 2));
-        const visibleCount = Math.max(30, Math.floor(baseVisible / this._zoom));
+        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / this._zoom));
         const halfVisible = Math.floor(visibleCount / 2);
         // scrollOffset = distance from end
         this._scrollOffset = Math.max(0, this.ticks.length - 1 - bestIdx - halfVisible);
@@ -158,10 +168,16 @@ class TickChart {
         const stream = symbol.toLowerCase() + '@aggTrade';
         const url = 'wss://fstream.binance.com/ws/' + stream;
 
+        let retryCount = 0;
         const connect = () => {
             if (this._wsGen !== gen) return;
+            if (retryCount >= TC_WS_MAX_RETRIES) {
+                console.warn('[TickChart] WS max retries reached for', symbol);
+                return;
+            }
             const ws = new WebSocket(url);
             this._ws = ws;
+            ws.onopen = () => { retryCount = 0; };
             ws.onmessage = (ev) => {
                 try {
                     const msg = JSON.parse(ev.data);
@@ -172,7 +188,9 @@ class TickChart {
             };
             ws.onclose = (ev) => {
                 if (this._wsGen === gen && ev.code !== 1000) {
-                    setTimeout(connect, 2000);
+                    const delay = Math.min(TC_WS_BASE_DELAY * Math.pow(2, retryCount), 30000);
+                    retryCount++;
+                    setTimeout(connect, delay);
                 }
             };
             ws.onerror = () => {};
@@ -244,7 +262,7 @@ class TickChart {
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
             const pxPerTick = this._pxPerTick || 2;
-            const maxOffset = Math.max(0, this.ticks.length - 30);
+            const maxOffset = Math.max(0, this.ticks.length - TC_MIN_VISIBLE);
             this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - Math.round(dx / pxPerTick)));
             this.canvas.style.cursor = 'grabbing';
         }
@@ -259,8 +277,7 @@ class TickChart {
 
     _onWheel(e) {
         e.preventDefault();
-        const PADDING_RIGHT = 70;
-        const chartW = (this.W || 600) - PADDING_RIGHT;
+        const chartW = (this.W || 600) - TC_PADDING_RIGHT;
         const r = this.canvas.getBoundingClientRect();
         const mx = e.clientX - r.left;
 
@@ -269,8 +286,8 @@ class TickChart {
         const newZoom = Math.max(0.1, Math.min(20, this._zoom * zoomDelta));
 
         const baseVisible = Math.max(100, Math.floor(chartW / 2));
-        const oldVC = Math.max(30, Math.floor(baseVisible / this._zoom));
-        const newVC = Math.max(30, Math.floor(baseVisible / newZoom));
+        const oldVC = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / this._zoom));
+        const newVC = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / newZoom));
         const f = Math.max(0, Math.min(1, mx / chartW)); // 0=left 1=right
 
         this._zoom = newZoom;
@@ -328,7 +345,7 @@ class TickChart {
             const t = e.touches[0];
             const dx = t.clientX - this._touchStartX;
             const pxPerTick = this._pxPerTick || 2;
-            const maxOffset = Math.max(0, this.ticks.length - 30);
+            const maxOffset = Math.max(0, this.ticks.length - TC_MIN_VISIBLE);
             this._scrollOffset = Math.max(0, Math.min(maxOffset, this._touchStartOffset - Math.round(dx / pxPerTick)));
             const r = this.canvas.getBoundingClientRect();
             this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
@@ -367,15 +384,12 @@ class TickChart {
             return;
         }
 
-        const PADDING_RIGHT = 70;
-        const PADDING_TOP = 12;
-        const PADDING_BOTTOM = 28;
-        const chartW = W - PADDING_RIGHT;
-        const chartH = H - PADDING_TOP - PADDING_BOTTOM;
+        const chartW = W - TC_PADDING_RIGHT;
+        const chartH = H - TC_PADDING_TOP - TC_PADDING_BOTTOM;
 
         // Determine visible range based on zoom
         const baseVisible = Math.max(100, Math.floor(chartW / 2));
-        const visibleCount = Math.max(30, Math.floor(baseVisible / this._zoom));
+        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.floor(baseVisible / this._zoom));
         const endIdx = Math.max(0, ticks.length - 1 - this._scrollOffset);
         const startIdx = Math.max(0, endIdx - visibleCount);
         const visible = ticks.slice(startIdx, endIdx + 1);
@@ -407,7 +421,7 @@ class TickChart {
         const pxPerTick = chartW / (visible.length - 1);
         this._pxPerTick = pxPerTick;
 
-        const priceToY = (p) => PADDING_TOP + chartH - ((p - minP) / (maxP - minP)) * chartH;
+        const priceToY = (p) => TC_PADDING_TOP + chartH - ((p - minP) / (maxP - minP)) * chartH;
         const idxToX   = (i) => i * pxPerTick;
         const timeToX  = (ms) => {
             // Binary search for nearest tick index by time
@@ -432,7 +446,7 @@ class TickChart {
         ctx.fillRect(0, 0, W, H);
 
         // Grid lines (horizontal)
-        const gridSteps = 5;
+        const gridSteps = TC_GRID_STEPS;
         ctx.strokeStyle = colors.gridLine;
         ctx.lineWidth = 1;
         ctx.font = '10px -apple-system, monospace';
@@ -470,7 +484,7 @@ class TickChart {
         const baseRgb = lastPrice >= firstPrice ? '16,185,129' : '239,68,68';
 
         // Gradient fill under line
-        const grad = ctx.createLinearGradient(0, PADDING_TOP, 0, PADDING_TOP + chartH);
+        const grad = ctx.createLinearGradient(0, TC_PADDING_TOP, 0, TC_PADDING_TOP + chartH);
         grad.addColorStop(0, `rgba(${baseRgb},0.12)`);
         grad.addColorStop(1, `rgba(${baseRgb},0.0)`);
 
@@ -479,8 +493,8 @@ class TickChart {
         for (let i = 1; i < visible.length; i++) {
             fillPath.lineTo(idxToX(i), priceToY(visible[i].price));
         }
-        fillPath.lineTo(idxToX(visible.length - 1), PADDING_TOP + chartH);
-        fillPath.lineTo(idxToX(0), PADDING_TOP + chartH);
+        fillPath.lineTo(idxToX(visible.length - 1), TC_PADDING_TOP + chartH);
+        fillPath.lineTo(idxToX(0), TC_PADDING_TOP + chartH);
         fillPath.closePath();
         ctx.fillStyle = grad;
         ctx.fill(fillPath);
@@ -553,8 +567,8 @@ class TickChart {
             ctx.setLineDash([4, 3]);
             ctx.globalAlpha = 0.5;
             ctx.beginPath();
-            ctx.moveTo(px, PADDING_TOP);
-            ctx.lineTo(px, H - PADDING_BOTTOM);
+            ctx.moveTo(px, TC_PADDING_TOP);
+            ctx.lineTo(px, H - TC_PADDING_BOTTOM);
             ctx.stroke();
 
             // Horizontal price guide line
@@ -585,12 +599,12 @@ class TickChart {
             const tLblW = 52;
             ctx.fillStyle = pColor;
             ctx.beginPath();
-            ctx.roundRect(px - tLblW / 2, H - PADDING_BOTTOM + 2, tLblW, 16, 3);
+            ctx.roundRect(px - tLblW / 2, H - TC_PADDING_BOTTOM + 2, tLblW, 16, 3);
             ctx.fill();
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 9px -apple-system, monospace';
             ctx.textAlign = 'center';
-            ctx.fillText(tLbl, px, H - PADDING_BOTTOM + 13);
+            ctx.fillText(tLbl, px, H - TC_PADDING_BOTTOM + 13);
 
             // Glow circle at the point
             ctx.beginPath();
@@ -677,7 +691,7 @@ class TickChart {
         }
 
         // ── Crosshair ──
-        if (this._mouse && this._mouse.x < chartW && this._mouse.y > PADDING_TOP && this._mouse.y < H - PADDING_BOTTOM) {
+        if (this._mouse && this._mouse.x < chartW && this._mouse.y > TC_PADDING_TOP && this._mouse.y < H - TC_PADDING_BOTTOM) {
             const mx = this._mouse.x;
             const my = this._mouse.y;
 
@@ -686,8 +700,8 @@ class TickChart {
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 3]);
             ctx.beginPath();
-            ctx.moveTo(mx, PADDING_TOP);
-            ctx.lineTo(mx, H - PADDING_BOTTOM);
+            ctx.moveTo(mx, TC_PADDING_TOP);
+            ctx.lineTo(mx, H - TC_PADDING_BOTTOM);
             ctx.stroke();
             // Horizontal line
             ctx.beginPath();
@@ -717,7 +731,7 @@ class TickChart {
                            d.getMinutes().toString().padStart(2, '0') + ':' +
                            d.getSeconds().toString().padStart(2, '0'));
 
-                this._drawTooltip(ctx, hm._x, hm._y, lines, chartW, PADDING_TOP);
+                this._drawTooltip(ctx, hm._x, hm._y, lines, chartW, TC_PADDING_TOP);
             } else {
                 // Snap to nearest tick
                 const nearIdx = Math.round(mx / pxPerTick);
@@ -745,12 +759,12 @@ class TickChart {
                     const lines = [priceStr, timeStr];
                     if (tick.qty) lines.push('Qty: ' + tick.qty.toFixed(4));
 
-                    this._drawTooltip(ctx, sx, sy, lines, chartW, PADDING_TOP);
+                    this._drawTooltip(ctx, sx, sy, lines, chartW, TC_PADDING_TOP);
                 }
             }
 
             // Price on Y-axis
-            const hoverPrice = minP + ((H - PADDING_BOTTOM - my) / chartH) * (maxP - minP);
+            const hoverPrice = minP + ((H - TC_PADDING_BOTTOM - my) / chartH) * (maxP - minP);
             ctx.fillStyle = 'rgba(255,255,255,0.08)';
             ctx.beginPath();
             ctx.roundRect(chartW + 2, my - 9, 64, 18, 3);

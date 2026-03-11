@@ -2,7 +2,7 @@
 const express = require('express');
 const router  = express.Router();
 
-const { dbGet, dbRun } = require('../db');
+const { dbGet, dbRun, dbTransaction } = require('../db');
 const { requireAuth }  = require('../middleware/auth');
 const { getClientIP }  = require('../utils/ip');
 const { getLocalTimeAgo } = require('../utils/time');
@@ -50,15 +50,20 @@ router.post('/api/faucet/claim', requireAuth, (req, res) => {
             });
         }
 
-        dbRun(
-            'INSERT INTO transactions (user_id, type, currency, amount, usd_value, status, account_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [req.session.userId, 'faucet', currency || 'USDT', claimAmount, claimAmount, 'completed', 'demo']
-        );
-        dbRun('UPDATE users SET demo_balance = demo_balance + ? WHERE id = ?', [claimAmount, req.session.userId]);
-        dbRun(
-            'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-            [req.session.userId, 'Faucet Claim', `Claimed $${claimAmount} ${currency || 'USDT'} (Demo)`, getClientIP(req)]
-        );
+        dbTransaction([
+            {
+                sql: 'INSERT INTO transactions (user_id, type, currency, amount, usd_value, status, account_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                params: [req.session.userId, 'faucet', currency || 'USDT', claimAmount, claimAmount, 'completed', 'demo']
+            },
+            {
+                sql: 'UPDATE users SET demo_balance = demo_balance + ? WHERE id = ?',
+                params: [claimAmount, req.session.userId]
+            },
+            {
+                sql: 'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
+                params: [req.session.userId, 'Faucet Claim', `Claimed $${claimAmount} ${currency || 'USDT'} (Demo)`, getClientIP(req)]
+            }
+        ]);
 
         const user = dbGet('SELECT demo_balance FROM users WHERE id = ?', [req.session.userId]);
 

@@ -60,9 +60,10 @@ router.post('/api/auth/register', async (req, res) => {
         // Send verification email
         try {
             const verToken = crypto.randomBytes(32).toString('hex');
+            const verTokenHash = crypto.createHash('sha256').update(verToken).digest('hex');
             const verExpires = new Date(Date.now() + 86400000).toISOString();
             dbRun('INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-                [userId, verToken, verExpires]);
+                [userId, verTokenHash, verExpires]);
             const { sendVerificationEmail } = require('../services/email');
             const verifyUrl = `${req.protocol}://${req.get('host')}/verify-email?token=${verToken}`;
             sendVerificationEmail(normalizedEmail, verifyUrl);
@@ -404,10 +405,11 @@ router.post('/api/auth/forgot-password', async (req, res) => {
         if (!user) return res.json({ success: true, message: 'If this email exists, a reset link has been sent' });
 
         const token = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
 
         dbRun('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-            [user.id, token, expiresAt]);
+            [user.id, tokenHash, expiresAt]);
 
         dbRun('INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
             [user.id, 'Password Reset Requested', 'Password reset email requested', clientIP]);
@@ -418,7 +420,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
             const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
             await sendPasswordResetEmail(user.email, resetUrl);
         } catch (emailErr) {
-            console.log('[Auth] Email not configured, reset token:', token);
+            console.log('[Auth] Email not configured, reset token: ***masked***');
         }
 
         res.json({ success: true, message: 'If this email exists, a reset link has been sent' });
@@ -448,9 +450,10 @@ router.post('/api/auth/reset-password', async (req, res) => {
         // Get failed attempts for progressive delay
         const failedCount = await getFailedAttempts(clientIP);
 
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const resetToken = dbGet(
             'SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0 AND expires_at > datetime("now")',
-            [token]
+            [tokenHash]
         );
 
         if (!resetToken) {
@@ -489,9 +492,10 @@ router.get('/api/auth/verify-email', (req, res) => {
         const { token } = req.query;
         if (!token) return res.status(400).json({ error: 'Token is required' });
 
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const verifyToken = dbGet(
             'SELECT * FROM email_verification_tokens WHERE token = ? AND used = 0 AND expires_at > datetime("now")',
-            [token]
+            [tokenHash]
         );
         if (!verifyToken) return res.status(400).json({ error: 'Invalid or expired verification token' });
 
@@ -519,17 +523,18 @@ router.post('/api/auth/resend-verification', (req, res) => {
         if (user.email_verified) return res.status(400).json({ error: 'Email is already verified' });
 
         const token = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const expiresAt = new Date(Date.now() + 86400000).toISOString(); // 24 hours
 
         dbRun('INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-            [user.id, token, expiresAt]);
+            [user.id, tokenHash, expiresAt]);
 
         try {
             const { sendVerificationEmail } = require('../services/email');
             const verifyUrl = `${req.protocol}://${req.get('host')}/verify-email?token=${token}`;
             sendVerificationEmail(user.email, verifyUrl);
         } catch (emailErr) {
-            console.log('[Auth] Email not configured, verification token:', token);
+            console.log('[Auth] Email not configured, verification token: ***masked***');
         }
 
         res.json({ success: true, message: 'Verification email sent' });
