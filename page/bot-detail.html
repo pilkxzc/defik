@@ -4291,7 +4291,8 @@
                     const resp = await fetch(url, opts);
                     if (resp.status === 503) {
                         const body = await resp.json().catch(() => ({}));
-                        const wait = (body.retryAfter || 5) * 1000;
+                        // Cap wait to 10s — don't wait the full ban duration
+                        const wait = Math.min((body.retryAfter || 5), 10) * 1000;
                         console.warn(`[fetchWithRetry] 503 on ${url}, retry in ${wait}ms (${i+1}/${maxAttempts})`);
                         await new Promise(r => setTimeout(r, wait));
                         continue;
@@ -4299,7 +4300,7 @@
                     return resp;
                 } catch (e) {
                     lastErr = e;
-                    const wait = 2000 * Math.pow(2, i);
+                    const wait = Math.min(2000 * Math.pow(2, i), 10000);
                     console.warn(`[fetchWithRetry] Network error on ${url}, retry in ${wait}ms`, e.message);
                     await new Promise(r => setTimeout(r, wait));
                 }
