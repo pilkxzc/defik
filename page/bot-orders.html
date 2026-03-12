@@ -2149,9 +2149,9 @@
                 const oPrice = parseFloat(o.price) || 0;
                 const oStop = parseFloat(o.stopPrice) || 0;
                 const oAvg = parseFloat(o.avgPrice) || 0;
-                if (oPrice > 0) tickLevels.push({ price: oPrice, label: 'Limit ' + fmtPrice(oPrice), color: '#C4B5FD', dash: [6, 4] });
-                if (oStop > 0 && oStop !== oPrice) tickLevels.push({ price: oStop, label: 'Stop ' + fmtPrice(oStop), color: '#F59E0B', dash: [4, 4] });
-                if (oAvg > 0 && oAvg !== oPrice && oAvg !== oStop) tickLevels.push({ price: oAvg, label: 'Avg ' + fmtPrice(oAvg), color: '#22D3EE', dash: [3, 6] });
+                if (oPrice > 0) tickLevels.push({ price: oPrice, label: 'Limit', color: '#C4B5FD', dash: [6, 4], type: 'limit' });
+                if (oStop > 0 && oStop !== oPrice) tickLevels.push({ price: oStop, label: 'Stop', color: '#F59E0B', dash: [4, 4], type: 'stop' });
+                if (oAvg > 0 && oAvg !== oPrice && oAvg !== oStop) tickLevels.push({ price: oAvg, label: 'Avg', color: '#22D3EE', dash: [3, 6], type: 'entry' });
                 _tickChart.setLevels(tickLevels);
                 // History only — no live WS connection
             } catch (e) {
@@ -3200,9 +3200,9 @@
                 const oPrice = parseFloat(o.price) || 0;
                 const oStop = parseFloat(o.stopPrice) || 0;
                 const oAvg = parseFloat(o.avgPrice) || 0;
-                if (oPrice > 0) tickLevels.push({ price: oPrice, label: 'Limit ' + fmtPrice(oPrice), color: '#C4B5FD', dash: [6, 4] });
-                if (oStop > 0 && oStop !== oPrice) tickLevels.push({ price: oStop, label: 'Stop ' + fmtPrice(oStop), color: '#F59E0B', dash: [4, 4] });
-                if (oAvg > 0 && oAvg !== oPrice && oAvg !== oStop) tickLevels.push({ price: oAvg, label: 'Avg ' + fmtPrice(oAvg), color: '#22D3EE', dash: [3, 6] });
+                if (oPrice > 0) tickLevels.push({ price: oPrice, label: 'Limit', color: '#C4B5FD', dash: [6, 4], type: 'limit' });
+                if (oStop > 0 && oStop !== oPrice) tickLevels.push({ price: oStop, label: 'Stop', color: '#F59E0B', dash: [4, 4], type: 'stop' });
+                if (oAvg > 0 && oAvg !== oPrice && oAvg !== oStop) tickLevels.push({ price: oAvg, label: 'Avg', color: '#22D3EE', dash: [3, 6], type: 'entry' });
                 _tickChart.setLevels(tickLevels);
             } else {
                 _tickChart.setLevels([]);

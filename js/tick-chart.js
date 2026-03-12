@@ -50,7 +50,7 @@ class TickChart {
         this._symbol       = '';      // current symbol for history fetches
         this._loadingMore  = false;   // prevents concurrent fetches
         this._noMoreHistory = false;  // true when Binance returns 0 results
-        this._maxHistoryTicks = 20000; // max total ticks to keep in memory
+        this._maxHistoryTicks = 50000; // max total ticks to keep in memory
 
         // Colors from CSS vars
         const cs = getComputedStyle(document.documentElement);
@@ -94,6 +94,8 @@ class TickChart {
         this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
         this.canvas.addEventListener('mousedown', this._onMouseDown);
         window.addEventListener('mouseup', this._onMouseUp);
+        this._onDblClick = this._onDblClick.bind(this);
+        this.canvas.addEventListener('dblclick', this._onDblClick);
 
         // Touch events
         this._onTouchStart = this._onTouchStart.bind(this);
@@ -154,13 +156,14 @@ class TickChart {
         this._dirty = true;
     }
 
-    /** Set price level lines. Each level: {price, label, color, dash} */
+    /** Set price level lines. Each level: {price, label, color, dash, type} */
     setLevels(levels) {
         this.levels = (levels || []).map(l => ({
             price: +l.price || 0,
             label: l.label || '',
             color: l.color || '#C4B5FD',
             dash:  l.dash || [6, 4],
+            type:  l.type || '',
         }));
         this._dirty = true;
     }
@@ -296,6 +299,7 @@ class TickChart {
         this.canvas.removeEventListener('wheel', this._onWheel);
         this.canvas.removeEventListener('mousedown', this._onMouseDown);
         window.removeEventListener('mouseup', this._onMouseUp);
+        this.canvas.removeEventListener('dblclick', this._onDblClick);
         this.canvas.removeEventListener('touchstart', this._onTouchStart);
         this.canvas.removeEventListener('touchmove', this._onTouchMove);
         this.canvas.removeEventListener('touchend', this._onTouchEnd);
@@ -375,9 +379,9 @@ class TickChart {
         const r = this.canvas.getBoundingClientRect();
         const mx = e.clientX - r.left;
 
-        const factor = e.deltaY > 0 ? 0.9 : 1.12;
-        const minSpacing = Math.max(0.15, chartW / Math.max(this.ticks.length, 100));
-        const maxSpacing = chartW / 3;
+        const factor = e.deltaY > 0 ? 0.88 : 1.14;
+        const minSpacing = Math.max(0.05, chartW / Math.max(this.ticks.length, 100));
+        const maxSpacing = chartW / 2;
         const newSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._barSpacing * factor));
 
         const oldVisible = chartW / this._barSpacing;
@@ -401,6 +405,14 @@ class TickChart {
             this._isDragging = false;
             this.canvas.style.cursor = 'crosshair';
         }
+    }
+
+    _onDblClick() {
+        // Reset zoom to default (show ~300 ticks) and scroll to latest
+        const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+        this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
+        this._scrollOffset = 0;
+        this._dirty = true;
     }
 
     // ── Touch ──
@@ -436,8 +448,8 @@ class TickChart {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (this._pinchDist > 0 && this._pinchBarSpacing > 0) {
                 const chartW = (this.W || 600) - TC_PADDING_RIGHT;
-                const minSpacing = Math.max(0.3, chartW / Math.max(this.ticks.length, 100));
-                const maxSpacing = chartW / 5;
+                const minSpacing = Math.max(0.05, chartW / Math.max(this.ticks.length, 100));
+                const maxSpacing = chartW / 2;
                 this._barSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._pinchBarSpacing * (dist / this._pinchDist)));
                 this._dirty = true;
             }
@@ -583,53 +595,103 @@ class TickChart {
             ctx.fillText(this._fmtPrice(price), W - 4, y + 3);
         }
 
-        // Time labels (bottom)
+        // Time labels (bottom) — adaptive format based on visible time range
         ctx.textAlign = 'center';
         ctx.fillStyle = colors.textDim;
+        const visTimeRange = visEndTime - visStartTime;
         const timeSteps = Math.min(6, visible.length - 1);
         for (let i = 0; i <= timeSteps; i++) {
             const idx = Math.floor((visible.length - 1) * i / timeSteps);
             const t = visible[idx];
             const x = idxToX(idx);
             const d = new Date(t.time);
-            const lbl = d.getHours().toString().padStart(2, '0') + ':' +
-                        d.getMinutes().toString().padStart(2, '0') + ':' +
-                        d.getSeconds().toString().padStart(2, '0');
+            let lbl;
+            if (visTimeRange > 86400000) {
+                // > 1 day: show date + hours
+                lbl = (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+                      d.getHours().toString().padStart(2, '0') + ':' +
+                      d.getMinutes().toString().padStart(2, '0');
+            } else if (visTimeRange > 3600000) {
+                // > 1 hour: show HH:MM
+                lbl = d.getHours().toString().padStart(2, '0') + ':' +
+                      d.getMinutes().toString().padStart(2, '0');
+            } else {
+                // < 1 hour: show HH:MM:SS
+                lbl = d.getHours().toString().padStart(2, '0') + ':' +
+                      d.getMinutes().toString().padStart(2, '0') + ':' +
+                      d.getSeconds().toString().padStart(2, '0');
+            }
             ctx.fillText(lbl, x, H - 6);
         }
 
         // ── Level lines (limit, stop, avg) ──
-        for (const lv of this.levels) {
-            if (lv.price <= 0) continue;
+        // Sort by price for overlap prevention
+        const sortedLevels = [...this.levels].filter(lv => lv.price > 0).sort((a, b) => a.price - b.price);
+        let lastLabelY = -100; // track last label Y to prevent overlap
+        for (const lv of sortedLevels) {
             const ly = priceToY(lv.price);
             if (ly < TC_PADDING_TOP - 10 || ly > H - TC_PADDING_BOTTOM + 10) continue;
+            const isEntry = lv.type === 'entry';
+            const lineW = isEntry ? 1.5 : 1;
+            const lineAlpha = isEntry ? '88' : '55';
+
             ctx.save();
             ctx.setLineDash(lv.dash || [6, 4]);
-            ctx.strokeStyle = lv.color + '66';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = lv.color + lineAlpha;
+            ctx.lineWidth = lineW;
             ctx.beginPath();
             ctx.moveTo(0, Math.round(ly) + 0.5);
             ctx.lineTo(chartW, Math.round(ly) + 0.5);
             ctx.stroke();
             ctx.setLineDash([]);
-            // Label bg
-            ctx.font = 'bold 9px -apple-system, monospace';
-            const tw = ctx.measureText(lv.label).width + 8;
-            ctx.fillStyle = lv.color + '22';
-            ctx.fillRect(4, ly - 8, tw, 16);
+
+            // Left label with price included
+            const priceStr = this._fmtPrice(lv.price);
+            const fullLabel = lv.label + '  ' + priceStr;
+            ctx.font = isEntry ? 'bold 10px -apple-system, monospace' : '10px -apple-system, monospace';
+            const tw = ctx.measureText(fullLabel).width + 12;
+            const lh = 18;
+            // Offset label if too close to previous
+            let labelY = ly;
+            if (Math.abs(labelY - lastLabelY) < lh + 2) {
+                labelY = lastLabelY + lh + 2;
+            }
+            lastLabelY = labelY;
+            // Background pill
+            ctx.fillStyle = lv.color + '18';
+            ctx.beginPath();
+            ctx.roundRect(4, labelY - lh / 2, tw, lh, 4);
+            ctx.fill();
             ctx.strokeStyle = lv.color + '44';
             ctx.lineWidth = 1;
-            ctx.strokeRect(4, ly - 8, tw, 16);
+            ctx.beginPath();
+            ctx.roundRect(4, labelY - lh / 2, tw, lh, 4);
+            ctx.stroke();
+            // Text
             ctx.fillStyle = lv.color;
             ctx.textAlign = 'left';
-            ctx.fillText(lv.label, 8, ly + 3);
-            // Right side price tag
-            const rpLabel = this._fmtPrice(lv.price);
-            const rpw = ctx.measureText(rpLabel).width + 6;
-            ctx.fillStyle = lv.color + '33';
-            ctx.fillRect(chartW + 2, ly - 8, rpw, 16);
+            ctx.fillText(fullLabel, 10, labelY + 3.5);
+            // Connector line from label to actual price level (if offset)
+            if (Math.abs(labelY - ly) > 2) {
+                ctx.strokeStyle = lv.color + '33';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(4, ly);
+                ctx.lineTo(4, labelY);
+                ctx.stroke();
+            }
+
+            // Right side price tag (prominent)
+            const rpLabel = priceStr;
+            ctx.font = 'bold 10px -apple-system, monospace';
+            const rpw = ctx.measureText(rpLabel).width + 10;
+            ctx.fillStyle = lv.color + (isEntry ? '44' : '28');
+            ctx.beginPath();
+            ctx.roundRect(chartW + 2, ly - lh / 2, rpw, lh, 3);
+            ctx.fill();
             ctx.fillStyle = lv.color;
-            ctx.fillText(rpLabel, chartW + 5, ly + 3);
+            ctx.textAlign = 'left';
+            ctx.fillText(rpLabel, chartW + 7, ly + 3.5);
             ctx.restore();
         }
 
@@ -638,6 +700,9 @@ class TickChart {
         const lineColor  = colors.accent;
         const baseRgb = '16,185,129';
 
+        // Subsample step — skip ticks when density is very high (performance)
+        const step = pxPerTick < 0.5 ? Math.ceil(0.8 / pxPerTick) : 1;
+
         // Gradient fill under line
         const grad = ctx.createLinearGradient(0, TC_PADDING_TOP, 0, TC_PADDING_TOP + chartH);
         grad.addColorStop(0, `rgba(${baseRgb},0.12)`);
@@ -645,9 +710,11 @@ class TickChart {
 
         const fillPath = new Path2D();
         fillPath.moveTo(idxToX(0), priceToY(visible[0].price));
-        for (let i = 1; i < visible.length; i++) {
+        for (let i = step; i < visible.length; i += step) {
             fillPath.lineTo(idxToX(i), priceToY(visible[i].price));
         }
+        // Always include last point
+        fillPath.lineTo(idxToX(visible.length - 1), priceToY(visible[visible.length - 1].price));
         fillPath.lineTo(idxToX(visible.length - 1), TC_PADDING_TOP + chartH);
         fillPath.lineTo(idxToX(0), TC_PADDING_TOP + chartH);
         fillPath.closePath();
@@ -657,9 +724,10 @@ class TickChart {
         // Stroke line
         ctx.beginPath();
         ctx.moveTo(idxToX(0), priceToY(visible[0].price));
-        for (let i = 1; i < visible.length; i++) {
+        for (let i = step; i < visible.length; i += step) {
             ctx.lineTo(idxToX(i), priceToY(visible[i].price));
         }
+        ctx.lineTo(idxToX(visible.length - 1), priceToY(visible[visible.length - 1].price));
         ctx.strokeStyle = lineColor;
         ctx.lineWidth = 1.5;
         ctx.lineJoin = 'round';

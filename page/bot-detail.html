@@ -5388,8 +5388,8 @@
             clearTradeHighlight(false);
 
             const isLong = block.side === 'LONG';
-            const entryColor = isLong ? userTheme.colors.long : userTheme.colors.short;
-            const pnlColor = block.totalPnl >= 0 ? userTheme.colors.tp || userTheme.colors.long : '#F97316';
+            const entryColor = _tickChart ? (isLong ? '#22D3EE' : '#F59E0B') : (isLong ? userTheme.colors.long : userTheme.colors.short);
+            const pnlColor = block.totalPnl >= 0 ? (_tickChart ? '#34D399' : (userTheme.colors.tp || userTheme.colors.long)) : '#F97316';
             const fmtP = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
 
             // ---- Tick chart branch ----
@@ -5427,17 +5427,19 @@
                 if (block.avgEntry > 0) {
                     _tickHighlightLevels.push({
                         price: block.avgEntry,
-                        label: `Entry $${fmtP(block.avgEntry)}`,
+                        label: `Entry`,
                         color: entryColor,
                         dash: [8, 3],
+                        type: 'entry',
                     });
                 }
                 if (block.avgExit > 0) {
                     _tickHighlightLevels.push({
                         price: block.avgExit,
-                        label: `Exit $${fmtP(block.avgExit)}`,
+                        label: `Exit`,
                         color: pnlColor,
                         dash: [8, 3],
+                        type: 'entry',
                     });
                 }
                 _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
@@ -8439,11 +8441,27 @@
             content.querySelectorAll('.order-clickable').forEach(el => {
                 el.addEventListener('click', function() {
                     const price = parseFloat(this.dataset.price);
-                    if (!price || !klChart) return;
+                    if (!price) return;
                     // Flash highlight
                     this.style.background = 'rgba(139,92,246,0.15)';
                     setTimeout(() => { this.style.background = ''; }, 400);
-                    // Create temporary highlight price line
+                    if (_tickChart) {
+                        // Tick chart: add temporary highlight level
+                        clearTradeHighlight(true);
+                        const side = this.dataset.side;
+                        const isLong = side === 'BUY' || side === 'LONG';
+                        _tickHighlightLevels = [{
+                            price: price,
+                            label: `$${formatPrice(price)}`,
+                            color: isLong ? '#22D3EE' : '#F59E0B',
+                            dash: [8, 3],
+                            type: 'highlight',
+                        }];
+                        _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
+                        return;
+                    }
+                    if (!klChart) return;
+                    // klinecharts: create temporary highlight price line
                     try {
                         clearTradeHighlight(true);
                         const id = klChart.createOverlay({
@@ -8482,49 +8500,62 @@
             lastChartData = data;
 
             // Build desired lines list (shared by klinecharts and tick chart)
+            // Tick chart uses blue/yellow convention; klinecharts uses theme colors
+            const _isTick = !!_tickChart;
+            const _tcBuy  = '#22D3EE';  // blue for BUY/LONG on tick chart
+            const _tcSell = '#F59E0B';  // yellow for SELL/SHORT on tick chart
             function buildDesiredLines() {
                 const lines = [];
                 if (displaySettings.positions) {
                     const posArr = data.positions || (data.position ? [data.position] : []);
-                    posArr.forEach(pos => {
+                    posArr.forEach((pos, pi) => {
                         if (!pos || !pos.entryPrice || pos.entryPrice <= 0) return;
                         const isLong = pos.side === 'LONG';
+                        const accLabel = pos._accIdx != null ? ` a${pos._accIdx}` : '';
                         lines.push({
                             price: pos.entryPrice,
-                            color: isLong ? userTheme.colors.long : userTheme.colors.short,
-                            label: isLong ? 'Long Entry' : 'Short Entry',
-                            dash: [6, 4],
+                            color: _isTick ? (isLong ? _tcBuy : _tcSell) : (isLong ? userTheme.colors.long : userTheme.colors.short),
+                            label: (isLong ? 'Long' : 'Short') + accLabel,
+                            dash: [8, 3],
+                            type: 'entry',
                         });
                     });
                 }
                 if (displaySettings.limits) {
-                    (data.limitOrders || []).forEach(o => {
+                    (data.limitOrders || []).forEach((o, i) => {
                         const isBuy = o.side === 'BUY';
+                        const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
                         lines.push({
                             price: o.price,
-                            color: isBuy ? userTheme.colors.long : userTheme.colors.short,
-                            label: isBuy ? 'Buy Limit' : 'Sell Limit',
+                            color: _isTick ? (isBuy ? _tcBuy : _tcSell) : (isBuy ? userTheme.colors.long : userTheme.colors.short),
+                            label: (isBuy ? 'Limit Buy' : 'Limit Sell') + accLabel,
                             dash: [6, 4],
+                            type: 'limit',
                         });
                     });
                 }
                 if (displaySettings.stops) {
                     (data.stopOrders || []).forEach(o => {
+                        const isBuy = o.side === 'BUY';
+                        const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
                         lines.push({
                             price: o.stopPrice,
-                            color: userTheme.colors.stop,
-                            label: o.side === 'BUY' ? 'Stop Buy' : 'Stop Sell',
+                            color: _isTick ? '#F97316' : userTheme.colors.stop,
+                            label: (isBuy ? 'Stop Buy' : 'Stop Sell') + accLabel,
                             dash: [4, 4],
+                            type: 'stop',
                         });
                     });
                 }
                 if (displaySettings.tps) {
                     (data.takeProfitOrders || []).forEach(o => {
+                        const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
                         lines.push({
                             price: o.stopPrice,
-                            color: userTheme.colors.tp,
-                            label: 'Take Profit',
+                            color: _isTick ? '#34D399' : userTheme.colors.tp,
+                            label: 'TP' + accLabel,
                             dash: [4, 4],
+                            type: 'tp',
                         });
                     });
                 }
@@ -8666,7 +8697,7 @@
                 closePrice = isBuy ? price + pnl / qty : price - pnl / qty;
             }
 
-            const entryColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
+            const entryColor = _tickChart ? (isBuy ? '#22D3EE' : '#F59E0B') : (isBuy ? userTheme.colors.long : userTheme.colors.short);
 
             // ---- Tick chart branch ----
             if (_tickChart) {
@@ -8707,17 +8738,19 @@
                 _tickHighlightLevels = [];
                 _tickHighlightLevels.push({
                     price: price,
-                    label: `Entry $${price.toFixed(2)}`,
+                    label: 'Entry',
                     color: entryColor,
                     dash: [8, 3],
+                    type: 'entry',
                 });
                 if (closePrice) {
-                    const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
+                    const pnlColor = pnl >= 0 ? '#34D399' : '#F97316';
                     _tickHighlightLevels.push({
                         price: closePrice,
-                        label: `Close $${closePrice.toFixed(2)}`,
+                        label: 'Close',
                         color: pnlColor,
                         dash: [8, 3],
+                        type: 'entry',
                     });
                 }
                 _tickChart.setLevels([..._tickBaseLevels, ..._tickHighlightLevels]);
