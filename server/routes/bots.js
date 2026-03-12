@@ -2668,14 +2668,19 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
 
         // Use centralized cache — no duplicate API calls
         const allOpenOrders = [], allPositions = [];
-        await Promise.allSettled(credPairs.map(async (cred) => {
+        await Promise.allSettled(credPairs.map(async (cred, accIdx) => {
             try {
                 const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret, cred.proxy);
                 // Filter openOrders by symbol (raw cache stores ALL open orders)
-                allOpenOrders.push(...(raw.openOrders || []).filter(o => o.symbol === symbol));
+                (raw.openOrders || []).filter(o => o.symbol === symbol).forEach(o => {
+                    o._accIdx = accIdx;
+                    allOpenOrders.push(o);
+                });
                 // Get positions from account data (equivalent to positionRisk)
-                const positions = (raw.account.positions || []).filter(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
-                allPositions.push(...positions);
+                (raw.account.positions || []).filter(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0).forEach(p => {
+                    p._accIdx = accIdx;
+                    allPositions.push(p);
+                });
             } catch (e) {}
         }));
 
@@ -2692,14 +2697,17 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
             symbol: p.symbol, side: parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT',
             positionAmt: Math.abs(parseFloat(p.positionAmt)), entryPrice: parseFloat(p.entryPrice),
             markPrice: parseFloat(p.markPrice), unrealizedProfit: parseFloat(p.unRealizedProfit || p.unrealizedProfit),
-            leverage: p.leverage, updateTime: p.updateTime || null
+            leverage: p.leverage, updateTime: p.updateTime || null, accIdx: p._accIdx
         });
 
+        const isMultiAcc = credPairs.length > 1;
         res.json({
             isActive: !!bot.is_active,
-            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), time: o.time })),
-            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
-            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
+            isMultiAcc,
+            accountCount: credPairs.length,
+            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), time: o.time, accIdx: o._accIdx })),
+            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time, accIdx: o._accIdx })),
+            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time, accIdx: o._accIdx })),
             position: posRisk ? formatPos(posRisk) : null,
             positions: activePositions.map(formatPos)
         });

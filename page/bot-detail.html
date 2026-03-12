@@ -8379,17 +8379,20 @@
                 </div>
             ` : '';
 
+            const isMultiAcc = data.isMultiAcc || false;
             let posHtml = validPos.map(pos => {
                 const pnl = pos.unrealizedProfit || 0;
                 const pnlColor = pnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
                 const pnlSign = pnl >= 0 ? '+' : '';
                 const borderColor = pos.side === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
+                const accBadge = isMultiAcc && pos.accIdx !== undefined ? `<span style="font-size:8px;font-weight:700;color:${_ordAccColors[pos.accIdx % _ordAccColors.length]};font-family:'JetBrains Mono',monospace;">a${pos.accIdx}</span>` : '';
                 return `
                     <div class="order-item order-clickable" data-price="${pos.entryPrice}" style="border-left: 3px solid ${borderColor}; padding-left: 8px; margin-bottom: 4px; cursor:pointer;">
                         <span class="order-side ${pos.side.toLowerCase()}">${pos.side}</span>
                         <span class="order-price">$${formatPrice(pos.entryPrice)}</span>
                         <span class="order-qty">${pos.quantity || pos.positionAmt || ''}</span>
                         <span style="color: ${pnlColor}; font-size: 10px; font-weight: 700;">POS ${pnlSign}$${Math.abs(pnl).toFixed(2)}</span>
+                        ${accBadge}
                     </div>`;
             }).join('');
 
@@ -8399,22 +8402,23 @@
             }
 
             // Build order items (grouped or flat)
+            const isMultiAcc = data.isMultiAcc || false;
             let ordersHtml = '';
             if (ordersGrouped && allOrders.length > 0) {
                 const longOrders = allOrders.filter(o => o.side === 'BUY');
                 const shortOrders = allOrders.filter(o => o.side === 'SELL');
                 if (longOrders.length > 0) {
                     ordersHtml += `<div class="orders-group-header" style="color:var(--color-long);" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">LONG <span class="orders-group-count">${longOrders.length}</span></div><div>`;
-                    longOrders.forEach(o => { ordersHtml += renderOrderItem(o); });
+                    longOrders.forEach(o => { ordersHtml += renderOrderItem(o, isMultiAcc); });
                     ordersHtml += '</div>';
                 }
                 if (shortOrders.length > 0) {
                     ordersHtml += `<div class="orders-group-header" style="color:var(--color-short);" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">SHORT <span class="orders-group-count">${shortOrders.length}</span></div><div>`;
-                    shortOrders.forEach(o => { ordersHtml += renderOrderItem(o); });
+                    shortOrders.forEach(o => { ordersHtml += renderOrderItem(o, isMultiAcc); });
                     ordersHtml += '</div>';
                 }
             } else {
-                allOrders.forEach(o => { ordersHtml += renderOrderItem(o); });
+                allOrders.forEach(o => { ordersHtml += renderOrderItem(o, isMultiAcc); });
             }
 
             const savedScroll = content.scrollTop;
@@ -8455,14 +8459,18 @@
             });
         }
 
-        function renderOrderItem(o) {
+        const _ordAccColors = ['#8B5CF6', '#22D3EE', '#F59E0B', '#EC4899', '#10B981', '#8CA8FF', '#EF4444', '#14B8A6'];
+
+        function renderOrderItem(o, isMultiAcc) {
             const typeColor = o.type === 'LIMIT' ? 'var(--color-limit)' : o.type === 'STOP' ? 'var(--color-stop)' : 'var(--color-tp)';
             const orderPrice = o.stopPrice || o.price;
+            const accBadge = isMultiAcc && o.accIdx !== undefined ? `<span style="font-size:8px;font-weight:700;color:${_ordAccColors[o.accIdx % _ordAccColors.length]};font-family:'JetBrains Mono',monospace;">a${o.accIdx}</span>` : '';
             return `<div class="order-item order-clickable" data-price="${orderPrice}" data-time="${o.time || ''}" style="cursor:pointer;">
                 <span class="order-side ${o.side.toLowerCase()}">${o.side}</span>
                 <span class="order-price">$${formatPrice(orderPrice)}</span>
                 <span class="order-qty">${o.quantity}</span>
                 <span style="color:${typeColor};font-size:10px;font-weight:700;">${o.type}</span>
+                ${accBadge}
             </div>`;
         }
 

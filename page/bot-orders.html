@@ -148,8 +148,13 @@
 
         /* Group brackets */
         .group-bracket-cell {
-            width: 6px !important; padding: 0 !important; position: relative;
+            width: 28px !important; min-width: 28px; padding: 0 !important; position: relative;
             border-bottom: none !important;
+        }
+        .bracket-label {
+            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap; opacity: 0.7; pointer-events: none;
         }
         .group-bracket {
             position: absolute; left: 2px; width: 4px;
@@ -173,8 +178,6 @@
             border-left: 2.5px solid; border-top: 2.5px solid; border-bottom: 2.5px solid;
             border-radius: 8px 0 0 8px;
         }
-        .gb-buy { border-color: #10B981; }
-        .gb-sell { border-color: #EF4444; }
 
         /* Badges */
         .badge-long { color: #22D3EE; background: rgba(34,211,238,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
@@ -407,6 +410,11 @@
         .pnl-positive { color: var(--color-up); }
         .pnl-negative { color: var(--color-down); }
 
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .main-content { padding: 16px; }
@@ -445,6 +453,9 @@
         <span class="symbol-badge" id="symbolBadge">---</span>
         <div class="header-spacer"></div>
         <span class="header-count" id="headerCount"></span>
+        <span id="liveIndicator" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#10B981;opacity:0.8;">
+            <span style="width:6px;height:6px;border-radius:50%;background:#10B981;animation:livePulse 2s infinite;"></span>LIVE
+        </span>
     </header>
 
     <!-- Main -->
@@ -523,7 +534,7 @@
                 <table class="orders-tbl">
                     <thead id="ordersHead">
                         <tr>
-                            <th style="width:6px;padding:0;"></th>
+                            <th style="width:28px;padding:0;"></th>
                             <th style="width:32px;"></th>
                             <th class="sortable active-sort desc" data-sort="time">Дата</th>
                             <th class="sortable" data-sort="orderId">Order ID</th>
@@ -564,6 +575,7 @@
                     <table class="orders-tbl">
                         <thead>
                             <tr>
+                                <th style="width:28px;padding:0;"></th>
                                 <th style="width:32px;"></th>
                                 <th class="sortable active-sort desc" data-sort="openedAt">Відкрито</th>
                                 <th class="sortable" data-sort="closedAt">Закрито</th>
@@ -576,7 +588,7 @@
                             </tr>
                         </thead>
                         <tbody id="tradesBody">
-                            <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+                            <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -603,7 +615,7 @@
                     <table class="orders-tbl">
                         <thead>
                             <tr>
-                                <th style="width:4px;padding:0;"></th>
+                                <th style="width:28px;padding:0;"></th>
                                 <th class="sortable active-sort desc" data-sort="openedAt">Відкрито</th>
                                 <th class="sortable" data-sort="closedAt">Закрито</th>
                                 <th class="sortable" data-sort="symbol">Символ</th>
@@ -618,7 +630,7 @@
                             </tr>
                         </thead>
                         <tbody id="positionsBody">
-                            <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+                            <tr><td colspan="12"><div class="loading-spinner"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -645,6 +657,7 @@
                     <table class="orders-tbl">
                         <thead>
                             <tr>
+                                <th style="width:28px;padding:0;"></th>
                                 <th style="width:32px;"></th>
                                 <th class="sortable active-sort desc" data-sort="time">Дата</th>
                                 <th class="sortable" data-sort="orderId">Order ID</th>
@@ -658,7 +671,7 @@
                             </tr>
                         </thead>
                         <tbody id="unfilledBody">
-                            <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
+                            <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -719,6 +732,9 @@
             <button class="chart-tf-btn" id="chartShowVolume" style="gap:3px;display:inline-flex;align-items:center;" title="Обсяг">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="14" width="4" height="8"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="10" width="4" height="12"/></svg>
                 Vol
+            </button>
+            <button class="chart-tf-btn" id="chartMagnet" style="gap:3px;display:inline-flex;align-items:center;" title="Магніт (прив'язка до тіка)">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15a6 6 0 0 0 12 0V9"/><path d="M2 9h4v6"/><path d="M18 9h4v6"/></svg>
             </button>
             <button class="chart-tf-btn" id="chartResetView" title="Центрувати">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
@@ -937,6 +953,34 @@
             }).catch(() => {});
 
         loadOrders();
+
+        // ── Live polling: refresh orders every 10s ──
+        let _liveInterval = null;
+        let _liveEnabled = true;
+        function startLivePolling() {
+            if (_liveInterval) return;
+            _liveInterval = setInterval(async () => {
+                if (!_liveEnabled || document.hidden) return;
+                try {
+                    const res = await fetch(`/api/bots/${botId}/order-history?symbol=${symbol}`, { credentials: 'include' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const newOrders = data.orders || [];
+                    if (newOrders.length !== allOrders.length || (newOrders[0]?.orderId !== allOrders[0]?.orderId)) {
+                        allOrders = newOrders;
+                        applyFilters();
+                        // Refresh trades/positions if loaded
+                        if (tradesLoaded) loadTrades();
+                        if (positionsLoaded) { positionsLoaded = false; loadPositions(); }
+                    }
+                } catch {}
+            }, 10000);
+        }
+        startLivePolling();
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && _liveEnabled) startLivePolling();
+        });
+
         // Show view tabs (hidden in selector mode)
         document.getElementById('viewTabs').style.display = '';
 
@@ -995,7 +1039,7 @@
             document.getElementById('tabCountTrades').textContent = allTrades.length;
             renderTrades();
         } catch (e) {
-            document.getElementById('tradesBody').innerHTML = '<tr><td colspan="9" class="empty-state">Помилка завантаження угод</td></tr>';
+            document.getElementById('tradesBody').innerHTML = '<tr><td colspan="10" class="empty-state">Помилка завантаження угод</td></tr>';
         }
     }
 
@@ -1034,7 +1078,7 @@
         });
 
         if (trades.length === 0) {
-            body.innerHTML = '<tr><td colspan="9"><div class="empty-state">Угод не знайдено</div></td></tr>';
+            body.innerHTML = '<tr><td colspan="10"><div class="empty-state">Угод не знайдено</div></td></tr>';
             document.getElementById('tradesPagination').innerHTML = '';
             return;
         }
@@ -1055,6 +1099,8 @@
         const start = (tradesPage - 1) * perPage;
         const pageTrades = trades.slice(start, start + perPage);
 
+        const tradeGroups = buildBracketGroups(pageTrades, accGroupKey, accGroupColor, orderTimeFn);
+
         body.innerHTML = pageTrades.map((t, ti) => {
             const isBuy = t.side === 'BUY' || t.side === 'LONG';
             const pnl = parseFloat(t.pnl) || 0;
@@ -1065,6 +1111,7 @@
             const fmtD = d => d ? d.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + d.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
             const statusCls = t.status === 'closed' ? 'badge-filled' : t.status === 'open' ? 'badge-new' : 'badge-type';
             return `<tr style="cursor:pointer;" onclick="showTradeOnChart(${start + ti})">
+                ${bracketTd(tradeGroups[ti])}
                 <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${pnl >= 0 ? '#10B981' : '#EF4444'}" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(openDt)}</td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(closeDt)}</td>
@@ -1172,6 +1219,68 @@
     // Account colors for visual grouping
     const _accColors = ['#8B5CF6', '#22D3EE', '#F59E0B', '#EC4899', '#10B981', '#8CA8FF', '#EF4444', '#14B8A6'];
 
+    // Shared: build bracket group info for a page of items
+    // keyFn(item) → grouping key string; colorFn(item) → color string; timeFn(item) → timestamp ms
+    function buildBracketGroups(items, keyFn, colorFn, timeFn) {
+        const groups = [];
+        let gi = 0;
+        let posNum = 0;
+        while (gi < items.length) {
+            posNum++;
+            const key = keyFn(items[gi]);
+            let gEnd = gi;
+            while (gEnd + 1 < items.length && keyFn(items[gEnd + 1]) === key) gEnd++;
+            const len = gEnd - gi + 1;
+            // Group time label: first item's time
+            const groupTime = timeFn ? timeFn(items[gi]) : 0;
+            const groupCount = len;
+            for (let k = gi; k <= gEnd; k++) {
+                let pos;
+                if (len === 1) pos = 'single';
+                else if (k === gi) pos = 'top';
+                else if (k === gEnd) pos = 'bot';
+                else pos = 'mid';
+                groups.push({ pos, color: colorFn(items[k]), groupTime, groupCount, posNum, isFirst: k === gi, side: items[k].side });
+            }
+            gi = gEnd + 1;
+        }
+        return groups;
+    }
+
+    // Get bracket grouping key — account+side combo for real position grouping
+    function accGroupKey(item) {
+        const acc = item.accountKey || '';
+        const side = item.side || 'unknown';
+        return acc + '|' + side;
+    }
+    function accGroupColor(item) {
+        if (item.accountKey && item.accountIndex >= 0) return _accColors[item.accountIndex % _accColors.length];
+        return item.side === 'BUY' ? '#10B981' : item.side === 'SELL' ? '#EF4444' : '#636363';
+    }
+    function orderTimeFn(item) {
+        return item.time || item.updateTime || (item.openedAt ? new Date(item.openedAt).getTime() : 0) || 0;
+    }
+
+    // Format short time for bracket label
+    function fmtShortTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // Render bracket <td> for a group entry — with optional time label on first row
+    function bracketTd(g) {
+        let label = '';
+        if (g.isFirst && g.groupCount > 1) {
+            const sideLabel = g.side === 'BUY' ? 'B' : g.side === 'SELL' ? 'S' : '';
+            label = `<span class="bracket-label" style="color:${g.color};">#${g.posNum} ${sideLabel} ×${g.groupCount}</span>`;
+        } else if (g.isFirst && g.groupCount === 1) {
+            const sideLabel = g.side === 'BUY' ? 'B' : g.side === 'SELL' ? 'S' : '';
+            label = `<span class="bracket-label" style="color:${g.color};">#${g.posNum} ${sideLabel}</span>`;
+        }
+        return `<td class="group-bracket-cell"><div class="group-bracket group-bracket-${g.pos}" style="border-color:${g.color};"></div>${label}</td>`;
+    }
+
     function renderPositions() {
         const body = document.getElementById('positionsBody');
         let positions = allPositions.slice();
@@ -1229,8 +1338,7 @@
         const start = (positionsPage - 1) * perPage;
         const pagePos = positions.slice(start, start + perPage);
 
-        // Build unique account index set for coloring
-        const hasMultiAcc = pagePos.some(p => p.accountIndex >= 0) && new Set(pagePos.filter(p => p.accountIndex >= 0).map(p => p.accountIndex)).size > 1;
+        const posGroups = buildBracketGroups(pagePos, accGroupKey, accGroupColor, orderTimeFn);
 
         body.innerHTML = pagePos.map((p, pi) => {
             const isBuy = p.side === 'BUY' || p.side === 'LONG';
@@ -1241,11 +1349,8 @@
             const move = p.movePercent || 0;
             const moveCls = move >= 0 ? 'pnl-positive' : 'pnl-negative';
             const moveStr = (move >= 0 ? '+' : '') + move.toFixed(3) + '%';
-            // Account color bar
-            const accColor = hasMultiAcc && p.accountIndex >= 0 ? _accColors[p.accountIndex % _accColors.length] : 'transparent';
-            const accTitle = p.accountIndex >= 0 ? 'acc' + p.accountIndex : '';
             return `<tr style="cursor:pointer;" onclick="showPositionOnChart(${start + pi})">
-                <td style="padding:0;width:4px;"><div style="width:4px;height:100%;min-height:28px;background:${accColor};border-radius:2px;" title="${accTitle}"></div></td>
+                ${bracketTd(posGroups[pi])}
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(p.openedAt)}</td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(p.closedAt)}</td>
                 <td class="mono">${(p.symbol || '').replace('USDT', '')}</td>
@@ -1377,7 +1482,7 @@
         });
 
         if (orders.length === 0) {
-            body.innerHTML = '<tr><td colspan="10"><div class="empty-state">Всі ордери виконані</div></td></tr>';
+            body.innerHTML = '<tr><td colspan="11"><div class="empty-state">Всі ордери виконані</div></td></tr>';
             document.getElementById('unfilledPagination').innerHTML = '';
             return;
         }
@@ -1387,6 +1492,8 @@
         const start = (unfilledPage - 1) * perPage;
         const pageOrders = orders.slice(start, start + perPage);
 
+        const unfGroups = buildBracketGroups(pageOrders, accGroupKey, accGroupColor, orderTimeFn);
+
         body.innerHTML = pageOrders.map((o, pi) => {
             const isBuy = o.side === 'BUY';
             const statusCls = o.status === 'CANCELED' ? 'badge-canceled' : o.status === 'NEW' ? 'badge-new' : 'badge-expired';
@@ -1395,6 +1502,7 @@
             const dateStr = dt ? dt.toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + dt.toLocaleTimeString('uk-UA', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '\u2014';
             const reason = guessUnfilledReason(o);
             return `<tr style="cursor:pointer;" onclick="showOrderDirect(${o.orderId})">
+                ${bracketTd(unfGroups[pi])}
                 <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${o.status === 'CANCELED' ? '#EF4444' : o.status === 'NEW' ? '#8CA8FF' : '#636363'}" stroke-width="2" style="opacity:0.5;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
                 <td class="mono" style="font-size:10px;">${o.orderId}</td>
@@ -1457,7 +1565,7 @@
             applyFilters();
         } catch (e) {
             document.getElementById('ordersBody').innerHTML =
-                '<tr><td colspan="10" class="empty-state">Помилка завантаження ордерів</td></tr>';
+                '<tr><td colspan="12" class="empty-state">Помилка завантаження ордерів</td></tr>';
         }
     }
 
@@ -1569,24 +1677,7 @@
         const start = (currentPage - 1) * perPage;
         const pageOrders = filteredOrders.slice(start, start + perPage);
 
-        // Calculate groups of consecutive same-side orders
-        const groups = [];
-        let gi = 0;
-        while (gi < pageOrders.length) {
-            const side = pageOrders[gi].side;
-            let gEnd = gi;
-            while (gEnd + 1 < pageOrders.length && pageOrders[gEnd + 1].side === side) gEnd++;
-            for (let k = gi; k <= gEnd; k++) {
-                const len = gEnd - gi + 1;
-                let pos;
-                if (len === 1) pos = 'single';
-                else if (k === gi) pos = 'top';
-                else if (k === gEnd) pos = 'bot';
-                else pos = 'mid';
-                groups.push({ side, pos });
-            }
-            gi = gEnd + 1;
-        }
+        const groups = buildBracketGroups(pageOrders, accGroupKey, accGroupColor, orderTimeFn);
 
         body.innerHTML = pageOrders.map((o, pi) => {
             const isBuy = o.side === 'BUY';
@@ -1605,11 +1696,8 @@
             const accLabel = o.accountKey ? 'acc' + accIdx : '\u2014';
             const accColor = o.accountKey ? _accColors[accIdx % _accColors.length] : 'var(--text-tertiary)';
             const accTd = showAcc ? `<td style="font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap;" title="${o.accountKey || ''}"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${accColor};margin-right:4px;vertical-align:middle;"></span><span style="color:${accColor};">${accLabel}</span></td>` : '';
-            const g = groups[pi];
-            const gbColor = g.side === 'BUY' ? 'gb-buy' : 'gb-sell';
-            const gbClass = `group-bracket group-bracket-${g.pos} ${gbColor}`;
             return `<tr style="cursor:pointer;" onclick="showOrderByIdx(${start + pi})">
-                <td class="group-bracket-cell"><div class="${gbClass}"></div></td>
+                ${bracketTd(groups[pi])}
                 <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
                 <td class="mono" style="font-size:10px;" title="${o.orderId}">${o.orderId}</td>
@@ -3094,11 +3182,34 @@
         }
     });
 
+    // Toggle magnet (tick chart snap)
+    document.getElementById('chartMagnet').addEventListener('click', function() {
+        this.classList.toggle('active');
+        if (_tickChart) _tickChart.magnet = this.classList.contains('active');
+    });
+
     // Toggle order levels
     document.getElementById('chartShowLevels').addEventListener('click', function() {
         _showOrderLevels = !_showOrderLevels;
         this.classList.toggle('active', _showOrderLevels);
-        if (_chartKlines.length > 0) drawChart();
+        if (_tickChart && _chartTF === '1s') {
+            // Re-set levels on tick chart
+            if (_showOrderLevels && _chartOrder) {
+                const o = _chartOrder;
+                const tickLevels = [];
+                const oPrice = parseFloat(o.price) || 0;
+                const oStop = parseFloat(o.stopPrice) || 0;
+                const oAvg = parseFloat(o.avgPrice) || 0;
+                if (oPrice > 0) tickLevels.push({ price: oPrice, label: 'Limit ' + fmtPrice(oPrice), color: '#C4B5FD', dash: [6, 4] });
+                if (oStop > 0 && oStop !== oPrice) tickLevels.push({ price: oStop, label: 'Stop ' + fmtPrice(oStop), color: '#F59E0B', dash: [4, 4] });
+                if (oAvg > 0 && oAvg !== oPrice && oAvg !== oStop) tickLevels.push({ price: oAvg, label: 'Avg ' + fmtPrice(oAvg), color: '#22D3EE', dash: [3, 6] });
+                _tickChart.setLevels(tickLevels);
+            } else {
+                _tickChart.setLevels([]);
+            }
+        } else if (_chartKlines.length > 0) {
+            drawChart();
+        }
     });
 
     // Toggle volume
