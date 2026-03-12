@@ -146,6 +146,36 @@
         .orders-tbl tr:hover td { background: rgba(255,255,255,0.02); }
         .orders-tbl .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 
+        /* Group brackets */
+        .group-bracket-cell {
+            width: 6px !important; padding: 0 !important; position: relative;
+            border-bottom: none !important;
+        }
+        .group-bracket {
+            position: absolute; left: 2px; width: 4px;
+        }
+        .group-bracket-top {
+            top: 0; bottom: 0;
+            border-left: 2.5px solid; border-top: 2.5px solid;
+            border-top-left-radius: 8px;
+        }
+        .group-bracket-mid {
+            top: 0; bottom: 0;
+            border-left: 2.5px solid;
+        }
+        .group-bracket-bot {
+            top: 0; bottom: 0;
+            border-left: 2.5px solid; border-bottom: 2.5px solid;
+            border-bottom-left-radius: 8px;
+        }
+        .group-bracket-single {
+            top: 4px; bottom: 4px;
+            border-left: 2.5px solid; border-top: 2.5px solid; border-bottom: 2.5px solid;
+            border-radius: 8px 0 0 8px;
+        }
+        .gb-buy { border-color: #10B981; }
+        .gb-sell { border-color: #EF4444; }
+
         /* Badges */
         .badge-long { color: #22D3EE; background: rgba(34,211,238,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
         .badge-short { color: #F59E0B; background: rgba(245,158,11,0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
@@ -493,6 +523,7 @@
                 <table class="orders-tbl">
                     <thead id="ordersHead">
                         <tr>
+                            <th style="width:6px;padding:0;"></th>
                             <th style="width:32px;"></th>
                             <th class="sortable active-sort desc" data-sort="time">Дата</th>
                             <th class="sortable" data-sort="orderId">Order ID</th>
@@ -506,7 +537,7 @@
                         </tr>
                     </thead>
                     <tbody id="ordersBody">
-                        <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
+                        <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1416,7 +1447,7 @@
                     th.className = 'sortable';
                     th.dataset.sort = 'account';
                     th.textContent = 'Акаунт';
-                    headRow.insertBefore(th, headRow.children[3]); // after Order ID
+                    headRow.insertBefore(th, headRow.children[4]); // after Order ID (shifted by bracket column)
                 }
             } else {
                 accSelect.style.display = 'none';
@@ -1522,7 +1553,7 @@
     function renderTable() {
         const body = document.getElementById('ordersBody');
         const showAcc = window._isMultiAcc;
-        const colSpan = showAcc ? 11 : 10;
+        const colSpan = showAcc ? 12 : 11;
 
         if (filteredOrders.length === 0) {
             body.innerHTML = `<tr><td colspan="${colSpan}"><div class="empty-state">
@@ -1537,6 +1568,25 @@
         if (currentPage > totalPages) currentPage = totalPages;
         const start = (currentPage - 1) * perPage;
         const pageOrders = filteredOrders.slice(start, start + perPage);
+
+        // Calculate groups of consecutive same-side orders
+        const groups = [];
+        let gi = 0;
+        while (gi < pageOrders.length) {
+            const side = pageOrders[gi].side;
+            let gEnd = gi;
+            while (gEnd + 1 < pageOrders.length && pageOrders[gEnd + 1].side === side) gEnd++;
+            for (let k = gi; k <= gEnd; k++) {
+                const len = gEnd - gi + 1;
+                let pos;
+                if (len === 1) pos = 'single';
+                else if (k === gi) pos = 'top';
+                else if (k === gEnd) pos = 'bot';
+                else pos = 'mid';
+                groups.push({ side, pos });
+            }
+            gi = gEnd + 1;
+        }
 
         body.innerHTML = pageOrders.map((o, pi) => {
             const isBuy = o.side === 'BUY';
@@ -1555,7 +1605,11 @@
             const accLabel = o.accountKey ? 'acc' + accIdx : '\u2014';
             const accColor = o.accountKey ? _accColors[accIdx % _accColors.length] : 'var(--text-tertiary)';
             const accTd = showAcc ? `<td style="font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap;" title="${o.accountKey || ''}"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${accColor};margin-right:4px;vertical-align:middle;"></span><span style="color:${accColor};">${accLabel}</span></td>` : '';
+            const g = groups[pi];
+            const gbColor = g.side === 'BUY' ? 'gb-buy' : 'gb-sell';
+            const gbClass = `group-bracket group-bracket-${g.pos} ${gbColor}`;
             return `<tr style="cursor:pointer;" onclick="showOrderByIdx(${start + pi})">
+                <td class="group-bracket-cell"><div class="${gbClass}"></div></td>
                 <td style="padding:6px 4px 6px 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2" style="opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></td>
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${dateStr}</td>
                 <td class="mono" style="font-size:10px;" title="${o.orderId}">${o.orderId}</td>
@@ -1900,11 +1954,8 @@
                 const orderTime = getOrderTime(o);
                 const ticks = _tickChart.ticks;
                 if (ticks.length > 1 && orderTime >= ticks[0].time && orderTime <= ticks[ticks.length - 1].time) {
-                    const mp = parseFloat(o.avgPrice) || parseFloat(o.price) || parseFloat(o.stopPrice) || 0;
-                    if (mp > 0) {
-                        _tickChart.setMarkers([{ time: orderTime / 1000, price: mp, side: o.side || 'BUY', isEntry: o.side === 'BUY', pnl: 0, count: 1, _primary: true }]);
-                        _tickChart.centerOnTime(orderTime);
-                    }
+                    updateTickChartMarkers();
+                    _tickChart.centerOnTime(orderTime);
                 } else {
                     loadChartKlines();
                 }
@@ -2996,11 +3047,51 @@
         }
     });
 
+    // Rebuild tick chart markers based on _showAllOrders
+    function updateTickChartMarkers() {
+        if (!_tickChart || !_chartOrder) return;
+        const o = _chartOrder;
+        const orderTime = getOrderTime(o);
+        const markerPrice = (parseFloat(o.price) > 0 ? parseFloat(o.price) : 0) || (parseFloat(o.stopPrice) > 0 ? parseFloat(o.stopPrice) : 0) || parseFloat(o.avgPrice) || 0;
+        const rawMarkers = [];
+        if (markerPrice > 0) {
+            rawMarkers.push({ time: orderTime / 1000, price: markerPrice, side: o.side || 'BUY', isEntry: o.side === 'BUY', pnl: 0, count: 1, _primary: true });
+        }
+        if (_showAllOrders && allOrders.length > 0) {
+            const halfWin = 5 * 60 * 1000;
+            allOrders.forEach(ro => {
+                if (ro.orderId === o.orderId) return;
+                const roTime = getOrderTime(ro);
+                if (roTime < orderTime - halfWin || roTime > orderTime + halfWin) return;
+                const rp = (parseFloat(ro.price) > 0 ? parseFloat(ro.price) : 0) || (parseFloat(ro.stopPrice) > 0 ? parseFloat(ro.stopPrice) : 0) || parseFloat(ro.avgPrice) || 0;
+                if (rp <= 0) return;
+                rawMarkers.push({ time: roTime / 1000, price: rp, side: ro.side || 'BUY', isEntry: ro.side === 'BUY', pnl: 0, count: 1, _primary: false });
+            });
+        }
+        // Cluster markers within 1 second
+        const clustered = [];
+        const sorted = rawMarkers.slice().sort((a, b) => a.time - b.time);
+        for (const m of sorted) {
+            const last = clustered.length > 0 ? clustered[clustered.length - 1] : null;
+            if (last && !last._primary && !m._primary && Math.abs(m.time - last.time) <= 1 && m.side === last.side) {
+                last.price = (last.price * last.count + m.price) / (last.count + 1);
+                last.count += 1;
+            } else {
+                clustered.push({ ...m });
+            }
+        }
+        _tickChart.setMarkers(clustered);
+    }
+
     // Toggle all orders
     document.getElementById('chartShowAllOrders').addEventListener('click', function() {
         _showAllOrders = !_showAllOrders;
         this.classList.toggle('active', _showAllOrders);
-        if (_chartKlines.length > 0) drawChart();
+        if (_tickChart && _chartTF === '1s') {
+            updateTickChartMarkers();
+        } else if (_chartKlines.length > 0) {
+            drawChart();
+        }
     });
 
     // Toggle order levels
