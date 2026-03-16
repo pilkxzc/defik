@@ -3189,9 +3189,9 @@
                 </button>
                 <div class="ind-sep"></div>
                 <!-- Auto-scroll toggle (tick chart only) -->
-                <button class="ind-btn active" id="tickAutoScrollBtn" onclick="toggleTickAutoScroll()" title="Слідкувати за поточною ціною (вимкніть щоб вільно рухати графік)" style="display:none;">
+                <button class="ind-btn" id="tickAutoScrollBtn" onclick="toggleTickAutoScroll()" title="Слідкувати за поточною ціною (увімкніть щоб графік слідкував за ціною)" style="display:none;">
                     <svg id="tickAutoScrollIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
-                    <span id="tickAutoScrollLabel">Live</span>
+                    <span id="tickAutoScrollLabel">Вільно</span>
                 </button>
                 <!-- WS Status -->
                 <div class="ws-status" style="margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);white-space:nowrap;">
@@ -10241,7 +10241,7 @@
         init();
 
     // ── Tick chart auto-scroll toggle ──────────────────────────────────────
-    var _tickAutoScroll = true;
+    var _tickAutoScroll = false;
 
     function toggleTickAutoScroll() {
         _tickAutoScroll = !_tickAutoScroll;
@@ -10273,10 +10273,10 @@
         var isTick = TICK_TFS.has(currentInterval);
         btn.style.display = isTick ? '' : 'none';
         if (isTick) {
-            // Reset to live mode when switching to tick chart
-            _tickAutoScroll = true;
-            btn.classList.add('active');
-            document.getElementById('tickAutoScrollLabel').textContent = 'Live';
+            // Default: free scroll (Live off)
+            _tickAutoScroll = false;
+            btn.classList.remove('active');
+            document.getElementById('tickAutoScrollLabel').textContent = 'Вільно';
         }
     }
 

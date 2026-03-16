@@ -72,8 +72,11 @@ class LWTickChart {
         this._lwData = [];     // [{time, value}] — LW format
         this._priceLines = []; // active price line objects
         this._crosshairPos = null; // {time, price, x, y}
-        this._userScrolled = false;
-        this.autoScrollLocked = false; // when true, _userScrolled stays true (free scroll mode)
+        this._userScrolled = true;   // default: don't auto-scroll
+        this.autoScrollLocked = true; // default: free scroll, no auto-snap to live price
+
+        // Custom canvas markers (same look as klinecharts)
+        this._customMarkers = [];
 
         // Lazy history loading
         this._oldestTradeTime = null;  // ms — oldest trade we have
@@ -405,7 +408,7 @@ class LWTickChart {
             });
         }
 
-        this._userScrolled = false;
+        this._userScrolled = this.autoScrollLocked;
         this._updateMarkers();
         if (typeof this.onRedraw === 'function') this.onRedraw();
     }
@@ -450,78 +453,131 @@ class LWTickChart {
     }
 
     _updateMarkers() {
-        if (!this._series || !this.markers.length || !this._lwData.length) {
-            if (this._series) this._series.setMarkers([]);
-            return;
-        }
+        // Clear LW native markers — we draw custom ones on canvas
+        if (this._series) try { this._series.setMarkers([]); } catch(e) {}
+        this._customMarkers = [];
 
-        // Convert markers to lightweight-charts format
-        const lwMarkers = [];
+        if (!this._series || !this.markers.length || !this._lwData.length) return;
+
+        const tzOffsetSec = -(new Date().getTimezoneOffset()) * 60;
         for (const m of this.markers) {
             let timeMs = m.time;
-            if (typeof timeMs === 'number' && timeMs < 1e12) timeMs *= 1000; // sec → ms
+            if (typeof timeMs === 'number' && timeMs < 1e12) timeMs *= 1000;
 
-            // Find nearest data point time
             const nearestLwTime = this._findNearestLwTime(timeMs);
             if (nearestLwTime === null) continue;
 
             const isEntry = m.isEntry !== false;
             const isLong = m.side === 'LONG' || m.side === 'BUY';
             const pnl = parseFloat(m.pnl || 0);
+            const count = m.count || 1;
+            const mixed = !!m._mixed;
 
-            let shape, position, color, text;
-
-            if (isEntry) {
-                shape = isLong ? 'arrowUp' : 'arrowDown';
-                position = isLong ? 'belowBar' : 'aboveBar';
-                color = isLong ? '#22D3EE' : '#F59E0B';
-                text = isLong ? 'L' : 'S';
-            } else {
-                shape = 'circle';
-                position = isLong ? 'aboveBar' : 'belowBar';
-                color = pnl >= 0 ? '#34D399' : '#F97316';
-                text = pnl !== 0 ? (pnl > 0 ? '+' : '') + pnl.toFixed(2) : '';
-            }
-
-            // Grouped marker
-            if (m.count && m.count > 1) {
-                shape = 'square';
-                text = String(m.count);
-                color = '#8B5CF6';
-            }
-
-            lwMarkers.push({
-                time: nearestLwTime,
-                position: position,
-                color: color,
-                shape: shape,
-                text: text,
-                size: m.count > 1 ? 2 : 1.5,
+            this._customMarkers.push({
+                lwTime: nearestLwTime,
+                price: parseFloat(m.price || 0),
+                isEntry, isLong, pnl, count, mixed,
             });
         }
 
-        // Sort by time (required by lightweight-charts)
-        lwMarkers.sort((a, b) => a.time - b.time);
+        this._drawCustomMarkers();
+    }
 
-        // Deduplicate same time+position (LW doesn't handle well)
-        const deduped = [];
-        for (let i = 0; i < lwMarkers.length; i++) {
-            const m = lwMarkers[i];
-            const prev = deduped[deduped.length - 1];
-            if (prev && prev.time === m.time && prev.position === m.position) {
-                // Merge: keep the more important marker
-                if (m.shape === 'square' || m.text.length > prev.text.length) {
-                    deduped[deduped.length - 1] = m;
-                }
+    _drawCustomMarkers() {
+        if (!this._drawCtx || !this._chart || !this._series || !this._customMarkers) return;
+
+        // This is called from _renderDrawings loop — overlay on drawing canvas
+        const ctx = this._drawCtx;
+        const ts = this._chart.timeScale();
+        const series = this._series;
+
+        for (const m of this._customMarkers) {
+            const x = ts.timeToCoordinate(m.lwTime);
+            if (x === null || x < -20 || x > this._drawCanvas.width / (window.devicePixelRatio || 1) + 20) continue;
+
+            const y = series.priceToCoordinate(m.price);
+            if (y === null) continue;
+
+            const px = x;
+            const py = y;
+
+            if (m.count > 1) {
+                // Grouped → diamond (same as klinecharts)
+                const sz = 8;
+                const cy = py - 10;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(px, cy - sz);
+                ctx.lineTo(px + sz, cy);
+                ctx.lineTo(px, cy + sz);
+                ctx.lineTo(px - sz, cy);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(139,92,246,0.2)';
+                ctx.fill();
+                ctx.strokeStyle = '#8B5CF6';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.fillStyle = '#C4B5FD';
+                ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(String(m.count), px, cy);
+                ctx.restore();
+            } else if (m.isEntry) {
+                // Entry → triangle (same as klinecharts tradeMarker)
+                const color = m.isLong ? '#22D3EE' : '#F59E0B';
+                const sz = 6;
+                const below = m.isLong;
+                const tipY = py;
+                const baseY = below ? tipY + sz * 2 : tipY - sz * 2;
+
+                ctx.save();
+                // Dark outline
+                ctx.beginPath();
+                ctx.moveTo(px, tipY);
+                ctx.lineTo(px - sz, baseY);
+                ctx.lineTo(px + sz, baseY);
+                ctx.closePath();
+                ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                // Filled triangle
+                ctx.fillStyle = m.isLong ? 'rgba(34,211,238,0.15)' : 'rgba(245,158,11,0.15)';
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.restore();
             } else {
-                deduped.push(m);
-            }
-        }
+                // Exit → circle (same as klinecharts tradeMarker)
+                const color = m.pnl >= 0 ? '#34D399' : '#F97316';
+                const alphaFill = m.pnl >= 0 ? 'rgba(52,211,153,0.15)' : 'rgba(249,115,22,0.15)';
+                const r = 5;
 
-        try {
-            this._series.setMarkers(deduped);
-        } catch (e) {
-            console.warn('[LWTickChart] setMarkers error:', e);
+                ctx.save();
+                // Dark outline
+                ctx.beginPath();
+                ctx.arc(px, py, r + 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fill();
+                // Filled circle
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+                ctx.fillStyle = alphaFill;
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                // PnL text
+                if (m.pnl !== 0) {
+                    ctx.fillStyle = color;
+                    ctx.font = '600 8px "Plus Jakarta Sans", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText((m.pnl > 0 ? '+' : '') + m.pnl.toFixed(2), px, py - r - 2);
+                }
+                ctx.restore();
+            }
         }
     }
 
@@ -896,6 +952,9 @@ class LWTickChart {
             }];
             this._drawShape(ctx, this._drawingMode, previewPoints, this._getDrawingColor(this._drawingMode), true);
         }
+
+        // Draw custom trade markers (triangles, circles, diamonds — same as klinecharts)
+        this._drawCustomMarkers();
 
         // Draw mode indicator
         if (this._drawingMode) {

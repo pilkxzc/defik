@@ -289,12 +289,35 @@ async function _doFetchRawBinanceData(apiKey, apiSecret, proxy = null) {
         };
 
         // Fire all requests in parallel — no delays needed, each proxy has its own rate limit
-        const [account, openOrders, userTrades, income] = await Promise.all([
+        const [account, openOrders, userTrades, income, algoOrders] = await Promise.all([
             makeReq('/fapi/v2/account'),
             makeReq('/fapi/v1/openOrders'),
             makeReq('/fapi/v1/userTrades', { limit: 50 }).catch(() => []),
-            makeReq('/fapi/v1/income',     { limit: 100 }).catch(() => [])
+            makeReq('/fapi/v1/income',     { limit: 100 }).catch(() => []),
+            makeReq('/fapi/v1/openAlgoOrders').catch(() => [])
         ]);
+
+        // Merge algo conditional orders (STOP_MARKET, TAKE_PROFIT_MARKET) into openOrders format
+        const algoList = Array.isArray(algoOrders) ? algoOrders : (algoOrders?.orders || []);
+        for (const ao of algoList) {
+            if (ao.algoStatus !== 'NEW') continue;
+            openOrders.push({
+                orderId: ao.algoId,
+                symbol: ao.symbol,
+                type: ao.orderType || 'STOP_MARKET',
+                side: ao.side,
+                positionSide: ao.positionSide,
+                stopPrice: ao.triggerPrice || '0',
+                price: ao.price || '0',
+                origQty: ao.quantity || '0',
+                executedQty: ao.actualQty || '0',
+                status: 'NEW',
+                time: ao.bookTime || Date.now(),
+                closePosition: ao.closePosition || false,
+                workingType: ao.workingType || 'CONTRACT_PRICE',
+                _isAlgo: true,
+            });
+        }
 
         return { account, openOrders, userTrades, income };
     } catch (error) {
