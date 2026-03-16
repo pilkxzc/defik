@@ -7448,10 +7448,18 @@
 
             // Tick chart mode for sub-5s timeframes
             if (TICK_TFS.has(currentInterval)) {
-                // Destroy klinecharts if it exists
-                if (klChart) { try { klChart.dispose(); } catch(e) {} klChart = null; }
+                // Destroy klinecharts if it exists (must use klinecharts.dispose(container) to fully clean DOM)
+                if (klChart) {
+                    const chartEl = document.getElementById('chart');
+                    try { window.klinecharts.dispose(chartEl); } catch(e) {}
+                    klChart = null;
+                    emaIndicatorId = null; bollIndicatorId = null; volPaneId = null; rsiPaneId = null; macdPaneId = null;
+                    positionOverlayId = null; positionOverlayIds = []; orderLineOverlays.clear(); highlightOverlayIds = [];
+                }
                 // Create/reuse tick chart
                 const chartEl = document.getElementById('chart');
+                // Force-clear any leftover DOM from klinecharts (it sometimes leaves canvases behind)
+                chartEl.innerHTML = '';
                 if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
                 _tickChart = window.LWTickChart
                     ? new LWTickChart(chartEl, { maxTicks: 2000 })
@@ -7488,7 +7496,12 @@
             }
 
             // Normal klinecharts mode
-            if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
+            if (_tickChart) {
+                _tickChart.destroy(); _tickChart = null;
+                // Clear tick chart DOM before rebuilding klinecharts
+                const chartEl = document.getElementById('chart');
+                if (chartEl) chartEl.innerHTML = '';
+            }
             if (!window.klinecharts) return;
             _buildKlChart();
             document.getElementById('chartLoading').style.display = 'flex';
