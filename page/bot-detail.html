@@ -8460,13 +8460,15 @@
                 }
                 if (displaySettings.stops) {
                     (data.stopOrders || []).forEach(o => {
-                        if (!o.stopPrice || o.stopPrice <= 0) return; // skip trailing stops with no price
+                        if (!o.stopPrice || o.stopPrice <= 0) return;
                         const isBuy = o.side === 'BUY';
                         const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
                         const typeLabel = o.type === 'STOP_MARKET' ? 'SL' : o.type === 'TRAILING_STOP_MARKET' ? 'TSL' : 'Stop';
+                        // Sell = purple (#8B5CF6), Buy = cyan (#22D3EE)
+                        const stopColor = isBuy ? '#22D3EE' : '#8B5CF6';
                         lines.push({
                             price: o.stopPrice,
-                            color: _isTick ? '#F97316' : userTheme.colors.stop,
+                            color: _isTick ? stopColor : (isBuy ? '#22D3EE' : '#8B5CF6'),
                             label: typeLabel + ' ' + (isBuy ? 'Buy' : 'Sell') + accLabel,
                             dash: [4, 4],
                             type: 'stop',
