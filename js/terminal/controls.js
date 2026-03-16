@@ -80,8 +80,9 @@ async function selectSymbol(sym) {
     if (TICK_TFS.has(currentTF) && window._tickChart) {
         window._tickChart.destroy();
         const el = document.getElementById('liveChartCanvas');
-        if (el && window.TickChart) {
-            window._tickChart = new TickChart(el, { maxTicks: 2000 });
+        if (el) el.innerHTML = '';
+        window._tickChart = _createTickChart(el);
+        if (window._tickChart) {
             window._tickChart.start(sym).then(() => {
                 if (window._tickChart && typeof tradeMarkers !== 'undefined') {
                     window._tickChart.setMarkers(tradeMarkers);

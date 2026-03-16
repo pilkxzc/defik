@@ -614,9 +614,13 @@
     }
 
     function _rangeTimeFromCursor() {
-        // Tick chart: use LW crosshair time
+        // Tick chart: use LW crosshair time (already in seconds with tz offset baked in)
         if (typeof _tickChart !== 'undefined' && _tickChart && _tickChart._crosshairPos) {
-            return _tickChart._crosshairPos.time ? _tickChart._crosshairPos.time / 1000 : null;
+            var lwTime = _tickChart._crosshairPos.time;
+            if (lwTime == null) return null;
+            // lwTime is seconds with tz offset — remove offset to get UTC seconds
+            var tzOff = -(new Date().getTimezoneOffset()) * 60;
+            return lwTime - tzOff;
         }
         // Klinecharts: use dataIndex → klinesData
         var idx = _rulerLastCursor.dataIndex;
