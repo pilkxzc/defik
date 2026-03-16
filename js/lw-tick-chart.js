@@ -683,13 +683,14 @@ class LWTickChart {
             if (diffPrev < diffLo) best = lo - 1;
         }
 
-        // Only match if within the visible data range (oldest to newest tick + small buffer)
-        var maxGap = 10; // 10 sec default
-        if (this._lwData.length > 1) {
-            // Allow matching anywhere within the data range
-            maxGap = Math.abs(this._lwData[this._lwData.length - 1].time - this._lwData[0].time) + 60;
-        }
-        if (Math.abs(this._lwData[best].time - targetSec) > maxGap) return null;
+        // Only match if marker time falls WITHIN the data range (not outside it)
+        if (this._lwData.length < 2) return null;
+        var dataStart = this._lwData[0].time;
+        var dataEnd = this._lwData[this._lwData.length - 1].time;
+        // Reject if marker is before first tick or after last tick (with 5s buffer)
+        if (targetSec < dataStart - 5 || targetSec > dataEnd + 5) return null;
+        // Also reject if nearest point is too far (more than 30s gap — sparse data region)
+        if (Math.abs(this._lwData[best].time - targetSec) > 30) return null;
         return this._lwData[best].time;
     }
 

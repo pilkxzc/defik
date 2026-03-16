@@ -662,7 +662,16 @@
         if (rangeStatsPopup && rangeStatsPopup.contains(e.target)) return;
         e.stopImmediatePropagation();
         e.preventDefault();
-        var cx = _rulerLastCursor.x || (e.clientX - chartEl.getBoundingClientRect().left);
+        var rect = chartEl.getBoundingClientRect();
+        var cx = _rulerLastCursor.x || (e.clientX - rect.left);
+        // For tick chart: if crosshair didn't update, convert click pixel → time directly
+        if (typeof _tickChart !== 'undefined' && _tickChart && _tickChart._chart && (!_tickChart._crosshairPos || !_tickChart._crosshairPos.time)) {
+            var clickTime = _tickChart._chart.timeScale().coordinateToTime(e.clientX - rect.left);
+            if (clickTime) {
+                _tickChart._crosshairPos = _tickChart._crosshairPos || {};
+                _tickChart._crosshairPos.time = clickTime;
+            }
+        }
 
         if (rangeStep === 0 || rangeStep === 2) {
             cleanupRange();
