@@ -637,18 +637,28 @@
             var coord = _tickChart._chart.timeScale().timeToCoordinate(lwTime);
             return coord !== null ? coord : null;
         }
-        // Klinecharts: find dataIndex by time then use chart API
-        if (typeof klChart !== 'undefined' && klChart && typeof klChart.getBarSpace === 'function') {
-            for (var i = 0; i < klinesData.length; i++) {
-                if (klinesData[i].time >= timeSec) {
-                    var vr = klChart.getVisibleRange ? klChart.getVisibleRange() : null;
-                    if (vr) {
-                        var bs = klChart.getBarSpace ? klChart.getBarSpace() : { bar: 8 };
-                        return (i - vr.from) * (bs.bar || 8);
-                    }
-                    break;
+        // Klinecharts: find dataIndex by timestamp, convert to pixel
+        if (typeof klChart !== 'undefined' && klChart) {
+            try {
+                var dl = klChart.getDataList();
+                if (!dl || dl.length === 0) return null;
+                // Find dataIndex matching this timestamp (ms = timeSec * 1000)
+                var tsMs = timeSec * 1000;
+                var idx = -1;
+                for (var i = 0; i < dl.length; i++) {
+                    if (dl[i].timestamp >= tsMs) { idx = i; break; }
                 }
-            }
+                if (idx === -1) idx = dl.length - 1;
+                // Get visible range and bar spacing for pixel calculation
+                var vr = klChart.getVisibleRange();
+                var bs = klChart.getBarSpace();
+                if (!vr || !bs) return null;
+                var barW = bs.bar || bs.gapBar || 8;
+                var halfBar = barW / 2;
+                // Pixel X = offset from left edge of visible range
+                var x = (idx - vr.from) * barW + halfBar;
+                return x;
+            } catch(e) {}
         }
         return null;
     }
@@ -700,13 +710,16 @@
         });
     }
 
-    // Redraw finalized range when chart scrolls (time-anchored)
+    // Redraw finalized range when chart scrolls/zooms (time-anchored)
     function redrawRangeFromChart() {
         if (rangeStep !== 2 || !_rangeStartTime || !_rangeEndTime) return;
         var x1 = _rangeTimeToX(_rangeStartTime);
         var x2 = _rangeTimeToX(_rangeEndTime);
         if (x1 !== null && x2 !== null) {
             drawRangeSelection(x1, x2, true);
+        } else {
+            // Both timestamps off-screen — clear canvas
+            clearCanvas();
         }
     }
 

@@ -6273,14 +6273,7 @@
                         const qty = parseFloat(msg.q);
                         if (!_currentAggBar || _currentAggBar.timestamp !== bucketMs) {
                             if (_currentAggBar && klChart) {
-                                if (_klUserScrolled && typeof klChart.getVisibleRange === 'function') {
-                                    var __ts = null;
-                                    try { var __r = klChart.getVisibleRange(); var __d = klChart.getDataList(); if (__r && __d && __d[__r.from]) __ts = __d[__r.from].timestamp; } catch(e) {}
-                                    klChart.updateData({ ..._currentAggBar });
-                                    if (__ts && typeof klChart.scrollToTimestamp === 'function') klChart.scrollToTimestamp(__ts);
-                                } else {
-                                    klChart.updateData({ ..._currentAggBar });
-                                }
+                                klChart.updateData({ ..._currentAggBar });
                             }
                             _currentAggBar = { timestamp: bucketMs, open: price, high: price, low: price, close: price, volume: qty };
                         } else {
@@ -6298,21 +6291,8 @@
                     }
 
                     if (bar && klChart) {
-                        if (_klUserScrolled && typeof klChart.getVisibleRange === 'function') {
-                            // Save scroll position by timestamp, not index (indices shift on loadMore)
-                            var _savedTs = null;
-                            try {
-                                var _sr = klChart.getVisibleRange();
-                                var _dl = klChart.getDataList();
-                                if (_sr && _dl && _dl[_sr.from]) _savedTs = _dl[_sr.from].timestamp;
-                            } catch(e) {}
-                            klChart.updateData(bar);
-                            if (_savedTs && typeof klChart.scrollToTimestamp === 'function') {
-                                klChart.scrollToTimestamp(_savedTs);
-                            }
-                        } else {
-                            klChart.updateData(bar);
-                        }
+                        // Just update data — klinecharts handles scroll natively
+                        klChart.updateData(bar);
                         lastPrice = price;
                         updateLivePrice(price);
                         // Sync klinesData for overlay/snap calculations
