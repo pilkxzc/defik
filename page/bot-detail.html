@@ -3302,12 +3302,6 @@
                     <div class="equity-section">
                         <div class="equity-header">
                             <span class="equity-title">Крива капіталу</span>
-                            <div class="equity-period-btns">
-                                <button class="eq-period active" data-days="7">7D</button>
-                                <button class="eq-period" data-days="30">1M</button>
-                                <button class="eq-period" data-days="90">3M</button>
-                                <button class="eq-period" data-days="0">Усі</button>
-                            </div>
                         </div>
                         <div class="equity-chart-wrap">
                             <svg id="equityChartSvg" viewBox="0 0 360 70" preserveAspectRatio="none">
@@ -4593,6 +4587,9 @@
             updateStatsPanelKPIs();
         }
         function updateStatsPanelKPIs() {
+            // If "Усі" and no local trades loaded yet, keep server-provided values
+            if (_statsPanelTf === 'all' && allEquityTrades.length === 0 && botDetails) return;
+
             const tfObj = statsTimeframes.find(t => t.value === _statsPanelTf);
             const now = Date.now();
             const trades = allEquityTrades.filter(t => {
@@ -4606,15 +4603,14 @@
             let peak = 0, maxDD = 0, equity = 0;
             trades.forEach(t => { equity += parseFloat(t.pnl || 0); if (equity > peak) peak = equity; const dd = peak > 0 ? (peak - equity) / peak * 100 : 0; if (dd > maxDD) maxDD = dd; });
             // Sum commission from incomeHistory
-            const now2 = Date.now();
             const totalComm = cachedIncomeHistory
-                .filter(i => i.incomeType === 'COMMISSION' && (!tfObj || tfObj.ms === 0 || i.time >= now2 - tfObj.ms))
+                .filter(i => i.incomeType === 'COMMISSION' && (!tfObj || tfObj.ms === 0 || i.time >= now - tfObj.ms))
                 .reduce((s, i) => s + Math.abs(i.income), 0);
 
             document.getElementById('statWinRate').textContent = winRate + '%';
             document.getElementById('statWinRate').className = 'kpi-value ' + (winRate >= 50 ? 'positive' : 'negative');
-            const commStr = totalComm !== 0 ? ` (ком: -$${Math.abs(totalComm).toFixed(2)})` : '';
-            document.getElementById('statTotalPnl').textContent = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2) + commStr;
+            const commStr = totalComm !== 0 ? ' (ком: -$' + Math.abs(totalComm).toFixed(2) + ')' : '';
+            document.getElementById('statTotalPnl').textContent = fmtPnl(totalPnl) + commStr;
             document.getElementById('statTotalPnl').className = 'kpi-value ' + (totalPnl >= 0 ? 'positive' : 'negative');
             document.getElementById('statTotalTrades').textContent = trades.length;
             document.getElementById('statMaxDrawdown').textContent = maxDD.toFixed(1) + '%';
@@ -8529,7 +8525,7 @@
                         const isLong = side === 'BUY' || side === 'LONG';
                         _tickHighlightLevels = [{
                             price: price,
-                            label: `$${formatPrice(price)}`,
+                            label: 'Selected',
                             color: isLong ? '#22D3EE' : '#F59E0B',
                             dash: [8, 3],
                             type: 'highlight',
@@ -10513,6 +10509,20 @@
             }
         }
 
+        // Format PNL: show full precision, never round small values to 0.00
+        function fmtPnl(v) {
+            if (v == null || isNaN(v)) return '$0';
+            const abs = Math.abs(v);
+            const sign = v >= 0 ? '+' : '-';
+            let num;
+            if (abs >= 100) num = abs.toFixed(2);
+            else if (abs >= 1) num = abs.toFixed(4);
+            else if (abs >= 0.01) num = abs.toFixed(6);
+            else if (abs === 0) num = '0';
+            else num = abs.toFixed(8);
+            return sign + '$' + num;
+        }
+
         function updateBotDetailsUI() {
             if (!botDetails) return;
 
@@ -10520,7 +10530,7 @@
             document.getElementById('statWinRate').textContent = botDetails.stats.winRate + '%';
             document.getElementById('statWinRate').className = 'kpi-value ' + (botDetails.stats.winRate >= 50 ? 'positive' : 'negative');
 
-            document.getElementById('statTotalPnl').textContent = (botDetails.stats.totalPnl >= 0 ? '+' : '') + '$' + botDetails.stats.totalPnl.toFixed(2);
+            document.getElementById('statTotalPnl').textContent = fmtPnl(botDetails.stats.totalPnl);
             document.getElementById('statTotalPnl').className = 'kpi-value ' + (botDetails.stats.totalPnl >= 0 ? 'positive' : 'negative');
 
             document.getElementById('statTotalTrades').textContent = botDetails.stats.totalTrades;
