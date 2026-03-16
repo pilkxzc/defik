@@ -155,10 +155,15 @@ class TickChart {
         });
         const limit = Math.max(this.maxTicks, this._maxHistoryTicks);
         if (this.ticks.length > limit) {
-            this.ticks.splice(0, this.ticks.length - limit);
+            const excess = this.ticks.length - limit;
+            this.ticks.splice(0, excess);
+            // Adjust scrollOffset so the view stays in the same place
+            if (this._scrollOffset > 0) {
+                this._scrollOffset = Math.max(0, this._scrollOffset - excess);
+            }
         }
-        // Auto-scroll to latest only if user is viewing the live edge
-        if (this._scrollOffset < 1) this._scrollOffset = 0;
+        // Auto-scroll to latest only if user is viewing the live edge (within 3 ticks)
+        if (this._scrollOffset < 3) this._scrollOffset = 0;
         this._dirty = true;
     }
 
@@ -346,7 +351,12 @@ class TickChart {
 
     _onMouseMove(e) {
         const r = this.canvas.getBoundingClientRect();
-        this._mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
+        const mx = e.clientX - r.left, my = e.clientY - r.top;
+        // Only mark dirty if mouse actually moved (avoids redundant redraws)
+        if (!this._mouse || Math.abs(this._mouse.x - mx) > 0.5 || Math.abs(this._mouse.y - my) > 0.5) {
+            this._mouse = { x: mx, y: my };
+            this._dirty = true;
+        }
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
             const spacing = this._barSpacing || this._pxPerTick || 2;
@@ -355,12 +365,12 @@ class TickChart {
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
             this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - dx / spacing));
             this.canvas.style.cursor = 'grabbing';
+            this._dirty = true;
             // Load more history when near left edge
             if (this._scrollOffset >= maxOffset - visibleCount * 0.3) {
                 this._loadMoreHistory();
             }
         }
-        this._dirty = true;
     }
 
     _onMouseLeave() {
@@ -402,7 +412,7 @@ class TickChart {
         const mx = e.clientX - r.left;
 
         const factor = e.deltaY > 0 ? 0.88 : 1.14;
-        const minSpacing = Math.max(0.05, chartW / Math.max(this.ticks.length, 100));
+        const minSpacing = Math.max(0.15, chartW / Math.max(this.ticks.length, 100));
         const maxSpacing = chartW / 2;
         const newSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._barSpacing * factor));
 
@@ -470,7 +480,7 @@ class TickChart {
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (this._pinchDist > 0 && this._pinchBarSpacing > 0) {
                 const chartW = (this.W || 600) - TC_PADDING_RIGHT;
-                const minSpacing = Math.max(0.05, chartW / Math.max(this.ticks.length, 100));
+                const minSpacing = Math.max(0.15, chartW / Math.max(this.ticks.length, 100));
                 const maxSpacing = chartW / 2;
                 this._barSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._pinchBarSpacing * (dist / this._pinchDist)));
                 this._dirty = true;
@@ -740,13 +750,34 @@ class TickChart {
         const strokeColor = 'rgba(255,255,255,0.9)';
 
         // Subsample step — skip ticks when density is very high (performance)
+        // Use pixel-based sampling: collapse ticks that map to the same pixel column
         const step = pxPerTick < 0.5 ? Math.ceil(0.8 / pxPerTick) : 1;
 
         // Stroke line (white, no gradient fill)
         ctx.beginPath();
         ctx.moveTo(idxToX(0), priceToY(visible[0].price));
-        for (let i = step; i < visible.length; i += step) {
-            ctx.lineTo(idxToX(i), priceToY(visible[i].price));
+        if (step > 1) {
+            // Stable subsampling: for each pixel-bucket, use min/max to preserve shape
+            for (let i = 1; i < visible.length - 1; i += step) {
+                const end = Math.min(i + step, visible.length - 1);
+                let minI = i, maxI = i;
+                for (let j = i; j < end; j++) {
+                    if (visible[j].price < visible[minI].price) minI = j;
+                    if (visible[j].price > visible[maxI].price) maxI = j;
+                }
+                // Draw min then max (or max then min) in order of appearance
+                if (minI < maxI) {
+                    ctx.lineTo(idxToX(minI), priceToY(visible[minI].price));
+                    ctx.lineTo(idxToX(maxI), priceToY(visible[maxI].price));
+                } else {
+                    ctx.lineTo(idxToX(maxI), priceToY(visible[maxI].price));
+                    ctx.lineTo(idxToX(minI), priceToY(visible[minI].price));
+                }
+            }
+        } else {
+            for (let i = 1; i < visible.length; i++) {
+                ctx.lineTo(idxToX(i), priceToY(visible[i].price));
+            }
         }
         ctx.lineTo(idxToX(visible.length - 1), priceToY(visible[visible.length - 1].price));
         ctx.strokeStyle = strokeColor;

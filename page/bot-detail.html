@@ -7643,7 +7643,7 @@
                 const chartEl = document.getElementById('chart');
                 if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
                 _tickChart = new TickChart(chartEl, { maxTicks: 2000 });
-                _tickChart.onRedraw = redrawRulerFromChart;
+                _tickChart.onRedraw = function() { if (typeof redrawRulerFromChart === 'function') redrawRulerFromChart(); };
                 document.getElementById('chartLoading').style.display = 'flex';
                 document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
                 _tickChart.start(currentSymbol).then(async () => {
