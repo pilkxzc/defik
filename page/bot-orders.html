@@ -581,6 +581,7 @@
                                 <th class="sortable" data-sort="closedAt">Закрито</th>
                                 <th class="sortable" data-sort="symbol">Символ</th>
                                 <th class="sortable" data-sort="side">Сторона</th>
+                                <th class="sortable" data-sort="account">Акаунт</th>
                                 <th class="sortable" data-sort="price">Ціна входу</th>
                                 <th class="sortable" data-sort="quantity">К-сть</th>
                                 <th class="sortable" data-sort="pnl">PnL</th>
@@ -588,7 +589,7 @@
                             </tr>
                         </thead>
                         <tbody id="tradesBody">
-                            <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
+                            <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1067,6 +1068,7 @@
             switch (tradesSortKey) {
                 case 'symbol': return dir * (a.symbol || '').localeCompare(b.symbol || '');
                 case 'side': return dir * (a.side || '').localeCompare(b.side || '');
+                case 'account': va = a.accountIndex ?? -1; vb = b.accountIndex ?? -1; break;
                 case 'price': va = parseFloat(a.price) || 0; vb = parseFloat(b.price) || 0; break;
                 case 'quantity': va = parseFloat(a.quantity) || 0; vb = parseFloat(b.quantity) || 0; break;
                 case 'pnl': va = parseFloat(a.pnl) || 0; vb = parseFloat(b.pnl) || 0; break;
@@ -1078,7 +1080,7 @@
         });
 
         if (trades.length === 0) {
-            body.innerHTML = '<tr><td colspan="10"><div class="empty-state">Угод не знайдено</div></td></tr>';
+            body.innerHTML = '<tr><td colspan="11"><div class="empty-state">Угод не знайдено</div></td></tr>';
             document.getElementById('tradesPagination').innerHTML = '';
             return;
         }
@@ -1117,6 +1119,7 @@
                 <td style="color:var(--text-tertiary);font-size:11px;white-space:nowrap;">${fmtD(closeDt)}</td>
                 <td class="mono">${(t.symbol || '').replace('USDT', '')}</td>
                 <td><span class="${isBuy ? 'badge-long' : 'badge-short'}">${t.side || t.positionSide || ''}</span></td>
+                <td>${t.accountKey && t.accountIndex >= 0 ? `<span style="font-size:10px;font-weight:700;color:${_accColors[t.accountIndex % _accColors.length]};font-family:'JetBrains Mono',monospace;">a${t.accountIndex}</span>` : '\u2014'}</td>
                 <td class="mono">$${fmtPrice(t.price)}</td>
                 <td class="mono">${parseFloat(t.quantity || 0).toFixed(4)}</td>
                 <td class="mono ${pnlCls}" style="font-weight:700;">${pnlStr}</td>
@@ -1175,6 +1178,8 @@
             const exitPrice = closeDt && entryPrice > 0 && qty > 0 ? entryPrice + pnl / qty : 0;
             const movePercent = entryPrice > 0 && exitPrice > 0 ? 100 * (exitPrice - entryPrice) / entryPrice : 0;
             const acc = guessTradeAccount(t);
+            t.accountKey = acc?.key || null;
+            t.accountIndex = acc?.idx ?? -1;
             positions.push({
                 symbol: t.symbol, side: t.side || t.positionSide,
                 entryPrice, exitPrice, quantity: qty,
@@ -1187,6 +1192,8 @@
         });
         open.forEach(t => {
             const acc = guessTradeAccount(t);
+            t.accountKey = acc?.key || null;
+            t.accountIndex = acc?.idx ?? -1;
             positions.push({
                 symbol: t.symbol, side: t.side || t.positionSide,
                 entryPrice: parseFloat(t.price) || 0, exitPrice: 0,

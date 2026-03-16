@@ -10,6 +10,28 @@
  *   tc.destroy();
  */
 
+// roundRect polyfill for older browsers
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+        let r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+        if (r < 0) r = 0;
+        if (r > w / 2) r = w / 2;
+        if (r > h / 2) r = h / 2;
+        this.beginPath();
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);
+        this.arcTo(x + w, y, x + w, y + r, r);
+        this.lineTo(x + w, y + h - r);
+        this.arcTo(x + w, y + h, x + w - r, y + h, r);
+        this.lineTo(x + r, y + h);
+        this.arcTo(x, y + h, x, y + h - r, r);
+        this.lineTo(x, y + r);
+        this.arcTo(x, y, x + r, y, r);
+        this.closePath();
+        return this;
+    };
+}
+
 // Layout constants
 const TC_PADDING_RIGHT  = 70;
 const TC_PADDING_TOP    = 12;

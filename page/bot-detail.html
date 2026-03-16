@@ -6916,6 +6916,10 @@
                     }
                 }
 
+                // URL ?symbol= parameter takes priority
+                const _urlSymParam = new URLSearchParams(window.location.search).get('symbol');
+                if (_urlSymParam) detectedSymbol = _urlSymParam.toUpperCase();
+
                 currentSymbol = detectedSymbol;
                 document.getElementById('symbolSearchInput').value = currentSymbol;
                 const _symEl2 = document.getElementById('currentSymbol');
@@ -8389,7 +8393,7 @@
                 const borderColor = pos.side === 'LONG' ? 'var(--color-long)' : 'var(--color-short)';
                 const accBadge = isMultiAcc && pos.accIdx !== undefined ? `<span style="font-size:8px;font-weight:700;color:${_ordAccColors[pos.accIdx % _ordAccColors.length]};font-family:'JetBrains Mono',monospace;">a${pos.accIdx}</span>` : '';
                 return `
-                    <div class="order-item order-clickable" data-price="${pos.entryPrice}" style="border-left: 3px solid ${borderColor}; padding-left: 8px; margin-bottom: 4px; cursor:pointer;">
+                    <div class="order-item order-clickable" data-price="${pos.entryPrice}" data-side="${pos.side}" style="border-left: 3px solid ${borderColor}; padding-left: 8px; margin-bottom: 4px; cursor:pointer;">
                         <span class="order-side ${pos.side.toLowerCase()}">${pos.side}</span>
                         <span class="order-price">$${formatPrice(pos.entryPrice)}</span>
                         <span class="order-qty">${pos.quantity || pos.positionAmt || ''}</span>
@@ -8482,7 +8486,7 @@
             const typeColor = o.type === 'LIMIT' ? 'var(--color-limit)' : o.type === 'STOP' ? 'var(--color-stop)' : 'var(--color-tp)';
             const orderPrice = o.stopPrice || o.price;
             const accBadge = isMultiAcc && o.accIdx !== undefined ? `<span style="font-size:8px;font-weight:700;color:${_ordAccColors[o.accIdx % _ordAccColors.length]};font-family:'JetBrains Mono',monospace;">a${o.accIdx}</span>` : '';
-            return `<div class="order-item order-clickable" data-price="${orderPrice}" data-time="${o.time || ''}" style="cursor:pointer;">
+            return `<div class="order-item order-clickable" data-price="${orderPrice}" data-side="${o.side}" data-time="${o.time || ''}" style="cursor:pointer;">
                 <span class="order-side ${o.side.toLowerCase()}">${o.side}</span>
                 <span class="order-price">$${formatPrice(orderPrice)}</span>
                 <span class="order-qty">${o.quantity}</span>
