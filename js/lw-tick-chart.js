@@ -71,6 +71,7 @@ class LWTickChart {
         this._priceLines = []; // active price line objects
         this._crosshairPos = null; // {time, price, x, y}
         this._userScrolled = false;
+        this.autoScrollLocked = false; // when true, _userScrolled stays true (free scroll mode)
 
         // Drawing tools
         this._drawings = [];       // completed drawings
@@ -186,11 +187,35 @@ class LWTickChart {
         });
 
         // Track user scroll
+        this._snapbackHintShown = false;
+        this._snapbackDragStart = null;
         this._chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+            if (this.autoScrollLocked) {
+                this._userScrolled = true;
+                return;
+            }
             if (range && this._lwData.length > 0) {
                 const rightEdge = range.to;
                 const dataLen = this._lwData.length;
+                const wasScrolled = this._userScrolled;
                 this._userScrolled = rightEdge < dataLen - 3;
+                // Detect user dragging away from live edge
+                if (this._userScrolled && !wasScrolled) {
+                    this._snapbackDragStart = Date.now();
+                }
+                // Detect snap-back: user was scrolled, now snapped back to live
+                if (wasScrolled && !this._userScrolled && this._snapbackDragStart) {
+                    const dragDuration = Date.now() - this._snapbackDragStart;
+                    this._snapbackDragStart = null;
+                    // Show hint only if user actually dragged (not just a tiny scroll)
+                    // and hint hasn't been shown recently
+                    if (dragDuration > 300 && !this._snapbackHintShown) {
+                        this._snapbackHintShown = true;
+                        this._showSnapbackHint();
+                        // Allow showing again after 60s
+                        setTimeout(() => { this._snapbackHintShown = false; }, 60000);
+                    }
+                }
             }
         });
 
@@ -1014,6 +1039,58 @@ class LWTickChart {
         if (price >= 1) return 4;
         if (price >= 0.01) return 6;
         return 8;
+    }
+
+    // ── Snap-back hint ────────────────────────────────────────────────────────
+    _showSnapbackHint() {
+        // Pulse the Live button
+        var btn = document.getElementById('tickAutoScrollBtn');
+        if (btn) {
+            btn.style.transition = 'none';
+            btn.style.boxShadow = '0 0 0 0 rgba(16,185,129,0.7)';
+            requestAnimationFrame(function() {
+                btn.style.transition = 'box-shadow 0.6s ease-out';
+                btn.style.boxShadow = '0 0 12px 4px rgba(16,185,129,0.5)';
+                setTimeout(function() { btn.style.boxShadow = ''; btn.style.transition = ''; }, 2000);
+            });
+        }
+
+        // Show toast hint
+        var existing = document.getElementById('_tickScrollHint');
+        if (existing) existing.remove();
+
+        var hint = document.createElement('div');
+        hint.id = '_tickScrollHint';
+        hint.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10000;' +
+            'background:rgba(20,20,20,0.95);border:1px solid rgba(16,185,129,0.3);border-radius:12px;' +
+            'padding:10px 16px;display:flex;align-items:center;gap:10px;backdrop-filter:blur(12px);' +
+            'box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:_hintIn 0.3s ease-out;max-width:90vw;';
+        hint.innerHTML =
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2">' +
+                '<circle cx="12" cy="12" r="3" fill="#10B981"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>' +
+            '</svg>' +
+            '<span style="font-size:12px;color:#e0e0e0;line-height:1.4;">' +
+                'Натисніть <b style="color:#10B981;cursor:pointer;" onclick="toggleTickAutoScroll()">Live</b>' +
+                ' щоб вимкнути магніт і вільно рухати графік' +
+            '</span>' +
+            '<button onclick="this.parentElement.remove()" style="background:none;border:none;color:#636363;cursor:pointer;font-size:16px;padding:0 0 0 4px;line-height:1;">&times;</button>';
+
+        // Add animation keyframes if not exists
+        if (!document.getElementById('_hintAnimStyle')) {
+            var style = document.createElement('style');
+            style.id = '_hintAnimStyle';
+            style.textContent = '@keyframes _hintIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(hint);
+        setTimeout(function() {
+            if (hint.parentNode) {
+                hint.style.transition = 'opacity 0.4s';
+                hint.style.opacity = '0';
+                setTimeout(function() { if (hint.parentNode) hint.remove(); }, 400);
+            }
+        }, 5000);
     }
 
     // ── Cleanup ──────────────────────────────────────────────────────────────

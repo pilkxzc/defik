@@ -3188,6 +3188,11 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
                 <div class="ind-sep"></div>
+                <!-- Auto-scroll toggle (tick chart only) -->
+                <button class="ind-btn active" id="tickAutoScrollBtn" onclick="toggleTickAutoScroll()" title="Слідкувати за поточною ціною (вимкніть щоб вільно рухати графік)" style="display:none;">
+                    <svg id="tickAutoScrollIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+                    <span id="tickAutoScrollLabel">Live</span>
+                </button>
                 <!-- WS Status -->
                 <div class="ws-status" style="margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);white-space:nowrap;">
                     <div class="ws-status-dot" id="wsStatusDot"></div>
@@ -9305,6 +9310,7 @@
                 markersLoaded = false;
                 lastMarkersKey = '';
                 klinesData = [];
+                updateTickAutoScrollBtn();
                 loadKlines();
             });
         });
@@ -10229,6 +10235,46 @@
         }
 
         init();
+
+    // ── Tick chart auto-scroll toggle ──────────────────────────────────────
+    var _tickAutoScroll = true;
+
+    function toggleTickAutoScroll() {
+        _tickAutoScroll = !_tickAutoScroll;
+        var btn = document.getElementById('tickAutoScrollBtn');
+        var label = document.getElementById('tickAutoScrollLabel');
+        if (_tickAutoScroll) {
+            btn.classList.add('active');
+            label.textContent = 'Live';
+            // Re-enable auto-scroll on tick chart
+            if (_tickChart) {
+                _tickChart.autoScrollLocked = false;
+                _tickChart._userScrolled = false;
+                _tickChart._chart && _tickChart._chart.timeScale().scrollToRealTime();
+            }
+        } else {
+            btn.classList.remove('active');
+            label.textContent = 'Вільно';
+            // Lock scroll — chart won't jump to live price
+            if (_tickChart) {
+                _tickChart.autoScrollLocked = true;
+                _tickChart._userScrolled = true;
+            }
+        }
+    }
+
+    function updateTickAutoScrollBtn() {
+        var btn = document.getElementById('tickAutoScrollBtn');
+        if (!btn) return;
+        var isTick = TICK_TFS.has(currentInterval);
+        btn.style.display = isTick ? '' : 'none';
+        if (isTick) {
+            // Reset to live mode when switching to tick chart
+            _tickAutoScroll = true;
+            btn.classList.add('active');
+            document.getElementById('tickAutoScrollLabel').textContent = 'Live';
+        }
+    }
 
     // Sub-tf dropdown toggle
     function toggleSubTfMenu() {
