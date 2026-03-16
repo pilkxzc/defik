@@ -8460,12 +8460,14 @@
                 }
                 if (displaySettings.stops) {
                     (data.stopOrders || []).forEach(o => {
+                        if (!o.stopPrice || o.stopPrice <= 0) return; // skip trailing stops with no price
                         const isBuy = o.side === 'BUY';
                         const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
+                        const typeLabel = o.type === 'STOP_MARKET' ? 'SL' : o.type === 'TRAILING_STOP_MARKET' ? 'TSL' : 'Stop';
                         lines.push({
                             price: o.stopPrice,
                             color: _isTick ? '#F97316' : userTheme.colors.stop,
-                            label: (isBuy ? 'Stop Buy' : 'Stop Sell') + accLabel,
+                            label: typeLabel + ' ' + (isBuy ? 'Buy' : 'Sell') + accLabel,
                             dash: [4, 4],
                             type: 'stop',
                         });
@@ -8473,11 +8475,13 @@
                 }
                 if (displaySettings.tps) {
                     (data.takeProfitOrders || []).forEach(o => {
+                        if (!o.stopPrice || o.stopPrice <= 0) return; // skip if no price
                         const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
+                        const typeLabel = o.type === 'TAKE_PROFIT_MARKET' ? 'TP' : 'TP Limit';
                         lines.push({
                             price: o.stopPrice,
                             color: _isTick ? '#34D399' : userTheme.colors.tp,
-                            label: 'TP' + accLabel,
+                            label: typeLabel + accLabel,
                             dash: [4, 4],
                             type: 'tp',
                         });

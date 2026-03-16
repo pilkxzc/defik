@@ -138,6 +138,7 @@ class LWTickChart {
                 rightOffset: 5,
                 barSpacing: 3,
                 minBarSpacing: 0.5,
+                shiftVisibleRangeOnNewBar: true,
             },
             localization: {
                 timeFormatter: function(ts) {
@@ -227,12 +228,13 @@ class LWTickChart {
                     this._loadOlderHistory();
                 }
 
-                // ── Downsampling: simplify when zoomed out too far ──
+                // ── Downsampling: simplify when zoomed out too far (debounced) ──
                 const visibleCount = Math.floor(rightEdge - leftEdge);
+                if (this._dsDebounce) clearTimeout(this._dsDebounce);
                 if (visibleCount > LW_DOWNSAMPLE_THRESHOLD && !this._isDownsampled) {
-                    this._applyDownsample(visibleCount);
+                    this._dsDebounce = setTimeout(() => { this._applyDownsample(visibleCount); }, 200);
                 } else if (visibleCount <= LW_DOWNSAMPLE_THRESHOLD && this._isDownsampled) {
-                    this._removeDownsample();
+                    this._dsDebounce = setTimeout(() => { this._removeDownsample(); }, 200);
                 }
 
                 // Detect user dragging away from live edge
@@ -433,9 +435,9 @@ class LWTickChart {
             if (this._isDownsampled) this._isDownsampled = false;
         }
 
-        // Auto-scroll to latest if user hasn't manually scrolled away
+        // Auto-scroll: keep right edge pinned without animation jerk
         if (!this._userScrolled && this._chart) {
-            this._chart.timeScale().scrollToRealTime();
+            this._chart.timeScale().scrollToPosition(5, false); // false = no animation
         }
 
         if (typeof this.onRedraw === 'function') this.onRedraw();
