@@ -33,6 +33,10 @@ async function createApp() {
     // 2. Initialize database
     await initDatabase();
 
+    // 2b. Encrypt any plaintext API keys in the database
+    const { migrateEncryptKeys } = require('./utils/crypto');
+    await migrateEncryptKeys();
+
     // 3. Express app
     const app = express();
 

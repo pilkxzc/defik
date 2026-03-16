@@ -515,16 +515,16 @@ async function loadTelegramUsers() {
                                 </svg>
                             </div>
                             <div>
-                                <div style="font-weight: 600; font-size: 14px;">${user.fullName}</div>
-                                <div style="font-size: 12px; color: var(--text-tertiary);">${user.email}</div>
+                                <div style="font-weight: 600; font-size: 14px;">${escapeHtml(user.fullName)}</div>
+                                <div style="font-size: 12px; color: var(--text-tertiary);">${escapeHtml(user.email)}</div>
                             </div>
                         </div>
                         <div style="text-align: right;">
                             <div style="font-size: 13px; color: #0088cc; font-weight: 600;">
-                                ${user.telegramUsername ? '@' + user.telegramUsername : 'No username'}
+                                ${user.telegramUsername ? '@' + escapeHtml(user.telegramUsername) : 'No username'}
                             </div>
                             <div style="font-size: 11px; color: var(--text-tertiary);">
-                                ID: ${user.telegramId}
+                                ID: ${escapeHtml(String(user.telegramId))}
                             </div>
                         </div>
                     </div>
@@ -580,13 +580,13 @@ async function loadUsers() {
                     <div style="font-size: 13px;">Demo: ${formatCurrency(user.demoBalance)}</div>
                     <div style="font-size: 11px; color: var(--text-tertiary);">Real: ${formatCurrency(user.realBalance)}</div>
                 </div>
-                <div><span class="role-badge ${user.role}">${user.role}</span></div>
+                <div><span class="role-badge ${escapeHtml(user.role)}">${escapeHtml(user.role)}</span></div>
                 <div><span class="status-badge ${user.isBanned ? 'banned' : 'active'}">${user.isBanned ? 'Banned' : 'Active'}</span></div>
                 <div class="actions-cell">
-                    <button class="action-btn secondary" onclick="openEditModal(${user.id})">Edit</button>
+                    <button class="action-btn secondary" onclick="openEditModal(${parseInt(user.id)})">Edit</button>
                     ${user.isBanned
-                        ? `<button class="action-btn success" onclick="unbanUser(${user.id})">Unban</button>`
-                        : `<button class="action-btn danger" onclick="openBanModal(${user.id})">Ban</button>`
+                        ? `<button class="action-btn success" onclick="unbanUser(${parseInt(user.id)})">Unban</button>`
+                        : `<button class="action-btn danger" onclick="openBanModal(${parseInt(user.id)})">Ban</button>`
                     }
                 </div>
             `;
@@ -822,10 +822,10 @@ async function loadTransactions() {
                     <span class="user-name">${escapeHtml(tx.userName || 'N/A')}</span>
                     <span class="user-email">${escapeHtml(tx.userEmail)}</span>
                 </div>
-                <div><span class="status-badge ${tx.type === 'buy' ? 'active' : 'inactive'}">${tx.type}</span></div>
-                <div>${tx.currency}</div>
+                <div><span class="status-badge ${tx.type === 'buy' ? 'active' : 'inactive'}">${escapeHtml(tx.type)}</span></div>
+                <div>${escapeHtml(tx.currency)}</div>
                 <div>${tx.amount?.toFixed(6) || '0'}</div>
-                <div><span class="status-badge ${tx.status === 'completed' ? 'active' : 'inactive'}">${tx.status}</span></div>
+                <div><span class="status-badge ${tx.status === 'completed' ? 'active' : 'inactive'}">${escapeHtml(tx.status)}</span></div>
                 <div style="font-size: 12px; color: var(--text-tertiary);">${formatDate(tx.createdAt)}</div>
             `;
             tableBody.appendChild(row);
@@ -887,8 +887,8 @@ async function loadBots() {
                     <span class="user-name">${escapeHtml(bot.userName || 'N/A')}</span>
                     <span class="user-email">${escapeHtml(bot.userEmail)}</span>
                 </div>
-                <div>${bot.type}</div>
-                <div>${bot.pair}</div>
+                <div>${escapeHtml(bot.type)}</div>
+                <div>${escapeHtml(bot.pair)}</div>
                 <div class="${bot.profit >= 0 ? 'up' : 'down'}">${bot.profit >= 0 ? '+' : ''}${bot.profit?.toFixed(2) || 0}%</div>
                 <div><span class="status-badge ${bot.isActive ? 'active' : 'inactive'}">${bot.isActive ? 'Active' : 'Stopped'}</span></div>
                 <div class="actions-cell">
@@ -997,17 +997,18 @@ async function loadCategories() {
         }
         list.innerHTML = categories.map(c => {
             const iconSvg = ADMIN_CAT_ICONS[c.icon] || ADMIN_CAT_ICONS['folder'];
+            const safeColor = /^#[0-9A-Fa-f]{3,8}$/.test(c.color) ? c.color : '#888';
             return `
             <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
                 background:var(--surface-secondary);border-radius:10px;
-                border-left:3px solid ${c.color};">
-                <span style="color:${c.color};display:flex;align-items:center;">${iconSvg}</span>
+                border-left:3px solid ${safeColor};">
+                <span style="color:${safeColor};display:flex;align-items:center;">${iconSvg}</span>
                 <span style="font-weight:700;color:#fff;flex:1;">${escapeHtml(c.name)}</span>
                 <span style="font-size:10px;font-weight:700;color:var(--text-tertiary);
                     background:rgba(255,255,255,0.06);padding:2px 7px;border-radius:10px;">#${c.sort_order}</span>
                 <span style="font-size:11px;font-weight:600;color:${c.is_visible ? '#10B981' : '#6B7280'};">
                     ${c.is_visible ? 'Видима' : 'Прихована'}</span>
-                <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0;"></span>
+                <span style="width:10px;height:10px;border-radius:50%;background:${safeColor};flex-shrink:0;"></span>
                 <button class="action-btn secondary" style="padding:6px 10px;" onclick="editCat(${c.id})">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
@@ -1167,7 +1168,7 @@ async function loadAuditLogs() {
                 </div>
                 <div><span class="status-badge ${getActionClass(log.action)}">${formatAction(log.action)}</span></div>
                 <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(log.details || '-')}</div>
-                <div style="font-size: 12px; color: var(--text-tertiary);">${log.ipAddress || '-'}</div>
+                <div style="font-size: 12px; color: var(--text-tertiary);">${escapeHtml(log.ipAddress || '-')}</div>
             `;
             tableBody.appendChild(row);
         });
@@ -1332,7 +1333,7 @@ async function loadNews() {
             row.innerHTML = `
                 <div>${news.id}</div>
                 <div style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(news.title)}</div>
-                <div><span class="category-badge ${news.category}">${news.category}</span></div>
+                <div><span class="category-badge ${escapeHtml(news.category)}">${escapeHtml(news.category)}</span></div>
                 <div><span class="status-badge ${news.isPublished ? 'active' : 'inactive'}">${news.isPublished ? 'Published' : 'Draft'}</span></div>
                 <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(news.authorName || 'Unknown')}</div>
                 <div style="font-size: 12px; color: var(--text-tertiary);">${formatDate(news.createdAt)}</div>
@@ -1564,11 +1565,11 @@ async function loadSubscriptions() {
                 <div style="font-size: 12px; color: var(--text-secondary);">${expiresText}</div>
                 <div><span class="status-badge ${statusClass}">${statusText}</span></div>
                 <div class="actions-cell">
-                    <button class="action-btn primary" onclick="openSubscriptionModal(${user.id}, '${escapeHtml(user.fullName || user.email)}', '${user.subscriptionPlan}')">
+                    <button class="action-btn primary" onclick="openSubscriptionModal(${parseInt(user.id)}, '${escapeHtml(user.fullName || user.email)}', '${escapeHtml(user.subscriptionPlan)}')">
                         ${user.subscriptionPlan === 'free' ? 'Grant' : 'Edit'}
                     </button>
                     ${user.subscriptionPlan !== 'free' ? `
-                        <button class="action-btn danger" onclick="openRevokeSubscriptionModal(${user.id}, '${escapeHtml(user.fullName || user.email)}', '${user.subscriptionPlan}')">Revoke</button>
+                        <button class="action-btn danger" onclick="openRevokeSubscriptionModal(${parseInt(user.id)}, '${escapeHtml(user.fullName || user.email)}', '${escapeHtml(user.subscriptionPlan)}')">Revoke</button>
                     ` : ''}
                 </div>
             `;
@@ -2929,9 +2930,9 @@ async function loadTableData(tableName, page = 1) {
             <tr>
                 ${data.columns.map(col => `
                     <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; cursor: pointer; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.05);"
-                        onclick="sortTable('${col.name}')" data-column="${col.name}">
-                        ${col.name}
-                        ${dbSortBy === col.name ? (dbSortOrder === 'ASC' ? ' ↑' : ' ↓') : ''}
+                        onclick="sortTable('${escapeHtml(col.name)}')" data-column="${escapeHtml(col.name)}">
+                        ${escapeHtml(col.name)}
+                        ${dbSortBy === col.name ? (dbSortOrder === 'ASC' ? ' &#8593;' : ' &#8595;') : ''}
                     </th>
                 `).join('')}
                 <th style="padding: 12px 16px; text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.05); width: 100px;">Actions</th>
@@ -2946,7 +2947,7 @@ async function loadTableData(tableName, page = 1) {
             tbody.innerHTML = data.rows.map(row => `
                 <tr data-id="${row.id}" style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                     ${data.columns.map(col => `
-                        <td class="editable-cell" data-column="${col.name}" data-original="${escapeHtml(String(row[col.name] ?? ''))}"
+                        <td class="editable-cell" data-column="${escapeHtml(col.name)}" data-original="${escapeHtml(String(row[col.name] ?? ''))}"
                             style="padding: 10px 16px; font-size: 13px; color: ${col.name === 'id' ? 'var(--text-tertiary)' : 'white'}; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
                             ${col.name !== 'id' && col.name !== 'created_at' ? 'ondblclick="startEditCell(this)"' : ''}
                             title="${escapeHtml(String(row[col.name] ?? ''))}"
@@ -4272,8 +4273,8 @@ async function loadBackupHistory() {
             const statusColor = last.status === 'success' ? '#10B981' : last.status === 'failed' ? '#EF4444' : '#F59E0B';
             const size = last.size_bytes ? Math.round(last.size_bytes / 1024 / 1024 * 10) / 10 + ' MB' : '—';
             const date = last.created_at ? new Date(last.created_at).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
-            const errMsg = last.status === 'failed' && last.error_message ? `<div style="color:#EF4444;font-size:11px;margin-top:4px;">${last.error_message}</div>` : '';
-            lastInfo.innerHTML = `<span style="color:${statusColor};font-weight:700;">${statusIcon}</span> ${date} &middot; ${size} &middot; ${last.triggered_by || 'manual'}${errMsg}`;
+            const errMsg = last.status === 'failed' && last.error_message ? `<div style="color:#EF4444;font-size:11px;margin-top:4px;">${escapeHtml(last.error_message)}</div>` : '';
+            lastInfo.innerHTML = `<span style="color:${statusColor};font-weight:700;">${statusIcon}</span> ${date} &middot; ${size} &middot; ${escapeHtml(last.triggered_by || 'manual')}${errMsg}`;
         } else if (lastInfo) {
             lastInfo.textContent = 'Бекапів ще не було';
         }
@@ -4298,10 +4299,10 @@ async function loadBackupHistory() {
                     ${status}
                     <div>
                         <div style="font-weight: 600; color: var(--text-primary);">${date}</div>
-                        <div style="color: var(--text-tertiary); font-size: 10px;">${b.triggered_by || 'manual'} &middot; ${size}</div>
+                        <div style="color: var(--text-tertiary); font-size: 10px;">${escapeHtml(b.triggered_by || 'manual')} &middot; ${size}</div>
                     </div>
                 </div>
-                ${b.status === 'failed' ? `<span style="color:#EF4444;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(b.error_message||'').replace(/"/g,'&quot;')}">${b.error_message || ''}</span>` : ''}
+                ${b.status === 'failed' ? `<span style="color:#EF4444;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.error_message || '')}">${escapeHtml(b.error_message || '')}</span>` : ''}
             </div>`;
         }).join('');
     } catch (e) {
@@ -4458,7 +4459,7 @@ async function loadDriveFiles() {
         const res = await fetch('/api/admin/backup/drive-files');
         if (!res.ok) {
             const err = await res.json();
-            container.innerHTML = `<div style="text-align: center; color: #EF4444; padding: 16px; font-size: 13px;">${err.error || 'Помилка'}</div>`;
+            container.innerHTML = `<div style="text-align: center; color: #EF4444; padding: 16px; font-size: 13px;">${escapeHtml(err.error || 'Помилка')}</div>`;
             return;
         }
         const files = await res.json();
@@ -4473,10 +4474,10 @@ async function loadDriveFiles() {
             const date = f.createdTime ? new Date(f.createdTime).toLocaleString('uk-UA') : '—';
             return `<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px;">
                 <div>
-                    <div style="font-weight: 600; margin-bottom: 2px;">${f.name}</div>
+                    <div style="font-weight: 600; margin-bottom: 2px;">${escapeHtml(f.name)}</div>
                     <div style="color: var(--text-tertiary); font-size: 11px;">${date} · ${size}</div>
                 </div>
-                <button onclick="restoreFromDrive('${f.id}', '${f.name}')" style="padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #F59E0B; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Відновити</button>
+                <button onclick="restoreFromDrive('${escapeHtml(f.id)}', '${escapeHtml(f.name)}')" style="padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #F59E0B; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Відновити</button>
             </div>`;
         }).join('');
     } catch (e) {
@@ -4571,16 +4572,16 @@ async function scanDriveBackups() {
             const date = f.createdTime ? new Date(f.createdTime).toLocaleString('uk-UA', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
             return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${f.name}">${f.name}</div>
+                    <div style="font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
                     <div style="color:var(--text-tertiary);font-size:10px;">${date} &middot; ${sizeKb} KB</div>
                 </div>
-                <button onclick="restoreFromDriveUrl('${f.downloadUrl}', '${f.name.replace(/'/g, "\\'")}')" class="action-btn primary" style="padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;margin-left:8px;white-space:nowrap;">
+                <button onclick="restoreFromDriveUrl('${escapeHtml(f.downloadUrl)}', '${escapeHtml(f.name)}')" class="action-btn primary" style="padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;margin-left:8px;white-space:nowrap;">
                     Відновити
                 </button>
             </div>`;
         }).join('');
     } catch (e) {
-        list.innerHTML = `<div style="text-align:center;padding:12px;color:#EF4444;font-size:12px;">${e.message}</div>`;
+        list.innerHTML = `<div style="text-align:center;padding:12px;color:#EF4444;font-size:12px;">${escapeHtml(e.message)}</div>`;
     } finally {
         btn.disabled = false;
         btn.textContent = 'Сканувати';

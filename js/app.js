@@ -163,10 +163,11 @@ function showToast(type, title, message, duration = 5000, icon = null) {
     const container = document.getElementById('toastContainer');
 
     // Use SVG icons
-    const iconHtml = icon ? `<span style="font-size: 18px;">${icon}</span>` : (notificationIcons[type] || notificationIcons.info);
+    const iconHtml = icon ? `<span style="font-size: 18px;">${escapeHtml(icon)}</span>` : (notificationIcons[type] || notificationIcons.info);
 
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
+    const safeType = /^[a-z]+$/.test(type) ? type : 'info';
+    toast.className = `toast toast-${safeType}`;
     toast.style.position = 'relative';
     toast.innerHTML = `
         <div class="toast-icon">${iconHtml}</div>
