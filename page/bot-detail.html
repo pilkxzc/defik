@@ -4585,6 +4585,7 @@
             document.getElementById('statsPeriodLabel').textContent = label;
             document.getElementById('statsPeriodDropdown').style.display = 'none';
             updateStatsPanelKPIs();
+            drawEquityCurve();
         }
         function updateStatsPanelKPIs() {
             // If "Усі" and no local trades loaded yet, keep server-provided values
@@ -10445,19 +10446,23 @@
             const H = wrap ? wrap.clientHeight - 4 : 70;
             svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-            const now = Date.now();
-            const filtered = [...allEquityTrades]
-                .filter(t => !equityPeriodDays || parseUTC(t.closedAt) >= now - equityPeriodDays * 86400000)
+            // Always show ALL trades on equity curve
+            const allSorted = [...allEquityTrades]
                 .sort((a, b) => parseUTC(a.closedAt) - parseUTC(b.closedAt));
 
-            if (filtered.length < 2) {
-                svg.innerHTML = `<text x="${W/2}" y="${H/2+4}" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="11" font-family="Plus Jakarta Sans,sans-serif">${filtered.length === 0 ? 'Немає даних угод' : 'Потрібно більше угод'}</text>`;
+            if (allSorted.length < 2) {
+                svg.innerHTML = `<text x="${W/2}" y="${H/2+4}" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="11" font-family="Plus Jakarta Sans,sans-serif">${allSorted.length === 0 ? 'Немає даних угод' : 'Потрібно більше угод'}</text>`;
                 return;
             }
 
             let cumPnl = 0;
             const pts = [0];
-            filtered.forEach(t => { cumPnl += parseFloat(t.pnl || 0); pts.push(cumPnl); });
+            const timestamps = [allSorted.length > 0 ? parseUTC(allSorted[0].closedAt) : Date.now()];
+            allSorted.forEach(t => {
+                cumPnl += parseFloat(t.pnl || 0);
+                pts.push(cumPnl);
+                timestamps.push(parseUTC(t.closedAt));
+            });
 
             const pad = 8;
             const minY = Math.min(0, ...pts);
@@ -10479,6 +10484,31 @@
             const labelAnchor = parseFloat(lx) > W - 80 ? 'end' : 'start';
             const labelY = parseFloat(ly) < 16 ? parseFloat(ly) + 14 : parseFloat(ly) - 4;
 
+            // Stats period zone — dashed vertical line + shaded area for selected period
+            let periodSvg = '';
+            const tfObj = statsTimeframes.find(t => t.value === _statsPanelTf);
+            if (tfObj && tfObj.ms > 0 && timestamps.length > 1) {
+                const periodStart = Date.now() - tfObj.ms;
+                // Find the index where the period starts
+                let cutIdx = -1;
+                for (let i = 0; i < timestamps.length; i++) {
+                    if (timestamps[i] >= periodStart) { cutIdx = i; break; }
+                }
+                if (cutIdx > 0 && cutIdx < pts.length - 1) {
+                    // Interpolate exact X position
+                    const frac = timestamps[cutIdx - 1] < periodStart
+                        ? (periodStart - timestamps[cutIdx - 1]) / (timestamps[cutIdx] - timestamps[cutIdx - 1])
+                        : 0;
+                    const cutX = svgX(cutIdx - 1 + frac).toFixed(1);
+                    // Shaded zone from cutX to end
+                    periodSvg = `
+                        <rect x="${cutX}" y="0" width="${(W - parseFloat(cutX)).toFixed(1)}" height="${H}" fill="rgba(16,185,129,0.06)"/>
+                        <line x1="${cutX}" y1="0" x2="${cutX}" y2="${H}" stroke="rgba(16,185,129,0.4)" stroke-width="1" stroke-dasharray="4,3"/>
+                        <text x="${parseFloat(cutX) + 4}" y="9" fill="rgba(16,185,129,0.6)" font-size="8" font-family="Plus Jakarta Sans,sans-serif">${tfObj.label}</text>
+                    `;
+                }
+            }
+
             svg.innerHTML = `
                 <defs>
                     <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
@@ -10488,9 +10518,10 @@
                 </defs>
                 <line x1="0" y1="${baseY}" x2="${W}" y2="${baseY}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
                 <path d="${areaD}" fill="url(#${gradId})"/>
+                ${periodSvg}
                 <polyline points="${polyPts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
                 <circle cx="${lx}" cy="${ly}" r="2.5" fill="${color}"/>
-                <text x="${labelX}" y="${labelY}" fill="${color}" font-size="9" font-family="Plus Jakarta Sans,sans-serif" font-weight="700" text-anchor="${labelAnchor}">${sign}$${cumPnl.toFixed(2)}</text>
+                <text x="${labelX}" y="${labelY}" fill="${color}" font-size="9" font-family="Plus Jakarta Sans,sans-serif" font-weight="700" text-anchor="${labelAnchor}">${sign}${fmtPnl(cumPnl)}</text>
             `;
         }
 
