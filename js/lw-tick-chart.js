@@ -426,9 +426,11 @@ class LWTickChart {
             this.ticks.splice(0, excess);
             this._lwData.splice(0, excess);
             this._fullData.splice(0, excess);
-            if (this._series && !this._isDownsampled) this._series.setData(this._lwData);
+            if (this._series) this._series.setData(this._isDownsampled ? this._fullData : this._lwData);
+            this._isDownsampled = false;
         } else {
-            if (this._series && !this._isDownsampled) this._series.update(lwPoint);
+            if (this._series) this._series.update(lwPoint);
+            if (this._isDownsampled) this._isDownsampled = false;
         }
 
         // Auto-scroll to latest if user hasn't manually scrolled away
@@ -523,7 +525,9 @@ class LWTickChart {
 
     _findNearestLwTime(timeMs) {
         if (this._lwData.length === 0) return null;
-        const targetSec = timeMs / 1000;
+        // Add same tz offset that _msToUnique uses so we search in the same space
+        const tzOffsetSec = -(new Date().getTimezoneOffset()) * 60;
+        const targetSec = (timeMs / 1000) + tzOffsetSec;
 
         // Binary search for nearest
         let lo = 0, hi = this._lwData.length - 1;
@@ -698,7 +702,8 @@ class LWTickChart {
     // ── Navigation ───────────────────────────────────────────────────────────
     centerOnTime(timeMs) {
         if (!this._chart || this._lwData.length === 0) return;
-        const targetSec = timeMs / 1000;
+        const tzOffsetSec = -(new Date().getTimezoneOffset()) * 60;
+        const targetSec = (timeMs / 1000) + tzOffsetSec;
 
         // Find index of nearest point
         let bestIdx = 0;
