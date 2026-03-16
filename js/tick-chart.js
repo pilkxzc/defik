@@ -176,7 +176,7 @@ class TickChart {
             }
         }
         // Auto-scroll to latest only if user hasn't intentionally scrolled away
-        if (!this._userScrolled && this._scrollOffset < 3) this._scrollOffset = 0;
+        if (!this._userScrolled && this._scrollOffset <= 1) this._scrollOffset = 0;
         this._dirty = true;
     }
 
@@ -382,9 +382,11 @@ class TickChart {
             this._dirty = true;
             return;
         }
-        // Cursor: ns-resize when hovering Y-axis zone
+        // Cursor: ns-resize when hovering Y-axis zone, pointer on buttons
         if (!this._isDragging) {
-            this.canvas.style.cursor = mx > chartW ? 'ns-resize' : 'crosshair';
+            const onLiveBtn = this._liveBtnRect && mx >= this._liveBtnRect.x && mx <= this._liveBtnRect.x + this._liveBtnRect.w && my >= this._liveBtnRect.y && my <= this._liveBtnRect.y + this._liveBtnRect.h;
+            const onMagnetBtn = this._magnetBtnRect && mx >= this._magnetBtnRect.x && mx <= this._magnetBtnRect.x + this._magnetBtnRect.w && my >= this._magnetBtnRect.y && my <= this._magnetBtnRect.y + this._magnetBtnRect.h;
+            this.canvas.style.cursor = (onLiveBtn || onMagnetBtn) ? 'pointer' : mx > chartW ? 'ns-resize' : 'crosshair';
         }
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
@@ -394,8 +396,7 @@ class TickChart {
             const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
             this._scrollOffset = Math.max(-futureLimit, Math.min(maxOffset, this._dragStartOffset - dx / spacing));
             // Track whether user scrolled away from live edge
-            if (this._scrollOffset > 3) this._userScrolled = true;
-            else if (this._scrollOffset <= 3) this._userScrolled = false;
+            this._userScrolled = this._scrollOffset > 1;
             this.canvas.style.cursor = 'grabbing';
             this._dirty = true;
             // Load more history when near left edge
@@ -449,18 +450,17 @@ class TickChart {
         const absX = Math.abs(e.deltaX);
         const absY = Math.abs(e.deltaY);
 
-        // Horizontal scroll or Shift+scroll → PAN (like klinecharts drag)
+        // Horizontal scroll or Shift+scroll → PAN (matches klinecharts: deltaX>0 = show older)
         if (absX > absY || e.shiftKey) {
             const delta = e.shiftKey ? e.deltaY : e.deltaX;
             const spacing = this._barSpacing || 2;
-            const panTicks = -delta / spacing; // negated: scroll-right gesture → show newer data
+            const panTicks = delta / spacing;
             const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
             const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
             this._scrollOffset = Math.max(-futureLimit, Math.min(maxOffset, this._scrollOffset + panTicks));
             // Track whether user scrolled away from live edge
-            if (this._scrollOffset > 3) this._userScrolled = true;
-            else if (this._scrollOffset <= 3) this._userScrolled = false;
+            this._userScrolled = this._scrollOffset > 1;
             this._dirty = true;
             // Load more history when near left edge
             if (this._scrollOffset >= maxOffset - visibleCount * 0.3) {
@@ -494,7 +494,29 @@ class TickChart {
         if (e.button !== 0) return; // left button only
         const r = this.canvas.getBoundingClientRect();
         const mx = e.clientX - r.left;
+        const my = e.clientY - r.top;
         const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+
+        // "→ LIVE" button click
+        if (this._liveBtnRect) {
+            const b = this._liveBtnRect;
+            if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+                this._scrollOffset = 0;
+                this._userScrolled = false;
+                this._yAutoScale = true;
+                this._dirty = true;
+                return;
+            }
+        }
+        // Magnet toggle button click
+        if (this._magnetBtnRect) {
+            const b = this._magnetBtnRect;
+            if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+                this.magnet = !this.magnet;
+                this._dirty = true;
+                return;
+            }
+        }
 
         // Y-axis drag (price label area)
         if (mx > chartW) {
@@ -583,8 +605,7 @@ class TickChart {
             const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
             this._scrollOffset = Math.max(-futureLimit, Math.min(maxOffset, this._touchStartOffset - dx / spacing));
             // Track whether user scrolled away from live edge
-            if (this._scrollOffset > 3) this._userScrolled = true;
-            else if (this._scrollOffset <= 3) this._userScrolled = false;
+            this._userScrolled = this._scrollOffset > 1;
             const r = this.canvas.getBoundingClientRect();
             this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
             this._dirty = true;
@@ -933,6 +954,47 @@ class TickChart {
             ctx.fill();
         }
 
+        // "→ LIVE" button when scrolled away from live edge
+        if (this._userScrolled) {
+            const btnW = 52, btnH = 20;
+            const btnX = chartW - btnW - 8;
+            const btnY = H - TC_PADDING_BOTTOM - btnH - 8;
+            ctx.fillStyle = 'rgba(16,185,129,0.85)';
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 4);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('► LIVE', btnX + btnW / 2, btnY + 14);
+            // Store for click detection
+            this._liveBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+        } else {
+            this._liveBtnRect = null;
+        }
+
+        // Magnet toggle button (top-right of chart area)
+        {
+            const mBtnW = 24, mBtnH = 20;
+            const mBtnX = chartW - mBtnW - 8;
+            const mBtnY = TC_PADDING_TOP + 4;
+            ctx.fillStyle = this.magnet ? 'rgba(16,185,129,0.7)' : 'rgba(255,255,255,0.08)';
+            ctx.beginPath();
+            ctx.roundRect(mBtnX, mBtnY, mBtnW, mBtnH, 4);
+            ctx.fill();
+            ctx.strokeStyle = this.magnet ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(mBtnX, mBtnY, mBtnW, mBtnH, 4);
+            ctx.stroke();
+            // Magnet icon (simple "U" shape)
+            ctx.fillStyle = this.magnet ? '#fff' : 'rgba(255,255,255,0.5)';
+            ctx.font = 'bold 12px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('⊕', mBtnX + mBtnW / 2, mBtnY + 14.5);
+            this._magnetBtnRect = { x: mBtnX, y: mBtnY, w: mBtnW, h: mBtnH };
+        }
+
         // ── Trade markers ──
         this._hoveredMarker = null;
         // Show all markers — clamp time to visible range so they stay on-screen
@@ -1099,7 +1161,7 @@ class TickChart {
         }
 
         // ── Crosshair ──
-        if (this._mouse && this._mouse.x < chartW && this._mouse.y > TC_PADDING_TOP && this._mouse.y < H - TC_PADDING_BOTTOM && !this._isDragging) {
+        if (this._mouse && this._mouse.x < chartW && this._mouse.y > TC_PADDING_TOP && this._mouse.y < H - TC_PADDING_BOTTOM && !this._isDragging && !this._yDragging) {
             const mx = this._mouse.x;
             const my = this._mouse.y;
 
@@ -1161,27 +1223,28 @@ class TickChart {
                 }
             } else {
                 // Free crosshair: interpolate price/time at cursor position
-                const hoverPrice = minP + ((H - TC_PADDING_BOTTOM - my) / chartH) * (maxP - minP);
-                // Interpolate time from cursor X
                 const tickIdx = mx / pxPerTick;
-                const loIdx = Math.max(0, Math.min(visible.length - 1, Math.floor(tickIdx)));
-                const hiIdx = Math.min(visible.length - 1, loIdx + 1);
-                const frac = tickIdx - loIdx;
-                const interpTime = visible[loIdx].time + (visible[hiIdx].time - visible[loIdx].time) * frac;
-                const d = new Date(interpTime);
-                const timeStr = d.getHours().toString().padStart(2, '0') + ':' +
-                                d.getMinutes().toString().padStart(2, '0') + ':' +
-                                d.getSeconds().toString().padStart(2, '0');
-                // Time label on X-axis
-                const tLblW = 52;
-                ctx.fillStyle = 'rgba(255,255,255,0.08)';
-                ctx.beginPath();
-                ctx.roundRect(mx - tLblW / 2, H - TC_PADDING_BOTTOM + 2, tLblW, 16, 3);
-                ctx.fill();
-                ctx.fillStyle = colors.textSec;
-                ctx.font = '9px -apple-system, monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(timeStr, mx, H - TC_PADDING_BOTTOM + 13);
+                // Only show time label if cursor is within actual data range (not in future empty space)
+                if (tickIdx <= visible.length - 1 + 0.5) {
+                    const loIdx = Math.max(0, Math.min(visible.length - 1, Math.floor(tickIdx)));
+                    const hiIdx = Math.min(visible.length - 1, loIdx + 1);
+                    const frac = Math.max(0, Math.min(1, tickIdx - loIdx));
+                    const interpTime = visible[loIdx].time + (visible[hiIdx].time - visible[loIdx].time) * frac;
+                    const d = new Date(interpTime);
+                    const timeStr = d.getHours().toString().padStart(2, '0') + ':' +
+                                    d.getMinutes().toString().padStart(2, '0') + ':' +
+                                    d.getSeconds().toString().padStart(2, '0');
+                    // Time label on X-axis
+                    const tLblW = 52;
+                    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                    ctx.beginPath();
+                    ctx.roundRect(mx - tLblW / 2, H - TC_PADDING_BOTTOM + 2, tLblW, 16, 3);
+                    ctx.fill();
+                    ctx.fillStyle = colors.textSec;
+                    ctx.font = '9px -apple-system, monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(timeStr, mx, H - TC_PADDING_BOTTOM + 13);
+                }
             }
 
             // Price on Y-axis (always show)
