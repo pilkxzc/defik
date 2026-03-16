@@ -62,6 +62,7 @@ class TickChart {
         this._hoveredMarker = null; // marker under cursor
         this.magnet = false;       // snap crosshair to nearest tick (off by default)
         this._userScrolled = false; // true when user has scrolled away from live edge
+        this._liveBtnRect = null;   // click rect for LIVE button (set in _draw)
 
         // Manual Y-axis control
         this._yAutoScale = true;
@@ -382,11 +383,10 @@ class TickChart {
             this._dirty = true;
             return;
         }
-        // Cursor: ns-resize when hovering Y-axis zone, pointer on buttons
+        // Cursor: ns-resize when hovering Y-axis zone, pointer on LIVE button
         if (!this._isDragging) {
             const onLiveBtn = this._liveBtnRect && mx >= this._liveBtnRect.x && mx <= this._liveBtnRect.x + this._liveBtnRect.w && my >= this._liveBtnRect.y && my <= this._liveBtnRect.y + this._liveBtnRect.h;
-            const onMagnetBtn = this._magnetBtnRect && mx >= this._magnetBtnRect.x && mx <= this._magnetBtnRect.x + this._magnetBtnRect.w && my >= this._magnetBtnRect.y && my <= this._magnetBtnRect.y + this._magnetBtnRect.h;
-            this.canvas.style.cursor = (onLiveBtn || onMagnetBtn) ? 'pointer' : mx > chartW ? 'ns-resize' : 'crosshair';
+            this.canvas.style.cursor = onLiveBtn ? 'pointer' : mx > chartW ? 'ns-resize' : 'crosshair';
         }
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
@@ -414,12 +414,14 @@ class TickChart {
 
     _onWheel(e) {
         e.preventDefault();
+        if (this._isDragging || this._yDragging) return;
         const chartW = (this.W || 600) - TC_PADDING_RIGHT;
 
         // Init barSpacing if needed
-        if (this._barSpacing <= 0) {
-            this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
+        if (!this._barSpacing || this._barSpacing <= 0 || !isFinite(this._barSpacing)) {
+            this._barSpacing = Math.max(0.15, chartW / Math.min(this.ticks.length || 200, 300));
         }
+        if (chartW <= 0) return;
 
         const r = this.canvas.getBoundingClientRect();
         const mx = e.clientX - r.left;
@@ -508,16 +510,6 @@ class TickChart {
                 return;
             }
         }
-        // Magnet toggle button click
-        if (this._magnetBtnRect) {
-            const b = this._magnetBtnRect;
-            if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
-                this.magnet = !this.magnet;
-                this._dirty = true;
-                return;
-            }
-        }
-
         // Y-axis drag (price label area)
         if (mx > chartW) {
             if (this._yAutoScale && this._drawState) {
@@ -971,28 +963,6 @@ class TickChart {
             this._liveBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
         } else {
             this._liveBtnRect = null;
-        }
-
-        // Magnet toggle button (top-right of chart area)
-        {
-            const mBtnW = 24, mBtnH = 20;
-            const mBtnX = chartW - mBtnW - 8;
-            const mBtnY = TC_PADDING_TOP + 4;
-            ctx.fillStyle = this.magnet ? 'rgba(16,185,129,0.7)' : 'rgba(255,255,255,0.08)';
-            ctx.beginPath();
-            ctx.roundRect(mBtnX, mBtnY, mBtnW, mBtnH, 4);
-            ctx.fill();
-            ctx.strokeStyle = this.magnet ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.15)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(mBtnX, mBtnY, mBtnW, mBtnH, 4);
-            ctx.stroke();
-            // Magnet icon (simple "U" shape)
-            ctx.fillStyle = this.magnet ? '#fff' : 'rgba(255,255,255,0.5)';
-            ctx.font = 'bold 12px -apple-system, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('⊕', mBtnX + mBtnW / 2, mBtnY + 14.5);
-            this._magnetBtnRect = { x: mBtnX, y: mBtnY, w: mBtnW, h: mBtnH };
         }
 
         // ── Trade markers ──

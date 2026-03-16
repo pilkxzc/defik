@@ -3147,6 +3147,12 @@
                     Груп.
                 </button>
                 <div class="ind-sep"></div>
+                <!-- Magnet (tick chart snap) -->
+                <button class="ind-btn" id="magnetBtn" onclick="toggleMagnet()" title="Магніт (прив'язка до тіків)" style="display:none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15V9a6 6 0 0 1 12 0v6"/><line x1="6" y1="11" x2="6" y2="15"/><line x1="18" y1="11" x2="18" y2="15"/><rect x="3" y="15" width="6" height="4" rx="1"/><rect x="15" y="15" width="6" height="4" rx="1"/></svg>
+                    Магніт
+                </button>
+                <div class="ind-sep" id="magnetSep" style="display:none;"></div>
                 <!-- Ruler -->
                 <button class="ind-btn ruler-btn" id="rulerBtn" title="Лінійка (вимірювання)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z"/><line x1="14" y1="13" x2="11" y2="10"/><line x1="10.5" y1="16.5" x2="7.5" y2="13.5"/><line x1="17.5" y1="9.5" x2="14.5" y2="6.5"/></svg>
@@ -4288,34 +4294,34 @@
     </div>
 
     <script>
-        const botId = window.location.pathname.split('/').pop();
-        // Set dashboard link
-        const dashLink = document.getElementById('botDashboardLink');
+        // ═══ Shared state (var for cross-script access) ═══
+        var botId = window.location.pathname.split('/').pop();
+        var dashLink = document.getElementById('botDashboardLink');
         if (dashLink) dashLink.href = `/bot-stats/${botId}`;
-        let klChart = null;             // klinecharts chart instance
-        let klWs = null;                // WebSocket for real-time data
-        let klWsGen = 0;                // generation counter for WS reconnects
-        let _tickChart = null;          // TickChart instance for sub-5s
-        const TICK_TFS = new Set(['1s','3s']);
-        let currentSymbol = 'BTCUSDT';
-        let currentInterval = '1m';
-        let _klUserScrolled = false;         // true when user scrolled klinecharts away from live edge
-        let trendOverlayGroup = 'trend-0';   // overlay group for trend lines
-        let trendOverlayIdx = 0;
-        let tradeOverlayGroup = 'trades-0';  // overlay group for trade markers
-        let tradeOverlayIdx = 0;
-        let positionOverlayId = null;        // overlay id for position marker (legacy single)
-        let positionOverlayIds = [];         // overlay ids for all position markers
-        let orderLineOverlays = new Map();   // key → overlay id (price level lines)
-        let highlightOverlayIds = [];        // overlay ids for trade highlight (klinecharts)
-        let _tickBaseLevels = [];            // base levels from drawPriceLines (for tick chart)
-        let _tickHighlightLevels = [];       // highlight levels from highlightTrade (for tick chart)
-        let statsChartOverlayIds = [];       // overlay ids for stats period markers
-        const savedPositionPerInterval = {};
-        let lastMarkersKey = '';
-        let lastKnownPosition = null;
-        let isAdmin = false;
-        let demoMode = false;
+        var klChart = null;             // klinecharts chart instance
+        var klWs = null;                // WebSocket for real-time data
+        var klWsGen = 0;                // generation counter for WS reconnects
+        var _tickChart = null;          // TickChart instance for sub-5s
+        var TICK_TFS = new Set(['1s','3s']);
+        var currentSymbol = 'BTCUSDT';
+        var currentInterval = '1m';
+        var _klUserScrolled = false;         // true when user scrolled klinecharts away from live edge
+        var trendOverlayGroup = 'trend-0';   // overlay group for trend lines
+        var trendOverlayIdx = 0;
+        var tradeOverlayGroup = 'trades-0';  // overlay group for trade markers
+        var tradeOverlayIdx = 0;
+        var positionOverlayId = null;        // overlay id for position marker (legacy single)
+        var positionOverlayIds = [];         // overlay ids for all position markers
+        var orderLineOverlays = new Map();   // key → overlay id (price level lines)
+        var highlightOverlayIds = [];        // overlay ids for trade highlight (klinecharts)
+        var _tickBaseLevels = [];            // base levels from drawPriceLines (for tick chart)
+        var _tickHighlightLevels = [];       // highlight levels from highlightTrade (for tick chart)
+        var statsChartOverlayIds = [];       // overlay ids for stats period markers
+        var savedPositionPerInterval = {};
+        var lastMarkersKey = '';
+        var lastKnownPosition = null;
+        var isAdmin = false;
+        var demoMode = false;
 
         // Fetch that handles 503 gracefully — returns null instead of blocking
         async function fetchSafe(url, opts = {}) {
@@ -4333,26 +4339,32 @@
         }
 
         // klinesData shared for overlay/snap calculations
-        let klinesData = [];
-        let klinesVersion = 0;
-        let oldestTimestamp = null;
-        let lastPrice = 0;
-        let markerTimeMap = {};
-        let markersLoaded = false;
-        let markersLoading = false;
-        let lastRawMarkers = [];
-        const markerVisState = { entryLong: true, exitLong: true, entryShort: true, exitShort: true, grouped: true, trend: true };
-        let _chartLoadGen = 0;
-        let _klResizeObserver = null;
-        let _pendingHighlight = null; // { trade, rowEl, noNavigate } — applied after symbol switch
-
+        var klinesData = [];
+        var klinesVersion = 0;
+        var oldestTimestamp = null;
+        var lastPrice = 0;
+        var markerTimeMap = {};
+        var markersLoaded = false;
+        var markersLoading = false;
+        var lastRawMarkers = [];
+        var markerVisState = { entryLong: true, exitLong: true, entryShort: true, exitShort: true, grouped: true, trend: true };
+        var _chartLoadGen = 0;
+        var _klResizeObserver = null;
+        var _pendingHighlight = null; // { trade, rowEl, noNavigate } — applied after symbol switch
+    </script>
+    <!-- Extracted modules (loaded after shared state is declared) -->
+    <script src="/js/bot-detail/notifications.js"></script>
+    <script src="/js/bot-detail/panels.js"></script>
+    <script src="/js/bot-detail/ruler.js"></script>
+    <script src="/js/bot-detail/settings.js"></script>
+    <script>
         // Parse date string as UTC regardless of format (with/without Z suffix)
         function parseUTC(s) {
             if (!s) return 0;
             if (s.endsWith('Z') || s.includes('+')) return new Date(s).getTime();
             return new Date(s.replace(' ', 'T') + 'Z').getTime();
         }
-        let displaySettings = {
+        var displaySettings = {
             positions: true,
             limits: true,
             stops: true,
@@ -4360,12 +4372,12 @@
         };
 
         // ==================== THEME SYSTEM (Phase 1) ====================
-        const defaultTheme = {
+        var defaultTheme = {
             colors: { long: '#10B981', short: '#EF4444', limit: '#8B5CF6', stop: '#3B82F6', tp: '#3B82F6', canceled: '#6B7280' },
             candles: { upBody: '#2BD9C0', downBody: '#FF4D4F', upBorder: '#1FA88F', downBorder: '#CC3D3F', upWick: '#1FA88F', downWick: '#CC3D3F' },
             chart: { background: '#141414', gridColor: 'rgba(255, 255, 255, 0.03)', textColor: '#A1A1A1', watermarkEnabled: true, watermarkText: 'YAMATO', watermarkColor: 'rgba(255,255,255,0.07)' }
         };
-        let userTheme = JSON.parse(JSON.stringify(defaultTheme));
+        var userTheme = JSON.parse(JSON.stringify(defaultTheme));
 
         function loadUserSettings() {
             try {
@@ -4377,7 +4389,7 @@
             } catch(e) {}
         }
 
-        let _saveThemeTimer = null;
+        var _saveThemeTimer = null;
         function saveUserTheme() {
             localStorage.setItem(`yamato_bot_${botId}_settings`, JSON.stringify(userTheme));
             clearTimeout(_saveThemeTimer);
@@ -4549,7 +4561,7 @@
         }
 
         // ==================== STATS MODAL (Phase 7) ====================
-        const statsTimeframes = [
+        var statsTimeframes = [
             { label: '1год',  value: '1h',  ms: 60 * 60 * 1000 },
             { label: '4год',  value: '4h',  ms: 4 * 60 * 60 * 1000 },
             { label: '1день', value: '1d',  ms: 24 * 60 * 60 * 1000 },
@@ -4558,8 +4570,8 @@
             { label: 'Усі',   value: 'all', ms: 0 },
             { label: 'Дата',  value: 'custom', ms: -1 }
         ];
-        let currentStatsTf = 'all';
-        let _statsPanelTf = 'all'; // panel header period (separate from modal)
+        var currentStatsTf = 'all';
+        var _statsPanelTf = 'all'; // panel header period (separate from modal)
 
         // Stats panel period dropdown
         function toggleStatsPeriodDropdown() {
@@ -4620,9 +4632,9 @@
             if (commEl) commEl.textContent = totalComm > 0 ? '-$' + totalComm.toFixed(2) : '$0.00';
         }
 
-        let statsIsFullscreen = false;
-        let statsCustomFrom = null;
-        let statsCustomTo = null;
+        var statsIsFullscreen = false;
+        var statsCustomFrom = null;
+        var statsCustomTo = null;
 
         function toggleStatsFullscreen() {
             statsIsFullscreen = !statsIsFullscreen;
@@ -4947,15 +4959,15 @@
         }
 
         // ==================== TRADE HISTORY GROUPING & FILTERING (Phase 8) ====================
-        let allLoadedTrades = [];
-        let tradesGroupMode = 'all';
-        let tradesFilterPnl = 'all';       // 'all' | 'profit' | 'loss'
-        let tradesFilterSide = 'all';      // 'all' | 'long' | 'short'
-        let tradesFilterSymbol = 'all';    // 'all' | specific symbol
-        let tradesFilterPnlMin = null;
-        let tradesFilterPnlMax = null;
-        let tradesSortField = 'time';      // 'time' | 'pnl' | 'price' | 'qty'
-        let tradesSortDir = 'desc';        // 'asc' | 'desc'
+        var allLoadedTrades = [];
+        var tradesGroupMode = 'all';
+        var tradesFilterPnl = 'all';       // 'all' | 'profit' | 'loss'
+        var tradesFilterSide = 'all';      // 'all' | 'long' | 'short'
+        var tradesFilterSymbol = 'all';    // 'all' | specific symbol
+        var tradesFilterPnlMin = null;
+        var tradesFilterPnlMax = null;
+        var tradesSortField = 'time';      // 'time' | 'pnl' | 'price' | 'qty'
+        var tradesSortDir = 'desc';        // 'asc' | 'desc'
 
         function setTradesGroupMode(mode) {
             tradesGroupMode = mode;
@@ -5145,7 +5157,7 @@
 
         // ==================== POSITION BLOCKS (History by Positions) ====================
 
-        let _lastPositionBlocks = []; // stored for chart highlight on click
+        var _lastPositionBlocks = []; // stored for chart highlight on click
 
         function buildPositionBlocks(trades) {
             // Group consecutive same-side trades per symbol into position blocks.
@@ -5411,7 +5423,7 @@
             });
         }
 
-        let _reconcileInFlight = false;
+        var _reconcileInFlight = false;
         async function reconcileAndRenderPositions() {
             // Blocks are now stored server-side — just load & render
             await renderPositionBlocks();
@@ -5440,7 +5452,7 @@
             if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
         }
 
-        let _pendingBlockHighlight = null;
+        var _pendingBlockHighlight = null;
         async function highlightPositionBlock(block) {
             // Switch symbol if the block belongs to a different pair
             const blockSymbol = (block.symbol || block.sym || '').toUpperCase().replace(/^[^:]+:/, '');
@@ -5651,9 +5663,9 @@
         }
 
         // ==================== DASHBOARD CONSTRUCTOR (Phase 9) ====================
-        let dashboardMode = 'default';
-        let currentLayout = 'default';
-        let rightPanelWidth = 400; // default px
+        var dashboardMode = 'default';
+        var currentLayout = 'default';
+        var rightPanelWidth = 400; // default px
 
         function toggleDashboardMode() {
             const toolbar = document.getElementById('dashboardToolbar');
@@ -5679,7 +5691,7 @@
         }
 
         // ── Theme presets ──
-        const themePresets = {
+        var themePresets = {
             standard: {
                 label: 'Стандартний',
                 desc: 'Класичний стиль',
@@ -6041,241 +6053,10 @@
             loadPanelColors();
         }
 
-        // ==================== PANEL WIDTH RESIZER ====================
-        function initPanelWidthResizer() {
-            const resizer = document.getElementById('panelWidthResizer');
-            if (!resizer) return;
-            let dragging = false;
-            let startX = 0;
-            let startW = 0;
-
-            resizer.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                dragging = true;
-                startX = e.clientX;
-                startW = rightPanelWidth;
-                resizer.classList.add('active');
-                document.body.style.cursor = 'ew-resize';
-                document.body.style.userSelect = 'none';
-            });
-
-            document.addEventListener('mousemove', (e) => {
-                if (!dragging) return;
-                const delta = startX - e.clientX; // dragging left makes panel wider
-                const newW = Math.max(250, Math.min(800, startW + delta));
-                rightPanelWidth = newW;
-                const container = document.querySelector('.app-container');
-                if (currentLayout === 'default') {
-                    container.style.gridTemplateColumns = `auto 1fr ${newW}px`;
-                }
-                window.dispatchEvent(new Event('resize'));
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (dragging) {
-                    dragging = false;
-                    resizer.classList.remove('active');
-                    document.body.style.cursor = '';
-                    document.body.style.userSelect = '';
-                    saveDashboardLayout();
-                    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-                }
-            });
-
-            // Touch support
-            resizer.addEventListener('touchstart', (e) => {
-                dragging = true;
-                startX = e.touches[0].clientX;
-                startW = rightPanelWidth;
-                resizer.classList.add('active');
-            });
-
-            document.addEventListener('touchmove', (e) => {
-                if (!dragging) return;
-                const delta = startX - e.touches[0].clientX;
-                const newW = Math.max(250, Math.min(800, startW + delta));
-                rightPanelWidth = newW;
-                const container = document.querySelector('.app-container');
-                if (currentLayout === 'default') {
-                    container.style.gridTemplateColumns = `auto 1fr ${newW}px`;
-                }
-            });
-
-            document.addEventListener('touchend', () => {
-                if (dragging) {
-                    dragging = false;
-                    resizer.classList.remove('active');
-                    saveDashboardLayout();
-                }
-            });
-        }
-
-        // ==================== PANEL WIDTH RESIZE HANDLES (individual) ====================
-        function initPanelWidthHandles() {
-            document.querySelectorAll('.resize-handle-w').forEach(handle => {
-                let dragging = false;
-                let startX = 0;
-                let startW = 0;
-                let panel = null;
-
-                handle.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dragging = true;
-                    panel = document.getElementById(handle.dataset.panel);
-                    startX = e.clientX;
-                    startW = panel.offsetWidth;
-                    handle.classList.add('active');
-                    document.body.style.cursor = 'ew-resize';
-                    document.body.style.userSelect = 'none';
-                });
-
-                handle.addEventListener('touchstart', (e) => {
-                    e.stopPropagation();
-                    dragging = true;
-                    panel = document.getElementById(handle.dataset.panel);
-                    startX = e.touches[0].clientX;
-                    startW = panel.offsetWidth;
-                    handle.classList.add('active');
-                });
-
-                document.addEventListener('mousemove', (e) => {
-                    if (!dragging || !panel) return;
-                    const delta = e.clientX - startX;
-                    const newW = Math.max(220, startW + delta);
-                    panel.style.width = newW + 'px';
-                    panel.style.minWidth = newW + 'px';
-                    panel.style.maxWidth = newW + 'px';
-                    panel.style.flex = '0 0 ' + newW + 'px';
-                });
-
-                document.addEventListener('touchmove', (e) => {
-                    if (!dragging || !panel) return;
-                    const delta = e.touches[0].clientX - startX;
-                    const newW = Math.max(220, startW + delta);
-                    panel.style.width = newW + 'px';
-                    panel.style.minWidth = newW + 'px';
-                    panel.style.maxWidth = newW + 'px';
-                    panel.style.flex = '0 0 ' + newW + 'px';
-                });
-
-                const endDrag = () => {
-                    if (dragging) {
-                        dragging = false;
-                        handle.classList.remove('active');
-                        document.body.style.cursor = '';
-                        document.body.style.userSelect = '';
-                        savePanelSizes();
-                        panel = null;
-                    }
-                };
-                document.addEventListener('mouseup', endDrag);
-                document.addEventListener('touchend', endDrag);
-            });
-        }
-
-        // ==================== CHART RESIZE ====================
-        function initChartResize() {
-            const chartContainer = document.getElementById('chartContainer');
-            if (!chartContainer) return;
-            const resizeRight = document.getElementById('chartResizeRight');
-            const resizeBottom = document.getElementById('chartResizeBottom');
-            const resizeCorner = document.getElementById('chartResizeCorner');
-
-            let dragging = false;
-            let mode = ''; // 'right' | 'bottom' | 'corner'
-            let startX = 0, startY = 0, startW = 0, startH = 0;
-
-            function onStart(e, m) {
-                e.preventDefault();
-                e.stopPropagation();
-                dragging = true;
-                mode = m;
-                const touch = e.touches ? e.touches[0] : e;
-                startX = touch.clientX;
-                startY = touch.clientY;
-                startW = chartContainer.offsetWidth;
-                startH = chartContainer.offsetHeight;
-                document.body.style.userSelect = 'none';
-                if (m === 'right') document.body.style.cursor = 'ew-resize';
-                else if (m === 'bottom') document.body.style.cursor = 'ns-resize';
-                else document.body.style.cursor = 'nwse-resize';
-                (e.target).classList.add('active');
-            }
-
-            if (resizeRight) {
-                resizeRight.addEventListener('mousedown', (e) => onStart(e, 'right'));
-                resizeRight.addEventListener('touchstart', (e) => onStart(e, 'right'));
-            }
-            if (resizeBottom) {
-                resizeBottom.addEventListener('mousedown', (e) => onStart(e, 'bottom'));
-                resizeBottom.addEventListener('touchstart', (e) => onStart(e, 'bottom'));
-            }
-            if (resizeCorner) {
-                resizeCorner.addEventListener('mousedown', (e) => onStart(e, 'corner'));
-                resizeCorner.addEventListener('touchstart', (e) => onStart(e, 'corner'));
-            }
-
-            function onMove(e) {
-                if (!dragging) return;
-                const touch = e.touches ? e.touches[0] : e;
-                const dx = touch.clientX - startX;
-                const dy = touch.clientY - startY;
-
-                if (mode === 'right' || mode === 'corner') {
-                    const newW = Math.max(300, startW + dx);
-                    chartContainer.style.width = newW + 'px';
-                    chartContainer.style.minWidth = newW + 'px';
-                }
-                if (mode === 'bottom' || mode === 'corner') {
-                    const newH = Math.max(200, startH + dy);
-                    chartContainer.style.height = newH + 'px';
-                    chartContainer.style.minHeight = newH + 'px';
-                }
-                window.dispatchEvent(new Event('resize'));
-            }
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('touchmove', onMove);
-
-            function onEnd() {
-                if (dragging) {
-                    dragging = false;
-                    document.body.style.cursor = '';
-                    document.body.style.userSelect = '';
-                    document.querySelectorAll('.chart-resize-right,.chart-resize-bottom,.chart-resize-corner').forEach(el => el.classList.remove('active'));
-                    // Save chart size
-                    const chartSizes = {
-                        width: chartContainer.style.width || '',
-                        height: chartContainer.style.height || '',
-                        minWidth: chartContainer.style.minWidth || '',
-                        minHeight: chartContainer.style.minHeight || ''
-                    };
-                    localStorage.setItem(`yamato_bot_${botId}_chartSize`, JSON.stringify(chartSizes));
-                    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-                }
-            }
-
-            document.addEventListener('mouseup', onEnd);
-            document.addEventListener('touchend', onEnd);
-        }
-
-        function loadChartSize() {
-            try {
-                const saved = localStorage.getItem(`yamato_bot_${botId}_chartSize`);
-                if (!saved) return;
-                const s = JSON.parse(saved);
-                const cc = document.getElementById('chartContainer');
-                if (!cc) return;
-                if (s.width) cc.style.width = s.width;
-                if (s.height) cc.style.height = s.height;
-                if (s.minWidth) cc.style.minWidth = s.minWidth;
-                if (s.minHeight) cc.style.minHeight = s.minHeight;
-            } catch(e) {}
-        }
+        // Panel management (width resizer, width handles, chart resize, loadChartSize) — extracted to /js/bot-detail/panels.js
 
         // ==================== ORDERS GROUPING STATE ====================
-        let ordersGrouped = false;
+        var ordersGrouped = false;
 
         // ── Price precision helpers ────────────────────────────────────────────
         function calcPrecision(price) {
@@ -6292,14 +6073,14 @@
             // TV auto-detects precision; this is a no-op for now
         }
 
-        let allSymbols = [];
-        let symbolPrices = {};
-        let instrumentsSortMode = 'alpha'; // 'alpha' | 'price-asc' | 'price-desc'
-        let symbolLocked = false;
-        const klinesCache = new Map();
-        const KLINES_CACHE_TTL_MS = 5 * 60 * 1000;
-        let manualPrecision = 0;
-        let lastSetPrecision = -1;
+        var allSymbols = [];
+        var symbolPrices = {};
+        var instrumentsSortMode = 'alpha'; // 'alpha' | 'price-asc' | 'price-desc'
+        var symbolLocked = false;
+        var klinesCache = new Map();
+        var KLINES_CACHE_TTL_MS = 5 * 60 * 1000;
+        var manualPrecision = 0;
+        var lastSetPrecision = -1;
 
         function showSubMinNotice(iv) {
             let el = document.getElementById('subMinNotice');
@@ -6449,7 +6230,7 @@
         }
 
         // ── Sub-minute intervals set ─────────────────────────────────────────────
-        const SUB_MIN_IVS = new Set(['1s','15s','30s']);
+        var SUB_MIN_IVS = new Set(['1s','15s','30s']);
 
         // ═══ klinecharts WebSocket manager ═══════════════════════════════════════
         function _connectKlineWs() {
@@ -6620,7 +6401,7 @@
 
         // ==================== START / STOP MOCK ====================
 
-        let mockBotRunning = false;
+        var mockBotRunning = false;
 
         function mockBotAction(action) {
             if (action === 'start') {
@@ -7668,6 +7449,11 @@
             if (TICK_TFS.has(currentInterval)) {
                 // Destroy klinecharts if it exists
                 if (klChart) { try { klChart.dispose(); } catch(e) {} klChart = null; }
+                // Show magnet button for tick chart
+                var _mBtn = document.getElementById('magnetBtn');
+                var _mSep = document.getElementById('magnetSep');
+                if (_mBtn) _mBtn.style.display = '';
+                if (_mSep) _mSep.style.display = '';
                 // Create/reuse tick chart
                 const chartEl = document.getElementById('chart');
                 if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
@@ -7705,6 +7491,11 @@
 
             // Normal klinecharts mode
             if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
+            // Hide magnet button (only for tick chart)
+            var _mBtn2 = document.getElementById('magnetBtn');
+            var _mSep2 = document.getElementById('magnetSep');
+            if (_mBtn2) { _mBtn2.style.display = 'none'; _mBtn2.classList.remove('active'); }
+            if (_mSep2) _mSep2.style.display = 'none';
             if (!window.klinecharts) return;
             _buildKlChart();
             document.getElementById('chartLoading').style.display = 'flex';
@@ -8594,7 +8385,7 @@
             });
         }
 
-        const _ordAccColors = ['#8B5CF6', '#22D3EE', '#F59E0B', '#EC4899', '#10B981', '#8CA8FF', '#EF4444', '#14B8A6'];
+        var _ordAccColors = ['#8B5CF6', '#22D3EE', '#F59E0B', '#EC4899', '#10B981', '#8CA8FF', '#EF4444', '#14B8A6'];
 
         function renderOrderItem(o, isMultiAcc) {
             const typeColor = o.type === 'LIMIT' ? 'var(--color-limit)' : o.type === 'STOP' ? 'var(--color-stop)' : 'var(--color-tp)';
@@ -8614,9 +8405,9 @@
         }
 
         // Store last chart data for redrawing lines
-        let lastChartData = null;
-        let botIsRunning = false; // updated from loadBotInfo
-        let botStatusLoaded = false; // set true after first bot status response
+        var lastChartData = null;
+        var botIsRunning = false; // updated from loadBotInfo
+        var botStatusLoaded = false; // set true after first bot status response
 
         function drawPriceLines(data) {
             lastChartData = data;
@@ -8790,7 +8581,7 @@
         }
 
         // ===== TRADE HIGHLIGHT (click on history row) =====
-        let highlightedTradeRow = null;
+        var highlightedTradeRow = null;
 
         async function highlightTrade(trade, rowEl, noNavigate) {
             // If the trade belongs to a different symbol, switch first — highlight after load
@@ -9034,15 +8825,24 @@
         }
 
         // ===== CHART INDICATORS =====
-        const indState = { ema: false, boll: false, fill: false, vol: false, rsi: false, macd: false, signals: false, trades: true };
-        let emaIndicatorId = null;
-        let bollIndicatorId = null;
-        let volPaneId = null;
-        let rsiPaneId = null;
-        let macdPaneId = null;
-        const EMA_PERIOD = 20;
-        let fillOverlayGroup = 'ind-fill-0';
-        let signalOverlayGroup = 'ind-sig-0';
+        // Toggle magnet mode for tick chart
+        function toggleMagnet() {
+            if (!_tickChart) return;
+            _tickChart.magnet = !_tickChart.magnet;
+            _tickChart._dirty = true;
+            var btn = document.getElementById('magnetBtn');
+            if (btn) btn.classList.toggle('active', _tickChart.magnet);
+        }
+
+        var indState = { ema: false, boll: false, fill: false, vol: false, rsi: false, macd: false, signals: false, trades: true };
+        var emaIndicatorId = null;
+        var bollIndicatorId = null;
+        var volPaneId = null;
+        var rsiPaneId = null;
+        var macdPaneId = null;
+        var EMA_PERIOD = 20;
+        var fillOverlayGroup = 'ind-fill-0';
+        var signalOverlayGroup = 'ind-sig-0';
 
         function toggleIndicator(name) {
             indState[name] = !indState[name];
@@ -9052,7 +8852,7 @@
             updateIndBadge();
         }
 
-        let _tradeGroupingEnabled = true;
+        var _tradeGroupingEnabled = true;
         function toggleTradeGrouping() {
             _tradeGroupingEnabled = !_tradeGroupingEnabled;
             const btn = document.getElementById('indGroupTrades');
@@ -9546,897 +9346,18 @@
             });
         }
 
-        // Settings Modal Functions
-        let botSettings = {
-            strategy: {
-                type: 'grid',
-                direction: 'long',
-                baseCurrency: 'USDT',
-                minOrderSize: 10,
-                maxOrderSize: 100,
-                gridCount: 5
-            },
-            risk: {
-                takeProfit: 2.5,
-                stopLoss: 1.5,
-                trailingStop: false,
-                trailingDistance: 0.5,
-                leverage: 10,
-                marginMode: 'isolated',
-                riskPerTrade: 5,
-                maxPositions: 3,
-                dailyLossLimit: 50
-            },
-            indicators: {
-                rsi: { enabled: true, period: 14, overbought: 70, oversold: 30 },
-                macd: { enabled: false, fast: 12, slow: 26, signal: 9 },
-                bb: { enabled: false, period: 20, stdDev: 2 },
-                ema: { enabled: false, fast: 9, slow: 21 }
-            },
-            advanced: {
-                autoCompound: false,
-                autoRestart: true,
-                telegramNotify: false,
-                limitHours: false,
-                tradingStart: '08:00',
-                tradingEnd: '22:00',
-                rateLimit: 10,
-                apiTimeout: 5000
-            }
-        };
-
-        let settingsInitialized = false;
-
-        function openSettings() {
-            document.getElementById('settingsModal').style.display = 'flex';
-            loadBotSettings();
-            if (!settingsInitialized) {
-                initSettingsListeners();
-                settingsInitialized = true;
-            }
-            // Show API Keys tab for admins
-            const apiBtn = document.getElementById('tabBtnApiKeys');
-            if (apiBtn) apiBtn.style.display = isAdmin ? 'flex' : 'none';
-            if (isAdmin) loadMultiCredentials();
-        }
-
-        function toggleSecretVisibility() {
-            const input = document.getElementById('settingsApiSecret');
-            input.type = input.type === 'password' ? 'text' : 'password';
-        }
-
-        async function saveApiKeys() {
-            const apiKey = document.getElementById('settingsApiKey').value.trim();
-            const apiSecret = document.getElementById('settingsApiSecret').value.trim();
-            const statusEl = document.getElementById('apiKeyStatus');
-
-            if (!apiKey || !apiSecret) {
-                statusEl.style.color = '#EF4444';
-                statusEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="currentColor" stroke="none"/></svg> Both fields are required';
-                return;
-            }
-
-            statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.textContent = 'Testing connection...';
-
-            try {
-                const res = await fetch(`/api/bots/${botId}/api-keys`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey, apiSecret })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed');
-
-                statusEl.style.color = '#22C55E';
-                statusEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Підключено успішно — баланс: $' + (data.balance || '0.00');
-                document.getElementById('settingsApiKey').value = '';
-                document.getElementById('settingsApiSecret').value = '';
-                // Reload chart data with fresh keys
-                loadChartData(true);
-                syncBinanceTrades();
-            } catch (e) {
-                statusEl.style.color = '#EF4444';
-                statusEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' + e.message;
-            }
-        }
-
-        // ── Proxy format parser ──────────────────────────────────
-        function parseProxy(raw) {
-            if (!raw) return null;
-            raw = raw.trim();
-            if (!raw) return null;
-            // login:pass@ip:port
-            const atMatch = raw.match(/^(.+?):(.+?)@([\d.]+)[:\s]+(\d+)$/);
-            if (atMatch) return atMatch[3] + ':' + atMatch[4] + ':' + atMatch[1] + ':' + atMatch[2];
-            // Split by any whitespace or colon
-            const parts = raw.split(/[\s:]+/).filter(Boolean);
-            if (parts.length >= 4) return parts[0] + ':' + parts[1] + ':' + parts[2] + ':' + parts[3];
-            if (parts.length >= 2) return parts[0] + ':' + parts[1];
-            return null;
-        }
-
-        // ── Multi-account credentials ──────────────────────────
-        let multiAccounts = []; // [{tk, tk_secret, proxy}]
-
-        function toggleMultiAccForm(show) {
-            document.getElementById('multiAccAddForm').style.display = show ? 'block' : 'none';
-            document.getElementById('multiAccAddBtn').style.display = show ? 'none' : 'flex';
-            if (show) {
-                document.getElementById('multiAccKey').value = '';
-                document.getElementById('multiAccSecret').value = '';
-                document.getElementById('multiAccProxy').value = '';
-                document.getElementById('multiAccAddStatus').textContent = '';
-                document.getElementById('newAccProxyStatus').textContent = '';
-                document.getElementById('multiAccKey').focus();
-            }
-        }
-
-        async function testNewAccProxy() {
-            const rawProxy = document.getElementById('multiAccProxy').value.trim();
-            const statusEl = document.getElementById('newAccProxyStatus');
-            const btn = document.getElementById('newAccProxyTestBtn');
-            if (!rawProxy) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Введiть проксi';
-                return;
-            }
-            const proxy = parseProxy(rawProxy);
-            if (!proxy) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Невiрний формат проксi';
-                return;
-            }
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:4px;"></span>Перевiрка...';
-            try {
-                const apiKey = document.getElementById('multiAccKey').value.trim();
-                const res = await fetch(`/api/bots/${botId}/test-proxy`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ proxy, apiKey })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    statusEl.style.color = '#10B981';
-                    statusEl.innerHTML = '<span style="color:#10B981;">OK</span> — IP: <b style="user-select:all;cursor:text;">' + (data.ip || '?') + '</b>' + (data.latency ? ' (' + data.latency + 'ms)' : '') + '<br><span style="color:#F59E0B;font-size:10px;">Додайте цей IP до вайтлiсту API ключа на Binance</span>';
-                } else {
-                    statusEl.style.color = '#EF4444';
-                    statusEl.textContent = data.error || 'Помилка з\'єднання';
-                }
-            } catch (e) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = e.message;
-            } finally {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-            }
-        }
-
-        function addMultiAcc() {
-            const tk = document.getElementById('multiAccKey').value.trim();
-            const tkSecret = document.getElementById('multiAccSecret').value.trim();
-            const rawProxy = document.getElementById('multiAccProxy').value.trim();
-            const proxy = parseProxy(rawProxy);
-            const statusEl = document.getElementById('multiAccAddStatus');
-            if (!tk || !tkSecret) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'API Ключ та Секрет обов\'язкові';
-                return;
-            }
-            if (rawProxy && !proxy) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Невiрний формат проксi';
-                return;
-            }
-            if (multiAccounts.some(a => a.tk === tk)) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Цей ключ вже додано';
-                return;
-            }
-            multiAccounts.push({ tk, tk_secret: tkSecret, proxy: proxy || '' });
-            renderMultiAccList();
-            toggleMultiAccForm(false);
-        }
-
-        let editingAccIndex = -1;
-
-        function removeMultiAcc(index) {
-            multiAccounts.splice(index, 1);
-            if (editingAccIndex === index) editingAccIndex = -1;
-            else if (editingAccIndex > index) editingAccIndex--;
-            renderMultiAccList();
-        }
-
-        function editMultiAcc(index) {
-            editingAccIndex = editingAccIndex === index ? -1 : index;
-            renderMultiAccList();
-        }
-
-        function saveMultiAccEdit(index) {
-            const proxyInput = document.getElementById('editProxy_' + index);
-            if (proxyInput) {
-                const parsed = parseProxy(proxyInput.value);
-                multiAccounts[index].proxy = parsed || '';
-            }
-            editingAccIndex = -1;
-            renderMultiAccList();
-        }
-
-        async function testProxyConn(index) {
-            const proxyInput = document.getElementById('editProxy_' + index);
-            const statusEl = document.getElementById('editProxyStatus_' + index);
-            const btn = document.getElementById('editProxyTestBtn_' + index);
-            const rawProxy = proxyInput ? proxyInput.value.trim() : '';
-            if (!rawProxy) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Введiть проксi';
-                return;
-            }
-            const proxy = parseProxy(rawProxy);
-            if (!proxy) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Невiрний формат проксi';
-                return;
-            }
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:4px;"></span>Перевiрка...';
-            try {
-                const res = await fetch(`/api/bots/${botId}/test-proxy`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ proxy, apiKey: multiAccounts[index]?.tk || '' })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    statusEl.style.color = '#10B981';
-                    statusEl.innerHTML = '<span style="color:#10B981;">OK</span> — IP: <b style="user-select:all;cursor:text;">' + (data.ip || '?') + '</b>' + (data.latency ? ' (' + data.latency + 'ms)' : '') + '<br><span style="color:#F59E0B;font-size:10px;">Додайте цей IP до вайтлiсту API ключа на Binance</span>';
-                } else {
-                    statusEl.style.color = '#EF4444';
-                    statusEl.textContent = data.error || 'Помилка з\'єднання';
-                }
-            } catch (e) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = e.message;
-            } finally {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-            }
-        }
-
-        function renderMultiAccList() {
-            const list = document.getElementById('multiAccList');
-            const badge = document.getElementById('multiAccBadge');
-            const saveWrap = document.getElementById('multiAccSaveWrap');
-
-            const autoMatchWrap = document.getElementById('proxyAutoMatchWrap');
-            if (multiAccounts.length === 0) {
-                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px;">Немає додаткових акаунтів</div>';
-                badge.style.display = 'none';
-                saveWrap.style.display = 'none';
-                if (autoMatchWrap) autoMatchWrap.style.display = 'none';
-                return;
-            }
-
-            badge.style.display = 'inline';
-            badge.textContent = multiAccounts.length + ' акаунт' + (multiAccounts.length > 1 ? (multiAccounts.length < 5 ? 'и' : 'ів') : '');
-            saveWrap.style.display = 'block';
-            if (autoMatchWrap) autoMatchWrap.style.display = 'block';
-
-            list.innerHTML = multiAccounts.map((a, i) => {
-                const proxyDisplay = a.proxy ? a.proxy.split(':').slice(0, 2).join(':') + ':***' : 'без проксі';
-                const proxyColor = a.proxy ? 'rgba(16,185,129,0.7)' : 'var(--text-tertiary)';
-                const isEditing = editingAccIndex === i;
-
-                let html = `<div style="background:var(--surface-secondary);border-radius:10px;padding:10px 14px;${isEditing ? 'border:1px solid rgba(16,185,129,0.25);' : ''}">`;
-                html += `<div style="display:flex;align-items:center;gap:10px;">`;
-                html += `<div style="width:32px;height:32px;border-radius:8px;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">`;
-                html += `<span style="font-size:13px;font-weight:700;color:var(--accent-primary);">${i + 1}</span></div>`;
-                html += `<div style="flex:1;min-width:0;">`;
-                html += `<div style="font-family:monospace;font-size:11px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.tk.slice(0, 8)}...${a.tk.slice(-6)}</div>`;
-                html += `<div style="display:flex;gap:8px;align-items:center;margin-top:2px;">`;
-                html += `<span style="font-size:10px;color:var(--text-tertiary);">Secret: ${'*'.repeat(12)}</span>`;
-                html += `<span style="font-size:10px;color:${proxyColor};">`;
-                html += `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>`;
-                html += `${proxyDisplay}</span></div></div>`;
-
-                // Edit button
-                html += `<button onclick="editMultiAcc(${i})" style="background:none;border:none;color:${isEditing ? 'var(--accent-primary)' : 'var(--text-tertiary)'};cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='var(--accent-primary)';this.style.background='rgba(16,185,129,0.1)'" onmouseout="this.style.color='${isEditing ? 'var(--accent-primary)' : 'var(--text-tertiary)'}';this.style.background='none'" title="Редагувати">`;
-                html += `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`;
-
-                // Delete button
-                html += `<button onclick="removeMultiAcc(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px;border-radius:6px;transition:all .15s;" onmouseover="this.style.color='#EF4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='var(--text-tertiary)';this.style.background='none'" title="Видалити">`;
-                html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>`;
-                html += `</div>`;
-
-                // Inline edit form
-                if (isEditing) {
-                    html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">`;
-                    html += `<div style="margin-bottom:8px;">`;
-                    html += `<label style="font-size:11px;color:var(--text-tertiary);display:block;margin-bottom:4px;">Проксі (IP:PORT:LOGIN:PASS)</label>`;
-                    html += `<div style="display:flex;gap:6px;align-items:center;">`;
-                    html += `<input type="text" id="editProxy_${i}" value="${a.proxy || ''}" placeholder="IP:PORT:LOGIN:PASS" style="flex:1;padding:7px 10px;background:var(--bg-app);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text-primary);font-family:monospace;font-size:11px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='rgba(16,185,129,0.4)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">`;
-                    html += `<button id="editProxyTestBtn_${i}" onclick="testProxyConn(${i})" style="padding:7px 10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:4px;">`;
-                    html += `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Тест</button>`;
-                    html += `</div>`;
-                    html += `<div id="editProxyStatus_${i}" style="font-size:11px;margin-top:4px;min-height:16px;"></div>`;
-                    html += `</div>`;
-                    html += `<div style="display:flex;gap:6px;">`;
-                    html += `<button onclick="saveMultiAccEdit(${i})" style="flex:1;padding:6px;background:var(--accent-primary);border:none;border-radius:6px;color:white;font-weight:600;cursor:pointer;font-size:12px;">Застосувати</button>`;
-                    html += `<button onclick="editMultiAcc(${i})" style="padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--text-secondary);cursor:pointer;font-size:12px;">Скасувати</button>`;
-                    html += `</div></div>`;
-                }
-
-                html += `</div>`;
-                return html;
-            }).join('');
-        }
-
-        async function saveMultiCredentials(skipValidation) {
-            const statusEl = document.getElementById('multiAccStatus');
-            if (multiAccounts.length === 0) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Додайте хоча б один акаунт';
-                return;
-            }
-            statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.textContent = skipValidation ? 'Збереження...' : ('Перевірка ' + multiAccounts.length + ' акаунтів...');
-
-            try {
-                const res = await fetch(`/api/bots/${botId}/multi-credentials`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ credentials: multiAccounts, skipValidation: !!skipValidation })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed');
-
-                if (skipValidation) {
-                    statusEl.style.color = '#22C55E';
-                    statusEl.textContent = 'Збережено ' + data.saved + ' акаунтів (без перевірки)';
-                } else {
-                    const allOk = data.failed?.length === 0;
-                    statusEl.style.whiteSpace = 'pre-line';
-
-                    if (allOk) {
-                        statusEl.style.color = '#22C55E';
-                        statusEl.textContent = 'Збережено ' + data.saved + ' акаунтів. Binance: ' + data.valid + '/' + data.total + ' OK';
-                    } else {
-                        let html = '<div style="color:#22C55E;margin-bottom:6px;">Збережено ' + data.saved + ' акаунтів. Binance: ' + data.valid + '/' + data.total + ' OK</div>';
-                        data.failed.forEach(f => {
-                            html += '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:8px 10px;margin-top:6px;">';
-                            html += '<div style="font-family:monospace;font-size:11px;color:var(--text-primary);">' + f.key + '</div>';
-                            html += '<div style="font-size:11px;color:#EF4444;margin-top:2px;">' + f.error + '</div>';
-                            if (f.proxyIp) {
-                                html += '<div style="margin-top:6px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:6px;padding:6px 8px;">';
-                                html += '<div style="font-size:11px;color:#F59E0B;">Додайте цей IP до вайтлiсту API ключа на Binance:</div>';
-                                html += '<div style="font-family:monospace;font-size:13px;font-weight:700;color:#FBBF24;margin-top:3px;user-select:all;cursor:text;">' + f.proxyIp + '</div>';
-                                html += '</div>';
-                            }
-                            html += '</div>';
-                        });
-                        statusEl.innerHTML = html;
-                    }
-                }
-
-                loadChartData(true);
-            } catch (e) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = e.message;
-            }
-        }
-
-        async function verifyMultiCredentials() {
-            const btn = document.getElementById('multiAccVerifyBtn');
-            const resultsEl = document.getElementById('multiAccVerifyResults');
-            btn.disabled = true;
-            btn.style.opacity = '0.6';
-            resultsEl.style.display = 'block';
-            resultsEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-tertiary);font-size:13px;"><div style="display:inline-block;width:18px;height:18px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></div><div style="margin-top:8px;">Перевірка з\'єднань...</div></div>';
-
-            try {
-                const res = await fetch(`/api/bots/${botId}/multi-credentials/verify`);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed');
-
-                let html = '';
-
-                // Summary card
-                const allOk = data.ok === data.total;
-                html += `<div style="background:${allOk ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'};border:1px solid ${allOk ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'};border-radius:12px;padding:14px;margin-bottom:12px;">`;
-                html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">`;
-                html += allOk
-                    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>'
-                    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="#EF4444"/></svg>';
-                html += `<span style="font-weight:700;font-size:14px;color:${allOk ? '#10B981' : '#EF4444'};">${data.ok}/${data.total} акаунтів активні</span>`;
-                html += `</div>`;
-                html += `<div style="display:flex;gap:16px;flex-wrap:wrap;">`;
-                html += `<div><span style="font-size:11px;color:var(--text-tertiary);">Загальний баланс</span><div style="font-size:16px;font-weight:700;color:var(--text-primary);">$${data.totalBalance?.toFixed(2) || '0.00'}</div></div>`;
-                html += `<div><span style="font-size:11px;color:var(--text-tertiary);">Нереалізований PnL</span><div style="font-size:16px;font-weight:700;color:${data.totalUnrealizedPnl >= 0 ? 'var(--color-up)' : 'var(--color-down)'};">${data.totalUnrealizedPnl >= 0 ? '+' : ''}$${data.totalUnrealizedPnl?.toFixed(2) || '0.00'}</div></div>`;
-                html += `</div></div>`;
-
-                // Per-account list
-                data.accounts.forEach(a => {
-                    const ok = a.status === 'ok';
-                    html += `<div style="display:flex;align-items:center;gap:10px;background:var(--surface-secondary);border-radius:10px;padding:10px 14px;margin-bottom:6px;border-left:3px solid ${ok ? '#10B981' : '#EF4444'};">`;
-                    html += `<div style="width:28px;height:28px;border-radius:7px;background:${ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">`;
-                    html += ok
-                        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
-                        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-                    html += `</div>`;
-                    html += `<div style="flex:1;min-width:0;">`;
-                    html += `<div style="font-family:monospace;font-size:11px;color:var(--text-primary);">${a.key}</div>`;
-                    if (ok) {
-                        html += `<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">$${a.balance.toFixed(2)} | PnL: ${a.unrealizedPnl >= 0 ? '+' : ''}$${a.unrealizedPnl.toFixed(2)} | ${a.positions} позицій</div>`;
-                    } else {
-                        html += `<div style="font-size:10px;color:#EF4444;margin-top:2px;">${a.error}</div>`;
-                    }
-                    if (a.proxy) {
-                        const pParts = a.proxy.split(':');
-                        html += `<div style="font-size:10px;color:rgba(16,185,129,0.7);margin-top:1px;">Proxy: ${pParts[0]}:${pParts[1]}:***</div>`;
-                    }
-                    html += `</div></div>`;
-                });
-
-                resultsEl.innerHTML = html;
-            } catch (e) {
-                resultsEl.innerHTML = `<div style="text-align:center;padding:12px;color:#EF4444;font-size:13px;">${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-            }
-        }
-
-        async function runProxyAutoMatch() {
-            const textarea = document.getElementById('proxyBulkInput');
-            const statusEl = document.getElementById('proxyAutoMatchStatus');
-            const resultsEl = document.getElementById('proxyAutoMatchResults');
-            const btn = document.getElementById('proxyAutoMatchBtn');
-
-            const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
-            const proxies = lines.map(parseProxy).filter(Boolean);
-
-            if (proxies.length === 0) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Не знайдено жодного валiдного проксi';
-                return;
-            }
-            if (multiAccounts.length === 0) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = 'Спочатку додайте акаунти';
-                return;
-            }
-
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid var(--text-tertiary);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:4px;"></span>Перебираємо ' + proxies.length + ' проксi x ' + multiAccounts.length + ' акаунтiв...';
-            resultsEl.innerHTML = '';
-
-            try {
-                const res = await fetch(`/api/bots/${botId}/auto-match-proxies`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ proxies, credentials: multiAccounts })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed');
-
-                // Apply matches
-                let applied = 0;
-                if (data.matches && data.matches.length > 0) {
-                    data.matches.forEach(m => {
-                        if (multiAccounts[m.accIndex]) {
-                            multiAccounts[m.accIndex].proxy = m.proxy;
-                            applied++;
-                        }
-                    });
-                    renderMultiAccList();
-                }
-
-                // Build results HTML
-                let html = '';
-                if (applied > 0) {
-                    html += '<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px;margin-bottom:8px;">';
-                    html += '<div style="font-weight:700;font-size:13px;color:#10B981;margin-bottom:6px;">' + applied + '/' + multiAccounts.length + ' акаунтiв отримали проксi</div>';
-                    data.matches.forEach(m => {
-                        html += '<div style="font-size:11px;color:var(--text-primary);margin-top:3px;font-family:monospace;">';
-                        html += (m.accKey || '?') + ' ← ' + m.proxyIp;
-                        html += '</div>';
-                    });
-                    html += '</div>';
-                }
-
-                // Unmatched accounts
-                const unmatchedAccs = data.unmatchedAccounts || [];
-                if (unmatchedAccs.length > 0) {
-                    html += '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px;margin-bottom:8px;">';
-                    html += '<div style="font-weight:700;font-size:12px;color:#EF4444;margin-bottom:4px;">Без проксi:</div>';
-                    unmatchedAccs.forEach(u => {
-                        html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;font-family:monospace;">' + u.key + '</div>';
-                    });
-                    html += '</div>';
-                }
-
-                // Restricted proxies
-                const restricted = data.restrictedProxies || [];
-                if (restricted.length > 0) {
-                    html += '<div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;padding:10px;margin-bottom:8px;">';
-                    html += '<div style="font-weight:700;font-size:12px;color:#EF4444;margin-bottom:4px;">Заблокованi регiони:</div>';
-                    restricted.forEach(r => {
-                        html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;font-family:monospace;">' + r.proxy + ' → ' + (r.ip || '?') + ' — ' + r.error + '</div>';
-                    });
-                    html += '</div>';
-                }
-
-                statusEl.style.color = applied > 0 ? '#10B981' : '#F59E0B';
-                statusEl.textContent = applied > 0
-                    ? 'Готово! ' + applied + ' збiгiв знайдено. Натиснiть "Зберегти" щоб зафiксувати.'
-                    : 'Жодного збiгу не знайдено. Перевiрте вайтлiсти або замiнiть проксi.';
-
-                resultsEl.innerHTML = html;
-            } catch (e) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = e.message;
-            } finally {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-            }
-        }
-
-        async function loadMultiCredentials() {
-            try {
-                const res = await fetch(`/api/bots/${botId}/trading-settings`);
-                if (!res.ok) return;
-                const data = await res.json();
-                const mc = data?.settings?.multi_credentials;
-                if (Array.isArray(mc) && mc.length > 0) {
-                    multiAccounts = mc.map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || '' }));
-                    renderMultiAccList();
-                } else {
-                    renderMultiAccList();
-                }
-            } catch (e) {
-                renderMultiAccList();
-            }
-        }
-
-        function closeSettings() {
-            document.getElementById('settingsModal').style.display = 'none';
-        }
-
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.settings-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            event.target.closest('.settings-tab').classList.add('active');
-
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-        }
-
-        async function loadBotSettings() {
-            try {
-                const response = await fetch(`/api/bots/${botId}/trading-settings`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.settings) {
-                        botSettings = { ...botSettings, ...data.settings };
-                    }
-                }
-            } catch (error) {
-                console.error('Load settings error:', error);
-            }
-            applySettingsToUI();
-        }
-
-        function applySettingsToUI() {
-            // Strategy
-            document.getElementById('strategyType').value = botSettings.strategy.type;
-            document.getElementById('baseCurrency').value = botSettings.strategy.baseCurrency;
-            document.getElementById('minOrderSize').value = botSettings.strategy.minOrderSize;
-            document.getElementById('maxOrderSize').value = botSettings.strategy.maxOrderSize;
-            document.getElementById('gridCount').value = botSettings.strategy.gridCount;
-            document.getElementById('gridCountValue').textContent = botSettings.strategy.gridCount;
-
-            // Direction chips
-            document.querySelectorAll('#tab-strategy .chip').forEach(chip => {
-                chip.classList.toggle('active', chip.dataset.value === botSettings.strategy.direction);
-            });
-
-            // Risk
-            document.getElementById('takeProfit').value = botSettings.risk.takeProfit;
-            document.getElementById('stopLoss').value = botSettings.risk.stopLoss;
-            document.getElementById('trailingStop').checked = botSettings.risk.trailingStop;
-            document.getElementById('trailingDistance').value = botSettings.risk.trailingDistance;
-            document.getElementById('trailingSettings').style.display = botSettings.risk.trailingStop ? 'block' : 'none';
-            document.getElementById('leverage').value = botSettings.risk.leverage;
-            document.getElementById('leverageValue').textContent = botSettings.risk.leverage + 'x';
-            document.getElementById('riskPerTrade').value = botSettings.risk.riskPerTrade;
-            document.getElementById('riskPerTradeValue').textContent = botSettings.risk.riskPerTrade + '%';
-            document.getElementById('maxPositions').value = botSettings.risk.maxPositions;
-            document.getElementById('dailyLossLimit').value = botSettings.risk.dailyLossLimit;
-
-            // Margin mode chips
-            document.querySelectorAll('#tab-risk .chip').forEach(chip => {
-                chip.classList.toggle('active', chip.dataset.value === botSettings.risk.marginMode);
-            });
-
-            // Update risk meter
-            updateRiskMeter(botSettings.risk.riskPerTrade);
-
-            // Indicators
-            document.getElementById('rsiEnabled').checked = botSettings.indicators.rsi.enabled;
-            document.getElementById('rsiPeriod').value = botSettings.indicators.rsi.period;
-            document.getElementById('rsiOverbought').value = botSettings.indicators.rsi.overbought;
-            document.getElementById('rsiOversold').value = botSettings.indicators.rsi.oversold;
-            document.getElementById('rsiSettings').style.display = botSettings.indicators.rsi.enabled ? 'block' : 'none';
-
-            document.getElementById('macdEnabled').checked = botSettings.indicators.macd.enabled;
-            document.getElementById('macdFast').value = botSettings.indicators.macd.fast;
-            document.getElementById('macdSlow').value = botSettings.indicators.macd.slow;
-            document.getElementById('macdSignal').value = botSettings.indicators.macd.signal;
-            document.getElementById('macdSettings').style.display = botSettings.indicators.macd.enabled ? 'block' : 'none';
-
-            document.getElementById('bbEnabled').checked = botSettings.indicators.bb.enabled;
-            document.getElementById('bbPeriod').value = botSettings.indicators.bb.period;
-            document.getElementById('bbStdDev').value = botSettings.indicators.bb.stdDev;
-            document.getElementById('bbSettings').style.display = botSettings.indicators.bb.enabled ? 'block' : 'none';
-
-            document.getElementById('emaEnabled').checked = botSettings.indicators.ema.enabled;
-            document.getElementById('emaFast').value = botSettings.indicators.ema.fast;
-            document.getElementById('emaSlow').value = botSettings.indicators.ema.slow;
-            document.getElementById('emaSettings').style.display = botSettings.indicators.ema.enabled ? 'block' : 'none';
-
-            // Advanced
-            document.getElementById('autoCompound').checked = botSettings.advanced.autoCompound;
-            document.getElementById('autoRestart').checked = botSettings.advanced.autoRestart;
-            document.getElementById('telegramNotify').checked = botSettings.advanced.telegramNotify;
-            document.getElementById('limitHours').checked = botSettings.advanced.limitHours;
-            document.getElementById('tradingStart').value = botSettings.advanced.tradingStart;
-            document.getElementById('tradingEnd').value = botSettings.advanced.tradingEnd;
-            document.getElementById('tradingHours').style.display = botSettings.advanced.limitHours ? 'flex' : 'none';
-            document.getElementById('rateLimit').value = botSettings.advanced.rateLimit;
-            document.getElementById('apiTimeout').value = botSettings.advanced.apiTimeout;
-        }
-
-        function initSettingsListeners() {
-            // Range sliders
-            document.getElementById('gridCount').addEventListener('input', (e) => {
-                document.getElementById('gridCountValue').textContent = e.target.value;
-            });
-
-            document.getElementById('leverage').addEventListener('input', (e) => {
-                document.getElementById('leverageValue').textContent = e.target.value + 'x';
-            });
-
-            document.getElementById('riskPerTrade').addEventListener('input', (e) => {
-                document.getElementById('riskPerTradeValue').textContent = e.target.value + '%';
-                updateRiskMeter(parseInt(e.target.value));
-            });
-
-            // Trailing stop toggle
-            document.getElementById('trailingStop').addEventListener('change', (e) => {
-                document.getElementById('trailingSettings').style.display = e.target.checked ? 'block' : 'none';
-            });
-
-            // Trading hours toggle
-            document.getElementById('limitHours').addEventListener('change', (e) => {
-                document.getElementById('tradingHours').style.display = e.target.checked ? 'flex' : 'none';
-            });
-
-            // Indicator toggles
-            ['rsi', 'macd', 'bb', 'ema'].forEach(ind => {
-                document.getElementById(`${ind}Enabled`).addEventListener('change', (e) => {
-                    document.getElementById(`${ind}Settings`).style.display = e.target.checked ? 'block' : 'none';
-                });
-            });
-
-            // Chips click handlers
-            document.querySelectorAll('.setting-chips .chip').forEach(chip => {
-                chip.addEventListener('click', () => {
-                    const parent = chip.closest('.setting-chips');
-                    parent.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-                    chip.classList.add('active');
-                });
-            });
-        }
-
-        function updateRiskMeter(value) {
-            const meter = document.getElementById('riskMeter');
-            const width = (value / 25) * 100;
-            meter.style.width = width + '%';
-
-            meter.classList.remove('risk-low', 'risk-medium', 'risk-high');
-            if (value <= 5) {
-                meter.classList.add('risk-low');
-            } else if (value <= 15) {
-                meter.classList.add('risk-medium');
-            } else {
-                meter.classList.add('risk-high');
-            }
-        }
-
-        function collectSettingsFromUI() {
-            // Get direction chip
-            let direction = 'long';
-            document.querySelectorAll('#tab-strategy .chip').forEach(chip => {
-                if (chip.classList.contains('active')) direction = chip.dataset.value;
-            });
-
-            // Get margin mode chip
-            let marginMode = 'isolated';
-            document.querySelectorAll('#tab-risk .chip').forEach(chip => {
-                if (chip.classList.contains('active')) marginMode = chip.dataset.value;
-            });
-
-            return {
-                strategy: {
-                    type: document.getElementById('strategyType').value,
-                    direction: direction,
-                    baseCurrency: document.getElementById('baseCurrency').value,
-                    minOrderSize: parseFloat(document.getElementById('minOrderSize').value),
-                    maxOrderSize: parseFloat(document.getElementById('maxOrderSize').value),
-                    gridCount: parseInt(document.getElementById('gridCount').value)
-                },
-                risk: {
-                    takeProfit: parseFloat(document.getElementById('takeProfit').value),
-                    stopLoss: parseFloat(document.getElementById('stopLoss').value),
-                    trailingStop: document.getElementById('trailingStop').checked,
-                    trailingDistance: parseFloat(document.getElementById('trailingDistance').value),
-                    leverage: parseInt(document.getElementById('leverage').value),
-                    marginMode: marginMode,
-                    riskPerTrade: parseInt(document.getElementById('riskPerTrade').value),
-                    maxPositions: parseInt(document.getElementById('maxPositions').value),
-                    dailyLossLimit: parseFloat(document.getElementById('dailyLossLimit').value)
-                },
-                indicators: {
-                    rsi: {
-                        enabled: document.getElementById('rsiEnabled').checked,
-                        period: parseInt(document.getElementById('rsiPeriod').value),
-                        overbought: parseInt(document.getElementById('rsiOverbought').value),
-                        oversold: parseInt(document.getElementById('rsiOversold').value)
-                    },
-                    macd: {
-                        enabled: document.getElementById('macdEnabled').checked,
-                        fast: parseInt(document.getElementById('macdFast').value),
-                        slow: parseInt(document.getElementById('macdSlow').value),
-                        signal: parseInt(document.getElementById('macdSignal').value)
-                    },
-                    bb: {
-                        enabled: document.getElementById('bbEnabled').checked,
-                        period: parseInt(document.getElementById('bbPeriod').value),
-                        stdDev: parseFloat(document.getElementById('bbStdDev').value)
-                    },
-                    ema: {
-                        enabled: document.getElementById('emaEnabled').checked,
-                        fast: parseInt(document.getElementById('emaFast').value),
-                        slow: parseInt(document.getElementById('emaSlow').value)
-                    }
-                },
-                advanced: {
-                    autoCompound: document.getElementById('autoCompound').checked,
-                    autoRestart: document.getElementById('autoRestart').checked,
-                    telegramNotify: document.getElementById('telegramNotify').checked,
-                    limitHours: document.getElementById('limitHours').checked,
-                    tradingStart: document.getElementById('tradingStart').value,
-                    tradingEnd: document.getElementById('tradingEnd').value,
-                    rateLimit: parseInt(document.getElementById('rateLimit').value),
-                    apiTimeout: parseInt(document.getElementById('apiTimeout').value)
-                }
-            };
-        }
-
-        async function saveSettings() {
-            const settings = collectSettingsFromUI();
-
-            try {
-                const response = await fetch(`/api/bots/${botId}/trading-settings`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ settings })
-                });
-
-                if (response.ok) {
-                    botSettings = settings;
-                    closeSettings();
-                    if (typeof showToast === 'function') {
-                        showToast('success', 'Налаштування збережено', 'Торгові налаштування бота оновлено');
-                    } else {
-                        alert('Налаштування успішно збережено!');
-                    }
-                } else {
-                    const data = await response.json();
-                    if (typeof showToast === 'function') {
-                        showToast('error', 'Помилка', data.error || 'Не вдалося зберегти налаштування');
-                    } else {
-                        alert(data.error || 'Не вдалося зберегти налаштування');
-                    }
-                }
-            } catch (error) {
-                console.error('Save settings error:', error);
-                if (typeof showToast === 'function') {
-                    showToast('error', 'Помилка', 'Не вдалося зберегти налаштування');
-                } else {
-                    alert('Не вдалося зберегти налаштування');
-                }
-            }
-        }
-
-        function resetSettings() {
-            botSettings = {
-                strategy: {
-                    type: 'grid',
-                    direction: 'long',
-                    baseCurrency: 'USDT',
-                    minOrderSize: 10,
-                    maxOrderSize: 100,
-                    gridCount: 5
-                },
-                risk: {
-                    takeProfit: 2.5,
-                    stopLoss: 1.5,
-                    trailingStop: false,
-                    trailingDistance: 0.5,
-                    leverage: 10,
-                    marginMode: 'isolated',
-                    riskPerTrade: 5,
-                    maxPositions: 3,
-                    dailyLossLimit: 50
-                },
-                indicators: {
-                    rsi: { enabled: true, period: 14, overbought: 70, oversold: 30 },
-                    macd: { enabled: false, fast: 12, slow: 26, signal: 9 },
-                    bb: { enabled: false, period: 20, stdDev: 2 },
-                    ema: { enabled: false, fast: 9, slow: 21 }
-                },
-                advanced: {
-                    autoCompound: false,
-                    autoRestart: true,
-                    telegramNotify: false,
-                    limitHours: false,
-                    tradingStart: '08:00',
-                    tradingEnd: '22:00',
-                    rateLimit: 10,
-                    apiTimeout: 5000
-                }
-            };
-            applySettingsToUI();
-        }
-
-        // Close modal on overlay click
-        document.getElementById('settingsModal').addEventListener('click', (e) => {
-            if (e.target.id === 'settingsModal') {
-                closeSettings();
-            }
-        });
-
-        // Close modal on Escape key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeSettings();
-            }
-        });
-
+        // Settings modal — extracted to /js/bot-detail/settings.js
         // ==================== SUBSCRIPTION & COPY TRADING ====================
 
-        let isSubscribed = false;
-        let copyTradingEnabled = false;
-        let botDetails = null;
+        var isSubscribed = false;
+        var copyTradingEnabled = false;
+        var botDetails = null;
 
         // ==================== EQUITY CURVE ====================
 
-        let allEquityTrades = [];
-        let cachedIncomeHistory = []; // income entries from Binance (for commission calc)
-        let equityPeriodDays = 7;
+        var allEquityTrades = [];
+        var cachedIncomeHistory = []; // income entries from Binance (for commission calc)
+        var equityPeriodDays = 7;
 
         async function loadEquityData() {
             try {
@@ -10472,8 +9393,8 @@
 
             // Measure actual container size so chart adapts to any panel size
             const wrap = svg.parentElement;
-            const W = wrap ? wrap.clientWidth - 20 : 360; // minus padding
-            const H = wrap ? wrap.clientHeight - 4 : 70;
+            const W = Math.max(10, wrap ? wrap.clientWidth - 20 : 360); // minus padding
+            const H = Math.max(10, wrap ? wrap.clientHeight - 4 : 70);
             svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
             // Always show ALL trades on equity curve
@@ -10734,11 +9655,11 @@
 
         // ==================== FULL TRADE HISTORY ====================
 
-        let tradeHistoryOffset = 0;
-        const TRADES_PER_PAGE = 100;
-        let tradeHistoryLoading = false;
-        let tradeHistoryHasMore = true;
-        let tradeHistoryLoaded = false;
+        var tradeHistoryOffset = 0;
+        var TRADES_PER_PAGE = 100;
+        var tradeHistoryLoading = false;
+        var tradeHistoryHasMore = true;
+        var tradeHistoryLoaded = false;
 
         async function loadFullTradeHistory(reset = false) {
             if (tradeHistoryLoading) return;
@@ -11171,7 +10092,7 @@
             }
         }
 
-        let instrCurrentTab = 'symbols';
+        var instrCurrentTab = 'symbols';
         function switchInstrumentsTab(tab) {
             instrCurrentTab = tab;
             document.getElementById('instrTab_symbols').classList.toggle('active', tab === 'symbols');
@@ -11218,315 +10139,9 @@
             if (e.target.id === 'copyTradesModal') closeCopyTradesModal();
         });
 
-        // ==================== NOTIFICATIONS MODAL ====================
+        // Notifications modal — extracted to /js/bot-detail/notifications.js
 
-        let notificationSettings = {
-            newTrade: true,
-            closeTrade: true,
-            stopLoss: true,
-            takeProfit: true,
-            positionChange: false,
-            pnlThreshold: false,
-            pnlProfitThreshold: 100,
-            pnlLossThreshold: 50,
-            dailySummary: false,
-            weeklySummary: false
-        };
-
-        async function openNotificationsModal() {
-            document.getElementById('notificationsModal').style.display = 'flex';
-
-            // Check Telegram connection
-            await checkTelegramConnection();
-
-            // Load current notification settings
-            await loadNotificationSettings();
-
-            // Setup PNL threshold toggle
-            setupPnlThresholdToggle();
-        }
-
-        function closeNotificationsModal() {
-            document.getElementById('notificationsModal').style.display = 'none';
-        }
-
-        async function checkTelegramConnection() {
-            try {
-                const response = await fetch('/api/telegram/status', {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    const connectCard = document.getElementById('telegramConnectCard');
-                    const connectedCard = document.getElementById('telegramConnectedCard');
-
-                    if (data.linked) {
-                        connectCard.style.display = 'none';
-                        connectedCard.style.display = 'block';
-                        // Get username from user profile
-                        const userResponse = await fetch('/api/auth/me', { credentials: 'include' });
-                        if (userResponse.ok) {
-                            const userData = await userResponse.json();
-                            if (userData.telegramUsername) {
-                                document.getElementById('telegramUsername').textContent = '@' + userData.telegramUsername;
-                            }
-                        }
-                    } else {
-                        connectCard.style.display = 'block';
-                        connectedCard.style.display = 'none';
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking Telegram status:', error);
-            }
-        }
-
-        async function loadNotificationSettings() {
-            try {
-                const response = await fetch(`/api/bots/${botId}/notifications`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    notificationSettings = { ...notificationSettings, ...data };
-
-                    // Update UI
-                    document.getElementById('notifyNewTrade').checked = notificationSettings.newTrade;
-                    document.getElementById('notifyCloseTrade').checked = notificationSettings.closeTrade;
-                    document.getElementById('notifyStopLoss').checked = notificationSettings.stopLoss;
-                    document.getElementById('notifyTakeProfit').checked = notificationSettings.takeProfit;
-                    document.getElementById('notifyPositionChange').checked = notificationSettings.positionChange;
-                    document.getElementById('notifyPnlThreshold').checked = notificationSettings.pnlThreshold;
-                    document.getElementById('pnlProfitThreshold').value = notificationSettings.pnlProfitThreshold || 100;
-                    document.getElementById('pnlLossThreshold').value = notificationSettings.pnlLossThreshold || 50;
-                    document.getElementById('notifyDailySummary').checked = notificationSettings.dailySummary;
-                    document.getElementById('notifyWeeklySummary').checked = notificationSettings.weeklySummary;
-
-                    // Show/hide PNL threshold settings
-                    document.getElementById('pnlThresholdSettings').style.display =
-                        notificationSettings.pnlThreshold ? 'block' : 'none';
-                }
-            } catch (error) {
-                console.error('Error loading notification settings:', error);
-            }
-        }
-
-        function setupPnlThresholdToggle() {
-            const pnlToggle = document.getElementById('notifyPnlThreshold');
-            const pnlSettings = document.getElementById('pnlThresholdSettings');
-
-            pnlToggle?.addEventListener('change', () => {
-                pnlSettings.style.display = pnlToggle.checked ? 'block' : 'none';
-            });
-        }
-
-        async function saveNotificationSettings() {
-            const settings = {
-                newTrade: document.getElementById('notifyNewTrade').checked,
-                closeTrade: document.getElementById('notifyCloseTrade').checked,
-                stopLoss: document.getElementById('notifyStopLoss').checked,
-                takeProfit: document.getElementById('notifyTakeProfit').checked,
-                positionChange: document.getElementById('notifyPositionChange').checked,
-                pnlThreshold: document.getElementById('notifyPnlThreshold').checked,
-                pnlProfitThreshold: parseFloat(document.getElementById('pnlProfitThreshold').value) || 100,
-                pnlLossThreshold: parseFloat(document.getElementById('pnlLossThreshold').value) || 50,
-                dailySummary: document.getElementById('notifyDailySummary').checked,
-                weeklySummary: document.getElementById('notifyWeeklySummary').checked
-            };
-
-            try {
-                const response = await fetch(`/api/bots/${botId}/notifications`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(settings)
-                });
-
-                if (response.ok) {
-                    notificationSettings = settings;
-                    closeNotificationsModal();
-                    if (typeof showToast === 'function') {
-                        showToast('success', 'Налаштування збережено', 'Налаштування сповіщень оновлено');
-                    }
-                } else {
-                    const error = await response.json();
-                    if (typeof showToast === 'function') {
-                        showToast('error', 'Помилка', error.error || 'Не вдалося зберегти налаштування');
-                    }
-                }
-            } catch (error) {
-                console.error('Error saving notification settings:', error);
-                if (typeof showToast === 'function') {
-                    showToast('error', 'Помилка', 'Не вдалося зберегти налаштування сповіщень');
-                }
-            }
-        }
-
-        // Close notifications modal on background click
-        document.getElementById('notificationsModal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'notificationsModal') closeNotificationsModal();
-        });
-
-        // ==================== RESIZABLE PANELS ====================
-
-        let resizing = false;
-        let currentResizePanel = null;
-        let startY = 0;
-        let startHeight = 0;
-
-        // ── Panel state: save/load (sizes + collapsed + hidden + order) ──────────
-        function loadPanelSizes() {
-            const saved = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
-            if (!saved) return;
-            // Bust old oversized panelStats cache
-            try {
-                const s = JSON.parse(saved);
-                if (s.panelStats?.height > 500) { delete s.panelStats.height; localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(s)); }
-            } catch(e) {}
-            try {
-                const sizes = JSON.parse(saved);
-                // Restore order first
-                if (sizes._order) {
-                    const container = document.getElementById('rightPanel');
-                    sizes._order.forEach(panelId => {
-                        const panel = document.getElementById(panelId);
-                        if (panel) container.appendChild(panel);
-                    });
-                }
-                const isHorizontal = document.getElementById('rightPanel')?.classList.contains('horizontal-layout');
-                Object.keys(sizes).forEach(panelId => {
-                    if (panelId === '_order') return;
-                    const panel = document.getElementById(panelId);
-                    if (!panel) return;
-                    // Skip height/width restore in horizontal layout — CSS handles it
-                    if (!isHorizontal) {
-                        if (sizes[panelId].height && !sizes[panelId].collapsed) {
-                            const minH = panel.dataset.minHeight ? parseInt(panel.dataset.minHeight) : 80;
-                            panel.style.height = Math.max(sizes[panelId].height, minH) + 'px';
-                        }
-                        if (sizes[panelId].width) {
-                            panel.style.width = sizes[panelId].width;
-                            panel.style.minWidth = sizes[panelId].width;
-                            panel.style.maxWidth = sizes[panelId].width;
-                        }
-                    } else {
-                        // In horizontal: clear all size overrides
-                        panel.style.height = '';
-                        panel.style.width = '';
-                        panel.style.minWidth = '';
-                        panel.style.maxWidth = '';
-                        panel.style.flex = '';
-                    }
-                    if (sizes[panelId].flex) {
-                        panel.style.flex = sizes[panelId].flex;
-                    }
-                    if (sizes[panelId].collapsed) panel.classList.add('collapsed');
-                    if (sizes[panelId].hidden) {
-                        panel.classList.add('panel-hidden');
-                        const btn = document.getElementById('pmToggle_' + panelId);
-                        if (btn) btn.classList.remove('on');
-                    }
-                });
-            } catch (e) { console.error('Error loading panel sizes:', e); }
-        }
-
-        function savePanelSizes() {
-            const container = document.getElementById('rightPanel');
-            const panels = container.querySelectorAll('.resizable-panel');
-            const sizes = { _order: [] };
-            panels.forEach(panel => {
-                sizes._order.push(panel.id);
-                const isCollapsed = panel.classList.contains('collapsed');
-                const entry = {
-                    height: isCollapsed ? 48 : panel.offsetHeight,
-                    collapsed: isCollapsed,
-                    hidden: panel.classList.contains('panel-hidden'),
-                    width: panel.style.width || '',
-                    flex: panel.style.flex || ''
-                };
-                // Preserve heightBeforeCollapse if panel is collapsed
-                if (isCollapsed) {
-                    const prev = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
-                    try {
-                        const p = prev ? JSON.parse(prev) : {};
-                        if (p[panel.id]?.heightBeforeCollapse) entry.heightBeforeCollapse = p[panel.id].heightBeforeCollapse;
-                    } catch(e) {}
-                }
-                sizes[panel.id] = entry;
-            });
-            localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(sizes));
-        }
-
-        // Toggle panel collapse
-        function togglePanelCollapse(panelId) {
-            const panel = document.getElementById(panelId);
-            if (!panel) return;
-            const wasCollapsed = panel.classList.contains('collapsed');
-            if (wasCollapsed) {
-                // Uncollapsing: restore saved height or default
-                panel.classList.remove('collapsed');
-                const saved = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
-                let restoredH = null;
-                if (saved) {
-                    try {
-                        const s = JSON.parse(saved);
-                        if (s[panelId]?.heightBeforeCollapse) restoredH = s[panelId].heightBeforeCollapse;
-                    } catch(e) {}
-                }
-                if (restoredH && restoredH > 36) {
-                    panel.style.height = restoredH + 'px';
-                } else if (!panel.style.height || panel.style.height === '36px') {
-                    // Default heights per panel
-                    const defaults = { panelStats: 'auto', positionPanel: '160px', panelOrders: '' };
-                    panel.style.height = defaults[panelId] || '160px';
-                    if (panelId === 'panelOrders') panel.style.flex = '1';
-                }
-            } else {
-                // Collapsing: save current height first
-                const curH = panel.offsetHeight;
-                panel.classList.add('collapsed');
-                // Save pre-collapse height
-                const saved = localStorage.getItem(`yamato_bot_${botId}_panelSizes`);
-                try {
-                    const s = saved ? JSON.parse(saved) : {};
-                    if (!s[panelId]) s[panelId] = {};
-                    s[panelId].heightBeforeCollapse = curH;
-                    localStorage.setItem(`yamato_bot_${botId}_panelSizes`, JSON.stringify(s));
-                } catch(e) {}
-            }
-            savePanelSizes();
-        }
-
-        // Toggle panel hidden (via eye icon or panel manager)
-        function togglePanelHidden(panelId) {
-            const panel = document.getElementById(panelId);
-            if (!panel) return;
-            const isHidden = panel.classList.toggle('panel-hidden');
-            const btn = document.getElementById('pmToggle_' + panelId);
-            if (btn) btn.classList.toggle('on', !isHidden);
-            savePanelSizes();
-        }
-
-        // Panel manager dropdown
-        function togglePanelManager() {
-            const dd = document.getElementById('panelManagerDropdown');
-            const btn = document.getElementById('panelManagerBtn');
-            if (!dd || !btn) return;
-            var wasOpen = dd.classList.contains('open');
-            if (wasOpen) {
-                closeAllDropdowns();
-                dd.classList.remove('open');
-            } else {
-                dd.classList.add('open');
-                openDropdownSafe(dd, btn);
-            }
-        }
-
-        function resetPanelLayout() {
-            localStorage.removeItem(`yamato_bot_${botId}_panelSizes`);
-            localStorage.removeItem(`yamato_bot_${botId}_chartSize`);
-            location.reload();
-        }
+        // Panel management — extracted to /js/bot-detail/panels.js
 
         // ── Header More menu ─────────────────────────────────────────────────
         function toggleHeaderMore() {
@@ -11543,167 +10158,7 @@
             if (menu && !menu.contains(e.target) && !btn?.contains(e.target)) closeHeaderMore();
         }
 
-        // ── Drag-to-reorder panels ────────────────────────────────────────────
-        function initPanelDrag() {
-            const container = document.getElementById('rightPanel');
-            let dragSrc = null;
-            let fromHandle = false;
-
-            // Global mouseup — reset draggable to avoid resize conflicts
-            document.addEventListener('mouseup', () => {
-                if (!dragSrc) {
-                    container.querySelectorAll('.panel-card').forEach(p => { p.draggable = false; });
-                }
-                fromHandle = false;
-            });
-
-            container.querySelectorAll('.panel-card').forEach(panel => {
-                const handle = panel.querySelector('.panel-drag-handle');
-                if (!handle) return;
-
-                handle.addEventListener('mousedown', (e) => {
-                    fromHandle = true;
-                    panel.draggable = true;
-                    e.stopPropagation(); // don't bubble to resize handle
-                });
-
-                panel.addEventListener('dragstart', (e) => {
-                    if (!fromHandle) { e.preventDefault(); panel.draggable = false; return; }
-                    dragSrc = panel;
-                    panel.classList.add('dragging');
-                    e.dataTransfer.effectAllowed = 'move';
-                });
-                panel.addEventListener('dragend', () => {
-                    panel.classList.remove('dragging');
-                    panel.draggable = false;
-                    dragSrc = null; fromHandle = false;
-                    container.querySelectorAll('.panel-card').forEach(p => p.classList.remove('drag-over'));
-                    savePanelSizes();
-                });
-                panel.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (panel !== dragSrc) panel.classList.add('drag-over');
-                });
-                panel.addEventListener('dragleave', () => { panel.classList.remove('drag-over'); });
-                panel.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    if (!dragSrc || dragSrc === panel) return;
-                    const allPanels = [...container.querySelectorAll('.panel-card')];
-                    const srcIdx = allPanels.indexOf(dragSrc);
-                    const tgtIdx = allPanels.indexOf(panel);
-                    if (srcIdx < tgtIdx) container.insertBefore(dragSrc, panel.nextSibling);
-                    else container.insertBefore(dragSrc, panel);
-                    panel.classList.remove('drag-over');
-                });
-            });
-        }
-
-        // Initialize resize handles
-        function initResizeHandles() {
-            const handles = document.querySelectorAll('.resize-handle');
-
-            handles.forEach(handle => {
-                handle.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    resizing = true;
-                    currentResizePanel = document.getElementById(handle.dataset.panel);
-                    startY = e.clientY;
-                    // Use parsed style.height (not offsetHeight) so flex compression doesn't offset our drag
-                    startHeight = parseFloat(currentResizePanel.style.height) || currentResizePanel.offsetHeight;
-                    handle.classList.add('active');
-                    document.body.style.cursor = 'ns-resize';
-                    document.body.style.userSelect = 'none';
-                });
-
-                // Touch support
-                handle.addEventListener('touchstart', (e) => {
-                    resizing = true;
-                    currentResizePanel = document.getElementById(handle.dataset.panel);
-                    startY = e.touches[0].clientY;
-                    startHeight = parseFloat(currentResizePanel.style.height) || currentResizePanel.offsetHeight;
-                    handle.classList.add('active');
-                });
-            });
-
-            function calcMaxHeight(panel) {
-                const hardCap = panel.dataset.maxHeight ? parseInt(panel.dataset.maxHeight) : 99999;
-                const container = panel.parentElement;
-                const containerH = container.offsetHeight;
-                const gap = parseFloat(getComputedStyle(container).gap) || 8;
-                let othersH = 0;
-                let visibleCount = 0;
-                Array.from(container.querySelectorAll('.resizable-panel')).forEach(p => {
-                    if (p === panel || p.classList.contains('panel-hidden') || p.classList.contains('collapsed')) return;
-                    visibleCount++;
-                    // Use per-panel min-height or 80px fallback
-                    const pMinH = p.dataset.minHeight ? parseInt(p.dataset.minHeight) : (p.id === 'panelOrders' ? 200 : 80);
-                    othersH += Math.max(pMinH, p.classList.contains('collapsed') ? 48 : pMinH);
-                });
-                visibleCount++; // count the panel being resized
-                const gapsH = gap * Math.max(0, visibleCount - 1);
-                const panelMinH = panel.dataset.minHeight ? parseInt(panel.dataset.minHeight) : 80;
-                return Math.min(hardCap, Math.max(panelMinH, containerH - othersH - gapsH));
-            }
-
-            document.addEventListener('mousemove', (e) => {
-                if (!resizing || !currentResizePanel) return;
-                const deltaY = e.clientY - startY;
-                const maxH = calcMaxHeight(currentResizePanel);
-                const minH = currentResizePanel.dataset.minHeight ? parseInt(currentResizePanel.dataset.minHeight) : 80;
-                const newHeight = Math.max(minH, Math.min(maxH, startHeight + deltaY));
-                currentResizePanel.style.height = newHeight + 'px';
-                if (currentResizePanel.classList.contains('collapsed')) {
-                    currentResizePanel.classList.remove('collapsed');
-                }
-            });
-
-            document.addEventListener('touchmove', (e) => {
-                if (!resizing || !currentResizePanel) return;
-                const deltaY = e.touches[0].clientY - startY;
-                const maxH = calcMaxHeight(currentResizePanel);
-                const minH = currentResizePanel.dataset.minHeight ? parseInt(currentResizePanel.dataset.minHeight) : 80;
-                const newHeight = Math.max(minH, Math.min(maxH, startHeight + deltaY));
-                currentResizePanel.style.height = newHeight + 'px';
-                if (currentResizePanel.classList.contains('collapsed')) {
-                    currentResizePanel.classList.remove('collapsed');
-                }
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (resizing) {
-                    if (currentResizePanel && currentResizePanel.id === 'panelStats') drawEquityCurve();
-                    resizing = false;
-                    document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
-                    document.body.style.cursor = '';
-                    document.body.style.userSelect = '';
-                    savePanelSizes();
-                    currentResizePanel = null;
-                }
-            });
-
-            document.addEventListener('touchend', () => {
-                if (resizing) {
-                    if (currentResizePanel && currentResizePanel.id === 'panelStats') drawEquityCurve();
-                    resizing = false;
-                    document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
-                    savePanelSizes();
-                    currentResizePanel = null;
-                }
-            });
-        }
-
-        // Double-click to reset panel size
-        document.querySelectorAll('.resize-handle').forEach(handle => {
-            handle.addEventListener('dblclick', () => {
-                const panel = document.getElementById(handle.dataset.panel);
-                if (panel) {
-                    panel.style.height = '';
-                    panel.classList.remove('collapsed');
-                    savePanelSizes();
-                }
-            });
-        });
+        // Panel management (drag, resize handles, dblclick reset) — extracted to /js/bot-detail/panels.js
 
         // ==================== INITIALIZE ====================
 
@@ -12036,574 +10491,3 @@
             if (rulerActive) {
                 rulerBtn.classList.add('active');
                 chartEl.classList.add('ruler-mode');
-                cleanupRuler();
-            } else {
-                rulerBtn.classList.remove('active');
-                chartEl.classList.remove('ruler-mode');
-                cleanupRuler();
-            }
-        }
-
-        function formatPrice(p) {
-            if (p == null || isNaN(p)) return '—';
-            var a = Math.abs(p);
-            if (a >= 1000) return p.toFixed(2);
-            if (a >= 1)    return p.toFixed(4);
-            if (a >= 0.01) return p.toFixed(5);
-            return p.toFixed(7);
-        }
-
-        function updateRulerLabel(startPrice, endPrice, startIdx, endIdx, x, y) {
-            if (startPrice == null || endPrice == null) return;
-            if (!rulerLabel) {
-                rulerLabel = document.createElement('div');
-                rulerLabel.className = 'ruler-label';
-                chartEl.appendChild(rulerLabel);
-            }
-            var diff = endPrice - startPrice;
-            var pct  = (startPrice !== 0 && isFinite(startPrice)) ? (diff / startPrice) * 100 : 0;
-            if (!isFinite(pct)) pct = 0;
-            var bars = Math.abs((endIdx || 0) - (startIdx || 0));
-            var pctClass = pct >= 0 ? 'pos' : 'neg';
-            var sign = pct >= 0 ? '+' : '';
-
-            var barUnit = _tickChart ? 'тік' : 'бар';
-            var barSuffix = _tickChart
-                ? (bars === 1 ? '' : bars < 5 ? 'и' : 'ів')
-                : (bars === 1 ? '' : bars < 5 ? 'и' : 'ів');
-            rulerLabel.innerHTML =
-                '<span class="rl-price">' + formatPrice(endPrice) + '</span>  ' +
-                '<span class="rl-pct ' + pctClass + '">' + sign + pct.toFixed(2) + '%</span>  ' +
-                '(<span class="rl-price">' + sign + formatPrice(diff) + '</span>)<br>' +
-                '<span class="rl-bars">' + bars + '\u00a0' + barUnit + barSuffix + '</span>';
-
-            var rect = chartEl.getBoundingClientRect();
-            var lw = rulerLabel.offsetWidth || 160;
-            var lx = x + 16;
-            if (lx + lw > rect.width - 4) lx = x - lw - 16;
-            if (lx < 4) lx = 4;
-            rulerLabel.style.left      = lx + 'px';
-            rulerLabel.style.top       = y + 'px';
-            rulerLabel.style.transform = 'translateY(-50%)';
-        }
-
-        // mousedown — capture phase so we intercept before klinecharts panning
-        function onRulerMouseDown(e) {
-            if (!rulerActive) return;
-            e.stopImmediatePropagation();
-            e.preventDefault();
-
-            var r = chartEl.getBoundingClientRect();
-            var cx = e.clientX - r.left;
-            var cy = e.clientY - r.top;
-            // Get chart coords at raw pixel position
-            var cp = _rulerFromPixel(cx, cy);
-            var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
-            var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
-            var time      = (cp && cp.time) || 0;
-            // For tick chart: snap to actual tick position
-            var snapX = (cp && cp.snappedX != null) ? cp.snappedX : cx;
-            var snapY = (cp && cp.snappedY != null) ? cp.snappedY : cy;
-
-            if (rulerStep === 0 || rulerStep === 2) {
-                cleanupRuler();
-                rulerStartData = { price: price, dataIndex: dataIndex, x: snapX, y: snapY, time: time };
-                rulerStep = 1;
-            } else if (rulerStep === 1) {
-                rulerEndData = { price: price, dataIndex: dataIndex, x: snapX, y: snapY, time: time };
-                drawRulerLine(rulerStartData.x, rulerStartData.y, snapX, snapY, true);
-                updateRulerLabel(rulerStartData.price, price,
-                                 rulerStartData.dataIndex, dataIndex, snapX, snapY);
-                rulerStep = 2;
-            }
-        }
-
-        // mousemove — live preview
-        var _rulerRafPending = false;
-        function onRulerMouseMove(e) {
-            if (!rulerActive || rulerStep !== 1 || !rulerStartData) return;
-            if (_rulerRafPending) return;
-            _rulerRafPending = true;
-            requestAnimationFrame(function() {
-                _rulerRafPending = false;
-                var r = chartEl.getBoundingClientRect();
-                var cx = e.clientX - r.left;
-                var cy = e.clientY - r.top;
-                var cp = _rulerFromPixel(cx, cy);
-                var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
-                var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
-                // For tick chart: snap end point and recalculate start position from chart coords
-                var endX = (cp && cp.snappedX != null) ? cp.snappedX : cx;
-                var endY = (cp && cp.snappedY != null) ? cp.snappedY : cy;
-                var startX = rulerStartData.x, startY = rulerStartData.y;
-                if (_tickChart && rulerStartData.time) {
-                    var sp = _rulerToPixel(rulerStartData.dataIndex, rulerStartData.price, rulerStartData.time);
-                    if (sp) { startX = sp.x; startY = sp.y; rulerStartData.x = startX; rulerStartData.y = startY; }
-                }
-                drawRulerLine(startX, startY, endX, endY, false);
-                if (price !== null) {
-                    updateRulerLabel(rulerStartData.price, price,
-                                     rulerStartData.dataIndex, dataIndex, endX, endY);
-                }
-            });
-        }
-
-        // ── Range stats tool ──────────────────────────────────────────────────
-        var rangeActive = false;
-        var rangeStep = 0; // 0=idle, 1=start set, 2=finalized
-        var rangeStartData = null;
-        var rangeStatsPopup = null;
-
-        function cleanupRange() {
-            clearCanvas();
-            if (rangeStatsPopup) { rangeStatsPopup.remove(); rangeStatsPopup = null; }
-            rangeStep = 0;
-            rangeStartData = null;
-        }
-
-        function toggleRangeTool() {
-            rangeActive = !rangeActive;
-            if (rangeActive) {
-                document.getElementById('rangeBtn').classList.add('active');
-                chartEl.classList.add('range-mode');
-                cleanupRange();
-                if (rulerActive) toggleRuler(); // cancel ruler
-            } else {
-                document.getElementById('rangeBtn').classList.remove('active');
-                chartEl.classList.remove('range-mode');
-                cleanupRange();
-            }
-        }
-
-        function drawRangeSelection(x1, x2, finalized) {
-            var s = sizeCanvas();
-            var ctx = s.ctx, dpr = s.dpr;
-            ctx.clearRect(0, 0, s.w * dpr, s.h * dpr);
-            ctx.save();
-            ctx.scale(dpr, dpr);
-            var lx = Math.min(x1, x2), rx = Math.max(x1, x2);
-
-            // Tinted fill between lines
-            ctx.fillStyle = 'rgba(245,158,11,0.07)';
-            ctx.fillRect(lx, 0, rx - lx, s.h);
-
-            // Vertical lines
-            ctx.strokeStyle = finalized ? '#F59E0B' : 'rgba(245,158,11,0.65)';
-            ctx.lineWidth = finalized ? 1.5 : 1;
-            ctx.setLineDash([5, 4]);
-            ctx.beginPath(); ctx.moveTo(x1, 0); ctx.lineTo(x1, s.h); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x2, 0); ctx.lineTo(x2, s.h); ctx.stroke();
-
-            // Dots at top/bottom
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#F59E0B';
-            [x1, x2].forEach(function(x) {
-                ctx.beginPath(); ctx.arc(x, 4, 3, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(x, s.h - 4, 3, 0, Math.PI * 2); ctx.fill();
-            });
-            ctx.restore();
-        }
-
-        function _fp(p) {
-            var a = Math.abs(p);
-            if (a >= 1000) return p.toFixed(2);
-            if (a >= 1)    return p.toFixed(4);
-            if (a >= 0.01) return p.toFixed(5);
-            return p.toFixed(7);
-        }
-        function _fv(v) {
-            if (v >= 1e9) return (v/1e9).toFixed(2) + 'B';
-            if (v >= 1e6) return (v/1e6).toFixed(2) + 'M';
-            if (v >= 1e3) return (v/1e3).toFixed(2) + 'K';
-            return v.toFixed(2);
-        }
-
-        function computeRangeStats(t1, t2) {
-            if (t1 == null || t2 == null) return null;
-            var tMin = Math.min(t1, t2);
-            var tMax = Math.max(t1, t2);
-            // Filter candles strictly by open-time within [tMin, tMax]
-            var candles = klinesData.filter(function(k) { return k.time >= tMin && k.time <= tMax; });
-            if (candles.length === 0) {
-                // If user selected within a single candle, grab the containing candle
-                candles = klinesData.filter(function(k) { return k.time <= tMax; });
-                if (candles.length) candles = [candles[candles.length - 1]];
-            }
-            if (candles.length === 0) return null;
-
-            var tStart = candles[0].time;
-            var tEnd   = candles[candles.length - 1].time;
-            // interval seconds — needed to include trades within the last candle
-            var ivSec = klinesData.length > 1 ? klinesData[1].time - klinesData[0].time : 900;
-            var open   = candles[0].open;
-            var close  = candles[candles.length - 1].close;
-            var high   = candles.reduce(function(m,c){ return Math.max(m, c.high); }, -Infinity);
-            var low    = candles.reduce(function(m,c){ return Math.min(m, c.low);  },  Infinity);
-            var change    = close - open;
-            var changePct = open !== 0 ? change / open * 100 : 0;
-            var range     = high - low;
-            var rangePct  = open !== 0 ? range / open * 100 : 0;
-
-            var bulls = candles.filter(function(c){ return c.close >= c.open; }).length;
-            var bears = candles.length - bulls;
-            var avgBody  = candles.reduce(function(s,c){ return s + Math.abs(c.close - c.open); }, 0) / candles.length;
-            var avgRange = candles.reduce(function(s,c){ return s + (c.high - c.low); }, 0) / candles.length;
-            var maxRange = candles.reduce(function(m,c){ return Math.max(m, c.high - c.low); }, 0);
-            var minRange = candles.reduce(function(m,c){ return Math.min(m, c.high - c.low); }, Infinity);
-            var volatility = avgRange > 0 ? (maxRange - minRange) / avgRange * 100 : 0;
-
-            var hasVol   = candles.some(function(c){ return c.volume > 0; });
-            var totalVol = hasVol ? candles.reduce(function(s,c){ return s + (c.volume || 0); }, 0) : 0;
-            var avgVol   = hasVol ? totalVol / candles.length : 0;
-            var maxVol   = hasVol ? candles.reduce(function(m,c){ return Math.max(m, c.volume||0); }, 0) : 0;
-
-            // Trade stats from lastRawMarkers
-            // tEnd + ivSec to include trades that happened within the last candle period
-            var mkrs = (lastRawMarkers || []).filter(function(m){ return m.time >= tStart && m.time < tEnd + ivSec; });
-            var entries = mkrs.filter(function(m){ return m.isEntry; });
-            var exits   = mkrs.filter(function(m){ return !m.isEntry; });
-            var pnlArr  = exits.map(function(m){ return parseFloat(m.pnl || m.realizedPnl || 0); });
-            var totalPnl = pnlArr.reduce(function(s,v){ return s+v; }, 0);
-            var wins  = pnlArr.filter(function(v){ return v > 0; });
-            var losses = pnlArr.filter(function(v){ return v < 0; });
-            var bestPnl  = wins.length  ? Math.max.apply(null, wins)  : null;
-            var worstPnl = losses.length ? Math.min.apply(null, losses) : null;
-            var avgPnl   = pnlArr.length ? totalPnl / pnlArr.length : 0;
-            var winRate  = pnlArr.length ? wins.length / pnlArr.length * 100 : 0;
-            var profitFactor = losses.length ?
-                Math.abs(wins.reduce(function(s,v){return s+v;},0)) / Math.abs(losses.reduce(function(s,v){return s+v;},0)) : null;
-
-            // Long vs Short breakdown (use positionSide when available — hedge mode)
-            var longs  = mkrs.filter(function(m){ return m.positionSide === 'LONG'  || (!m.positionSide && (m.side === 'LONG'  || m.side === 'BUY')); });
-            var shorts = mkrs.filter(function(m){ return m.positionSide === 'SHORT' || (!m.positionSide && (m.side === 'SHORT' || m.side === 'SELL')); });
-
-            // Max consecutive wins/losses from exits
-            var maxStreak = function(arr, positive) {
-                var cur = 0, best = 0;
-                arr.forEach(function(v) {
-                    if (positive ? v > 0 : v < 0) { cur++; best = Math.max(best, cur); } else cur = 0;
-                });
-                return best;
-            };
-            var maxWinStreak  = maxStreak(pnlArr, true);
-            var maxLossStreak = maxStreak(pnlArr, false);
-
-            return {
-                tStart, tEnd, total: candles.length, bulls, bears,
-                open, close, high, low, change, changePct, range, rangePct,
-                avgBody, avgRange, maxRange, minRange, volatility,
-                hasVol, totalVol, avgVol, maxVol,
-                mkrsTotal: mkrs.length, entries: entries.length, exits: exits.length,
-                totalPnl, wins: wins.length, losses: losses.length, winRate,
-                bestPnl, worstPnl, avgPnl, profitFactor,
-                longs: longs.length, shorts: shorts.length,
-                maxWinStreak, maxLossStreak
-            };
-        }
-
-        function showRangeStatsPopup(stats) {
-            if (rangeStatsPopup) { rangeStatsPopup.remove(); rangeStatsPopup = null; }
-            if (!stats) return;
-
-            function fdate(ts) {
-                var d = new Date(ts * 1000);
-                return d.toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ' ' +
-                       d.toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'});
-            }
-            function row(lbl, val, cls) {
-                return '<div class="rsp-row"><span class="rsp-lbl">' + lbl + '</span><span class="rsp-val' + (cls ? ' ' + cls : '') + '">' + val + '</span></div>';
-            }
-            var pc = stats.changePct >= 0 ? 'rsp-up' : 'rsp-dn';
-            var ps = stats.changePct >= 0 ? '+' : '';
-            var pp = stats.totalPnl  >= 0 ? 'rsp-up' : 'rsp-dn';
-            var pps = stats.totalPnl >= 0 ? '+' : '';
-
-            var tradesSection = '';
-            if (stats.mkrsTotal > 0) {
-                tradesSection = '<div class="rsp-section">' +
-                    '<div class="rsp-section-title">Угоди бота</div>' +
-                    '<div class="rsp-grid">' +
-                    row('Всього маркерів', stats.mkrsTotal) +
-                    row('Входів / Виходів', stats.entries + ' / ' + stats.exits) +
-                    row('Лонг / Шорт', stats.longs + ' / ' + stats.shorts) +
-                    (stats.exits > 0 ? [
-                        row('Реаліз. PnL', pps + stats.totalPnl.toFixed(4) + ' $', pp),
-                        row('Переможних', stats.wins + ' (' + stats.winRate.toFixed(0) + '%)', 'rsp-up'),
-                        row('Збиткових', stats.losses, stats.losses > 0 ? 'rsp-dn' : ''),
-                        row('Win rate', stats.winRate.toFixed(1) + '%', stats.winRate >= 50 ? 'rsp-up' : 'rsp-dn'),
-                        stats.bestPnl  !== null ? row('Найкраща', '+' + stats.bestPnl.toFixed(4) + ' $', 'rsp-up') : '',
-                        stats.worstPnl !== null ? row('Найгірша', stats.worstPnl.toFixed(4) + ' $', 'rsp-dn') : '',
-                        row('Сер. виходу', (stats.avgPnl >= 0 ? '+' : '') + stats.avgPnl.toFixed(4) + ' $', stats.avgPnl >= 0 ? 'rsp-up' : 'rsp-dn'),
-                        stats.profitFactor !== null ? row('Profit factor', stats.profitFactor.toFixed(2)) : '',
-                        row('Макс. серія прибутків', stats.maxWinStreak),
-                        row('Макс. серія збитків', stats.maxLossStreak, stats.maxLossStreak > 2 ? 'rsp-dn' : ''),
-                    ].join('') : '<div style="color:var(--text-tertiary);font-size:10px;padding:2px 0">Немає закритих позицій у діапазоні</div>') +
-                    '</div></div>';
-            } else {
-                tradesSection = '<div class="rsp-section"><div class="rsp-section-title">Угоди бота</div>' +
-                    '<div style="color:var(--text-tertiary);font-size:10px;padding:2px 0">Немає угод у вибраному діапазоні</div></div>';
-            }
-
-            var volSection = stats.hasVol ? '<div class="rsp-section">' +
-                '<div class="rsp-section-title">Об\'єм</div>' +
-                '<div class="rsp-grid">' +
-                row('Загальний', _fv(stats.totalVol)) +
-                row('Середній/бар', _fv(stats.avgVol)) +
-                row('Максимальний', _fv(stats.maxVol)) +
-                '</div></div>' : '';
-
-            rangeStatsPopup = document.createElement('div');
-            rangeStatsPopup.className = 'range-stats-popup';
-            rangeStatsPopup.innerHTML =
-                '<div class="rsp-header">' +
-                  '<div class="rsp-title">' +
-                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="4" x2="3" y2="20"/><line x1="21" y1="4" x2="21" y2="20"/></svg>' +
-                    'Статистика діапазону<span class="rsp-bars">' + stats.total + ' барів</span>' +
-                  '</div>' +
-                  '<button class="rsp-close" onclick="this.closest(\'.range-stats-popup\').remove()">' +
-                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-                  '</button>' +
-                '</div>' +
-                '<div class="rsp-dates">' + fdate(stats.tStart) + ' — ' + fdate(stats.tEnd) + '</div>' +
-                '<div class="rsp-section">' +
-                  '<div class="rsp-section-title">Ціна</div>' +
-                  '<div class="rsp-grid">' +
-                  row('Відкриття', _fp(stats.open)) +
-                  row('Закриття', _fp(stats.close)) +
-                  row('Максимум', _fp(stats.high), 'rsp-up') +
-                  row('Мінімум', _fp(stats.low), 'rsp-dn') +
-                  row('Зміна $', ps + _fp(stats.change), pc) +
-                  row('Зміна %', ps + stats.changePct.toFixed(2) + '%', pc) +
-                  row('Розмах $', _fp(stats.range)) +
-                  row('Розмах %', stats.rangePct.toFixed(2) + '%') +
-                  '</div></div>' +
-                '<div class="rsp-section">' +
-                  '<div class="rsp-section-title">Свічки</div>' +
-                  '<div class="rsp-grid">' +
-                  row('Всього', stats.total) +
-                  row('Бичачих', stats.bulls + ' (' + (stats.bulls/stats.total*100).toFixed(0) + '%)', 'rsp-up') +
-                  row('Ведмежих', stats.bears + ' (' + (stats.bears/stats.total*100).toFixed(0) + '%)', 'rsp-dn') +
-                  row('Сер. тіло', _fp(stats.avgBody)) +
-                  row('Сер. розмах', _fp(stats.avgRange)) +
-                  row('Макс. розмах', _fp(stats.maxRange)) +
-                  row('Мін. розмах', _fp(stats.minRange)) +
-                  row('Волатильність', stats.volatility.toFixed(1) + '%') +
-                  '</div></div>' +
-                volSection +
-                tradesSection;
-
-            chartEl.appendChild(rangeStatsPopup);
-
-            // Initial position — centered at top
-            var rect = chartEl.getBoundingClientRect();
-            var pw = rangeStatsPopup.offsetWidth || 272;
-            var lx = (rect.width - pw) / 2;
-            lx = Math.max(4, Math.min(lx, rect.width - pw - 4));
-            rangeStatsPopup.style.left = lx + 'px';
-            rangeStatsPopup.style.top  = '12px';
-            rangeStatsPopup.style.transform = 'none';
-
-            // Make draggable via header
-            (function makeDraggable(popup) {
-                var header = popup.querySelector('.rsp-header');
-                if (!header) return;
-                header.style.cursor = 'grab';
-                var dragStartX, dragStartY, popStartX, popStartY, dragging = false;
-
-                header.addEventListener('mousedown', function(e) {
-                    if (e.target.closest('.rsp-close')) return;
-                    dragging = true;
-                    dragStartX = e.clientX;
-                    dragStartY = e.clientY;
-                    popStartX = parseInt(popup.style.left) || 0;
-                    popStartY = parseInt(popup.style.top)  || 0;
-                    header.style.cursor = 'grabbing';
-                    e.preventDefault();
-                    e.stopPropagation();
-                });
-                document.addEventListener('mousemove', function(e) {
-                    if (!dragging) return;
-                    var dx = e.clientX - dragStartX;
-                    var dy = e.clientY - dragStartY;
-                    var r = chartEl.getBoundingClientRect();
-                    var newX = Math.max(0, Math.min(r.width  - popup.offsetWidth,  popStartX + dx));
-                    var newY = Math.max(0, Math.min(r.height - popup.offsetHeight, popStartY + dy));
-                    popup.style.left = newX + 'px';
-                    popup.style.top  = newY + 'px';
-                });
-                document.addEventListener('mouseup', function() {
-                    if (dragging) { dragging = false; header.style.cursor = 'grab'; }
-                });
-            })(rangeStatsPopup);
-        }
-
-        function _rangeTimeFromCursor() {
-            // Get candle time by dataIndex, fallback to closest in klinesData
-            var idx = _rulerLastCursor.dataIndex;
-            if (idx != null && klinesData[idx]) return klinesData[idx].time;
-            // fallback: use price crosshair to binary-search closest candle time
-            if (klinesData.length === 0) return null;
-            return klinesData[Math.max(0, Math.min(klinesData.length - 1, idx || 0))].time;
-        }
-
-        function onRangeMouseDown(e) {
-            if (!rangeActive) return;
-            if (rangeStatsPopup && rangeStatsPopup.contains(e.target)) return;
-            e.stopImmediatePropagation();
-            e.preventDefault();
-            var cx = _rulerLastCursor.x || (e.clientX - chartEl.getBoundingClientRect().left);
-
-            if (rangeStep === 0 || rangeStep === 2) {
-                cleanupRange();
-                rangeStartData = { x: cx, time: _rangeTimeFromCursor() };
-                rangeStep = 1;
-            } else if (rangeStep === 1) {
-                drawRangeSelection(rangeStartData.x, cx, true);
-                var stats = computeRangeStats(rangeStartData.time, _rangeTimeFromCursor());
-                showRangeStatsPopup(stats);
-                rangeStep = 2;
-            }
-        }
-
-        var _rangeRafPending = false;
-        function onRangeMouseMove(e) {
-            if (!rangeActive || rangeStep !== 1 || !rangeStartData) return;
-            if (_rangeRafPending) return;
-            _rangeRafPending = true;
-            requestAnimationFrame(function() {
-                _rangeRafPending = false;
-                var cx = _rulerLastCursor.x || (e.clientX - chartEl.getBoundingClientRect().left);
-                drawRangeSelection(rangeStartData.x, cx, false);
-            });
-        }
-        // ── End range stats tool ──────────────────────────────────────────────
-
-        // Escape cancels both tools
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                if (rulerActive) toggleRuler();
-                if (rangeActive) toggleRangeTool();
-            }
-        });
-
-        // Subscribe to klinecharts crosshair — get price-snapped x/y
-        // Exposed as window._rulerResubscribe so _buildKlChart can re-call after chart rebuild
-        window._rulerResubscribe = function() {
-            if (!klChart || !window.klinecharts) return;
-            try {
-                klChart.subscribeAction(window.klinecharts.ActionType.OnCrosshairChange, function(data) {
-                    if (!data) return;
-                    if (data.dataIndex != null) _rulerLastCursor.dataIndex = data.dataIndex;
-                    if (data.x != null) _rulerLastCursor.x = data.x;
-                    if (data.y != null) _rulerLastCursor.y = data.y;
-                    var p = data.price;
-                    if (p == null && data.kLineData) p = data.kLineData.close;
-                    if (p == null && data.dataIndex != null && klinesData[data.dataIndex]) p = klinesData[data.dataIndex].close;
-                    if (p != null && p !== 0) _rulerLastCursor.price = p;
-                });
-            } catch(e) {}
-            // Redraw finalized ruler when chart scrolls or zooms
-            try {
-                klChart.subscribeAction(window.klinecharts.ActionType.OnScroll, redrawRulerFromChart);
-                klChart.subscribeAction(window.klinecharts.ActionType.OnZoom,   redrawRulerFromChart);
-                klChart.subscribeAction(window.klinecharts.ActionType.OnVisibleRangeChange, redrawRulerFromChart);
-            } catch(e) {}
-            try {
-                klChart.subscribeAction(window.klinecharts.ActionType.OnDrawEnd, function() {
-                    _activeDrawingId = null;
-                    _activeDrawingTool = null;
-                });
-            } catch(e) {}
-        };
-
-        // Attach ruler/range listeners immediately (work for both klChart and tick chart)
-        chartEl.addEventListener('mousedown', onRulerMouseDown,  { capture: true });
-        chartEl.addEventListener('mousemove', onRulerMouseMove);
-        chartEl.addEventListener('mousedown', onRangeMouseDown,  { capture: true });
-        chartEl.addEventListener('mousemove', onRangeMouseMove);
-
-        // Subscribe klinecharts-specific events when klChart becomes available
-        var waitChart = setInterval(function() {
-            if (klChart) {
-                clearInterval(waitChart);
-                window._rulerResubscribe();
-            }
-        }, 200);
-
-        if (rulerBtn) rulerBtn.addEventListener('click', toggleRuler);
-        var _rangeBtn = document.getElementById('rangeBtn');
-        if (_rangeBtn) _rangeBtn.addEventListener('click', toggleRangeTool);
-    })();
-
-    // ═══════════════════════════════════════════
-    //  DOUBLE-CLICK FULLSCREEN CHART
-    // ═══════════════════════════════════════════
-    (function() {
-        var container = document.getElementById('chartContainer');
-        var exitBtn = document.getElementById('chartFsExit');
-        if (!container) return;
-
-        function toggleFullscreen() {
-            var isFs = container.classList.toggle('chart-fullscreen');
-            document.body.style.overflow = isFs ? 'hidden' : '';
-            // Ensure no parent clips the fixed element
-            var parent = container.parentElement;
-            while (parent && parent !== document.body) {
-                if (isFs) {
-                    parent.dataset.prevOverflow = parent.style.overflow || '';
-                    parent.style.overflow = 'visible';
-                } else {
-                    parent.style.overflow = parent.dataset.prevOverflow || '';
-                }
-                parent = parent.parentElement;
-            }
-            // Trigger resize so chart recalculates dimensions
-            setTimeout(function() {
-                window.dispatchEvent(new Event('resize'));
-            }, 60);
-        }
-
-        // Double-click on chart area (not on buttons/inputs)
-        container.addEventListener('dblclick', function(e) {
-            // Don't trigger on buttons, inputs, or interactive elements
-            if (e.target.closest('button, input, select, a, .chart-fs-exit, .chart-markers-legend')) return;
-            toggleFullscreen();
-        });
-
-        // Exit button
-        if (exitBtn) exitBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (container.classList.contains('chart-fullscreen')) toggleFullscreen();
-        });
-
-        // Escape key exits fullscreen
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && container.classList.contains('chart-fullscreen')) {
-                toggleFullscreen();
-            }
-        });
-    })();
-    </script>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="/js/app.js"></script>
-    <!-- Chart features (markers, price lines, overlay) handled by vanilla JS above -->
-<!-- Mobile Bottom Nav -->
-<nav class="m-bottom-nav" id="mobileNav" style="display:none;">
-    <a href="/dashboard" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Головна</span></a>
-    <a href="/bots" class="m-nav-tab"><span class="material-symbols-outlined">robot</span><span>Боти</span></a>
-    <a href="/portfolio" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Портфель</span></a>
-    <a href="/subscriptions" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Підписки</span></a>
-    <a href="/profile" class="m-nav-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Профіль</span></a>
-</nav>
-<script>(function(){var m=window.matchMedia('(max-width:768px)');function t(e){var n=document.getElementById('mobileNav');if(n)n.style.display=e.matches?'flex':'none';}m.addEventListener('change',t);t(m);})()</script>
-
-<!-- Trade Detail Popup -->
-<div id="trade-popup" style="display:none;">
-    <div class="tp-header">
-        <span id="tp-title">Деталі угоди</span>
-        <button class="tp-close" onclick="hideTradePopup()">×</button>
-    </div>
-    <div id="tp-body"></div>
-</div>
-</body>
-</html>
