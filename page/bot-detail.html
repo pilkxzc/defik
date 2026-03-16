@@ -4299,6 +4299,7 @@
         const TICK_TFS = new Set(['1s','3s']);
         let currentSymbol = 'BTCUSDT';
         let currentInterval = '1m';
+        let _klUserScrolled = false;         // true when user scrolled klinecharts away from live edge
         let trendOverlayGroup = 'trend-0';   // overlay group for trend lines
         let trendOverlayIdx = 0;
         let tradeOverlayGroup = 'trades-0';  // overlay group for trade markers
@@ -6484,7 +6485,15 @@
                         price = parseFloat(msg.p);
                         const qty = parseFloat(msg.q);
                         if (!_currentAggBar || _currentAggBar.timestamp !== bucketMs) {
-                            if (_currentAggBar && klChart) klChart.updateData({ ..._currentAggBar });
+                            if (_currentAggBar && klChart) {
+                                if (_klUserScrolled && typeof klChart.getVisibleRange === 'function') {
+                                    var _sr = klChart.getVisibleRange();
+                                    klChart.updateData({ ..._currentAggBar });
+                                    if (_sr && typeof klChart.scrollToDataIndex === 'function') klChart.scrollToDataIndex(_sr.from);
+                                } else {
+                                    klChart.updateData({ ..._currentAggBar });
+                                }
+                            }
                             _currentAggBar = { timestamp: bucketMs, open: price, high: price, low: price, close: price, volume: qty };
                         } else {
                             const b = _currentAggBar;
@@ -6501,7 +6510,15 @@
                     }
 
                     if (bar && klChart) {
-                        klChart.updateData(bar);
+                        if (_klUserScrolled && typeof klChart.getVisibleRange === 'function') {
+                            var savedRange = klChart.getVisibleRange();
+                            klChart.updateData(bar);
+                            if (savedRange && typeof klChart.scrollToDataIndex === 'function') {
+                                klChart.scrollToDataIndex(savedRange.from);
+                            }
+                        } else {
+                            klChart.updateData(bar);
+                        }
                         lastPrice = price;
                         updateLivePrice(price);
                         // Sync klinesData for overlay/snap calculations
@@ -7464,6 +7481,17 @@
                 });
                 _klResizeObserver.observe(container);
             }
+
+            // Track user scroll state to prevent auto-snap on new data
+            _klUserScrolled = false;
+            if (typeof window.klinecharts !== 'undefined' && window.klinecharts.ActionType && typeof klChart.subscribeAction === 'function') {
+                klChart.subscribeAction(window.klinecharts.ActionType.OnVisibleRangeChange, function(range) {
+                    try {
+                        var data = klChart.getDataList();
+                        _klUserScrolled = data && data.length > 0 && range.to < data.length - 2;
+                    } catch(e) { _klUserScrolled = false; }
+                });
+            }
         }
 
         function buildChartOverrides() {
@@ -7633,6 +7661,7 @@
             klinesData = [];
             lastMarkersKey = '';
             _chartLoadGen++;
+            _klUserScrolled = false;
             const _myLoadGen = _chartLoadGen;
 
             // Tick chart mode for sub-5s timeframes
@@ -11969,12 +11998,12 @@
             return null;
         }
 
-        // Convert pixel {x, y} → chart coords {dataIndex, price, time}
+        // Convert pixel {x, y} → chart coords {dataIndex, price, time, snappedX, snappedY}
         function _rulerFromPixel(px, py) {
-            // Tick chart mode
+            // Tick chart mode — returns snapped coordinates
             if (_tickChart) {
                 var tc = _tickChart.pixelToChart(px, py);
-                if (tc) return { dataIndex: tc.tickIndex, price: tc.price, time: tc.time };
+                if (tc) return { dataIndex: tc.tickIndex, price: tc.price, time: tc.time, snappedX: tc.snappedX, snappedY: tc.snappedY };
                 return null;
             }
             if (!klChart) return null;
@@ -12072,16 +12101,19 @@
             var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
             var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
             var time      = (cp && cp.time) || 0;
+            // For tick chart: snap to actual tick position
+            var snapX = (cp && cp.snappedX != null) ? cp.snappedX : cx;
+            var snapY = (cp && cp.snappedY != null) ? cp.snappedY : cy;
 
             if (rulerStep === 0 || rulerStep === 2) {
                 cleanupRuler();
-                rulerStartData = { price: price, dataIndex: dataIndex, x: cx, y: cy, time: time };
+                rulerStartData = { price: price, dataIndex: dataIndex, x: snapX, y: snapY, time: time };
                 rulerStep = 1;
             } else if (rulerStep === 1) {
-                rulerEndData = { price: price, dataIndex: dataIndex, x: cx, y: cy, time: time };
-                drawRulerLine(rulerStartData.x, rulerStartData.y, cx, cy, true);
+                rulerEndData = { price: price, dataIndex: dataIndex, x: snapX, y: snapY, time: time };
+                drawRulerLine(rulerStartData.x, rulerStartData.y, snapX, snapY, true);
                 updateRulerLabel(rulerStartData.price, price,
-                                 rulerStartData.dataIndex, dataIndex, cx, cy);
+                                 rulerStartData.dataIndex, dataIndex, snapX, snapY);
                 rulerStep = 2;
             }
         }
@@ -12100,10 +12132,18 @@
                 var cp = _rulerFromPixel(cx, cy);
                 var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
                 var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
-                drawRulerLine(rulerStartData.x, rulerStartData.y, cx, cy, false);
+                // For tick chart: snap end point and recalculate start position from chart coords
+                var endX = (cp && cp.snappedX != null) ? cp.snappedX : cx;
+                var endY = (cp && cp.snappedY != null) ? cp.snappedY : cy;
+                var startX = rulerStartData.x, startY = rulerStartData.y;
+                if (_tickChart && rulerStartData.time) {
+                    var sp = _rulerToPixel(rulerStartData.dataIndex, rulerStartData.price, rulerStartData.time);
+                    if (sp) { startX = sp.x; startY = sp.y; rulerStartData.x = startX; rulerStartData.y = startY; }
+                }
+                drawRulerLine(startX, startY, endX, endY, false);
                 if (price !== null) {
                     updateRulerLabel(rulerStartData.price, price,
-                                     rulerStartData.dataIndex, dataIndex, cx, cy);
+                                     rulerStartData.dataIndex, dataIndex, endX, endY);
                 }
             });
         }

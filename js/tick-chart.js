@@ -38,6 +38,7 @@ const TC_PADDING_TOP    = 12;
 const TC_PADDING_BOTTOM = 28;
 const TC_MAX_TICKS      = 2000;
 const TC_MIN_VISIBLE    = 10;
+const TC_FUTURE_SCROLL_RATIO = 0.5;
 const TC_GRID_STEPS     = 5;
 const TC_WS_MAX_RETRIES = 10;
 const TC_WS_BASE_DELAY  = 2000;
@@ -60,6 +61,16 @@ class TickChart {
         this._dragStartOffset = 0;
         this._hoveredMarker = null; // marker under cursor
         this.magnet = false;       // snap crosshair to nearest tick (off by default)
+        this._userScrolled = false; // true when user has scrolled away from live edge
+
+        // Manual Y-axis control
+        this._yAutoScale = true;
+        this._manualMinP = 0;
+        this._manualMaxP = 0;
+        this._yDragging = false;
+        this._yDragStartY = 0;
+        this._yDragStartMinP = 0;
+        this._yDragStartMaxP = 0;
 
         // Touch state
         this._touchId      = null;
@@ -144,6 +155,8 @@ class TickChart {
         this._barSpacing = 0; // auto-init on next draw
         this._noMoreHistory = false;
         this._loadingMore = false;
+        this._userScrolled = false;
+        this._yAutoScale = true;
         this._dirty = true;
     }
 
@@ -162,8 +175,8 @@ class TickChart {
                 this._scrollOffset = Math.max(0, this._scrollOffset - excess);
             }
         }
-        // Auto-scroll to latest only if user is viewing the live edge (within 3 ticks)
-        if (this._scrollOffset < 3) this._scrollOffset = 0;
+        // Auto-scroll to latest only if user hasn't intentionally scrolled away
+        if (!this._userScrolled && this._scrollOffset < 3) this._scrollOffset = 0;
         this._dirty = true;
     }
 
@@ -357,13 +370,33 @@ class TickChart {
             this._mouse = { x: mx, y: my };
             this._dirty = true;
         }
+        const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+        // Y-axis drag — shift price range
+        if (this._yDragging) {
+            const chartH = (this.H || 400) - TC_PADDING_TOP - TC_PADDING_BOTTOM;
+            const dy = e.clientY - this._yDragStartY;
+            const range = this._yDragStartMaxP - this._yDragStartMinP;
+            const priceShift = (dy / chartH) * range;
+            this._manualMinP = this._yDragStartMinP + priceShift;
+            this._manualMaxP = this._yDragStartMaxP + priceShift;
+            this._dirty = true;
+            return;
+        }
+        // Cursor: ns-resize when hovering Y-axis zone
+        if (!this._isDragging) {
+            this.canvas.style.cursor = mx > chartW ? 'ns-resize' : 'crosshair';
+        }
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
             const spacing = this._barSpacing || this._pxPerTick || 2;
             const chartW = (this.W || 600) - TC_PADDING_RIGHT;
             const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
-            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._dragStartOffset - dx / spacing));
+            const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
+            this._scrollOffset = Math.max(-futureLimit, Math.min(maxOffset, this._dragStartOffset - dx / spacing));
+            // Track whether user scrolled away from live edge
+            if (this._scrollOffset > 3) this._userScrolled = true;
+            else if (this._scrollOffset <= 3) this._userScrolled = false;
             this.canvas.style.cursor = 'grabbing';
             this._dirty = true;
             // Load more history when near left edge
@@ -388,6 +421,32 @@ class TickChart {
             this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
         }
 
+        const r = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+
+        // Y-axis zone: cursor in the right padding (price label area)
+        if (mx > chartW) {
+            // Vertical scroll on Y-axis → zoom Y-axis
+            const my = e.clientY - r.top;
+            const chartH = (this.H || 400) - TC_PADDING_TOP - TC_PADDING_BOTTOM;
+            const factor = e.deltaY > 0 ? 1.12 : 0.88;
+            // If first manual Y interaction, capture current auto-scale range
+            if (this._yAutoScale && this._drawState) {
+                this._manualMinP = this._drawState.minP;
+                this._manualMaxP = this._drawState.maxP;
+            }
+            this._yAutoScale = false;
+            // Zoom anchored on cursor price position
+            const cursorFrac = Math.max(0, Math.min(1, (my - TC_PADDING_TOP) / chartH));
+            const cursorPrice = this._manualMaxP - cursorFrac * (this._manualMaxP - this._manualMinP);
+            const range = this._manualMaxP - this._manualMinP;
+            const newRange = range * factor;
+            this._manualMinP = cursorPrice - (cursorPrice - this._manualMinP) / range * newRange;
+            this._manualMaxP = cursorPrice + (this._manualMaxP - cursorPrice) / range * newRange;
+            this._dirty = true;
+            return;
+        }
+
         const absX = Math.abs(e.deltaX);
         const absY = Math.abs(e.deltaY);
 
@@ -395,10 +454,14 @@ class TickChart {
         if (absX > absY || e.shiftKey) {
             const delta = e.shiftKey ? e.deltaY : e.deltaX;
             const spacing = this._barSpacing || 2;
-            const panTicks = delta / spacing;
+            const panTicks = -delta / spacing; // negated: scroll-right gesture → show newer data
             const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
-            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._scrollOffset + panTicks));
+            const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
+            this._scrollOffset = Math.max(-futureLimit, Math.min(maxOffset, this._scrollOffset + panTicks));
+            // Track whether user scrolled away from live edge
+            if (this._scrollOffset > 3) this._userScrolled = true;
+            else if (this._scrollOffset <= 3) this._userScrolled = false;
             this._dirty = true;
             // Load more history when near left edge
             if (this._scrollOffset >= maxOffset - visibleCount * 0.3) {
@@ -407,10 +470,7 @@ class TickChart {
             return;
         }
 
-        // Vertical scroll → ZOOM (anchored on cursor)
-        const r = this.canvas.getBoundingClientRect();
-        const mx = e.clientX - r.left;
-
+        // Vertical scroll → ZOOM X (anchored on cursor)
         const factor = e.deltaY > 0 ? 0.88 : 1.14;
         const minSpacing = Math.max(0.15, chartW / Math.max(this.ticks.length, 100));
         const maxSpacing = chartW / 2;
@@ -420,19 +480,42 @@ class TickChart {
         const newVisible = chartW / newSpacing;
         const f = Math.max(0, Math.min(1, mx / chartW));
 
-        this._scrollOffset = Math.max(0, this._scrollOffset + (1 - f) * (oldVisible - newVisible));
+        const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / newSpacing));
+        const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
+        this._scrollOffset = Math.max(-futureLimit, this._scrollOffset + (1 - f) * (oldVisible - newVisible));
         this._barSpacing = newSpacing;
         this._dirty = true;
     }
 
     _onMouseDown(e) {
         if (e.button !== 0) return; // left button only
+        const r = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+        const chartW = (this.W || 600) - TC_PADDING_RIGHT;
+
+        // Y-axis drag (price label area)
+        if (mx > chartW) {
+            if (this._yAutoScale && this._drawState) {
+                this._manualMinP = this._drawState.minP;
+                this._manualMaxP = this._drawState.maxP;
+            }
+            this._yAutoScale = false;
+            this._yDragging = true;
+            this._yDragStartY = e.clientY;
+            this._yDragStartMinP = this._manualMinP;
+            this._yDragStartMaxP = this._manualMaxP;
+            return;
+        }
+
         this._isDragging = true;
         this._dragStartX = e.clientX;
         this._dragStartOffset = this._scrollOffset;
     }
 
     _onMouseUp() {
+        if (this._yDragging) {
+            this._yDragging = false;
+        }
         if (this._isDragging) {
             this._isDragging = false;
             this.canvas.style.cursor = 'crosshair';
@@ -440,10 +523,12 @@ class TickChart {
     }
 
     _onDblClick() {
-        // Reset zoom to default (show ~300 ticks) and scroll to latest
+        // Reset zoom to default (show ~300 ticks), scroll to latest, auto-scale Y
         const chartW = (this.W || 600) - TC_PADDING_RIGHT;
         this._barSpacing = chartW / Math.min(this.ticks.length || 200, 300);
         this._scrollOffset = 0;
+        this._userScrolled = false;
+        this._yAutoScale = true;
         this._dirty = true;
     }
 
@@ -492,7 +577,11 @@ class TickChart {
             const chartW = (this.W || 600) - TC_PADDING_RIGHT;
             const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
-            this._scrollOffset = Math.max(0, Math.min(maxOffset, this._touchStartOffset - dx / spacing));
+            const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
+            this._scrollOffset = Math.max(-futureLimit, Math.min(maxOffset, this._touchStartOffset - dx / spacing));
+            // Track whether user scrolled away from live edge
+            if (this._scrollOffset > 3) this._userScrolled = true;
+            else if (this._scrollOffset <= 3) this._userScrolled = false;
             const r = this.canvas.getBoundingClientRect();
             this._mouse = { x: t.clientX - r.left, y: t.clientY - r.top };
             this._dirty = true;
@@ -547,11 +636,18 @@ class TickChart {
         const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / this._barSpacing));
         const maxOffset = Math.max(0, ticks.length - visibleCount);
         if (this._scrollOffset > maxOffset) this._scrollOffset = maxOffset;
-        const endIdx = Math.max(0, ticks.length - 1 - Math.round(this._scrollOffset));
-        const startIdx = Math.max(0, endIdx - visibleCount);
+
+        // Handle negative offset (future scroll — empty space on right)
+        const futureTicks = Math.max(0, -Math.round(this._scrollOffset));
+        const clampedOffset = Math.max(0, this._scrollOffset);
+        const endIdx = Math.max(0, ticks.length - 1 - Math.round(clampedOffset));
+        const startIdx = Math.max(0, endIdx - (visibleCount - futureTicks));
         const visible = ticks.slice(startIdx, endIdx + 1);
 
         if (visible.length < 2) return;
+
+        // Total slots including future empty space
+        const totalSlots = visible.length + futureTicks;
 
         // Time range of visible ticks
         const visStartTime = visible[0].time;
@@ -559,36 +655,42 @@ class TickChart {
 
         // Price range
         let minP = Infinity, maxP = -Infinity;
-        for (const t of visible) {
-            if (t.price < minP) minP = t.price;
-            if (t.price > maxP) maxP = t.price;
-        }
-        // Include only VISIBLE markers in price range (markers within visible time window)
-        const timeMargin = (visEndTime - visStartTime) * 0.5;
-        for (const m of this.markers) {
-            if (m.time >= visStartTime - timeMargin && m.time <= visEndTime + timeMargin) {
-                if (m.price < minP) minP = m.price;
-                if (m.price > maxP) maxP = m.price;
+        if (this._yAutoScale) {
+            for (const t of visible) {
+                if (t.price < minP) minP = t.price;
+                if (t.price > maxP) maxP = t.price;
             }
-        }
-        // Include levels only if they're within reasonable range of visible prices (±20% of spread)
-        const visSpread = maxP - minP || maxP * 0.001 || 1;
-        for (const lv of this.levels) {
-            if (lv.price > 0 && lv.price >= minP - visSpread * 0.5 && lv.price <= maxP + visSpread * 0.5) {
-                if (lv.price < minP) minP = lv.price;
-                if (lv.price > maxP) maxP = lv.price;
+            // Include only VISIBLE markers in price range (markers within visible time window)
+            const timeMargin = (visEndTime - visStartTime) * 0.5;
+            for (const m of this.markers) {
+                if (m.time >= visStartTime - timeMargin && m.time <= visEndTime + timeMargin) {
+                    if (m.price < minP) minP = m.price;
+                    if (m.price > maxP) maxP = m.price;
+                }
             }
+            // Include levels only if they're within reasonable range of visible prices (±20% of spread)
+            const visSpread = maxP - minP || maxP * 0.001 || 1;
+            for (const lv of this.levels) {
+                if (lv.price > 0 && lv.price >= minP - visSpread * 0.5 && lv.price <= maxP + visSpread * 0.5) {
+                    if (lv.price < minP) minP = lv.price;
+                    if (lv.price > maxP) maxP = lv.price;
+                }
+            }
+            const spread = maxP - minP || maxP * 0.001 || 1;
+            const pad = spread * 0.1;
+            minP -= pad;
+            maxP += pad;
+        } else {
+            // Manual Y-axis mode
+            minP = this._manualMinP;
+            maxP = this._manualMaxP;
         }
-        const spread = maxP - minP || maxP * 0.001 || 1;
-        const pad = spread * 0.1;
-        minP -= pad;
-        maxP += pad;
 
-        const pxPerTick = chartW / (visible.length - 1);
+        const pxPerTick = chartW / Math.max(1, totalSlots - 1);
         this._pxPerTick = pxPerTick;
 
         // Store draw state for external coordinate conversion (ruler tool)
-        this._drawState = { minP, maxP, chartW, chartH, startIdx, visibleLen: visible.length, pxPerTick };
+        this._drawState = { minP, maxP, chartW, chartH, startIdx, visibleLen: visible.length, pxPerTick, futureTicks };
 
         const priceToY = (p) => TC_PADDING_TOP + chartH - ((p - minP) / (maxP - minP)) * chartH;
         const idxToX   = (i) => i * pxPerTick;
@@ -642,6 +744,16 @@ class TickChart {
                 ctx.stroke();
                 ctx.fillText(this._fmtPrice(price), W - 4, y + 3);
             }
+        }
+
+        // "MANUAL" label on Y-axis when not auto-scaling
+        if (!this._yAutoScale) {
+            ctx.save();
+            ctx.font = '8px -apple-system, sans-serif';
+            ctx.fillStyle = colors.markerLong;
+            ctx.textAlign = 'center';
+            ctx.fillText('MANUAL', chartW + TC_PADDING_RIGHT / 2, TC_PADDING_TOP - 2);
+            ctx.restore();
         }
 
         // Time labels (bottom) — adaptive format based on visible time range
@@ -1119,19 +1231,21 @@ class TickChart {
         return p.toFixed(8);
     }
 
-    /** Convert pixel {x, y} relative to canvas → { price, tickIndex, time } */
+    /** Convert pixel {x, y} relative to canvas → { price, tickIndex, time, snappedX, snappedY }
+     *  Snaps to the nearest tick's actual price and X position. */
     pixelToChart(px, py) {
         const s = this._drawState;
         if (!s || !s.visibleLen) return null;
-        const x = px, y = py;
-        // Price from Y
-        const price = s.minP + (1 - (y - TC_PADDING_TOP) / s.chartH) * (s.maxP - s.minP);
-        // Tick index from X (absolute index in this.ticks[])
-        const localIdx = x / s.pxPerTick;
+        // Tick index from X
+        const localIdx = px / s.pxPerTick;
         const absIdx = Math.round(s.startIdx + localIdx);
         const clampedIdx = Math.max(0, Math.min(this.ticks.length - 1, absIdx));
-        const time = this.ticks[clampedIdx] ? this.ticks[clampedIdx].time : 0;
-        return { price, tickIndex: clampedIdx, time };
+        const tick = this.ticks[clampedIdx];
+        if (!tick) return null;
+        // Snap to actual tick price and position
+        const snappedX = (clampedIdx - s.startIdx) * s.pxPerTick;
+        const snappedY = TC_PADDING_TOP + s.chartH - ((tick.price - s.minP) / (s.maxP - s.minP)) * s.chartH;
+        return { price: tick.price, tickIndex: clampedIdx, time: tick.time, snappedX, snappedY };
     }
 
     /** Convert { tickIndex, price } → pixel { x, y } relative to canvas.
