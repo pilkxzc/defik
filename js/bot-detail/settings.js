@@ -875,7 +875,7 @@ function resetSettings() {
 }
 
 // Close modal on overlay click
-document.getElementById('settingsModal').addEventListener('click', (e) => {
+document.getElementById('settingsModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'settingsModal') {
         closeSettings();
     }

@@ -2,7 +2,6 @@
 //  RULER / RANGE / DRAWING TOOLS  (canvas overlay)
 //  Extracted from page/bot-detail.html
 // ═══════════════════════════════════════════
-(function() {
     // ── Drawing tools ──────────────────────────────────────────────────────
     var _drawingGroup = 'user-0';
     var _drawingGroupIdx = 0;
@@ -70,8 +69,8 @@
     var rulerEndData   = null; // { price, dataIndex, x, y }
     var rulerCanvas = null;
     var rulerLabel = null;
-    var rulerBtn = document.getElementById('rulerBtn');
-    var chartEl = document.getElementById('chart');
+    var rulerBtn = null;  // set in _initRulerListeners after DOM ready
+    var chartEl = null;   // set in _initRulerListeners after DOM ready
 
     // Last known cursor state from chart crosshair (price-snapped x/y)
     var _rulerLastCursor = { price: null, dataIndex: null, x: 0, y: 0 };
@@ -692,21 +691,27 @@
         } catch(e) {}
     };
 
-    // Attach ruler/range listeners immediately (work for both klChart and tick chart)
-    chartEl.addEventListener('mousedown', onRulerMouseDown,  { capture: true });
-    chartEl.addEventListener('mousemove', onRulerMouseMove);
-    chartEl.addEventListener('mousedown', onRangeMouseDown,  { capture: true });
-    chartEl.addEventListener('mousemove', onRangeMouseMove);
+    // Attach ruler/range listeners after DOM is ready
+    function _initRulerListeners() {
+        chartEl = document.getElementById('chart');
+        rulerBtn = document.getElementById('rulerBtn');
+        if (!chartEl) return;
+        chartEl.addEventListener('mousedown', onRulerMouseDown,  { capture: true });
+        chartEl.addEventListener('mousemove', onRulerMouseMove);
+        chartEl.addEventListener('mousedown', onRangeMouseDown,  { capture: true });
+        chartEl.addEventListener('mousemove', onRangeMouseMove);
 
-    // Subscribe klinecharts-specific events when klChart becomes available
-    var waitChart = setInterval(function() {
-        if (klChart) {
-            clearInterval(waitChart);
-            window._rulerResubscribe();
-        }
-    }, 200);
+        var _rulerBtnEl = document.getElementById('rulerBtn');
+        if (_rulerBtnEl) _rulerBtnEl.addEventListener('click', toggleRuler);
+        var _rangeBtnEl = document.getElementById('rangeBtn');
+        if (_rangeBtnEl) _rangeBtnEl.addEventListener('click', toggleRangeTool);
 
-    if (rulerBtn) rulerBtn.addEventListener('click', toggleRuler);
-    var _rangeBtn = document.getElementById('rangeBtn');
-    if (_rangeBtn) _rangeBtn.addEventListener('click', toggleRangeTool);
-})();
+        // Subscribe klinecharts-specific events when klChart becomes available
+        var waitChart = setInterval(function() {
+            if (typeof klChart !== 'undefined' && klChart) {
+                clearInterval(waitChart);
+                if (window._rulerResubscribe) window._rulerResubscribe();
+            }
+        }, 200);
+    }
+    document.addEventListener('DOMContentLoaded', _initRulerListeners);
