@@ -389,7 +389,6 @@ class TickChart {
         if (this._isDragging) {
             const dx = e.clientX - this._dragStartX;
             const spacing = this._barSpacing || this._pxPerTick || 2;
-            const chartW = (this.W || 600) - TC_PADDING_RIGHT;
             const visibleCount = Math.max(TC_MIN_VISIBLE, Math.round(chartW / spacing));
             const maxOffset = Math.max(0, this.ticks.length - visibleCount);
             const futureLimit = Math.round(visibleCount * TC_FUTURE_SCROLL_RATIO);
@@ -470,11 +469,15 @@ class TickChart {
             return;
         }
 
-        // Vertical scroll → ZOOM X (anchored on cursor)
-        const factor = e.deltaY > 0 ? 0.88 : 1.14;
-        const minSpacing = Math.max(0.15, chartW / Math.max(this.ticks.length, 100));
-        const maxSpacing = chartW / 2;
-        const newSpacing = Math.max(minSpacing, Math.min(maxSpacing, this._barSpacing * factor));
+        // Vertical scroll → ZOOM X (klinecharts formula: proportional to gesture intensity)
+        let zoomDelta = -(e.deltaY / 100);
+        if (e.deltaMode === 1) zoomDelta *= 32;  // DOM_DELTA_LINE
+        if (e.deltaMode === 2) zoomDelta *= 120; // DOM_DELTA_PAGE
+        const scale = Math.sign(zoomDelta) * Math.min(1, Math.abs(zoomDelta));
+        const newSpacing = Math.max(
+            Math.max(0.15, chartW / Math.max(this.ticks.length, 100)),
+            Math.min(chartW / 2, this._barSpacing + scale * (this._barSpacing / 10))
+        );
 
         const oldVisible = chartW / this._barSpacing;
         const newVisible = chartW / newSpacing;
