@@ -7643,6 +7643,7 @@
                 const chartEl = document.getElementById('chart');
                 if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
                 _tickChart = new TickChart(chartEl, { maxTicks: 2000 });
+                _tickChart.onRedraw = redrawRulerFromChart;
                 document.getElementById('chartLoading').style.display = 'flex';
                 document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
                 _tickChart.start(currentSymbol).then(async () => {
@@ -11954,6 +11955,12 @@
 
         // Convert chart coords {dataIndex, price} → pixel {x, y}
         function _rulerToPixel(dataIndex, price) {
+            // Tick chart mode
+            if (_tickChart) {
+                var tp = _tickChart.chartToPixel(dataIndex, price);
+                if (tp) return tp;
+                return null;
+            }
             if (!klChart || dataIndex == null || price == null) return null;
             try {
                 var r = klChart.convertToPixel({ dataIndex: dataIndex, value: price }, { paneId: 'candle_pane' });
@@ -11964,6 +11971,12 @@
 
         // Convert pixel {x, y} → chart coords {dataIndex, price}
         function _rulerFromPixel(px, py) {
+            // Tick chart mode
+            if (_tickChart) {
+                var tc = _tickChart.pixelToChart(px, py);
+                if (tc) return { dataIndex: tc.tickIndex, price: tc.price };
+                return null;
+            }
             if (!klChart) return null;
             try {
                 var arr = klChart.convertFromPixel([{ x: px, y: py }], { paneId: 'candle_pane' });
@@ -12025,11 +12038,15 @@
             var pctClass = pct >= 0 ? 'pos' : 'neg';
             var sign = pct >= 0 ? '+' : '';
 
+            var barUnit = _tickChart ? 'тік' : 'бар';
+            var barSuffix = _tickChart
+                ? (bars === 1 ? '' : bars < 5 ? 'и' : 'ів')
+                : (bars === 1 ? '' : bars < 5 ? 'и' : 'ів');
             rulerLabel.innerHTML =
                 '<span class="rl-price">' + formatPrice(endPrice) + '</span>  ' +
                 '<span class="rl-pct ' + pctClass + '">' + sign + pct.toFixed(2) + '%</span>  ' +
                 '(<span class="rl-price">' + sign + formatPrice(diff) + '</span>)<br>' +
-                '<span class="rl-bars">' + bars + '\u00a0бар' + (bars === 1 ? '' : bars < 5 ? 'и' : 'ів') + '</span>';
+                '<span class="rl-bars">' + bars + '\u00a0' + barUnit + barSuffix + '</span>';
 
             var rect = chartEl.getBoundingClientRect();
             var lw = rulerLabel.offsetWidth || 160;
@@ -12458,18 +12475,17 @@
             } catch(e) {}
         };
 
-        var _listenersAttached = false;
+        // Attach ruler/range listeners immediately (work for both klChart and tick chart)
+        chartEl.addEventListener('mousedown', onRulerMouseDown,  { capture: true });
+        chartEl.addEventListener('mousemove', onRulerMouseMove);
+        chartEl.addEventListener('mousedown', onRangeMouseDown,  { capture: true });
+        chartEl.addEventListener('mousemove', onRangeMouseMove);
+
+        // Subscribe klinecharts-specific events when klChart becomes available
         var waitChart = setInterval(function() {
             if (klChart) {
                 clearInterval(waitChart);
                 window._rulerResubscribe();
-                if (!_listenersAttached) {
-                    _listenersAttached = true;
-                    chartEl.addEventListener('mousedown', onRulerMouseDown,  { capture: true });
-                    chartEl.addEventListener('mousemove', onRulerMouseMove);
-                    chartEl.addEventListener('mousedown', onRangeMouseDown,  { capture: true });
-                    chartEl.addEventListener('mousemove', onRangeMouseMove);
-                }
             }
         }, 200);
 

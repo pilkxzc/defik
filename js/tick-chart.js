@@ -508,6 +508,7 @@ class TickChart {
         if (this._dirty) {
             this._draw();
             this._dirty = false;
+            if (this.onRedraw) this.onRedraw();
         }
         this._raf = requestAnimationFrame(() => this._loop());
     }
@@ -575,6 +576,9 @@ class TickChart {
 
         const pxPerTick = chartW / (visible.length - 1);
         this._pxPerTick = pxPerTick;
+
+        // Store draw state for external coordinate conversion (ruler tool)
+        this._drawState = { minP, maxP, chartW, chartH, startIdx, visibleLen: visible.length, pxPerTick };
 
         const priceToY = (p) => TC_PADDING_TOP + chartH - ((p - minP) / (maxP - minP)) * chartH;
         const idxToX   = (i) => i * pxPerTick;
@@ -1073,5 +1077,29 @@ class TickChart {
         if (p >= 1)      return p.toFixed(4);
         if (p >= 0.01)   return p.toFixed(6);
         return p.toFixed(8);
+    }
+
+    /** Convert pixel {x, y} relative to canvas → { price, tickIndex } */
+    pixelToChart(px, py) {
+        const s = this._drawState;
+        if (!s || !s.visibleLen) return null;
+        const dpr = window.devicePixelRatio || 1;
+        const x = px, y = py;
+        // Price from Y
+        const price = s.minP + (1 - (y - TC_PADDING_TOP) / s.chartH) * (s.maxP - s.minP);
+        // Tick index from X
+        const localIdx = x / s.pxPerTick;
+        const tickIndex = Math.round(s.startIdx + localIdx);
+        return { price, tickIndex };
+    }
+
+    /** Convert { tickIndex, price } → pixel { x, y } relative to canvas */
+    chartToPixel(tickIndex, price) {
+        const s = this._drawState;
+        if (!s || !s.visibleLen) return null;
+        const localIdx = tickIndex - s.startIdx;
+        const x = localIdx * s.pxPerTick;
+        const y = TC_PADDING_TOP + s.chartH - ((price - s.minP) / (s.maxP - s.minP)) * s.chartH;
+        return { x, y };
     }
 }
