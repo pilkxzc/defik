@@ -12,9 +12,11 @@
  */
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const LW_MAX_TICKS      = 2000;
+const LW_MAX_TICKS      = 20000;  // increased for deeper history
 const LW_WS_MAX_RETRIES = 10;
 const LW_WS_BASE_DELAY  = 2000;
+const LW_HISTORY_FETCH_LIMIT = 1000;  // trades per REST request
+const LW_DOWNSAMPLE_THRESHOLD = 3000; // visible points above which to downsample
 
 // Drawing tool name mapping: klinecharts name → internal name
 const LW_DRAWING_MAP = {
@@ -73,6 +75,15 @@ class LWTickChart {
         this._userScrolled = false;
         this.autoScrollLocked = false; // when true, _userScrolled stays true (free scroll mode)
 
+        // Lazy history loading
+        this._oldestTradeTime = null;  // ms — oldest trade we have
+        this._historyLoading = false;  // prevent concurrent fetches
+        this._historyExhausted = false; // true when Binance returns 0 older trades
+
+        // Downsampling
+        this._fullData = [];     // always holds ALL ticks as {time, value}
+        this._isDownsampled = false; // true when series shows simplified data
+
         // Drawing tools
         this._drawings = [];       // completed drawings
         this._drawingMode = null;  // current tool type or null
@@ -127,6 +138,16 @@ class LWTickChart {
                 rightOffset: 5,
                 barSpacing: 3,
                 minBarSpacing: 0.5,
+            },
+            localization: {
+                timeFormatter: function(ts) {
+                    // ts already has tz offset baked in from _msToUnique
+                    var d = new Date(ts * 1000);
+                    var h = d.getUTCHours().toString().padStart(2, '0');
+                    var m = d.getUTCMinutes().toString().padStart(2, '0');
+                    var s = d.getUTCSeconds().toString().padStart(2, '0');
+                    return h + ':' + m + ':' + s;
+                },
             },
             crosshair: {
                 mode: 0,
@@ -196,9 +217,24 @@ class LWTickChart {
             }
             if (range && this._lwData.length > 0) {
                 const rightEdge = range.to;
+                const leftEdge = range.from;
                 const dataLen = this._lwData.length;
                 const wasScrolled = this._userScrolled;
                 this._userScrolled = rightEdge < dataLen - 3;
+
+                // ── Lazy-load: fetch older history when user scrolls near left edge ──
+                if (leftEdge < 20 && !this._historyLoading && !this._historyExhausted) {
+                    this._loadOlderHistory();
+                }
+
+                // ── Downsampling: simplify when zoomed out too far ──
+                const visibleCount = Math.floor(rightEdge - leftEdge);
+                if (visibleCount > LW_DOWNSAMPLE_THRESHOLD && !this._isDownsampled) {
+                    this._applyDownsample(visibleCount);
+                } else if (visibleCount <= LW_DOWNSAMPLE_THRESHOLD && this._isDownsampled) {
+                    this._removeDownsample();
+                }
+
                 // Detect user dragging away from live edge
                 if (this._userScrolled && !wasScrolled) {
                     this._snapbackDragStart = Date.now();
@@ -207,12 +243,9 @@ class LWTickChart {
                 if (wasScrolled && !this._userScrolled && this._snapbackDragStart) {
                     const dragDuration = Date.now() - this._snapbackDragStart;
                     this._snapbackDragStart = null;
-                    // Show hint only if user actually dragged (not just a tiny scroll)
-                    // and hint hasn't been shown recently
                     if (dragDuration > 300 && !this._snapbackHintShown) {
                         this._snapbackHintShown = true;
                         this._showSnapbackHint();
-                        // Allow showing again after 60s
                         setTimeout(() => { this._snapbackHintShown = false; }, 60000);
                     }
                 }
@@ -326,7 +359,9 @@ class LWTickChart {
     // ── Data management ──────────────────────────────────────────────────────
     _msToUnique(timeMs) {
         // Convert ms timestamp to unique seconds-level value for lightweight-charts
-        let t = timeMs / 1000;
+        // Add local timezone offset so chart displays user's local time
+        const tzOffsetSec = -(new Date().getTimezoneOffset()) * 60;
+        let t = (timeMs / 1000) + tzOffsetSec;
         if (t <= this._lastLwTime) {
             t = this._lastLwTime + 0.001;
         }
@@ -338,6 +373,9 @@ class LWTickChart {
         this._lastLwTime = 0;
         this.ticks = [];
         this._lwData = [];
+        this._fullData = [];
+        this._isDownsampled = false;
+        this._historyExhausted = false;
 
         if (!trades || trades.length === 0) return;
 
@@ -345,7 +383,7 @@ class LWTickChart {
             const t = trades[i];
             const price = parseFloat(t.price || t.p);
             let timeMs = t.time || t.T;
-            if (typeof timeMs === 'number' && timeMs < 1e12) timeMs *= 1000; // seconds → ms
+            if (typeof timeMs === 'number' && timeMs < 1e12) timeMs *= 1000;
             const qty = parseFloat(t.qty || t.q || 0);
 
             this.ticks.push({ price, time: timeMs, qty });
@@ -353,9 +391,11 @@ class LWTickChart {
             this._lwData.push({ time: lwTime, value: price });
         }
 
+        this._fullData = this._lwData.slice(); // copy for downsampling
+        this._oldestTradeTime = this.ticks.length > 0 ? this.ticks[0].time : null;
+
         if (this._series) {
             this._series.setData(this._lwData);
-            // Scroll to show last 300 ticks
             const showCount = Math.min(300, this._lwData.length);
             this._chart.timeScale().setVisibleLogicalRange({
                 from: this._lwData.length - showCount,
@@ -378,16 +418,17 @@ class LWTickChart {
         const lwTime = this._msToUnique(timeMs);
         const lwPoint = { time: lwTime, value: price };
         this._lwData.push(lwPoint);
+        this._fullData.push(lwPoint);
 
         // Trim if over limit
         if (this.ticks.length > this.maxTicks) {
             const excess = this.ticks.length - this.maxTicks;
             this.ticks.splice(0, excess);
             this._lwData.splice(0, excess);
-            // Rebuild entire series after trim to avoid time ordering issues
-            if (this._series) this._series.setData(this._lwData);
+            this._fullData.splice(0, excess);
+            if (this._series && !this._isDownsampled) this._series.setData(this._lwData);
         } else {
-            if (this._series) this._series.update(lwPoint);
+            if (this._series && !this._isDownsampled) this._series.update(lwPoint);
         }
 
         // Auto-scroll to latest if user hasn't manually scrolled away
@@ -613,13 +654,39 @@ class LWTickChart {
     async start(symbol) {
         this._symbol = symbol.toUpperCase();
 
-        // Fetch last 1000 trades from Binance REST
-        const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&limit=1000`;
+        // Fetch initial trades — 3 pages of 1000 for deeper history
         try {
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            this.loadHistory(data.map(d => ({ price: d.p, time: d.T, qty: d.q })));
+            const url1 = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&limit=1000`;
+            const resp1 = await fetch(url1);
+            if (!resp1.ok) throw new Error(`HTTP ${resp1.status}`);
+            const data1 = await resp1.json();
+
+            let allTrades = data1;
+
+            // Fetch 2 more pages of older trades
+            if (data1.length > 0) {
+                const oldest = data1[0].T;
+                try {
+                    const url2 = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&endTime=${oldest - 1}&limit=1000`;
+                    const resp2 = await fetch(url2);
+                    if (resp2.ok) {
+                        const data2 = await resp2.json();
+                        if (data2.length > 0) {
+                            allTrades = [...data2, ...allTrades];
+                            try {
+                                const url3 = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&endTime=${data2[0].T - 1}&limit=1000`;
+                                const resp3 = await fetch(url3);
+                                if (resp3.ok) {
+                                    const data3 = await resp3.json();
+                                    if (data3.length > 0) allTrades = [...data3, ...allTrades];
+                                }
+                            } catch(e) {}
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            this.loadHistory(allTrades.map(d => ({ price: d.p, time: d.T, qty: d.q })));
         } catch (e) {
             console.error('[LWTickChart] REST fetch error:', e);
         }
@@ -1039,6 +1106,123 @@ class LWTickChart {
         if (price >= 1) return 4;
         if (price >= 0.01) return 6;
         return 8;
+    }
+
+    // ── Lazy history loading ────────────────────────────────────────────────
+    async _loadOlderHistory() {
+        if (this._historyLoading || this._historyExhausted || !this._symbol) return;
+        if (!this._oldestTradeTime) return;
+
+        this._historyLoading = true;
+        try {
+            const endTime = this._oldestTradeTime - 1;
+            const startTime = endTime - 5 * 60 * 1000; // fetch 5 min chunk
+            const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&startTime=${startTime}&endTime=${endTime}&limit=${LW_HISTORY_FETCH_LIMIT}`;
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+
+            if (!Array.isArray(data) || data.length === 0) {
+                this._historyExhausted = true;
+                return;
+            }
+
+            // Parse new older trades
+            const olderTicks = data.map(d => ({
+                price: parseFloat(d.p),
+                time: d.T,
+                qty: parseFloat(d.q)
+            }));
+
+            // Prepend to ticks array
+            this.ticks.unshift(...olderTicks);
+            this._oldestTradeTime = olderTicks[0].time;
+
+            // Rebuild _lwData from scratch (needed for time uniqueness)
+            this._lastLwTime = 0;
+            this._lwData = [];
+            for (const t of this.ticks) {
+                this._lwData.push({ time: this._msToUnique(t.time), value: t.price });
+            }
+            this._fullData = this._lwData.slice();
+
+            // Save current visible range to restore after setData
+            const savedRange = this._chart.timeScale().getVisibleLogicalRange();
+            const addedCount = olderTicks.length;
+
+            if (this._series) {
+                if (this._isDownsampled) {
+                    // Re-apply downsample with new data
+                    const visibleCount = savedRange ? Math.floor(savedRange.to - savedRange.from) : LW_DOWNSAMPLE_THRESHOLD + 1;
+                    this._applyDownsample(visibleCount);
+                } else {
+                    this._series.setData(this._lwData);
+                }
+            }
+
+            // Restore scroll position (shifted by newly added points)
+            if (savedRange && this._chart) {
+                this._chart.timeScale().setVisibleLogicalRange({
+                    from: savedRange.from + addedCount,
+                    to: savedRange.to + addedCount,
+                });
+            }
+
+            this._updateMarkers();
+
+            // Trim right side if over limit
+            if (this.ticks.length > this.maxTicks) {
+                const excess = this.ticks.length - this.maxTicks;
+                this.ticks.splice(this.ticks.length - excess, excess);
+                this._lwData.splice(this._lwData.length - excess, excess);
+                this._fullData.splice(this._fullData.length - excess, excess);
+            }
+        } catch (e) {
+            console.warn('[LWTickChart] Failed to load older history:', e.message);
+        } finally {
+            this._historyLoading = false;
+        }
+    }
+
+    // ── Downsampling for zoom-out ───────────────────────────────────────────
+    _applyDownsample(visibleCount) {
+        if (!this._series || this._fullData.length === 0) return;
+        // Calculate step: keep ~1000 points on screen
+        const step = Math.max(2, Math.floor(visibleCount / 1000));
+        const sampled = [];
+
+        // LTTB-like: for each bucket, pick the point with the largest triangle area
+        for (let i = 0; i < this._fullData.length; i += step) {
+            const bucketEnd = Math.min(i + step, this._fullData.length);
+            if (bucketEnd - i === 1) {
+                sampled.push(this._fullData[i]);
+                continue;
+            }
+            // Pick min and max in bucket to preserve peaks/valleys
+            let minP = this._fullData[i], maxP = this._fullData[i];
+            for (let j = i + 1; j < bucketEnd; j++) {
+                if (this._fullData[j].value < minP.value) minP = this._fullData[j];
+                if (this._fullData[j].value > maxP.value) maxP = this._fullData[j];
+            }
+            // Add in time order
+            if (minP.time <= maxP.time) {
+                sampled.push(minP);
+                if (minP !== maxP) sampled.push(maxP);
+            } else {
+                sampled.push(maxP);
+                if (minP !== maxP) sampled.push(minP);
+            }
+        }
+
+        this._series.setData(sampled);
+        this._isDownsampled = true;
+    }
+
+    _removeDownsample() {
+        if (!this._series || !this._isDownsampled) return;
+        this._series.setData(this._fullData);
+        this._lwData = this._fullData.slice();
+        this._isDownsampled = false;
     }
 
     // ── Snap-back hint ────────────────────────────────────────────────────────
