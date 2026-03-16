@@ -3,7 +3,7 @@ const express = require('express');
 const axios   = require('axios');
 const router  = express.Router();
 
-const { dbGet, dbAll, dbRun, saveDatabase } = require('../db');
+const { dbGet, dbAll, dbRun, dbTransaction, saveDatabase } = require('../db');
 const { requireAuth }                        = require('../middleware/auth');
 const { getClientIP }                        = require('../utils/ip');
 const { getLocalTime }                       = require('../utils/time');
@@ -29,14 +29,26 @@ router.post('/api/orders', requireAuth, async (req, res) => {
     try {
         const { symbol, side, type, price, amount } = req.body;
 
-        if (!symbol || !side || !type || !amount) {
+        if (!symbol || !side || !type || amount === undefined || amount === null) {
             return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Input validation
+        const parsedAmount = parseFloat(amount);
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+            return res.status(400).json({ error: 'Amount must be a positive number' });
+        }
+        if (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.trim().length > 20) {
+            return res.status(400).json({ error: 'Invalid symbol' });
         }
         if (!['buy', 'sell'].includes(side.toLowerCase())) {
             return res.status(400).json({ error: 'Invalid order side' });
         }
         if (!['market', 'limit'].includes(type.toLowerCase())) {
             return res.status(400).json({ error: 'Invalid order type' });
+        }
+        if (type.toLowerCase() === 'limit' && (!price || !Number.isFinite(parseFloat(price)) || parseFloat(price) <= 0)) {
+            return res.status(400).json({ error: 'Limit orders require a valid positive price' });
         }
 
         const user = dbGet('SELECT demo_balance, real_balance, active_account FROM users WHERE id = ?', [req.session.userId]);
@@ -51,7 +63,7 @@ router.post('/api/orders', requireAuth, async (req, res) => {
             if (!executionPrice) return res.status(400).json({ error: 'Could not fetch market price' });
         }
 
-        const totalCost = executionPrice * amount;
+        const totalCost = executionPrice * parsedAmount;
 
         if (side.toLowerCase() === 'buy' && currentBalance < totalCost) {
             return res.status(400).json({ error: 'Insufficient balance', required: totalCost, available: currentBalance });
@@ -64,10 +76,10 @@ router.post('/api/orders', requireAuth, async (req, res) => {
                 [req.session.userId, symbol.toUpperCase(), accountType]
             );
             const heldAmount = holding ? holding.amount : 0;
-            if (heldAmount < amount) {
+            if (heldAmount < parsedAmount) {
                 return res.status(400).json({
                     error: 'Insufficient holdings',
-                    required: amount,
+                    required: parsedAmount,
                     available: heldAmount,
                     currency: symbol.toUpperCase()
                 });
@@ -76,58 +88,83 @@ router.post('/api/orders', requireAuth, async (req, res) => {
 
         if (type.toLowerCase() === 'market') {
             const balanceField = accountType === 'demo' ? 'demo_balance' : 'real_balance';
+            const now = getLocalTime();
+            const symbolUpper = symbol.toUpperCase();
+            const sideLower = side.toLowerCase();
+            const typeLower = type.toLowerCase();
 
-            if (side.toLowerCase() === 'buy') {
+            // Build transaction operations atomically to prevent double-spend
+            const operations = [];
+
+            if (sideLower === 'buy') {
                 // Deduct USD
-                dbRun(`UPDATE users SET ${balanceField} = ${balanceField} - ? WHERE id = ?`, [totalCost, req.session.userId]);
-
+                operations.push({
+                    sql: `UPDATE users SET ${balanceField} = ${balanceField} - ? WHERE id = ? AND ${balanceField} >= ?`,
+                    params: [totalCost, req.session.userId, totalCost]
+                });
                 // Upsert holdings: update avg_buy_price and amount
-                const now = getLocalTime();
-                dbRun(`
-                    INSERT INTO holdings (user_id, currency, amount, avg_buy_price, account_type, updated_at)
+                operations.push({
+                    sql: `INSERT INTO holdings (user_id, currency, amount, avg_buy_price, account_type, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id, currency, account_type)
                     DO UPDATE SET
                         avg_buy_price = (holdings.avg_buy_price * holdings.amount + ? * ?) / (holdings.amount + ?),
                         amount = holdings.amount + ?,
-                        updated_at = ?
-                `, [
-                    req.session.userId, symbol.toUpperCase(), amount, executionPrice, accountType, now,
-                    executionPrice, amount, amount,
-                    amount, now
-                ]);
+                        updated_at = ?`,
+                    params: [
+                        req.session.userId, symbolUpper, parsedAmount, executionPrice, accountType, now,
+                        executionPrice, parsedAmount, parsedAmount,
+                        parsedAmount, now
+                    ]
+                });
             } else {
                 // Sell: credit USD
-                dbRun(`UPDATE users SET ${balanceField} = ${balanceField} + ? WHERE id = ?`, [totalCost, req.session.userId]);
-
+                operations.push({
+                    sql: `UPDATE users SET ${balanceField} = ${balanceField} + ? WHERE id = ?`,
+                    params: [totalCost, req.session.userId]
+                });
                 // Deduct from holdings
-                const now = getLocalTime();
-                dbRun(
-                    'UPDATE holdings SET amount = amount - ?, updated_at = ? WHERE user_id = ? AND currency = ? AND account_type = ?',
-                    [amount, now, req.session.userId, symbol.toUpperCase(), accountType]
-                );
-
+                operations.push({
+                    sql: 'UPDATE holdings SET amount = amount - ?, updated_at = ? WHERE user_id = ? AND currency = ? AND account_type = ? AND amount >= ?',
+                    params: [parsedAmount, now, req.session.userId, symbolUpper, accountType, parsedAmount]
+                });
                 // Clean up zero holdings
-                dbRun(
-                    'DELETE FROM holdings WHERE user_id = ? AND currency = ? AND account_type = ? AND amount <= 0.00000001',
-                    [req.session.userId, symbol.toUpperCase(), accountType]
-                );
+                operations.push({
+                    sql: 'DELETE FROM holdings WHERE user_id = ? AND currency = ? AND account_type = ? AND amount <= 0.00000001',
+                    params: [req.session.userId, symbolUpper, accountType]
+                });
             }
 
-            const result = dbRun(
-                'INSERT INTO orders (user_id, symbol, side, type, price, amount, filled, status, account_type, filled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [req.session.userId, symbol.toUpperCase(), side.toLowerCase(), type.toLowerCase(), executionPrice, amount, amount, 'filled', accountType, getLocalTime()]
-            );
+            // Insert order record
+            operations.push({
+                sql: 'INSERT INTO orders (user_id, symbol, side, type, price, amount, filled, status, account_type, filled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                params: [req.session.userId, symbolUpper, sideLower, typeLower, executionPrice, parsedAmount, parsedAmount, 'filled', accountType, now]
+            });
 
-            dbRun(
-                'INSERT INTO transactions (user_id, type, currency, amount, usd_value, status, account_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [req.session.userId, side.toLowerCase(), symbol.toUpperCase(), amount, totalCost, 'completed', accountType]
-            );
+            // Insert transaction record
+            operations.push({
+                sql: 'INSERT INTO transactions (user_id, type, currency, amount, usd_value, status, account_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                params: [req.session.userId, sideLower, symbolUpper, parsedAmount, totalCost, 'completed', accountType]
+            });
 
-            dbRun(
-                'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
-                [req.session.userId, `${side.toUpperCase()} Order`, `${side} ${amount} ${symbol} at $${executionPrice.toFixed(2)}`, getClientIP(req)]
-            );
+            // Insert activity log
+            operations.push({
+                sql: 'INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
+                params: [req.session.userId, `${side.toUpperCase()} Order`, `${side} ${parsedAmount} ${symbol} at $${executionPrice.toFixed(2)}`, getClientIP(req)]
+            });
+
+            // Execute all operations atomically
+            let txResults;
+            try {
+                txResults = dbTransaction(operations);
+            } catch (txError) {
+                console.error('Order transaction failed:', txError.message);
+                return res.status(500).json({ error: 'Order execution failed, no changes were made' });
+            }
+
+            // The order INSERT is at index: buy=2, sell=3 (after balance + holdings ops)
+            const orderResultIndex = sideLower === 'buy' ? 2 : 3;
+            const orderInsertId = txResults[orderResultIndex]?.lastInsertRowid;
 
             const updatedUser = dbGet('SELECT demo_balance, real_balance FROM users WHERE id = ?', [req.session.userId]);
             const newBalance  = accountType === 'demo' ? updatedUser.demo_balance : updatedUser.real_balance;
@@ -135,20 +172,18 @@ router.post('/api/orders', requireAuth, async (req, res) => {
             // Get updated holdings for response
             const holdings = getUserHoldings(req.session.userId, accountType);
 
-            saveDatabase();
-
-            // Emit socket events if available
+            // Emit socket events only after successful transaction
             try {
                 const { getIo } = require('../socket');
                 const io = getIo();
                 if (io) {
                     const room = `user_${req.session.userId}`;
                     io.to(room).emit('orderFilled', {
-                        id: result.lastInsertRowid,
-                        symbol: symbol.toUpperCase(),
-                        side: side.toLowerCase(),
+                        id: orderInsertId,
+                        symbol: symbolUpper,
+                        side: sideLower,
                         price: executionPrice,
-                        amount,
+                        amount: parsedAmount,
                         total: totalCost
                     });
                     io.to(room).emit('holdingsUpdate', { holdings });
@@ -159,13 +194,13 @@ router.post('/api/orders', requireAuth, async (req, res) => {
             return res.json({
                 success: true,
                 order: {
-                    id: result.lastInsertRowid,
-                    symbol: symbol.toUpperCase(),
-                    side: side.toLowerCase(),
-                    type: type.toLowerCase(),
+                    id: orderInsertId,
+                    symbol: symbolUpper,
+                    side: sideLower,
+                    type: typeLower,
                     price: executionPrice,
-                    amount,
-                    filled: amount,
+                    amount: parsedAmount,
+                    filled: parsedAmount,
                     status: 'filled',
                     total: totalCost
                 },
@@ -177,7 +212,7 @@ router.post('/api/orders', requireAuth, async (req, res) => {
         // Limit order
         const result = dbRun(
             'INSERT INTO orders (user_id, symbol, side, type, price, amount, status, account_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [req.session.userId, symbol.toUpperCase(), side.toLowerCase(), type.toLowerCase(), price, amount, 'open', accountType]
+            [req.session.userId, symbol.toUpperCase(), side.toLowerCase(), type.toLowerCase(), parseFloat(price), parsedAmount, 'open', accountType]
         );
 
         saveDatabase();
@@ -189,8 +224,8 @@ router.post('/api/orders', requireAuth, async (req, res) => {
                 symbol: symbol.toUpperCase(),
                 side: side.toLowerCase(),
                 type: type.toLowerCase(),
-                price,
-                amount,
+                price: parseFloat(price),
+                amount: parsedAmount,
                 filled: 0,
                 status: 'open'
             }

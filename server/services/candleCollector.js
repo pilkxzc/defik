@@ -15,6 +15,8 @@ let db      = null;
 let ws      = null;
 let saveTimer = null;
 let dirty   = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 20;
 
 // ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +132,7 @@ function connectWebSocket() {
     ws = new WebSocket(url);
 
     ws.on('open', () => {
+        reconnectAttempts = 0; // Reset on successful connection
         console.log('[CandleCollector] WebSocket connected to Binance');
     });
 
@@ -150,8 +153,14 @@ function connectWebSocket() {
     });
 
     ws.on('close', () => {
-        console.log('[CandleCollector] WebSocket closed, reconnecting in 5s...');
-        setTimeout(connectWebSocket, 5000);
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.error('[CandleCollector] Max reconnection attempts reached. Stopping.');
+            return;
+        }
+        reconnectAttempts++;
+        const delay = Math.min(5000 * Math.pow(1.5, reconnectAttempts - 1), 300000); // Max 5 min
+        console.log(`[CandleCollector] Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        setTimeout(connectWebSocket, delay);
     });
 
     ws.on('error', (err) => {

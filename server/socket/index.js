@@ -4,12 +4,14 @@ const { getMarketPrices } = require('../services/market');
 
 let io = null;
 let priceInterval = null;
+let isFetchingPrices = false;
+const PRICE_TIMEOUT = 10000; // 10 seconds
 const SERVER_BUILD_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 function initSocket(httpServer, sessionMiddleware) {
     io = new Server(httpServer, {
         cors: {
-            origin: "*",
+            origin: process.env.CORS_ORIGIN || "http://localhost:3000",
             methods: ["GET", "POST"],
             credentials: true
         }
@@ -53,15 +55,22 @@ function initSocket(httpServer, sessionMiddleware) {
         }
     });
 
-    // Price broadcast every 3 seconds
+    // Price broadcast every 3 seconds with in-flight guard
     priceInterval = setInterval(async () => {
+        if (isFetchingPrices) return; // Skip if previous fetch is still running
+        isFetchingPrices = true;
         try {
-            const prices = await getMarketPrices();
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Price fetch timeout')), PRICE_TIMEOUT)
+            );
+            const prices = await Promise.race([getMarketPrices(), timeoutPromise]);
             if (prices && Object.keys(prices).length > 0) {
                 io.emit('priceUpdate', { prices });
             }
         } catch (e) {
-            // Silently ignore — market service handles its own errors
+            // Already handled — market service handles its own errors
+        } finally {
+            isFetchingPrices = false;
         }
     }, 3000);
 
@@ -71,6 +80,17 @@ function initSocket(httpServer, sessionMiddleware) {
 function getIo() { return io; }
 
 /**
+ * Stop the periodic price update interval.
+ * Call during graceful shutdown.
+ */
+function stopPriceUpdates() {
+    if (priceInterval) {
+        clearInterval(priceInterval);
+        priceInterval = null;
+    }
+}
+
+/**
  * Send a notification object to all sockets belonging to a specific user.
  * No-op if Socket.IO hasn't been initialised yet.
  */
@@ -78,4 +98,4 @@ function sendUserNotification(userId, notification) {
     getIo()?.to(`user_${userId}`).emit('notification', notification);
 }
 
-module.exports = { initSocket, getIo, sendUserNotification };
+module.exports = { initSocket, getIo, sendUserNotification, stopPriceUpdates };

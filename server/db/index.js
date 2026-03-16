@@ -638,8 +638,40 @@ async function initDatabase() {
     try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_trades_bot_id ON bot_trades(bot_id)'); } catch(e) {}
     try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_order_history_bot_id ON bot_order_history(bot_id)'); } catch(e) {}
 
+    // Additional indexes for common query patterns
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_trades_bot_status ON bot_trades(bot_id, status)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_trades_bot_symbol_status ON bot_trades(bot_id, symbol, status)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_subscribers_user_status ON bot_subscribers(user_id, status)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bot_subscribers_bot_status ON bot_subscribers(bot_id, status)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders(user_id, status)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_holdings_user_account ON holdings(user_id, account_type)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_news_external_id ON news(external_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bots_user_id ON bots(user_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_bots_is_active ON bots(is_active)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_passkeys_user_id ON passkeys(user_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id)'); } catch(e) {}
+
+    // Clean up expired tokens on startup
+    try { db.run("DELETE FROM password_reset_tokens WHERE used = 1 OR created_at < datetime('now', '-24 hours')"); } catch(e) {}
+    try { db.run("DELETE FROM email_verification_tokens WHERE used = 1 OR created_at < datetime('now', '-7 days')"); } catch(e) {}
+    try { db.run("DELETE FROM login_codes WHERE created_at < (strftime('%s', 'now') - 3600)"); } catch(e) {}
+    try { db.run("DELETE FROM login_attempts WHERE attempt_time < datetime('now', '-24 hours')"); } catch(e) {}
+
     saveDatabase();
     console.log('Database initialized');
+
+    // Migrate plaintext API keys to encrypted (if crypto module available)
+    try {
+        const { migrateEncryptKeys } = require('../utils/crypto');
+        migrateEncryptKeys();
+    } catch(e) {
+        // crypto module not yet created or ENCRYPTION_KEY not set
+        console.warn('[DB] API key encryption migration skipped:', e.message);
+    }
 }
 
 let _saveTimer = null;
@@ -684,10 +716,10 @@ function dbGet(sql, params = []) {
             return row;
         }
         stmt.free();
-        return null;
+        return null; // no row found — not an error
     } catch (error) {
         console.error('dbGet error:', error.message, 'SQL:', sql);
-        return null;
+        return { error: true, message: error.message };
     }
 }
 
@@ -715,6 +747,18 @@ function dbRun(sql, params = []) {
         return { lastInsertRowid };
     } catch (error) {
         console.error('dbRun error:', error.message, 'SQL:', sql);
+        return { lastInsertRowid: null, error: true, message: error.message };
+    }
+}
+
+// Same as dbRun but silently swallows errors (for migrations, optional writes)
+function dbRunSafe(sql, params = []) {
+    try {
+        db.run(sql, params);
+        const lastInsertRowid = db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0];
+        saveDatabase();
+        return { lastInsertRowid };
+    } catch (error) {
         return { lastInsertRowid: null };
     }
 }
@@ -761,4 +805,4 @@ function flushPendingWrites() {
 process.on('SIGTERM', flushPendingWrites);
 process.on('SIGINT', flushPendingWrites);
 
-module.exports = { initDatabase, saveDatabase, dbGet, dbAll, dbRun, dbInsertNoSave, dbTransaction, getDb: () => db };
+module.exports = { initDatabase, saveDatabase, dbGet, dbAll, dbRun, dbRunSafe, dbInsertNoSave, dbTransaction, getDb: () => db };

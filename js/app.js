@@ -1,6 +1,19 @@
 // Yamato Trading Platform - Client Application
 const API_BASE = '/api';
 
+// ==================== XSS PROTECTION ====================
+
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml; // Make available to all pages
+
 // ==================== TOAST NOTIFICATION SYSTEM ====================
 
 // Create toast container
@@ -158,8 +171,8 @@ function showToast(type, title, message, duration = 5000, icon = null) {
     toast.innerHTML = `
         <div class="toast-icon">${iconHtml}</div>
         <div class="toast-content">
-            <div class="toast-title">${title}</div>
-            <div class="toast-message">${message}</div>
+            <div class="toast-title">${escapeHtml(title)}</div>
+            <div class="toast-message">${escapeHtml(message)}</div>
         </div>
         <button class="toast-close" onclick="this.closest('.toast').remove()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1254,9 +1267,12 @@ function getCoinIconHtml(symbol, size = 32) {
     const primaryUrl = getCoinIcon(symbol, size);
     const fallbackUrl = getCoinIconFallback(symbol);
 
-    return `<img src="${primaryUrl}" alt="${cleanSymbol}"
+    const safeSymbol = escapeHtml(cleanSymbol);
+    const safeInitial = escapeHtml(cleanSymbol[0] || '?');
+
+    return `<img src="${primaryUrl}" alt="${safeSymbol}"
         style="width: ${size}px; height: ${size}px; border-radius: 50%; background: #1a1a1a;"
-        onerror="this.onerror=null; this.src='${fallbackUrl}'; this.onerror=function(){this.style.display='none';this.parentElement.innerHTML='<span style=\\'display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;background:#1a1a1a;border-radius:50%;font-weight:700;font-size:${Math.floor(size/2)}px;\\'>${cleanSymbol[0]}</span>';}">`;
+        onerror="this.onerror=null; this.src='${fallbackUrl}'; this.onerror=function(){this.style.display='none';this.parentElement.innerHTML='<span style=\\'display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;background:#1a1a1a;border-radius:50%;font-weight:700;font-size:${Math.floor(size/2)}px;\\'>${safeInitial}</span>';}">`;
 }
 
 function getTimeAgo(dateString) {
@@ -1549,14 +1565,14 @@ function updateMarketList(prices) {
     };
 
     marketList.innerHTML = Object.entries(prices).map(([symbol, data], index) => `
-        <div class="market-item ${index === 0 ? 'active' : ''}" data-symbol="${symbol}">
+        <div class="market-item ${index === 0 ? 'active' : ''}" data-symbol="${escapeHtml(symbol)}">
             <div class="coin-info">
                 <div class="coin-icon">
                     ${getCoinIconHtml(symbol, 32)}
                 </div>
                 <div class="coin-name">
-                    <span class="coin-ticker">${symbol}</span>
-                    <span class="coin-sub">${cryptoNames[symbol] || symbol}</span>
+                    <span class="coin-ticker">${escapeHtml(symbol)}</span>
+                    <span class="coin-sub">${escapeHtml(cryptoNames[symbol] || symbol)}</span>
                 </div>
             </div>
             <div class="coin-price">
@@ -1656,7 +1672,7 @@ function updateTickerTape(ticker) {
 
     const tickerHTML = ticker.map(item => `
         <div class="ticker-item">
-            <span class="ticker-name">${item.symbol}</span>
+            <span class="ticker-name">${escapeHtml(item.symbol)}</span>
             <span class="ticker-price">${formatPrice(item.price)}</span>
             <span class="${item.change >= 0 ? 'ticker-up' : 'ticker-down'}">${formatChange(item.change)}</span>
         </div>
@@ -1812,8 +1828,8 @@ function createBotCard(bot, isAdmin) {
                         ${getCoinIconHtml(botSymbol, 40)}
                     </div>
                     <div>
-                        <div class="bot-name">${bot.name}${modeLabel}</div>
-                        <div class="bot-type">${isBinanceBot ? 'Binance Futures' : bot.type + ' • ' + bot.pair}</div>
+                        <div class="bot-name">${escapeHtml(bot.name)}${modeLabel}</div>
+                        <div class="bot-type">${isBinanceBot ? 'Binance Futures' : escapeHtml(bot.type) + ' &bull; ' + escapeHtml(bot.pair)}</div>
                     </div>
                 </div>
                 <label class="switch">
@@ -1883,15 +1899,15 @@ function createTransactionItem(tx) {
                 </svg>
             </div>
             <div class="tx-details">
-                <span class="tx-title">${({'deposit':'Поповнення','buy':'Купівля','withdraw':'Виведення','sell':'Продаж'}[tx.type] || (tx.type.charAt(0).toUpperCase() + tx.type.slice(1)))} ${tx.currency}</span>
+                <span class="tx-title">${escapeHtml(({'deposit':'Поповнення','buy':'Купівля','withdraw':'Виведення','sell':'Продаж'}[tx.type] || (tx.type.charAt(0).toUpperCase() + tx.type.slice(1))))} ${escapeHtml(tx.currency)}</span>
                 <span class="tx-date">${new Date(tx.created_at).toLocaleDateString()}</span>
             </div>
             <div class="tx-asset">
-                <div style="font-weight: 700; font-size: 14px;">${isIncoming ? '+' : '-'}${tx.amount} ${tx.currency}</div>
+                <div style="font-weight: 700; font-size: 14px;">${isIncoming ? '+' : '-'}${escapeHtml(String(tx.amount))} ${escapeHtml(tx.currency)}</div>
                 <div style="font-size: 11px; color: var(--text-tertiary);">${formatPrice(tx.usd_value || 0)}</div>
             </div>
             <div class="tx-status" style="color: ${tx.status === 'completed' ? '#10B981' : '#F59E0B'};">
-                ${tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+                ${escapeHtml(tx.status.charAt(0).toUpperCase() + tx.status.slice(1))}
             </div>
         </div>
     `;
@@ -1906,7 +1922,7 @@ function updateAllocationChart(allocation) {
         return `
             <div class="legend-item">
                 <div class="legend-label">
-                    <span class="dot" style="background: ${colors[i % colors.length]};"></span> ${item.currency}
+                    <span class="dot" style="background: ${colors[i % colors.length]};"></span> ${escapeHtml(item.currency)}
                 </div>
                 <span style="font-weight: 600;">${item.percentage}%</span>
             </div>
@@ -1935,8 +1951,8 @@ async function updateProfilePage() {
             activityLog.innerHTML = profile.activityLog.map(log => `
                 <div class="log-item">
                     <div class="log-info">
-                        <span class="log-title">${log.action}</span>
-                        <span class="log-meta">${log.details || ''} ${log.ip_address ? '• IP: ' + log.ip_address : ''}</span>
+                        <span class="log-title">${escapeHtml(log.action)}</span>
+                        <span class="log-meta">${escapeHtml(log.details || '')} ${log.ip_address ? '&bull; IP: ' + escapeHtml(log.ip_address) : ''}</span>
                     </div>
                     <span class="log-meta">${getTimeAgo(log.created_at)}</span>
                 </div>

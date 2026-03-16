@@ -14,6 +14,7 @@ const ADMIN_EMAIL      = process.env.ADMIN_EMAIL      || 'gerbera.uh@gmail.com';
 const SESSION_SECRET   = process.env.SESSION_SECRET    || 'yamato-dev-secret-change-me';
 const EMERGENCY_KEY    = process.env.EMERGENCY_KEY     || 'yamato-emergency-2026';
 const BCRYPT_ROUNDS    = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
+const ENCRYPTION_KEY   = process.env.ENCRYPTION_KEY || '';
 const DB_PATH          = process.env.DB_PATH       || path.join(__dirname, '..', 'database.sqlite');
 const SESSIONS_PATH    = process.env.SESSIONS_PATH || path.join(__dirname, '..', 'sessions.json');
 const SETTINGS_PATH    = process.env.SETTINGS_PATH || path.join(__dirname, '..', 'settings.json');
@@ -65,11 +66,36 @@ function saveSettings() {
     }
 }
 
+function validateProductionConfig() {
+    const warnings = [];
+    const errors = [];
+
+    if (SESSION_SECRET === 'yamato-dev-secret-change-me') {
+        if (process.env.NODE_ENV === 'production') {
+            errors.push('SESSION_SECRET must be set in production!');
+        } else {
+            warnings.push('SESSION_SECRET using default dev value');
+        }
+    }
+
+    if (!process.env.ENCRYPTION_KEY) {
+        warnings.push('ENCRYPTION_KEY not set -- API keys will not be encrypted');
+    }
+
+    warnings.forEach(w => console.warn(`[CONFIG WARNING] ${w}`));
+    if (errors.length > 0) {
+        errors.forEach(e => console.error(`[CONFIG ERROR] ${e}`));
+        console.error('Fix the above errors before running in production.');
+        process.exit(1);
+    }
+}
+
 module.exports = {
     PORT, HTTPS_PORT, HOST, NODE_ENV,
-    ADMIN_EMAIL, SESSION_SECRET, EMERGENCY_KEY, BCRYPT_ROUNDS,
+    ADMIN_EMAIL, SESSION_SECRET, EMERGENCY_KEY, BCRYPT_ROUNDS, ENCRYPTION_KEY,
     DB_PATH, SESSIONS_PATH, SETTINGS_PATH, SSL_KEY_PATH, SSL_CERT_PATH,
     siteSettings,
     loadSettings,
     saveSettings,
+    validateProductionConfig,
 };

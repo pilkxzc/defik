@@ -6,7 +6,8 @@ const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 
-const { PORT, HTTPS_PORT, HOST, loadSettings } = require('./config');
+const compression = require('compression'); // npm install compression
+const { PORT, HTTPS_PORT, HOST, loadSettings, validateProductionConfig } = require('./config');
 const { initDatabase, saveDatabase, dbGet }    = require('./db');
 const { createSessionMiddleware }              = require('./middleware/session');
 const { maintenanceMiddleware }                = require('./middleware/maintenance');
@@ -26,6 +27,9 @@ async function createApp() {
     // 1. Load persisted settings
     loadSettings();
 
+    // 1b. Validate config (exits in production if critical vars missing)
+    validateProductionConfig();
+
     // 2. Initialize database
     await initDatabase();
 
@@ -33,6 +37,9 @@ async function createApp() {
     const app = express();
 
     app.set('trust proxy', 1);
+
+    // Gzip compression — before all other middleware for best performance
+    app.use(compression());
 
     // Security headers
     app.use(helmet({
@@ -55,16 +62,17 @@ async function createApp() {
         origin: process.env.CORS_ORIGIN || 'https://tradingarena.space',
         credentials: true
     }));
-    app.use(express.json({ limit: '20mb' }));
-    app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+    app.use(express.json({ limit: '2mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '2mb' }));
     app.use(maintenanceMiddleware);
-    app.use(express.static(path.join(__dirname, '..'), {
-        setHeaders: (res, filePath) => {
-            if (filePath.endsWith('.html')) {
-                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            }
-        }
-    }));
+
+    // Static file serving — scoped to specific directories only
+    // (prevents exposing .env, database.sqlite, sessions.json, etc.)
+    app.use('/css', express.static(path.join(__dirname, '..', 'css'), { maxAge: '7d' }));
+    app.use('/js', express.static(path.join(__dirname, '..', 'js'), { maxAge: '7d' }));
+    app.use('/fonts', express.static(path.join(__dirname, '..', 'fonts'), { maxAge: '365d', immutable: true }));
+    app.use('/logo.svg', express.static(path.join(__dirname, '..', 'logo.svg'), { maxAge: '7d' }));
+    app.use('/images', express.static(path.join(__dirname, '..', 'images'), { maxAge: '7d' }));
 
     const sessionMiddleware = createSessionMiddleware();
     app.use(sessionMiddleware);
@@ -196,11 +204,11 @@ async function createApp() {
 
     app.get('/emergency',    (req, res) => res.sendFile(path.join(pages, 'emergency.html')));
 
-    // 404 — must be last
-    app.use((req, res) => res.status(404).sendFile(path.join(pages, '404erors.html')));
-
-    // Error handler
+    // Error handler — must be before 404 catch-all so thrown errors are caught
     app.use(errorHandler);
+
+    // 404 — must be last (catches all unmatched routes)
+    app.use((req, res) => res.status(404).sendFile(path.join(pages, '404erors.html')));
 
     return { app, sessionMiddleware };
 }
@@ -232,9 +240,10 @@ async function startServer() {
     });
 
     // Start HTTPS server
+    let httpsServer = null;
     try {
         const credentials = getSSLCredentials();
-        const httpsServer = https.createServer(credentials, app);
+        httpsServer = https.createServer(credentials, app);
         httpsServer.listen(HTTPS_PORT, HOST, () => {
             console.log(`HTTPS server listening on https://${HOST}:${HTTPS_PORT}`);
         });
@@ -249,6 +258,7 @@ async function startServer() {
         stopBackupSchedule();
         stopNewsCollector();
         saveDatabase();
+        if (httpsServer) httpsServer.close();
         server.close(() => process.exit(0));
         setTimeout(() => process.exit(1), 5000);
     }
@@ -259,7 +269,9 @@ async function startServer() {
 
 // Global error handlers
 process.on('uncaughtException', (err) => {
-    console.error('Uncaught exception:', err);
+    console.error('FATAL: Uncaught exception:', err);
+    try { saveDatabase(); } catch(e) { /* best effort */ }
+    process.exit(1); // PM2 will restart
 });
 
 process.on('unhandledRejection', (reason) => {

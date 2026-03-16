@@ -7,7 +7,10 @@ class FileSessionStore extends session.Store {
     constructor() {
         super();
         this.sessions = {};
+        this._saveTimeout = null;
         this.load();
+        // Periodic cleanup of expired sessions every 15 minutes
+        this._cleanupInterval = setInterval(() => this.cleanExpired(), 15 * 60 * 1000);
     }
 
     load() {
@@ -31,6 +34,14 @@ class FileSessionStore extends session.Store {
         } catch (err) {
             console.error('Error saving sessions:', err);
         }
+    }
+
+    _scheduleSave() {
+        if (this._saveTimeout) return;
+        this._saveTimeout = setTimeout(() => {
+            this._saveTimeout = null;
+            this.save();
+        }, 2000);
     }
 
     cleanExpired() {
@@ -80,13 +91,13 @@ class FileSessionStore extends session.Store {
 
     set(sid, sess, callback) {
         this.sessions[sid] = sess;
-        this.save();
+        this._scheduleSave();
         callback && callback(null);
     }
 
     destroy(sid, callback) {
         delete this.sessions[sid];
-        this.save();
+        this._scheduleSave();
         callback && callback(null);
     }
 
@@ -107,7 +118,7 @@ class FileSessionStore extends session.Store {
     touch(sid, sess, callback) {
         if (this.sessions[sid]) {
             this.sessions[sid].cookie = sess.cookie;
-            this.save();
+            this._scheduleSave();
         }
         callback && callback(null);
     }

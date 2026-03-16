@@ -7,7 +7,7 @@ const crypto   = require('crypto');
 const router   = express.Router();
 
 const { dbGet, dbRun, dbAll } = require('../db');
-const { ADMIN_EMAIL }         = require('../config');
+const { ADMIN_EMAIL, BCRYPT_ROUNDS } = require('../config');
 const { getClientIP }         = require('../utils/ip');
 const { getLocalTime }        = require('../utils/time');
 const { requireAuth }         = require('../middleware/auth');
@@ -28,13 +28,17 @@ router.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ error: 'Email, password and full name are required' });
         }
 
+        if (!password || password.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
+
         const normalizedEmail = email.toLowerCase().trim();
         const existingUser = dbGet('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
         if (existingUser) {
-            return res.status(400).json({ error: 'Email already registered' });
+            return res.status(400).json({ error: 'Registration failed. Please try again or reset your password.' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
         const role = normalizedEmail === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user';
 
         const result = dbRun(
@@ -71,24 +75,31 @@ router.post('/api/auth/register', async (req, res) => {
             console.log('[Auth] Verification email not sent:', emailErr.message);
         }
 
-        req.session.userId = userId;
-        req.session.betaAccess = true;
-        req.session._ip = getClientIP(req);
-        req.session._ua = req.headers['user-agent'] || '';
-        req.session._createdAt = new Date().toISOString();
-        req.session._loginMethod = 'register';
-        console.log(`[register] Session ${req.session.id?.substring(0,8)}... userId set to ${req.session.userId}, saving...`);
-
-        req.session.save((err) => {
+        const oldSession = { ...req.session };
+        req.session.regenerate((err) => {
             if (err) {
-                console.error('[register] Session save error:', err);
+                console.error('[register] Session regenerate error:', err);
                 return res.status(500).json({ error: 'Session error' });
             }
-            console.log(`[register] Session saved OK for userId=${userId}`);
-            res.json({
-                success: true,
-                message: 'Registration successful',
-                user: { id: userId, email: normalizedEmail, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+            req.session.betaAccess = oldSession.betaAccess || true;
+            req.session.userId = userId;
+            req.session._ip = getClientIP(req);
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'register';
+            console.log(`[register] Session ${req.session.id?.substring(0,8)}... userId set to ${req.session.userId}, saving...`);
+
+            req.session.save((err) => {
+                if (err) {
+                    console.error('[register] Session save error:', err);
+                    return res.status(500).json({ error: 'Session error' });
+                }
+                console.log(`[register] Session saved OK for userId=${userId}`);
+                res.json({
+                    success: true,
+                    message: 'Registration successful',
+                    user: { id: userId, email: normalizedEmail, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+                });
             });
         });
     } catch (error) {
@@ -191,31 +202,38 @@ router.post('/api/auth/login', async (req, res) => {
 
         createNotification(user.id, 'login', 'New account login', `Login from IP: ${clientIP}`);
 
-        req.session.userId = user.id;
-        req.session.betaAccess = true;
-        req.session._ip = clientIP;
-        req.session._ua = req.headers['user-agent'] || '';
-        req.session._createdAt = new Date().toISOString();
-        req.session._loginMethod = 'password';
-
-        req.session.save((err) => {
+        const oldSession = { ...req.session };
+        req.session.regenerate((err) => {
             if (err) {
-                console.error('Session save error:', err);
+                console.error('Session regenerate error:', err);
                 return res.status(500).json({ error: 'Session error' });
             }
-            res.json({
-                success: true,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
-                    balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
-                    demoBalance: user.demo_balance || 0,
-                    realBalance: user.real_balance || 0,
-                    activeAccount: user.active_account || 'demo',
-                    isVerified: user.is_verified,
-                    verificationLevel: user.verification_level
+            req.session.betaAccess = oldSession.betaAccess || true;
+            req.session.userId = user.id;
+            req.session._ip = clientIP;
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'password';
+
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error:', err);
+                    return res.status(500).json({ error: 'Session error' });
                 }
+                res.json({
+                    success: true,
+                    user: {
+                        id: user.id,
+                        email: user.email,
+                        fullName: user.full_name,
+                        balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
+                        demoBalance: user.demo_balance || 0,
+                        realBalance: user.real_balance || 0,
+                        activeAccount: user.active_account || 'demo',
+                        isVerified: user.is_verified,
+                        verificationLevel: user.verification_level
+                    }
+                });
             });
         });
     } catch (error) {
@@ -434,7 +452,7 @@ router.post('/api/auth/reset-password', async (req, res) => {
     try {
         const { token, newPassword } = req.body;
         if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
-        if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
         const clientIP = getClientIP(req);
 
@@ -469,7 +487,7 @@ router.post('/api/auth/reset-password', async (req, res) => {
         // Record successful attempt (clear previous failures)
         await recordLoginAttempt(clientIP, clientIP, true);
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
         dbRun('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, resetToken.user_id]);
         dbRun('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', [resetToken.id]);
 
@@ -803,15 +821,6 @@ router.post('/api/passkeys/auth-verify', (req, res) => {
 
         dbRun("UPDATE passkeys SET last_used_at = datetime('now'), counter = counter + 1 WHERE id = ?", [passkey.id]);
 
-        req.session.userId = user.id;
-        req.session.userEmail = user.email;
-        req.session.userRole = user.role || 'user';
-        req.session.betaAccess = true;
-        req.session._ip = getClientIP(req);
-        req.session._ua = req.headers['user-agent'] || '';
-        req.session._createdAt = new Date().toISOString();
-        req.session._loginMethod = 'passkey';
-
         dbRun('INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
             [user.id, 'Passkey Login', `Logged in using passkey: ${passkey.name}`, getClientIP(req)]);
 
@@ -819,7 +828,29 @@ router.post('/api/passkeys/auth-verify', (req, res) => {
 
         createNotification(user.id, 'login', 'New Login', `Logged in with passkey "${passkey.name}" from ${getClientIP(req)}`);
 
-        res.json({ success: true, user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role || 'user' } });
+        const oldSession = { ...req.session };
+        req.session.regenerate((err) => {
+            if (err) {
+                console.error('Session regenerate error (passkey):', err);
+                return res.status(500).json({ error: 'Session error' });
+            }
+            req.session.betaAccess = oldSession.betaAccess || true;
+            req.session.userId = user.id;
+            req.session.userEmail = user.email;
+            req.session.userRole = user.role || 'user';
+            req.session._ip = getClientIP(req);
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'passkey';
+
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error (passkey):', err);
+                    return res.status(500).json({ error: 'Session error' });
+                }
+                res.json({ success: true, user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role || 'user' } });
+            });
+        });
     } catch (error) {
         console.error('Passkey auth verify error:', error);
         res.status(500).json({ error: 'Failed to verify passkey authentication' });
@@ -911,17 +942,21 @@ router.post('/api/auth/telegram', (req, res) => {
 
             createNotification(existingUser.id, 'login', 'New Login', `Logged in via Telegram from ${getClientIP(req)}`);
 
-            req.session.userId = existingUser.id;
-            req.session.betaAccess = true;
-            req.session._ip = getClientIP(req);
-            req.session._ua = req.headers['user-agent'] || '';
-            req.session._createdAt = new Date().toISOString();
-            req.session._loginMethod = 'telegram';
-            return req.session.save((err) => {
+            const oldSession = { ...req.session };
+            return req.session.regenerate((err) => {
                 if (err) return res.status(500).json({ error: 'Session error' });
-                res.json({ success: true, user: {
-                    id: existingUser.id, email: existingUser.email, fullName: existingUser.full_name
-                }});
+                req.session.betaAccess = oldSession.betaAccess || true;
+                req.session.userId = existingUser.id;
+                req.session._ip = getClientIP(req);
+                req.session._ua = req.headers['user-agent'] || '';
+                req.session._createdAt = new Date().toISOString();
+                req.session._loginMethod = 'telegram';
+                req.session.save((err) => {
+                    if (err) return res.status(500).json({ error: 'Session error' });
+                    res.json({ success: true, user: {
+                        id: existingUser.id, email: existingUser.email, fullName: existingUser.full_name
+                    }});
+                });
             });
         }
 
@@ -965,13 +1000,13 @@ router.post('/api/auth/telegram-register', async (req, res) => {
             return res.status(400).json({ error: 'Email, password and full name are required' });
         }
 
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        if (!password || password.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
         }
 
         const existingUser = dbGet('SELECT id FROM users WHERE email = ?', [email]);
         if (existingUser) {
-            return res.status(400).json({ error: 'Email already registered' });
+            return res.status(400).json({ error: 'Registration failed. Please try again or reset your password.' });
         }
 
         const existingTg = dbGet('SELECT id FROM users WHERE telegram_id = ?', [pendingTg.id]);
@@ -979,7 +1014,7 @@ router.post('/api/auth/telegram-register', async (req, res) => {
             return res.status(400).json({ error: 'This Telegram account is already linked to a user' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
         const role = email === ADMIN_EMAIL ? 'admin' : 'user';
 
         const result = dbRun(
@@ -992,24 +1027,27 @@ router.post('/api/auth/telegram-register', async (req, res) => {
             return res.status(500).json({ error: 'Registration failed' });
         }
 
-        delete req.session.pendingTelegramAuth;
-
         dbRun('INSERT INTO activity_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)',
             [userId, 'Account Created', 'Registered via Telegram', getClientIP(req)]);
 
         createNotification(userId, 'system', 'Welcome to Yamato!', 'Thank you for registering via Telegram. Wishing you successful trading!');
 
-        req.session.userId = userId;
-        req.session.betaAccess = true;
-        req.session._ip = getClientIP(req);
-        req.session._ua = req.headers['user-agent'] || '';
-        req.session._createdAt = new Date().toISOString();
-        req.session._loginMethod = 'telegram-register';
-        req.session.save((err) => {
+        const oldSession = { ...req.session };
+        delete oldSession.pendingTelegramAuth;
+        req.session.regenerate((err) => {
             if (err) return res.status(500).json({ error: 'Session error' });
-            res.json({
-                success: true,
-                user: { id: userId, email, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+            req.session.betaAccess = oldSession.betaAccess || true;
+            req.session.userId = userId;
+            req.session._ip = getClientIP(req);
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'telegram-register';
+            req.session.save((err) => {
+                if (err) return res.status(500).json({ error: 'Session error' });
+                res.json({
+                    success: true,
+                    user: { id: userId, email, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+                });
             });
         });
     } catch (error) {
@@ -1158,32 +1196,39 @@ router.post('/api/auth/telegram-login-verify', async (req, res) => {
         // Create notification
         createNotification(user.id, 'login', 'New account login', `Telegram code login from IP: ${clientIP}`);
 
-        // Create session
-        req.session.userId = user.id;
-        req.session.betaAccess = true;
-        req.session._ip = clientIP;
-        req.session._ua = req.headers['user-agent'] || '';
-        req.session._createdAt = new Date().toISOString();
-        req.session._loginMethod = 'telegram-code';
-
-        req.session.save((err) => {
+        // Create session with regeneration to prevent session fixation
+        const oldSession = { ...req.session };
+        req.session.regenerate((err) => {
             if (err) {
-                console.error('Session save error:', err);
+                console.error('Session regenerate error (telegram-code):', err);
                 return res.status(500).json({ error: 'Session error' });
             }
-            res.json({
-                success: true,
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.full_name,
-                    balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
-                    demoBalance: user.demo_balance || 0,
-                    realBalance: user.real_balance || 0,
-                    activeAccount: user.active_account || 'demo',
-                    isVerified: user.is_verified,
-                    verificationLevel: user.verification_level
+            req.session.betaAccess = oldSession.betaAccess || true;
+            req.session.userId = user.id;
+            req.session._ip = clientIP;
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'telegram-code';
+
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error:', err);
+                    return res.status(500).json({ error: 'Session error' });
                 }
+                res.json({
+                    success: true,
+                    user: {
+                        id: user.id,
+                        email: user.email,
+                        fullName: user.full_name,
+                        balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
+                        demoBalance: user.demo_balance || 0,
+                        realBalance: user.real_balance || 0,
+                        activeAccount: user.active_account || 'demo',
+                        isVerified: user.is_verified,
+                        verificationLevel: user.verification_level
+                    }
+                });
             });
         });
     } catch (error) {
@@ -1286,7 +1331,7 @@ router.get('/api/auth/google/callback', async (req, res) => {
         // 3. If still no user — auto-register
         if (!user) {
             const randomPassword = crypto.randomBytes(32).toString('hex');
-            const hashedPassword = await bcrypt.hash(randomPassword, 10);
+            const hashedPassword = await bcrypt.hash(randomPassword, BCRYPT_ROUNDS);
             const role = email === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user';
 
             const result = dbRun(
@@ -1319,19 +1364,26 @@ router.get('/api/auth/google/callback', async (req, res) => {
         );
         createNotification(user.id, 'login', 'New account login', `Login via Google from IP: ${clientIP}`);
 
-        req.session.userId = user.id;
-        req.session.betaAccess = true;
-        req.session._ip = clientIP;
-        req.session._ua = req.headers['user-agent'] || '';
-        req.session._createdAt = new Date().toISOString();
-        req.session._loginMethod = 'google';
-
-        req.session.save((err) => {
+        const oldSession = { ...req.session };
+        req.session.regenerate((err) => {
             if (err) {
-                console.error('Session save error (Google):', err);
+                console.error('Session regenerate error (Google):', err);
                 return res.redirect('/login?error=session');
             }
-            res.redirect('/dashboard');
+            req.session.betaAccess = oldSession.betaAccess || true;
+            req.session.userId = user.id;
+            req.session._ip = clientIP;
+            req.session._ua = req.headers['user-agent'] || '';
+            req.session._createdAt = new Date().toISOString();
+            req.session._loginMethod = 'google';
+
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error (Google):', err);
+                    return res.redirect('/login?error=session');
+                }
+                res.redirect('/dashboard');
+            });
         });
     } catch (error) {
         console.error('Google OAuth callback error:', error);

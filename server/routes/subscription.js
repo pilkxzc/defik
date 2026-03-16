@@ -67,15 +67,17 @@ router.post('/api/subscription/checkout', requireAuth, (req, res) => {
 // Cancel subscription
 router.post('/api/subscription/cancel', requireAuth, (req, res) => {
     try {
-        const user = dbGet('SELECT subscription_plan FROM users WHERE id = ?', [req.session.userId]);
+        const user = dbGet('SELECT subscription_plan, subscription_expires_at FROM users WHERE id = ?', [req.session.userId]);
         if (!user || user.subscription_plan === 'free') {
             return res.status(400).json({ error: 'No active subscription to cancel' });
         }
 
-        createNotification(req.session.userId, 'system', 'Subscription Cancelled',
-            'Your subscription will remain active until the end of the billing period', 'info');
+        dbRun("UPDATE users SET subscription_plan = 'free', subscription_expires_at = NULL WHERE id = ?", [req.session.userId]);
 
-        res.json({ success: true, message: 'Subscription will be cancelled at the end of the billing period' });
+        createNotification(req.session.userId, 'system', 'Subscription Cancelled',
+            'Your subscription has been cancelled and reverted to the free plan.', 'info');
+
+        res.json({ success: true, message: 'Subscription has been cancelled' });
     } catch (error) {
         console.error('Cancel subscription error:', error);
         res.status(500).json({ error: 'Failed to cancel subscription' });

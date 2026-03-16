@@ -8,6 +8,11 @@ function createNotification(userId, type, title, message, icon = null) {
         [userId, type, title, message, icon, getLocalTime()]
     );
 
+    if (!result || !result.lastInsertRowid) {
+        console.error('[Notifications] Failed to create notification');
+        return null;
+    }
+
     const notification = {
         id:         result.lastInsertRowid,
         type,
@@ -23,8 +28,11 @@ function createNotification(userId, type, title, message, icon = null) {
     sendUserNotification(userId, notification);
 
     // Lazy require to avoid circular dependency with services/telegram.js
+    // Don't await (non-critical), but handle the promise
     const { sendTelegramNotification } = require('./telegram');
-    sendTelegramNotification(userId, title, message, icon);
+    sendTelegramNotification(userId, title, message, icon).catch(err => {
+        console.error('[Notifications] Telegram send failed:', err.message);
+    });
 
     return notification;
 }

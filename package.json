@@ -10,6 +10,7 @@
     "push": "node push.js"
   },
   "dependencies": {
+    "compression": "^1.8.1",
     "dotenv": "^17.3.1",
     "helmet": "^8.1.0"
   }

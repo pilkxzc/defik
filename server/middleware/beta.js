@@ -1,6 +1,6 @@
 'use strict';
 
-const BETA_CODE = '401483';
+const BETA_CODE = process.env.BETA_CODE || '401483';
 
 const BETA_PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -242,7 +242,11 @@ function betaSubmit(req, res) {
     const code = (req.body?.code || '').trim();
     if (code === BETA_CODE) {
         req.session.betaAccess = true;
-        const redirectTo = req.body?.next || '/';
+        let redirectTo = req.body?.next || '/';
+        // Prevent open redirect
+        if (!redirectTo.startsWith('/') || redirectTo.startsWith('//')) {
+            redirectTo = '/';
+        }
         return res.redirect(redirectTo);
     }
     res.redirect('/beta?error=1');

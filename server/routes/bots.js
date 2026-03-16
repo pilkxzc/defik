@@ -8,6 +8,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { dbGet, dbAll, dbRun, dbTransaction, saveDatabase } = require('../db');
 const { requireAuth, requireRole }          = require('../middleware/auth');
 const { getClientIP }                       = require('../utils/ip');
+const { encryptField, decryptField, maskApiKey } = require('../utils/crypto');
 const { sendUserNotification, getIo }       = require('../socket');
 const { createNotification }                = require('../services/notifications');
 
@@ -79,7 +80,12 @@ function getMultiCredentials(bot) {
     try {
         const ts = JSON.parse(bot.trading_settings || '{}');
         if (ts.multi_credentials && Array.isArray(ts.multi_credentials) && ts.multi_credentials.length > 0) {
-            return ts.multi_credentials;
+            // Decrypt credentials on read
+            return ts.multi_credentials.map(c => ({
+                ...c,
+                tk: decryptField(c.tk),
+                tk_secret: decryptField(c.tk_secret),
+            }));
         }
     } catch (e) {}
     return null;
@@ -89,7 +95,10 @@ function getMultiCredentials(bot) {
 function getBotCredentialPairs(bot) {
     const multi = getMultiCredentials(bot);
     if (multi) return multi.map(c => ({ apiKey: c.tk, apiSecret: c.tk_secret, proxy: c.proxy || bot.proxy || null }));
-    if (bot.binance_api_key && bot.binance_api_secret) return [{ apiKey: bot.binance_api_key, apiSecret: bot.binance_api_secret, proxy: bot.proxy || null }];
+    // Decrypt single-account keys from DB
+    const apiKey = decryptField(bot.binance_api_key);
+    const apiSecret = decryptField(bot.binance_api_secret);
+    if (apiKey && apiSecret) return [{ apiKey, apiSecret, proxy: bot.proxy || null }];
     return [];
 }
 
@@ -912,7 +921,7 @@ async function reconcileOpenTrades(botId) {
             const merged = await fetchMultiAccountFuturesData(multiCreds);
             allPositions.push(...(merged.positions || []));
         } else {
-            const binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
+            const binData = await fetchBinanceFuturesData(decryptField(bot.binance_api_key), decryptField(bot.binance_api_secret), bot.proxy || null);
             allPositions.push(...(binData.positions || []));
         }
 
@@ -1289,7 +1298,7 @@ router.post('/api/bots/binance', requireAuth, requireRole('admin', 'moderator'),
 
         const result = dbRun(
             'INSERT INTO bots (user_id, name, type, pair, binance_api_key, binance_api_secret, mode, account_type, display_settings, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
-            [req.session.userId, name, 'binance', 'FUTURES', apiKey, apiSecret, mode || 'test', accountType || 'futures', JSON.stringify(displaySettings || {})]
+            [req.session.userId, name, 'binance', 'FUTURES', encryptField(apiKey), encryptField(apiSecret), mode || 'test', accountType || 'futures', JSON.stringify(displaySettings || {})]
         );
 
         res.json({ success: true, botId: result.lastInsertRowid });
@@ -1637,15 +1646,17 @@ router.get('/api/bots/:id/data', requireAuth, async (req, res) => {
         if (multiCreds) {
             binanceData = await fetchMultiAccountFuturesData(multiCreds);
         } else {
-            if (!bot.binance_api_key || !bot.binance_api_secret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
+            const decKey = decryptField(bot.binance_api_key);
+            const decSecret = decryptField(bot.binance_api_secret);
+            if (!decKey || !decSecret) return res.status(400).json({ error: 'Bot is not configured with Binance API' });
             try {
-                binanceData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
+                binanceData = await fetchBinanceFuturesData(decKey, decSecret, bot.proxy || null);
             } catch (singleErr) {
                 // Return empty data with error info instead of 500
                 binanceData = {
                     account: { totalWalletBalance: 0, totalUnrealizedProfit: 0, totalMarginBalance: 0, availableBalance: 0 },
                     positions: [], openOrders: [], limitOrders: [], stopOrders: [], takeProfitOrders: [], recentTrades: [], incomeHistory: [],
-                    _meta: { total: 1, ok: 0, errors: [{ index: 0, key: bot.binance_api_key.slice(0, 8) + '...' + bot.binance_api_key.slice(-6), error: singleErr.message }] }
+                    _meta: { total: 1, ok: 0, errors: [{ index: 0, key: maskApiKey(bot.binance_api_key), error: singleErr.message }] }
                 };
             }
         }
@@ -1703,7 +1714,7 @@ router.patch('/api/bots/:id/api-keys', requireAuth, requireRole('admin', 'modera
         const testResult = await testBinanceCredentials(apiKey, apiSecret, 'futures');
         if (!testResult.success) return res.status(400).json({ error: testResult.error || 'Invalid API credentials' });
 
-        dbRun('UPDATE bots SET binance_api_key = ?, binance_api_secret = ? WHERE id = ?', [apiKey, apiSecret, req.params.id]);
+        dbRun('UPDATE bots SET binance_api_key = ?, binance_api_secret = ? WHERE id = ?', [encryptField(apiKey), encryptField(apiSecret), req.params.id]);
 
         const balance = parseFloat(testResult.data?.totalWalletBalance || 0).toFixed(2);
         res.json({ success: true, balance });
