@@ -828,20 +828,29 @@ class TickChart {
         });
 
         // Draw primary marker guidelines first (behind everything)
+        // Only show guidelines for recent markers (within 3 minutes)
+        const guidelineMaxAge = 3 * 60 * 1000; // 3 minutes in ms
+        const nowMs = Date.now();
         for (const m of visibleMarkers) {
             if (!m._primary) continue;
+            // Hide guidelines for markers older than 3 minutes
+            if (nowMs - m.time > guidelineMaxAge) continue;
             const px = timeToX(m.time);
             const py = priceToY(m.price);
             if (px < 0 || px > chartW) continue;
             const isLong = m.side === 'LONG' || m.side === 'BUY';
             const pColor = isLong ? colors.markerLong : colors.markerShort;
+            // Fade out: full opacity until 2min, then fade to 0 at 3min
+            const age = nowMs - m.time;
+            const fadeStart = 2 * 60 * 1000;
+            const baseAlpha = age < fadeStart ? 0.5 : 0.5 * (1 - (age - fadeStart) / (guidelineMaxAge - fadeStart));
 
             // Vertical guide line
             ctx.save();
             ctx.strokeStyle = pColor;
             ctx.lineWidth = 1;
             ctx.setLineDash([4, 3]);
-            ctx.globalAlpha = 0.5;
+            ctx.globalAlpha = Math.max(0, baseAlpha);
             ctx.beginPath();
             ctx.moveTo(px, TC_PADDING_TOP);
             ctx.lineTo(px, H - TC_PADDING_BOTTOM);
