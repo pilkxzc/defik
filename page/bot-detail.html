@@ -3037,8 +3037,6 @@
                         <button class="interval-btn sub-tf" id="subTfToggle" onclick="toggleSubTfMenu()" title="Sub-second таймфрейми"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></button>
                         <div class="sub-tf-dropdown" id="subTfDropdown">
                             <button class="interval-btn sub-tf" data-interval="1s">1s</button>
-                            <button class="interval-btn sub-tf" data-interval="2s">2s</button>
-                            <button class="interval-btn sub-tf" data-interval="5s">5s</button>
                             <button class="interval-btn sub-tf" data-interval="15s">15s</button>
                             <button class="interval-btn sub-tf" data-interval="30s">30s</button>
                         </div>
@@ -3278,6 +3276,14 @@
                     <span class="panel-drag-handle" title="Перетягніть для зміни порядку">⠿</span>
                     <span class="panel-title">Статистика бота</span>
                     <div style="display: flex; align-items: center; gap: 6px;">
+                        <div style="position:relative;">
+                            <button id="statsPeriodBtn" onclick="toggleStatsPeriodDropdown()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;padding:2px 8px;color:var(--text-secondary);font-size:9px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;" title="Період статистики">
+                                <span id="statsPeriodLabel">Усі</span>
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+                            <div id="statsPeriodDropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--surface-secondary,#1a1a1a);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px;z-index:100;min-width:80px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                            </div>
+                        </div>
                         <button onclick="openStatsModal()" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:5px;padding:2px 6px;color:#10B981;font-size:9px;font-weight:600;cursor:pointer;font-family:inherit;" title="Детальна статистика">Детальніше</button>
                         <div class="subscribers-badge" id="subscribersBadge">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -3348,6 +3354,10 @@
                             <div class="acct-value" id="accountPnl">$0.00</div>
                         </div>
                         <div class="acct-item">
+                            <div class="acct-label">Комісія</div>
+                            <div class="acct-value" id="accountCommission" style="color:var(--color-down);">$0.00</div>
+                        </div>
+                        <div class="acct-item">
                             <div class="acct-label">Час роботи</div>
                             <div class="acct-value" id="statRunningDays">0д</div>
                         </div>
@@ -3379,7 +3389,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="panel-body" id="positionContent" style="overflow: auto;"></div>
+                <div class="panel-body" id="positionContent" style="flex:1;overflow-y:auto;max-height:100%;"></div>
                 <div class="resize-handle" data-panel="positionPanel"></div>
             </div>
 
@@ -4292,7 +4302,7 @@
         let klWs = null;                // WebSocket for real-time data
         let klWsGen = 0;                // generation counter for WS reconnects
         let _tickChart = null;          // TickChart instance for sub-5s
-        const TICK_TFS = new Set(['1s','2s','3s','5s']);
+        const TICK_TFS = new Set(['1s','3s']);
         let currentSymbol = 'BTCUSDT';
         let currentInterval = '1m';
         let trendOverlayGroup = 'trend-0';   // overlay group for trend lines
@@ -4554,6 +4564,64 @@
             { label: 'Дата',  value: 'custom', ms: -1 }
         ];
         let currentStatsTf = 'all';
+        let _statsPanelTf = 'all'; // panel header period (separate from modal)
+
+        // Stats panel period dropdown
+        function toggleStatsPeriodDropdown() {
+            const dd = document.getElementById('statsPeriodDropdown');
+            if (dd.style.display === 'none') {
+                // Populate options (exclude 'custom' and 'Дата' for simplicity)
+                const panelTfs = statsTimeframes.filter(t => t.value !== 'custom');
+                dd.innerHTML = panelTfs.map(t =>
+                    `<button onclick="selectStatsPanelPeriod('${t.value}','${t.label}')" style="display:block;width:100%;text-align:left;background:${_statsPanelTf===t.value?'rgba(16,185,129,0.15)':'none'};border:none;color:${_statsPanelTf===t.value?'#10B981':'var(--text-secondary)'};font-size:10px;font-weight:600;padding:4px 8px;border-radius:4px;cursor:pointer;font-family:inherit;" onmouseenter="this.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.style.background='${_statsPanelTf===t.value?'rgba(16,185,129,0.15)':'none'}'">${t.label}</button>`
+                ).join('');
+                dd.style.display = 'block';
+                // Close on outside click
+                setTimeout(() => document.addEventListener('click', _closeStatsPeriodDD, { once: true }), 0);
+            } else {
+                dd.style.display = 'none';
+            }
+        }
+        function _closeStatsPeriodDD(e) {
+            const dd = document.getElementById('statsPeriodDropdown');
+            if (dd && !dd.contains(e.target)) dd.style.display = 'none';
+        }
+        function selectStatsPanelPeriod(value, label) {
+            _statsPanelTf = value;
+            document.getElementById('statsPeriodLabel').textContent = label;
+            document.getElementById('statsPeriodDropdown').style.display = 'none';
+            updateStatsPanelKPIs();
+        }
+        function updateStatsPanelKPIs() {
+            const tfObj = statsTimeframes.find(t => t.value === _statsPanelTf);
+            const now = Date.now();
+            const trades = allEquityTrades.filter(t => {
+                if (!tfObj || tfObj.ms === 0) return true;
+                return parseUTC(t.closedAt) >= now - tfObj.ms;
+            });
+            const wins = trades.filter(t => parseFloat(t.pnl) > 0);
+            const totalPnl = trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
+            const winRate = trades.length > 0 ? (wins.length / trades.length * 100).toFixed(0) : 0;
+            // Max drawdown
+            let peak = 0, maxDD = 0, equity = 0;
+            trades.forEach(t => { equity += parseFloat(t.pnl || 0); if (equity > peak) peak = equity; const dd = peak > 0 ? (peak - equity) / peak * 100 : 0; if (dd > maxDD) maxDD = dd; });
+            // Sum commission from incomeHistory
+            const now2 = Date.now();
+            const totalComm = cachedIncomeHistory
+                .filter(i => i.incomeType === 'COMMISSION' && (!tfObj || tfObj.ms === 0 || i.time >= now2 - tfObj.ms))
+                .reduce((s, i) => s + Math.abs(i.income), 0);
+
+            document.getElementById('statWinRate').textContent = winRate + '%';
+            document.getElementById('statWinRate').className = 'kpi-value ' + (winRate >= 50 ? 'positive' : 'negative');
+            const commStr = totalComm !== 0 ? ` (ком: -$${Math.abs(totalComm).toFixed(2)})` : '';
+            document.getElementById('statTotalPnl').textContent = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2) + commStr;
+            document.getElementById('statTotalPnl').className = 'kpi-value ' + (totalPnl >= 0 ? 'positive' : 'negative');
+            document.getElementById('statTotalTrades').textContent = trades.length;
+            document.getElementById('statMaxDrawdown').textContent = maxDD.toFixed(1) + '%';
+            const commEl = document.getElementById('accountCommission');
+            if (commEl) commEl.textContent = totalComm > 0 ? '-$' + totalComm.toFixed(2) : '$0.00';
+        }
+
         let statsIsFullscreen = false;
         let statsCustomFrom = null;
         let statsCustomTo = null;
@@ -6383,7 +6451,7 @@
         }
 
         // ── Sub-minute intervals set ─────────────────────────────────────────────
-        const SUB_MIN_IVS = new Set(['1s','2s','5s','15s','30s']);
+        const SUB_MIN_IVS = new Set(['1s','15s','30s']);
 
         // ═══ klinecharts WebSocket manager ═══════════════════════════════════════
         function _connectKlineWs() {
@@ -6414,7 +6482,7 @@
                     let price = 0;
 
                     if (isSubMin && msg.e === 'aggTrade') {
-                        const tfMs = { '1s':1000,'2s':2000,'5s':5000,'15s':15000,'30s':30000 }[currentInterval] || 1000;
+                        const tfMs = { '1s':1000,'15s':15000,'30s':30000 }[currentInterval] || 1000;
                         const bucketMs = Math.floor(msg.T / tfMs) * tfMs;
                         price = parseFloat(msg.p);
                         const qty = parseFloat(msg.q);
@@ -7547,6 +7615,11 @@
                     drawPriceLines(lastChartData);
                 }
 
+                // Store income history for commission tracking
+                if (data.incomeHistory) {
+                    cachedIncomeHistory = data.incomeHistory;
+                }
+
                 // Load display settings
                 if (data.bot.displaySettings) {
                     displaySettings = { ...displaySettings, ...data.bot.displaySettings };
@@ -7688,7 +7761,7 @@
 
         // Returns period in ms for sub-minute intervals (0 for standard intervals)
         function _getAggPeriodMs() {
-            return { '1s':1000,'2s':2000,'5s':5000,'15s':15000,'30s':30000 }[currentInterval] || 0;
+            return { '1s':1000,'15s':15000,'30s':30000 }[currentInterval] || 0;
         }
 
         // Load closed trade markers and draw on chart
@@ -8018,7 +8091,7 @@
             };
             // For exit markers, fake openedAt 1 bar before so the segment shows
             if (!isEntry) {
-                const ivSec = { '1s':1,'2s':2,'5s':5,'15s':15,'30s':30,'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400 }[currentInterval]||60;
+                const ivSec = { '1s':1,'15s':15,'30s':30,'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400 }[currentInterval]||60;
                 synth.openedAt = new Date((trade.time - ivSec * 10) * 1000).toISOString();
                 synth.closedAt = new Date(trade.time * 1000).toISOString();
                 synth.status = 'closed';
@@ -8486,10 +8559,14 @@
             const typeColor = o.type === 'LIMIT' ? 'var(--color-limit)' : o.type === 'STOP' ? 'var(--color-stop)' : 'var(--color-tp)';
             const orderPrice = o.stopPrice || o.price;
             const accBadge = isMultiAcc && o.accIdx !== undefined ? `<span style="font-size:8px;font-weight:700;color:${_ordAccColors[o.accIdx % _ordAccColors.length]};font-family:'JetBrains Mono',monospace;">a${o.accIdx}</span>` : '';
+            const exec = o.executedQty || 0;
+            const total = o.quantity;
+            const partiallyFilled = exec > 0 && exec < total;
+            const qtyColor = partiallyFilled ? 'color:#F59E0B;' : '';
             return `<div class="order-item order-clickable" data-price="${orderPrice}" data-side="${o.side}" data-time="${o.time || ''}" style="cursor:pointer;">
                 <span class="order-side ${o.side.toLowerCase()}">${o.side}</span>
                 <span class="order-price">$${formatPrice(orderPrice)}</span>
-                <span class="order-qty">${o.quantity}</span>
+                <span class="order-qty" style="${qtyColor}">${exec}/${total}</span>
                 <span style="color:${typeColor};font-size:10px;font-weight:700;">${o.type}</span>
                 ${accBadge}
             </div>`;
@@ -10317,6 +10394,7 @@
         // ==================== EQUITY CURVE ====================
 
         let allEquityTrades = [];
+        let cachedIncomeHistory = []; // income entries from Binance (for commission calc)
         let equityPeriodDays = 7;
 
         async function loadEquityData() {

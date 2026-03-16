@@ -359,9 +359,9 @@ async function fetchBinanceFuturesData(apiKey, apiSecret, proxy = null) {
             leverage:         p.leverage,
             marginType:       p.marginType
         })),
-        limitOrders:      limitOrders.map(o => ({ symbol: o.symbol, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), status: o.status, time: o.time })),
-        stopOrders:       stopOrders.map(o => ({ symbol: o.symbol, side: o.side, stopPrice: parseFloat(o.stopPrice), quantity: parseFloat(o.origQty), type: o.type, status: o.status, time: o.time })),
-        takeProfitOrders: takeProfitOrders.map(o => ({ symbol: o.symbol, side: o.side, stopPrice: parseFloat(o.stopPrice), quantity: parseFloat(o.origQty), type: o.type, status: o.status, time: o.time })),
+        limitOrders:      limitOrders.map(o => ({ symbol: o.symbol, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, status: o.status, time: o.time })),
+        stopOrders:       stopOrders.map(o => ({ symbol: o.symbol, side: o.side, stopPrice: parseFloat(o.stopPrice), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, status: o.status, time: o.time })),
+        takeProfitOrders: takeProfitOrders.map(o => ({ symbol: o.symbol, side: o.side, stopPrice: parseFloat(o.stopPrice), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, status: o.status, time: o.time })),
         recentTrades:     recentTrades.slice(0, 20).map(t => ({ symbol: t.symbol, side: t.side, price: parseFloat(t.price), quantity: parseFloat(t.qty), realizedPnl: parseFloat(t.realizedPnl), time: t.time })),
         incomeHistory:    incomeHistory.slice(0, 50).map(i => ({ symbol: i.symbol, incomeType: i.incomeType, income: parseFloat(i.income), time: i.time, info: i.info }))
     };
@@ -2192,9 +2192,9 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
                 leverage:         p.leverage,
                 updateTime:       p.updateTime || null
             })),
-            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), time: o.time })),
-            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
-            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time })),
+            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, time: o.time })),
+            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time })),
+            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time })),
             canceledOrders: orderHistory.map(o => ({ orderId: o.order_id, side: o.side, price: parseFloat(o.price), stopPrice: o.stop_price ? parseFloat(o.stop_price) : null, quantity: parseFloat(o.quantity), type: o.type, canceledAt: o.canceled_at })),
             displaySettings: JSON.parse(bot.display_settings || '{}'),
             tradesCount: (dbGet('SELECT COUNT(*) as c FROM bot_trades WHERE bot_id = ?', [bot.id]) || {}).c || 0
@@ -2705,9 +2705,9 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
             isActive: !!bot.is_active,
             isMultiAcc,
             accountCount: credPairs.length,
-            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), time: o.time, accIdx: o._accIdx })),
-            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time, accIdx: o._accIdx })),
-            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), type: o.type, time: o.time, accIdx: o._accIdx })),
+            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, time: o.time, accIdx: o._accIdx })),
+            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time, accIdx: o._accIdx })),
+            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time, accIdx: o._accIdx })),
             position: posRisk ? formatPos(posRisk) : null,
             positions: activePositions.map(formatPos)
         });

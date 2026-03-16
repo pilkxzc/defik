@@ -600,21 +600,34 @@ class TickChart {
         ctx.fillStyle = colors.bg;
         ctx.fillRect(0, 0, W, H);
 
-        // Grid lines (horizontal)
-        const gridSteps = TC_GRID_STEPS;
+        // Grid lines (horizontal) — "nice numbers" for readable price labels
         ctx.strokeStyle = colors.gridLine;
         ctx.lineWidth = 1;
         ctx.font = '10px -apple-system, monospace';
         ctx.fillStyle = colors.textDim;
         ctx.textAlign = 'right';
-        for (let i = 0; i <= gridSteps; i++) {
-            const price = minP + (maxP - minP) * (i / gridSteps);
-            const y = priceToY(price);
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(chartW, y);
-            ctx.stroke();
-            ctx.fillText(this._fmtPrice(price), W - 4, y + 3);
+        {
+            const range = maxP - minP || 1;
+            // Calculate nice step size
+            const rawStep = range / TC_GRID_STEPS;
+            const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+            const norm = rawStep / mag;
+            let niceStep;
+            if (norm <= 1) niceStep = 1 * mag;
+            else if (norm <= 2) niceStep = 2 * mag;
+            else if (norm <= 5) niceStep = 5 * mag;
+            else niceStep = 10 * mag;
+            // Draw grid from rounded start to end
+            const gridStart = Math.ceil(minP / niceStep) * niceStep;
+            for (let price = gridStart; price <= maxP; price += niceStep) {
+                const y = priceToY(price);
+                if (y < TC_PADDING_TOP - 5 || y > H - TC_PADDING_BOTTOM + 5) continue;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(chartW, y);
+                ctx.stroke();
+                ctx.fillText(this._fmtPrice(price), W - 4, y + 3);
+            }
         }
 
         // Time labels (bottom) — adaptive format based on visible time range
@@ -720,37 +733,19 @@ class TickChart {
         // Price line — single color, no blinking
         const lastPrice  = visible[visible.length - 1].price;
         const lineColor  = colors.accent;
-        const baseRgb = '16,185,129';
+        const strokeColor = 'rgba(255,255,255,0.9)';
 
         // Subsample step — skip ticks when density is very high (performance)
         const step = pxPerTick < 0.5 ? Math.ceil(0.8 / pxPerTick) : 1;
 
-        // Gradient fill under line
-        const grad = ctx.createLinearGradient(0, TC_PADDING_TOP, 0, TC_PADDING_TOP + chartH);
-        grad.addColorStop(0, `rgba(${baseRgb},0.12)`);
-        grad.addColorStop(1, `rgba(${baseRgb},0.0)`);
-
-        const fillPath = new Path2D();
-        fillPath.moveTo(idxToX(0), priceToY(visible[0].price));
-        for (let i = step; i < visible.length; i += step) {
-            fillPath.lineTo(idxToX(i), priceToY(visible[i].price));
-        }
-        // Always include last point
-        fillPath.lineTo(idxToX(visible.length - 1), priceToY(visible[visible.length - 1].price));
-        fillPath.lineTo(idxToX(visible.length - 1), TC_PADDING_TOP + chartH);
-        fillPath.lineTo(idxToX(0), TC_PADDING_TOP + chartH);
-        fillPath.closePath();
-        ctx.fillStyle = grad;
-        ctx.fill(fillPath);
-
-        // Stroke line
+        // Stroke line (white, no gradient fill)
         ctx.beginPath();
         ctx.moveTo(idxToX(0), priceToY(visible[0].price));
         for (let i = step; i < visible.length; i += step) {
             ctx.lineTo(idxToX(i), priceToY(visible[i].price));
         }
         ctx.lineTo(idxToX(visible.length - 1), priceToY(visible[visible.length - 1].price));
-        ctx.strokeStyle = lineColor;
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 1.5;
         ctx.lineJoin = 'round';
         ctx.stroke();
@@ -778,17 +773,13 @@ class TickChart {
         ctx.textAlign = 'center';
         ctx.fillText(this._fmtPrice(curPrice), chartW + 2 + lblW / 2, curY + 3.5);
 
-        // Dot at latest point
+        // Dot at latest point (solid, no glow)
         if (this._scrollOffset <= 2) {
             const lastX = idxToX(visible.length - 1);
             const lastY = priceToY(lastPrice);
             ctx.beginPath();
             ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
-            ctx.fillStyle = lineColor;
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(lastX, lastY, 6, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${baseRgb},0.3)`;
+            ctx.fillStyle = strokeColor;
             ctx.fill();
         }
 
