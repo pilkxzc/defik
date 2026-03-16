@@ -127,6 +127,13 @@ function switchTab(tabName) {
 
 const TICK_TFS = new Set(['1s','2s','3s','5s']);
 
+function _createTickChart(el) {
+    // Prefer LWTickChart (Lightweight Charts), fallback to old TickChart
+    if (window.LWTickChart) return new LWTickChart(el, {});
+    if (window.TickChart) return new TickChart(el, {});
+    return null;
+}
+
 function setChartTF(tf) {
     currentTF = tf;
     document.querySelectorAll('.chart-tf-btn[data-tf]').forEach(b =>
@@ -137,11 +144,11 @@ function setChartTF(tf) {
         // Switch to tick chart mode
         disposeKlineChart();
         const el = document.getElementById('liveChartCanvas');
+        if (el) el.innerHTML = ''; // clear DOM
         if (window._tickChart) { window._tickChart.destroy(); window._tickChart = null; }
-        if (el && window.TickChart) {
-            window._tickChart = new TickChart(el, { maxTicks: 2000 });
+        window._tickChart = _createTickChart(el);
+        if (window._tickChart) {
             window._tickChart.start(getSymbol()).then(() => {
-                // Load trade markers onto tick chart
                 fetchTradeMarkers().then(() => {
                     if (window._tickChart && typeof tradeMarkers !== 'undefined') {
                         window._tickChart.setMarkers(tradeMarkers);
@@ -153,7 +160,11 @@ function setChartTF(tf) {
     }
 
     // Normal klinecharts mode — destroy tick chart if active
-    if (window._tickChart) { window._tickChart.destroy(); window._tickChart = null; }
+    if (window._tickChart) {
+        window._tickChart.destroy(); window._tickChart = null;
+        const el = document.getElementById('liveChartCanvas');
+        if (el) el.innerHTML = '';
+    }
 
     // Reset so applyNewData is used for fresh data
     if (window._klineChart) window._klineChart._dataLoaded = false;

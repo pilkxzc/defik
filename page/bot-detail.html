@@ -5470,8 +5470,8 @@
             clearTradeHighlight(false);
 
             const isLong = block.side === 'LONG';
-            const entryColor = _tickChart ? (isLong ? '#22D3EE' : '#F59E0B') : (isLong ? userTheme.colors.long : userTheme.colors.short);
-            const pnlColor = block.totalPnl >= 0 ? (_tickChart ? '#34D399' : (userTheme.colors.tp || userTheme.colors.long)) : '#F97316';
+            const entryColor = isLong ? '#22D3EE' : '#F59E0B';
+            const pnlColor = block.totalPnl >= 0 ? '#34D399' : '#F97316';
             const fmtP = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
 
             // ---- Tick chart branch ----
@@ -6274,9 +6274,10 @@
                         if (!_currentAggBar || _currentAggBar.timestamp !== bucketMs) {
                             if (_currentAggBar && klChart) {
                                 if (_klUserScrolled && typeof klChart.getVisibleRange === 'function') {
-                                    var _sr = klChart.getVisibleRange();
+                                    var __ts = null;
+                                    try { var __r = klChart.getVisibleRange(); var __d = klChart.getDataList(); if (__r && __d && __d[__r.from]) __ts = __d[__r.from].timestamp; } catch(e) {}
                                     klChart.updateData({ ..._currentAggBar });
-                                    if (_sr && typeof klChart.scrollToDataIndex === 'function') klChart.scrollToDataIndex(_sr.from);
+                                    if (__ts && typeof klChart.scrollToTimestamp === 'function') klChart.scrollToTimestamp(__ts);
                                 } else {
                                     klChart.updateData({ ..._currentAggBar });
                                 }
@@ -6298,10 +6299,16 @@
 
                     if (bar && klChart) {
                         if (_klUserScrolled && typeof klChart.getVisibleRange === 'function') {
-                            var savedRange = klChart.getVisibleRange();
+                            // Save scroll position by timestamp, not index (indices shift on loadMore)
+                            var _savedTs = null;
+                            try {
+                                var _sr = klChart.getVisibleRange();
+                                var _dl = klChart.getDataList();
+                                if (_sr && _dl && _dl[_sr.from]) _savedTs = _dl[_sr.from].timestamp;
+                            } catch(e) {}
                             klChart.updateData(bar);
-                            if (savedRange && typeof klChart.scrollToDataIndex === 'function') {
-                                klChart.scrollToDataIndex(savedRange.from);
+                            if (_savedTs && typeof klChart.scrollToTimestamp === 'function') {
+                                klChart.scrollToTimestamp(_savedTs);
                             }
                         } else {
                             klChart.updateData(bar);
@@ -6937,7 +6944,7 @@
                             const y1 = dir * i * stripH;
                             const y2 = dir * (i + 1) * stripH;
                             const alpha = (0.10 * (1 - i / strips)).toFixed(3);
-                            const rgb = color === '#10B981' ? '16,185,129' : '239,68,68';
+                            const rgb = (color === '#22D3EE' || color === '#10B981') ? '34,211,238' : '245,158,11';
                             figs.push({
                                 type: 'polygon',
                                 ignoreEvent: true,
@@ -6989,23 +6996,13 @@
 
                         const figs = [];
 
-                        // Line styles per type
+                        // Line styles — same as tick chart (dashed lines, entry thicker)
                         if (type === 'entry') {
                             figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
-                                        styles: { color, size: 1.5 } });
-                        } else if (type === 'stop' || type === 'tp') {
-                            // Wavy zigzag line for stop/tp
-                            const amp = 2.5, wLen = 12;
-                            const coords = [];
-                            for (let x = 0; x <= w; x += wLen / 2) {
-                                coords.push({ x, y: y + (coords.length % 2 === 0 ? -amp : amp) });
-                            }
-                            // Use polygon (open polyline) — single figure, much faster
-                            figs.push({ type: 'polygon', ignoreEvent: true, attrs: { coordinates: coords },
-                                        styles: { style: 'stroke', color, size: 1.2 } });
+                                        styles: { style: 'dashed', color, size: 2, dashedValue: [8, 3] } });
                         } else {
                             figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
-                                        styles: { style: 'dashed', color, size: 1, dashedValue: [6, 4] } });
+                                        styles: { style: 'dashed', color, size: 1, dashedValue: [4, 4] } });
                         }
 
                         // Label pill — positioned at right edge
@@ -7036,7 +7033,7 @@
                         const c = coordinates?.[0];
                         if (!c) return [];
                         const isBuy = overlay.extendData?.isBuy !== false;
-                        const colorBase = isBuy ? 'rgba(16,185,129,' : 'rgba(239,68,68,';
+                        const colorBase = isBuy ? 'rgba(34,211,238,' : 'rgba(245,158,11,';
                         const w = (barSpace?.bar || 8) * 0.8;
                         const h = bounding?.height || 400;
                         return [
@@ -7467,9 +7464,12 @@
                 chartEl.innerHTML = '';
                 if (_tickChart) { _tickChart.destroy(); _tickChart = null; }
                 _tickChart = window.LWTickChart
-                    ? new LWTickChart(chartEl, { maxTicks: 2000 })
-                    : new TickChart(chartEl, { maxTicks: 2000 });
-                _tickChart.onRedraw = function() { if (typeof redrawRulerFromChart === 'function') redrawRulerFromChart(); };
+                    ? new LWTickChart(chartEl, {})
+                    : new TickChart(chartEl, {});
+                _tickChart.onRedraw = function() {
+                    if (typeof redrawRulerFromChart === 'function') redrawRulerFromChart();
+                    if (typeof redrawRangeFromChart === 'function') redrawRangeFromChart();
+                };
                 document.getElementById('chartLoading').style.display = 'flex';
                 document.getElementById('chartLoading').innerHTML = '<div class="spinner"></div>';
                 _tickChart.start(currentSymbol).then(async () => {
@@ -7786,6 +7786,7 @@
             }
         }
 
+        window.showMarkerPopup = showMarkerPopup;
         function showMarkerPopup(m, param) {
             // Skip markers with no meaningful data
             if (!m || (!m.price && !m._all)) return;
@@ -7828,8 +7829,8 @@
                 const pnl     = parseFloat(trade.pnl || 0);
                 const price   = parseFloat(trade.price || 0);
                 const qty     = parseFloat(trade.qty || 0);
-                const sideColor = isBuy ? userTheme.colors.long : userTheme.colors.short;
-                const pnlColor  = pnl >= 0 ? userTheme.colors.tp : '#F97316';
+                const sideColor = isBuy ? '#22D3EE' : '#F59E0B';
+                const pnlColor  = pnl >= 0 ? '#34D399' : '#F97316';
                 const dt    = new Date((trade.time || 0) * 1000);
                 const dtStr = dt.toLocaleString('uk-UA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
                 const sideLabel = isEntry
@@ -7858,7 +7859,7 @@
             const trades  = isGroup ? m._all : [m];
             const totalPnl = isGroup ? trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0) : null;
             const symbol   = m.symbol || currentSymbol;
-            const headerColor = isGroup ? (m._mixed ? '#A78BFA' : (m.isBuy ? userTheme.colors.long : userTheme.colors.short)) : '#e0e0e0';
+            const headerColor = isGroup ? (m._mixed ? '#A78BFA' : (m.isBuy ? '#22D3EE' : '#F59E0B')) : '#e0e0e0';
 
             popup.innerHTML = `
                 <div id="markerPopupDragHandle"></div>
@@ -7868,7 +7869,7 @@
                             ${isGroup ? `${m._count} угоди` : symbol}
                         </span>
                         ${!isGroup ? `<span style="font-size:11px;color:#636363;margin-left:6px;">${symbol !== currentSymbol ? symbol : ''}</span>` : ''}
-                        ${isGroup && Math.abs(totalPnl) > 0 ? `<span style="font-size:11px;color:${totalPnl >= 0 ? userTheme.colors.tp : '#F97316'};font-weight:600;margin-left:8px;">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}</span>` : ''}
+                        ${isGroup && Math.abs(totalPnl) > 0 ? `<span style="font-size:11px;color:${totalPnl >= 0 ? '#34D399' : '#F97316'};font-weight:600;margin-left:8px;">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}</span>` : ''}
                     </div>
                     <button onclick="hideMarkerPopup()" style="background:none;border:none;color:#636363;cursor:pointer;line-height:1;padding:2px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -8426,8 +8427,8 @@
             // Build desired lines list (shared by klinecharts and tick chart)
             // Tick chart uses blue/yellow convention; klinecharts uses theme colors
             const _isTick = !!_tickChart;
-            const _tcBuy  = '#22D3EE';  // blue for BUY/LONG on tick chart
-            const _tcSell = '#F59E0B';  // yellow for SELL/SHORT on tick chart
+            const _tcBuy  = '#22D3EE';  // cyan for BUY/LONG
+            const _tcSell = '#F59E0B';  // yellow for SELL/SHORT
             function buildDesiredLines() {
                 const lines = [];
                 if (displaySettings.positions) {
@@ -8438,7 +8439,7 @@
                         const accLabel = pos._accIdx != null ? ` a${pos._accIdx}` : '';
                         lines.push({
                             price: pos.entryPrice,
-                            color: _isTick ? (isLong ? _tcBuy : _tcSell) : (isLong ? userTheme.colors.long : userTheme.colors.short),
+                            color: isLong ? _tcBuy : _tcSell,
                             label: (isLong ? 'Long' : 'Short') + accLabel,
                             dash: [8, 3],
                             type: 'entry',
@@ -8451,7 +8452,7 @@
                         const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
                         lines.push({
                             price: o.price,
-                            color: _isTick ? (isBuy ? _tcBuy : _tcSell) : (isBuy ? userTheme.colors.long : userTheme.colors.short),
+                            color: isBuy ? _tcBuy : _tcSell,
                             label: (isBuy ? 'Limit Buy' : 'Limit Sell') + accLabel,
                             dash: [6, 4],
                             type: 'limit',
@@ -8468,7 +8469,7 @@
                         const stopColor = isBuy ? '#22D3EE' : '#8B5CF6';
                         lines.push({
                             price: o.stopPrice,
-                            color: _isTick ? stopColor : (isBuy ? '#22D3EE' : '#8B5CF6'),
+                            color: isBuy ? '#22D3EE' : '#8B5CF6',
                             label: typeLabel + ' ' + (isBuy ? 'Buy' : 'Sell') + accLabel,
                             dash: [4, 4],
                             type: 'stop',
@@ -8482,7 +8483,7 @@
                         const typeLabel = o.type === 'TAKE_PROFIT_MARKET' ? 'TP' : 'TP Limit';
                         lines.push({
                             price: o.stopPrice,
-                            color: _isTick ? '#34D399' : userTheme.colors.tp,
+                            color: '#34D399',
                             label: typeLabel + accLabel,
                             dash: [4, 4],
                             type: 'tp',
@@ -8530,15 +8531,17 @@
                 desiredLines.set(key, { price, color, text, type: type || 'order' });
             }
 
+            // Same color scheme as tick chart (cyan=buy, yellow=sell, purple=stop sell, green=tp)
             if (displaySettings.positions) {
                 const posArr = data.positions || (data.position ? [data.position] : []);
                 posArr.forEach(pos => {
                     if (!pos || !pos.entryPrice || pos.entryPrice <= 0) return;
                     const isLong = pos.side === 'LONG';
+                    const accLabel = pos._accIdx != null ? ' a' + pos._accIdx : '';
                     addDesired(`pos-${pos.side}-${pos.entryPrice}`,
                         pos.entryPrice,
-                        isLong ? userTheme.colors.long : userTheme.colors.short,
-                        isLong ? 'Long Entry' : 'Short Entry',
+                        isLong ? '#22D3EE' : '#F59E0B',
+                        (isLong ? 'Long' : 'Short') + accLabel,
                         'entry'
                     );
                 });
@@ -8546,30 +8549,38 @@
             if (displaySettings.limits) {
                 (data.limitOrders || []).forEach((o, i) => {
                     const isBuy = o.side === 'BUY';
+                    const accLabel = o._accIdx != null ? ' a' + o._accIdx : '';
                     addDesired(`limit-${o.side}-${o.price}-${i}`, o.price,
-                        isBuy ? userTheme.colors.long : userTheme.colors.short,
-                        isBuy ? 'Buy Limit' : 'Sell Limit',
+                        isBuy ? '#22D3EE' : '#F59E0B',
+                        (isBuy ? 'Limit Buy' : 'Limit Sell') + accLabel,
                         'limit'
                     );
                 });
             }
             if (displaySettings.stops) {
-                (data.stopOrders || []).forEach((o, i) =>
+                (data.stopOrders || []).forEach((o, i) => {
+                    if (!o.stopPrice || o.stopPrice <= 0) return;
+                    const isBuy = o.side === 'BUY';
+                    const accLabel = o._accIdx != null ? ' a' + o._accIdx : '';
+                    const typeLabel = o.type === 'STOP_MARKET' ? 'SL' : o.type === 'TRAILING_STOP_MARKET' ? 'TSL' : 'Stop';
                     addDesired(`stop-${o.side}-${o.stopPrice}-${i}`, o.stopPrice,
-                        userTheme.colors.stop,
-                        o.side === 'BUY' ? 'Stop Buy' : 'Stop Sell',
+                        isBuy ? '#22D3EE' : '#8B5CF6',
+                        typeLabel + ' ' + (isBuy ? 'Buy' : 'Sell') + accLabel,
                         'stop'
-                    )
-                );
+                    );
+                });
             }
             if (displaySettings.tps) {
-                (data.takeProfitOrders || []).forEach((o, i) =>
+                (data.takeProfitOrders || []).forEach((o, i) => {
+                    if (!o.stopPrice || o.stopPrice <= 0) return;
+                    const accLabel = o._accIdx != null ? ' a' + o._accIdx : '';
+                    const typeLabel = o.type === 'TAKE_PROFIT_MARKET' ? 'TP' : 'TP Limit';
                     addDesired(`tp-${o.side}-${o.stopPrice}-${i}`, o.stopPrice,
-                        userTheme.colors.tp,
-                        'Take Profit',
+                        '#34D399',
+                        typeLabel + accLabel,
                         'tp'
-                    )
-                );
+                    );
+                });
             }
 
             // Diff: remove lines no longer needed
@@ -8627,7 +8638,7 @@
                 closePrice = isBuy ? price + pnl / qty : price - pnl / qty;
             }
 
-            const entryColor = _tickChart ? (isBuy ? '#22D3EE' : '#F59E0B') : (isBuy ? userTheme.colors.long : userTheme.colors.short);
+            const entryColor = isBuy ? '#22D3EE' : '#F59E0B';
 
             // ---- Tick chart branch ----
             if (_tickChart) {
@@ -8711,7 +8722,7 @@
             // Close price level overlay
             if (closePrice) {
                 try {
-                    const pnlColor = pnl >= 0 ? userTheme.colors.tp : '#F97316';
+                    const pnlColor = pnl >= 0 ? '#34D399' : '#F97316';
                     const id = klChart.createOverlay({
                         name: 'priceLevel', groupId: 'highlight', lock: true,
                         points: [{ value: closePrice }],

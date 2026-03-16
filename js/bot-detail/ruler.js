@@ -74,6 +74,7 @@
 
     // Last known cursor state from chart crosshair (price-snapped x/y)
     var _rulerLastCursor = { price: null, dataIndex: null, x: 0, y: 0 };
+    window._rulerLastCursor = _rulerLastCursor;
 
     function ensureCanvas() {
         if (rulerCanvas && rulerCanvas.isConnected) return rulerCanvas;
@@ -613,13 +614,44 @@
     }
 
     function _rangeTimeFromCursor() {
-        // Get candle time by dataIndex, fallback to closest in klinesData
+        // Tick chart: use LW crosshair time
+        if (typeof _tickChart !== 'undefined' && _tickChart && _tickChart._crosshairPos) {
+            return _tickChart._crosshairPos.time ? _tickChart._crosshairPos.time / 1000 : null;
+        }
+        // Klinecharts: use dataIndex → klinesData
         var idx = _rulerLastCursor.dataIndex;
         if (idx != null && klinesData[idx]) return klinesData[idx].time;
-        // fallback: use price crosshair to binary-search closest candle time
         if (klinesData.length === 0) return null;
         return klinesData[Math.max(0, Math.min(klinesData.length - 1, idx || 0))].time;
     }
+
+    function _rangeTimeToX(timeSec) {
+        // Tick chart: convert time to pixel via LW API
+        if (typeof _tickChart !== 'undefined' && _tickChart && _tickChart._chart) {
+            var tzOff = -(new Date().getTimezoneOffset()) * 60;
+            var lwTime = timeSec + tzOff;
+            var coord = _tickChart._chart.timeScale().timeToCoordinate(lwTime);
+            return coord !== null ? coord : null;
+        }
+        // Klinecharts: find dataIndex by time then use chart API
+        if (typeof klChart !== 'undefined' && klChart && typeof klChart.getBarSpace === 'function') {
+            for (var i = 0; i < klinesData.length; i++) {
+                if (klinesData[i].time >= timeSec) {
+                    var vr = klChart.getVisibleRange ? klChart.getVisibleRange() : null;
+                    if (vr) {
+                        var bs = klChart.getBarSpace ? klChart.getBarSpace() : { bar: 8 };
+                        return (i - vr.from) * (bs.bar || 8);
+                    }
+                    break;
+                }
+            }
+        }
+        return null;
+    }
+
+    // Store finalized range times for redraw on scroll
+    var _rangeStartTime = null;
+    var _rangeEndTime = null;
 
     function onRangeMouseDown(e) {
         if (!rangeActive) return;
@@ -630,11 +662,14 @@
 
         if (rangeStep === 0 || rangeStep === 2) {
             cleanupRange();
-            rangeStartData = { x: cx, time: _rangeTimeFromCursor() };
+            _rangeStartTime = _rangeTimeFromCursor();
+            rangeStartData = { x: cx, time: _rangeStartTime };
             rangeStep = 1;
         } else if (rangeStep === 1) {
+            _rangeEndTime = _rangeTimeFromCursor();
             drawRangeSelection(rangeStartData.x, cx, true);
-            var stats = computeRangeStats(rangeStartData.time, _rangeTimeFromCursor());
+            var isTick = typeof _tickChart !== 'undefined' && !!_tickChart;
+            var stats = isTick ? computeRangeStatsTick(_rangeStartTime, _rangeEndTime) : computeRangeStats(_rangeStartTime, _rangeEndTime);
             showRangeStatsPopup(stats);
             rangeStep = 2;
         }
@@ -651,6 +686,66 @@
             drawRangeSelection(rangeStartData.x, cx, false);
         });
     }
+
+    // Redraw finalized range when chart scrolls (time-anchored)
+    function redrawRangeFromChart() {
+        if (rangeStep !== 2 || !_rangeStartTime || !_rangeEndTime) return;
+        var x1 = _rangeTimeToX(_rangeStartTime);
+        var x2 = _rangeTimeToX(_rangeEndTime);
+        if (x1 !== null && x2 !== null) {
+            drawRangeSelection(x1, x2, true);
+        }
+    }
+
+    // Compute range stats from tick chart data
+    function computeRangeStatsTick(t1, t2) {
+        if (t1 == null || t2 == null) return null;
+        if (typeof _tickChart === 'undefined' || !_tickChart) return null;
+        var tMin = Math.min(t1, t2);
+        var tMax = Math.max(t1, t2);
+        var ticks = _tickChart.ticks.filter(function(t) { return t.time / 1000 >= tMin && t.time / 1000 <= tMax; });
+        if (ticks.length === 0) return null;
+
+        var open = ticks[0].price;
+        var close = ticks[ticks.length - 1].price;
+        var high = ticks.reduce(function(m,t){ return Math.max(m, t.price); }, -Infinity);
+        var low = ticks.reduce(function(m,t){ return Math.min(m, t.price); }, Infinity);
+        var change = close - open;
+        var changePct = open !== 0 ? change / open * 100 : 0;
+        var range = high - low;
+        var rangePct = open !== 0 ? range / open * 100 : 0;
+        var totalVol = ticks.reduce(function(s,t){ return s + (t.qty || 0); }, 0);
+        var durationSec = (tMax - tMin);
+        var durationStr = durationSec >= 60 ? Math.floor(durationSec/60) + 'хв ' + Math.floor(durationSec%60) + 'с' : Math.floor(durationSec) + 'с';
+
+        // Trade markers in range
+        var mkrs = (lastRawMarkers || []).filter(function(m){ return m.time >= tMin && m.time <= tMax; });
+        var entries = mkrs.filter(function(m){ return m.isEntry; });
+        var exits = mkrs.filter(function(m){ return !m.isEntry; });
+        var pnlArr = exits.map(function(m){ return parseFloat(m.pnl || 0); });
+        var totalPnl = pnlArr.reduce(function(s,v){ return s+v; }, 0);
+        var wins = pnlArr.filter(function(v){ return v > 0; });
+        var losses = pnlArr.filter(function(v){ return v < 0; });
+        var winRate = pnlArr.length ? wins.length / pnlArr.length * 100 : 0;
+        var longs = mkrs.filter(function(m){ return m.positionSide === 'LONG' || (!m.positionSide && (m.side === 'LONG' || m.side === 'BUY')); });
+        var shorts = mkrs.filter(function(m){ return m.positionSide === 'SHORT' || (!m.positionSide && (m.side === 'SHORT' || m.side === 'SELL')); });
+
+        return {
+            tStart: tMin, tEnd: tMax, total: ticks.length, bulls: 0, bears: 0,
+            open: open, close: close, high: high, low: low, change: change, changePct: changePct,
+            range: range, rangePct: rangePct, avgBody: 0, avgRange: range, maxRange: range, minRange: range,
+            volatility: 0, hasVol: totalVol > 0, totalVol: totalVol, avgVol: totalVol / (ticks.length || 1), maxVol: 0,
+            mkrsTotal: mkrs.length, entries: entries.length, exits: exits.length,
+            totalPnl: totalPnl, wins: wins.length, losses: losses.length, winRate: winRate,
+            bestPnl: wins.length ? Math.max.apply(null, wins) : null,
+            worstPnl: losses.length ? Math.min.apply(null, losses) : null,
+            avgPnl: pnlArr.length ? totalPnl / pnlArr.length : 0,
+            profitFactor: losses.length ? Math.abs(wins.reduce(function(s,v){return s+v;},0)) / Math.abs(losses.reduce(function(s,v){return s+v;},0)) : null,
+            longs: longs.length, shorts: shorts.length,
+            maxWinStreak: 0, maxLossStreak: 0,
+            _isTick: true, _tickCount: ticks.length, _duration: durationStr
+        };
+    }
     // ── End range stats tool ──────────────────────────────────────────────
 
     // Escape cancels both tools
@@ -660,6 +755,14 @@
             if (rangeActive) toggleRangeTool();
         }
     });
+
+    // Expose range redraw for tick chart onRedraw callback (guarded against re-entry)
+    var _rangeRedrawing = false;
+    window.redrawRangeFromChart = function() {
+        if (_rangeRedrawing) return;
+        _rangeRedrawing = true;
+        try { redrawRangeFromChart(); } finally { _rangeRedrawing = false; }
+    };
 
     // Subscribe to klinecharts crosshair — get price-snapped x/y
     // Exposed as window._rulerResubscribe so _buildKlChart can re-call after chart rebuild
@@ -677,11 +780,17 @@
                 if (p != null && p !== 0) _rulerLastCursor.price = p;
             });
         } catch(e) {}
-        // Redraw finalized ruler when chart scrolls or zooms
+        // Redraw finalized ruler/range when chart scrolls or zooms (guarded)
+        var _klRedrawGuard = false;
+        function _onKlChartMove() {
+            if (_klRedrawGuard) return;
+            _klRedrawGuard = true;
+            try { redrawRulerFromChart(); redrawRangeFromChart(); } finally { _klRedrawGuard = false; }
+        }
         try {
-            klChart.subscribeAction(window.klinecharts.ActionType.OnScroll, redrawRulerFromChart);
-            klChart.subscribeAction(window.klinecharts.ActionType.OnZoom,   redrawRulerFromChart);
-            klChart.subscribeAction(window.klinecharts.ActionType.OnVisibleRangeChange, redrawRulerFromChart);
+            klChart.subscribeAction(window.klinecharts.ActionType.OnScroll, _onKlChartMove);
+            klChart.subscribeAction(window.klinecharts.ActionType.OnZoom,   _onKlChartMove);
+            klChart.subscribeAction(window.klinecharts.ActionType.OnVisibleRangeChange, _onKlChartMove);
         } catch(e) {}
         try {
             klChart.subscribeAction(window.klinecharts.ActionType.OnDrawEnd, function() {

@@ -12,7 +12,7 @@
  */
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const LW_MAX_TICKS      = 20000;  // increased for deeper history
+const LW_MAX_TICKS      = 0;  // 0 = unlimited (no trim)
 const LW_WS_MAX_RETRIES = 10;
 const LW_WS_BASE_DELAY  = 2000;
 const LW_HISTORY_FETCH_LIMIT = 1000;  // trades per REST request
@@ -206,6 +206,12 @@ class LWTickChart {
                     x: param.point.x,
                     y: param.point.y,
                 };
+                // Sync with ruler/range tool cursor (mutate the shared object)
+                if (window._rulerLastCursor) {
+                    window._rulerLastCursor.x = param.point.x;
+                    window._rulerLastCursor.y = param.point.y;
+                    window._rulerLastCursor.price = isNaN(price) ? null : price;
+                }
             } else {
                 this._crosshairPos = null;
             }
@@ -292,22 +298,77 @@ class LWTickChart {
 
     _startDrawingLoop() {
         const loop = () => {
-            // Only render if there are drawings or we're in drawing mode
-            if (this._drawings.length > 0 || this._drawingMode) {
-                this._renderDrawings();
-            } else if (this._drawCtx) {
-                // Clear canvas when no drawings
-                this._drawCtx.clearRect(0, 0, this._drawCanvas.clientWidth, this._drawCanvas.clientHeight);
-            }
+            // Always render — drawings + trade markers
+            this._renderDrawings();
             this._drawRAF = requestAnimationFrame(loop);
         };
         this._drawRAF = requestAnimationFrame(loop);
     }
 
+    // ── Marker hit test ────────────────────────────────────────────────────
+    _hitTestMarker(clickX, clickY) {
+        if (!this._customMarkers || !this._chart || !this._series) return null;
+        const ts = this._chart.timeScale();
+        const HIT_RADIUS = 14; // px
+        let bestDist = HIT_RADIUS;
+        let bestMarker = null;
+
+        for (const m of this._customMarkers) {
+            const x = ts.timeToCoordinate(m.lwTime);
+            if (x === null) continue;
+            const y = this._series.priceToCoordinate(m.price);
+            if (y === null) continue;
+            const dist = Math.sqrt((clickX - x) ** 2 + (clickY - y) ** 2);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestMarker = m;
+            }
+        }
+        return bestMarker;
+    }
+
+    // Find the original marker data for a matched custom marker
+    _findOriginalMarker(cm) {
+        if (!cm || !this.markers.length) return null;
+        const tzOffsetSec = -(new Date().getTimezoneOffset()) * 60;
+        for (const m of this.markers) {
+            let timeMs = m.time;
+            if (typeof timeMs === 'number' && timeMs < 1e12) timeMs *= 1000;
+            const targetSec = (timeMs / 1000) + tzOffsetSec;
+            if (Math.abs(targetSec - cm.lwTime) < 1 && Math.abs(parseFloat(m.price || 0) - cm.price) < 0.01) {
+                return m;
+            }
+        }
+        // Fallback: find closest by time
+        let best = null, bestDiff = Infinity;
+        for (const m of this.markers) {
+            let timeMs = m.time;
+            if (typeof timeMs === 'number' && timeMs < 1e12) timeMs *= 1000;
+            const targetSec = (timeMs / 1000) + tzOffsetSec;
+            const diff = Math.abs(targetSec - cm.lwTime);
+            if (diff < bestDiff) { bestDiff = diff; best = m; }
+        }
+        return bestDiff < 120 ? best : null;
+    }
+
     // ── Mouse interaction for drawings ───────────────────────────────────────
     _setupInteraction() {
         this._onDrawClick = (e) => {
-            if (!this._drawingMode) return;
+            // Check marker click first (before drawing mode check)
+            if (!this._drawingMode) {
+                const rect = this.container.getBoundingClientRect();
+                const cx = e.clientX - rect.left;
+                const cy = e.clientY - rect.top;
+                const hit = this._hitTestMarker(cx, cy);
+                if (hit) {
+                    const orig = this._findOriginalMarker(hit);
+                    if (orig && typeof window.showMarkerPopup === 'function') {
+                        window.showMarkerPopup(orig, { point: { x: cx, y: cy } });
+                    }
+                    return;
+                }
+                return; // not in drawing mode and no marker hit
+            }
             if (!this._crosshairPos || this._crosshairPos.price === null) return;
 
             const point = {
@@ -356,8 +417,18 @@ class LWTickChart {
             }
         };
 
+        this._onMouseMove = (e) => {
+            if (this._drawingMode) return;
+            const rect = this.container.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            const hit = this._hitTestMarker(cx, cy);
+            this.container.style.cursor = hit ? 'pointer' : '';
+        };
+
         this.container.addEventListener('click', this._onDrawClick);
         this.container.addEventListener('dblclick', this._onDrawDblClick);
+        this.container.addEventListener('mousemove', this._onMouseMove);
         document.addEventListener('keydown', this._onKeyDown);
     }
 
@@ -425,8 +496,8 @@ class LWTickChart {
         this._lwData.push(lwPoint);
         this._fullData.push(lwPoint);
 
-        // Trim if over limit
-        if (this.ticks.length > this.maxTicks) {
+        // Trim if over limit (0 = unlimited)
+        if (this.maxTicks > 0 && this.ticks.length > this.maxTicks) {
             const excess = this.ticks.length - this.maxTicks;
             this.ticks.splice(0, excess);
             this._lwData.splice(0, excess);
@@ -467,15 +538,24 @@ class LWTickChart {
             const nearestLwTime = this._findNearestLwTime(timeMs);
             if (nearestLwTime === null) continue;
 
-            const isEntry = m.isEntry !== false;
-            const isLong = m.side === 'LONG' || m.side === 'BUY';
+            const isEntry = m.isEntry === true || (m.isEntry !== false && Math.abs(parseFloat(m.pnl || 0)) < 0.0001);
+            const isLong = m.positionSide === 'LONG' ? true : m.positionSide === 'SHORT' ? false : (m.side === 'LONG' || m.side === 'BUY');
             const pnl = parseFloat(m.pnl || 0);
             const count = m.count || 1;
             const mixed = !!m._mixed;
 
+            // Use marker price, or fallback to nearest tick price
+            let markerPrice = parseFloat(m.price || 0);
+            if (!markerPrice || markerPrice <= 0) {
+                // Find the tick at nearestLwTime and use its price
+                const pt = this._lwData.find(d => d.time === nearestLwTime);
+                if (pt) markerPrice = pt.value;
+            }
+            if (!markerPrice || markerPrice <= 0) continue;
+
             this._customMarkers.push({
                 lwTime: nearestLwTime,
-                price: parseFloat(m.price || 0),
+                price: markerPrice,
                 isEntry, isLong, pnl, count, mixed,
             });
         }
@@ -603,8 +683,13 @@ class LWTickChart {
             if (diffPrev < diffLo) best = lo - 1;
         }
 
-        // Only match if within 60 seconds
-        if (Math.abs(this._lwData[best].time - targetSec) > 60) return null;
+        // Only match if within the visible data range (oldest to newest tick + small buffer)
+        var maxGap = 10; // 10 sec default
+        if (this._lwData.length > 1) {
+            // Allow matching anywhere within the data range
+            maxGap = Math.abs(this._lwData[this._lwData.length - 1].time - this._lwData[0].time) + 60;
+        }
+        if (Math.abs(this._lwData[best].time - targetSec) > maxGap) return null;
         return this._lwData[best].time;
     }
 
@@ -716,36 +801,27 @@ class LWTickChart {
     async start(symbol) {
         this._symbol = symbol.toUpperCase();
 
-        // Fetch initial trades — 3 pages of 1000 for deeper history
+        // Fetch 30 minutes of trades using time-based pagination
+        const HISTORY_MINUTES = 30;
+        const now = Date.now();
+        const startTime = now - HISTORY_MINUTES * 60 * 1000;
+        let allTrades = [];
+
         try {
-            const url1 = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&limit=1000`;
-            const resp1 = await fetch(url1);
-            if (!resp1.ok) throw new Error(`HTTP ${resp1.status}`);
-            const data1 = await resp1.json();
-
-            let allTrades = data1;
-
-            // Fetch 2 more pages of older trades
-            if (data1.length > 0) {
-                const oldest = data1[0].T;
-                try {
-                    const url2 = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&endTime=${oldest - 1}&limit=1000`;
-                    const resp2 = await fetch(url2);
-                    if (resp2.ok) {
-                        const data2 = await resp2.json();
-                        if (data2.length > 0) {
-                            allTrades = [...data2, ...allTrades];
-                            try {
-                                const url3 = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&endTime=${data2[0].T - 1}&limit=1000`;
-                                const resp3 = await fetch(url3);
-                                if (resp3.ok) {
-                                    const data3 = await resp3.json();
-                                    if (data3.length > 0) allTrades = [...data3, ...allTrades];
-                                }
-                            } catch(e) {}
-                        }
-                    }
-                } catch(e) {}
+            // Paginate from startTime to now in chunks of 1000
+            let currentStart = startTime;
+            const MAX_PAGES = 20; // safety limit
+            for (let page = 0; page < MAX_PAGES; page++) {
+                const url = `https://fapi.binance.com/fapi/v1/aggTrades?symbol=${this._symbol}&startTime=${currentStart}&endTime=${now}&limit=1000`;
+                const resp = await fetch(url);
+                if (!resp.ok) break;
+                const data = await resp.json();
+                if (!Array.isArray(data) || data.length === 0) break;
+                allTrades.push(...data);
+                // Move start past the last trade we got
+                const lastTime = data[data.length - 1].T;
+                if (lastTime >= now - 1000 || data.length < 1000) break; // reached live edge
+                currentStart = lastTime + 1;
             }
 
             this.loadHistory(allTrades.map(d => ({ price: d.p, time: d.T, qty: d.q })));
@@ -1236,8 +1312,8 @@ class LWTickChart {
 
             this._updateMarkers();
 
-            // Trim right side if over limit
-            if (this.ticks.length > this.maxTicks) {
+            // Trim right side if over limit (0 = unlimited)
+            if (this.maxTicks > 0 && this.ticks.length > this.maxTicks) {
                 const excess = this.ticks.length - this.maxTicks;
                 this.ticks.splice(this.ticks.length - excess, excess);
                 this._lwData.splice(this._lwData.length - excess, excess);
@@ -1352,6 +1428,7 @@ class LWTickChart {
 
         this.container.removeEventListener('click', this._onDrawClick);
         this.container.removeEventListener('dblclick', this._onDrawDblClick);
+        this.container.removeEventListener('mousemove', this._onMouseMove);
         document.removeEventListener('keydown', this._onKeyDown);
 
         if (this._drawCanvas && this._drawCanvas.parentNode) {
