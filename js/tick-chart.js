@@ -1110,25 +1110,43 @@ class TickChart {
         return p.toFixed(8);
     }
 
-    /** Convert pixel {x, y} relative to canvas → { price, tickIndex } */
+    /** Convert pixel {x, y} relative to canvas → { price, tickIndex, time } */
     pixelToChart(px, py) {
         const s = this._drawState;
         if (!s || !s.visibleLen) return null;
-        const dpr = window.devicePixelRatio || 1;
         const x = px, y = py;
         // Price from Y
         const price = s.minP + (1 - (y - TC_PADDING_TOP) / s.chartH) * (s.maxP - s.minP);
-        // Tick index from X
+        // Tick index from X (absolute index in this.ticks[])
         const localIdx = x / s.pxPerTick;
-        const tickIndex = Math.round(s.startIdx + localIdx);
-        return { price, tickIndex };
+        const absIdx = Math.round(s.startIdx + localIdx);
+        const clampedIdx = Math.max(0, Math.min(this.ticks.length - 1, absIdx));
+        const time = this.ticks[clampedIdx] ? this.ticks[clampedIdx].time : 0;
+        return { price, tickIndex: clampedIdx, time };
     }
 
-    /** Convert { tickIndex, price } → pixel { x, y } relative to canvas */
-    chartToPixel(tickIndex, price) {
+    /** Convert { tickIndex, price } → pixel { x, y } relative to canvas.
+     *  tickIndex can be an absolute index OR if `time` is provided, finds by time.
+     */
+    chartToPixel(tickIndex, price, time) {
         const s = this._drawState;
         if (!s || !s.visibleLen) return null;
-        const localIdx = tickIndex - s.startIdx;
+        // If time is provided, find the actual index by time (stable across splice)
+        let idx = tickIndex;
+        if (time && this.ticks.length > 0) {
+            // Binary search for closest tick by time
+            let lo = 0, hi = this.ticks.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (this.ticks[mid].time < time) lo = mid + 1; else hi = mid;
+            }
+            idx = lo;
+            // Check neighbor for closer match
+            if (lo > 0 && Math.abs(this.ticks[lo - 1].time - time) < Math.abs(this.ticks[lo].time - time)) {
+                idx = lo - 1;
+            }
+        }
+        const localIdx = idx - s.startIdx;
         const x = localIdx * s.pxPerTick;
         const y = TC_PADDING_TOP + s.chartH - ((price - s.minP) / (s.maxP - s.minP)) * s.chartH;
         return { x, y };

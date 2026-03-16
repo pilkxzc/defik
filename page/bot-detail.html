@@ -11954,10 +11954,10 @@
         }
 
         // Convert chart coords {dataIndex, price} → pixel {x, y}
-        function _rulerToPixel(dataIndex, price) {
-            // Tick chart mode
+        function _rulerToPixel(dataIndex, price, time) {
+            // Tick chart mode — use time for stable anchor
             if (_tickChart) {
-                var tp = _tickChart.chartToPixel(dataIndex, price);
+                var tp = _tickChart.chartToPixel(dataIndex, price, time);
                 if (tp) return tp;
                 return null;
             }
@@ -11969,12 +11969,12 @@
             return null;
         }
 
-        // Convert pixel {x, y} → chart coords {dataIndex, price}
+        // Convert pixel {x, y} → chart coords {dataIndex, price, time}
         function _rulerFromPixel(px, py) {
             // Tick chart mode
             if (_tickChart) {
                 var tc = _tickChart.pixelToChart(px, py);
-                if (tc) return { dataIndex: tc.tickIndex, price: tc.price };
+                if (tc) return { dataIndex: tc.tickIndex, price: tc.price, time: tc.time };
                 return null;
             }
             if (!klChart) return null;
@@ -11989,10 +11989,10 @@
         // Redraw ruler from stored chart coords (called on scroll/zoom)
         function redrawRulerFromChart() {
             if (!rulerActive || !rulerStartData || rulerStep === 0) return;
-            var p1 = _rulerToPixel(rulerStartData.dataIndex, rulerStartData.price);
+            var p1 = _rulerToPixel(rulerStartData.dataIndex, rulerStartData.price, rulerStartData.time);
             if (!p1) return;
             if (rulerStep === 2 && rulerEndData) {
-                var p2 = _rulerToPixel(rulerEndData.dataIndex, rulerEndData.price);
+                var p2 = _rulerToPixel(rulerEndData.dataIndex, rulerEndData.price, rulerEndData.time);
                 if (!p2) return;
                 rulerStartData.x = p1.x; rulerStartData.y = p1.y;
                 rulerEndData.x   = p2.x; rulerEndData.y   = p2.y;
@@ -12071,13 +12071,14 @@
             var cp = _rulerFromPixel(cx, cy);
             var price     = (cp && cp.price     != null) ? cp.price     : _rulerLastCursor.price;
             var dataIndex = (cp && cp.dataIndex  != null) ? cp.dataIndex : _rulerLastCursor.dataIndex;
+            var time      = (cp && cp.time) || 0;
 
             if (rulerStep === 0 || rulerStep === 2) {
                 cleanupRuler();
-                rulerStartData = { price: price, dataIndex: dataIndex, x: cx, y: cy };
+                rulerStartData = { price: price, dataIndex: dataIndex, x: cx, y: cy, time: time };
                 rulerStep = 1;
             } else if (rulerStep === 1) {
-                rulerEndData = { price: price, dataIndex: dataIndex, x: cx, y: cy };
+                rulerEndData = { price: price, dataIndex: dataIndex, x: cx, y: cy, time: time };
                 drawRulerLine(rulerStartData.x, rulerStartData.y, cx, cy, true);
                 updateRulerLabel(rulerStartData.price, price,
                                  rulerStartData.dataIndex, dataIndex, cx, cy);
