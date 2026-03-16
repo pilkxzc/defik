@@ -124,16 +124,19 @@
             return;
         }
 
+        var esc = window.escapeHtml || function(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+
         container.innerHTML = holdings.map(function (h) {
             var pnlColor = h.pnl >= 0 ? '#10B981' : '#EF4444';
             var pnlSign = h.pnl >= 0 ? '+' : '';
-            var logoHtml = (window.getCoinLogoHtml) ? window.getCoinLogoHtml(h.currency, 28) : h.currency.charAt(0);
+            var safeCurrency = esc(h.currency);
+            var logoHtml = (window.getCoinLogoHtml) ? window.getCoinLogoHtml(h.currency, 28) : esc(h.currency.charAt(0));
 
-            return '<div class="holding-row" data-currency="' + h.currency + '">' +
+            return '<div class="holding-row" data-currency="' + safeCurrency + '">' +
                 '<div style="display:flex;align-items:center;gap:10px;">' +
                     '<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;">' + logoHtml + '</div>' +
                     '<div>' +
-                        '<div style="font-weight:600;font-size:13px;">' + h.currency + '</div>' +
+                        '<div style="font-weight:600;font-size:13px;">' + safeCurrency + '</div>' +
                         '<div style="font-size:11px;color:var(--text-tertiary);">' + formatAmountDash(h.amount) + '</div>' +
                     '</div>' +
                 '</div>' +
@@ -187,6 +190,8 @@
             return;
         }
 
+        var esc = window.escapeHtml || function(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+
         container.innerHTML = orders.map(function (o) {
             var sideColor = o.side === 'buy' ? '#10B981' : '#EF4444';
             var sideText = o.side === 'buy' ? 'Купити' : 'Продати';
@@ -195,14 +200,14 @@
             return '<div class="open-order-row">' +
                 '<div style="display:flex;align-items:center;gap:8px;">' +
                     '<span style="color:' + sideColor + ';font-weight:700;font-size:11px;text-transform:uppercase;">' + sideText + '</span>' +
-                    '<span style="font-weight:600;font-size:13px;">' + o.symbol + '</span>' +
+                    '<span style="font-weight:600;font-size:13px;">' + esc(o.symbol) + '</span>' +
                 '</div>' +
                 '<div style="display:flex;align-items:center;gap:12px;">' +
                     '<div style="text-align:right;">' +
-                        '<div style="font-size:12px;">$' + formatPriceDash(o.price) + ' × ' + formatAmountDash(o.amount) + '</div>' +
+                        '<div style="font-size:12px;">$' + formatPriceDash(o.price) + ' &times; ' + formatAmountDash(o.amount) + '</div>' +
                         '<div style="font-size:10px;color:var(--text-tertiary);">' + date + '</div>' +
                     '</div>' +
-                    '<button onclick="cancelOrder(' + o.id + ')" style="background:rgba(239,68,68,0.15);border:none;color:#EF4444;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">×</button>' +
+                    '<button onclick="cancelOrder(' + parseInt(o.id) + ')" style="background:rgba(239,68,68,0.15);border:none;color:#EF4444;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">&times;</button>' +
                 '</div>' +
             '</div>';
         }).join('');
@@ -246,6 +251,8 @@
             return;
         }
 
+        var esc = window.escapeHtml || function(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+
         container.innerHTML = orders.map(function (o) {
             var sideColor = o.side === 'buy' ? '#10B981' : '#EF4444';
             var sideText = o.side === 'buy' ? 'Купити' : 'Продати';
@@ -256,7 +263,7 @@
                 '<div style="display:flex;align-items:center;gap:8px;">' +
                     '<div style="width:6px;height:6px;border-radius:50%;background:' + sideColor + ';"></div>' +
                     '<div>' +
-                        '<span style="font-weight:600;font-size:12px;">' + sideText + ' ' + o.symbol + '</span>' +
+                        '<span style="font-weight:600;font-size:12px;">' + sideText + ' ' + esc(o.symbol) + '</span>' +
                         '<div style="font-size:10px;color:var(--text-tertiary);">' + date + '</div>' +
                     '</div>' +
                 '</div>' +

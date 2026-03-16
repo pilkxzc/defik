@@ -303,7 +303,7 @@ async function loadMaintenanceStatus() {
 
         if (status) {
             if (data.enabled) {
-                status.innerHTML = `<span style="color: var(--color-down);">Site is in maintenance mode</span><br><small style="color: var(--text-tertiary);">Enabled by: ${data.enabledBy} (${data.enabledAt})</small>`;
+                status.innerHTML = `<span style="color: var(--color-down);">Site is in maintenance mode</span><br><small style="color: var(--text-tertiary);">Enabled by: ${escapeHtml(data.enabledBy)} (${escapeHtml(data.enabledAt)})</small>`;
             } else {
                 status.textContent = 'Site is operating normally';
             }

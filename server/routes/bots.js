@@ -1226,8 +1226,12 @@ router.get('/api/bots', requireAuth, (req, res) => {
         const diff    = now - created;
         const days    = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours   = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        // Never expose raw API keys in list responses
+        const safeBot = { ...bot };
+        if (safeBot.binance_api_key) safeBot.binance_api_key = maskApiKey(safeBot.binance_api_key);
+        if (safeBot.binance_api_secret) safeBot.binance_api_secret = '***';
         return {
-            ...bot,
+            ...safeBot,
             runningTime: `${days}d ${hours}h`,
             dailyPL: bot.investment > 0 ? ((bot.profit / bot.investment) * 100 / Math.max(days, 1)).toFixed(2) : 0
         };
@@ -1616,7 +1620,11 @@ router.get('/api/bots/:id/info', requireAuth, requireRole('admin', 'moderator'),
     try {
         const bot = dbGet('SELECT * FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
-        res.json(bot);
+        // Never return raw API keys to the client -- mask them
+        const safeBot = { ...bot };
+        if (safeBot.binance_api_key) safeBot.binance_api_key = maskApiKey(safeBot.binance_api_key);
+        if (safeBot.binance_api_secret) safeBot.binance_api_secret = '***';
+        res.json(safeBot);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch bot' });
     }
@@ -1740,7 +1748,7 @@ router.patch('/api/bots/:id/multi-credentials', requireAuth, requireRole('admin'
         // Always save all credentials (proxy must persist even if Binance rejects the IP)
         let settings = {};
         try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
-        settings.multi_credentials = cleaned.map(c => ({ tk: c.tk, tk_secret: c.tk_secret, proxy: c.proxy || null }));
+        settings.multi_credentials = cleaned.map(c => ({ tk: encryptField(c.tk), tk_secret: encryptField(c.tk_secret), proxy: c.proxy || null }));
         dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(settings), req.params.id]);
 
         let results = [];
@@ -1979,14 +1987,23 @@ router.get('/api/bots/:id/trading-settings', requireAuth, (req, res) => {
         let settings = {};
         try { settings = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
 
-        // Hide secrets from non-admins
+        // Always mask API keys in responses -- never send raw keys to the client
         const user    = dbGet('SELECT role FROM users WHERE id = ?', [req.session.userId]);
         const isAdmin = user && (user.role === 'admin' || user.role === 'moderator');
-        if (!isAdmin && settings.multi_credentials) {
-            settings.multi_credentials = settings.multi_credentials.map(c => ({
-                tk: c.tk.slice(0, 8) + '...',
-                tk_secret: '***'
-            }));
+        if (settings.multi_credentials) {
+            if (isAdmin) {
+                // Admins see masked key previews
+                settings.multi_credentials = settings.multi_credentials.map(c => ({
+                    tk: maskApiKey(c.tk),
+                    tk_secret: '***',
+                    proxy: c.proxy || null
+                }));
+            } else {
+                settings.multi_credentials = settings.multi_credentials.map(c => ({
+                    tk: maskApiKey(c.tk),
+                    tk_secret: '***'
+                }));
+            }
         }
 
         res.json({ settings });
@@ -2254,8 +2271,8 @@ router.get('/api/bots/:id/symbols', requireAuth, async (req, res) => {
             let binData;
             if (multiCreds) {
                 binData = await fetchMultiAccountFuturesData(multiCreds);
-            } else if (bot.binance_api_key && bot.binance_api_secret) {
-                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
+            } else if (decryptField(bot.binance_api_key) && decryptField(bot.binance_api_secret)) {
+                binData = await fetchBinanceFuturesData(decryptField(bot.binance_api_key), decryptField(bot.binance_api_secret), bot.proxy || null);
             }
             if (binData) {
                 const activePos = (binData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
@@ -2295,8 +2312,8 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
             let binData;
             if (multiCreds) {
                 binData = await fetchMultiAccountFuturesData(multiCreds);
-            } else if (bot.binance_api_key && bot.binance_api_secret) {
-                binData = await fetchBinanceFuturesData(bot.binance_api_key, bot.binance_api_secret, bot.proxy || null);
+            } else if (decryptField(bot.binance_api_key) && decryptField(bot.binance_api_secret)) {
+                binData = await fetchBinanceFuturesData(decryptField(bot.binance_api_key), decryptField(bot.binance_api_secret), bot.proxy || null);
             }
             if (binData) {
                 const activePos = (binData.positions || []).find(p => parseFloat(p.positionAmt) !== 0);
@@ -2413,7 +2430,7 @@ router.patch('/api/bots/:id/copy-trading', requireAuth, async (req, res) => {
             if (!testResult.success) return res.status(400).json({ error: 'Invalid Binance API keys: ' + testResult.error });
             dbRun(
                 'UPDATE bot_subscribers SET copy_trades = ?, copy_percentage = ?, max_position_size = ?, user_binance_api_key = ?, user_binance_api_secret = ? WHERE bot_id = ? AND user_id = ?',
-                [enabled ? 1 : 0, copyPercentage || 100, maxPositionSize || 0, userApiKey, userApiSecret, req.params.id, req.session.userId]
+                [enabled ? 1 : 0, copyPercentage || 100, maxPositionSize || 0, encryptField(userApiKey), encryptField(userApiSecret), req.params.id, req.session.userId]
             );
             const balance = parseFloat(testResult.data?.totalWalletBalance || 0).toFixed(2);
             return res.json({ success: true, copyTrades: enabled, balance });
@@ -2487,7 +2504,8 @@ router.post('/api/bots/:id/copy-now', requireAuth, async (req, res) => {
         const subscription = dbGet('SELECT * FROM bot_subscribers WHERE bot_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
         if (!subscription) return res.status(403).json({ error: 'Not subscribed to this bot' });
 
-        const { user_binance_api_key: userApiKey, user_binance_api_secret: userApiSecret } = subscription;
+        const userApiKey = decryptField(subscription.user_binance_api_key);
+        const userApiSecret = decryptField(subscription.user_binance_api_secret);
         if (!userApiKey || !userApiSecret) return res.status(400).json({ error: 'No Binance API keys saved. Please add your keys in Copy Trading settings.' });
         if (!botHasCredentials(bot)) return res.status(400).json({ error: 'Bot has no Binance API keys configured.' });
 
@@ -2581,8 +2599,8 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
         });
 
         // Background: check if any open trades are actually closed on Binance
-        const bot = dbGet('SELECT binance_api_key FROM bots WHERE id = ?', [req.params.id]);
-        if (bot?.binance_api_key) {
+        const botForReconcile = dbGet('SELECT binance_api_key, trading_settings FROM bots WHERE id = ?', [req.params.id]);
+        if (botForReconcile?.binance_api_key || (botForReconcile?.trading_settings && botForReconcile.trading_settings.includes('multi_credentials'))) {
             reconcileOpenTrades(req.params.id).catch(e => console.log('Background reconcile:', e.message));
         }
     } catch (error) {

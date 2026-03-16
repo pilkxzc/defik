@@ -1788,11 +1788,11 @@ function createBotCard(bot, isAdmin) {
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Час роботи</div>
-                    <div class="stat-value">${bot.runningTime}</div>
+                    <div class="stat-value">${escapeHtml(bot.runningTime)}</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Символ</div>
-                    <div class="stat-value">${bot.selected_symbol || 'BTCUSDT'}</div>
+                    <div class="stat-value">${escapeHtml(bot.selected_symbol || 'BTCUSDT')}</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Статус</div>
@@ -1807,7 +1807,7 @@ function createBotCard(bot, isAdmin) {
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Час роботи</div>
-                    <div class="stat-value">${bot.runningTime}</div>
+                    <div class="stat-value">${escapeHtml(bot.runningTime)}</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">Денний П/З</div>
@@ -1966,11 +1966,11 @@ async function updateProfilePage() {
                 <div class="payment-method">
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div style="width: 48px; height: 32px; background: #222; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">
-                            ${pm.type.toUpperCase()}
+                            ${escapeHtml(pm.type.toUpperCase())}
                         </div>
                         <div>
-                            <div style="font-size: 14px; font-weight: 600;">•••• ${pm.card_last_four}</div>
-                            <div style="font-size: 11px; color: var(--text-secondary);">Expires ${pm.expiry_date}</div>
+                            <div style="font-size: 14px; font-weight: 600;">&bull;&bull;&bull;&bull; ${escapeHtml(pm.card_last_four)}</div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">Expires ${escapeHtml(pm.expiry_date)}</div>
                         </div>
                     </div>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" onclick="showDevModal()" style="cursor: pointer;">
