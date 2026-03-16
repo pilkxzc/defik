@@ -5099,7 +5099,7 @@
             Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0])).forEach(([key, trades]) => {
                 const groupPnl = trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
                 const pnlColor = groupPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
-                html += `<tr><td colspan="5" style="padding:0;"><div class="trades-group-header">${key} (${trades.length})<span class="trades-group-summary" style="color:${pnlColor}">${groupPnl >= 0 ? '+' : ''}$${groupPnl.toFixed(2)}</span></div></td></tr>`;
+                html += `<tr><td colspan="5" style="padding:0;"><div class="trades-group-header">${key} (${trades.length})<span class="trades-group-summary" style="color:${pnlColor}">${fmtPnl(groupPnl)}</span></div></td></tr>`;
                 trades.forEach(t => { html += buildTradeRow(t); });
             });
             tableBody.innerHTML = html;
@@ -5116,9 +5116,9 @@
             const closeDt = t.closedAt ? new Date(t.closedAt).toLocaleString('uk-UA', dtFmt) : (t.status === 'open' ? '<span style="color:#F59E0B">OPEN</span>' : '—');
             return `<tr class="trade-row" data-trade='${JSON.stringify(t).replace(/'/g, "&#39;")}'>
                 <td><div class="trade-symbol"><span class="trade-side ${sideClass}">${sideLabel}</span>${(t.symbol || '').replace('USDT', '')}</div></td>
-                <td>$${formatPrice(parseFloat(t.price || 0))}</td>
+                <td>${'$' + formatPrice(parseFloat(t.price || 0))}</td>
                 <td>${parseFloat(t.quantity || 0).toFixed(4)}</td>
-                <td class="trade-pnl ${pnlClass}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                <td class="trade-pnl ${pnlClass}">${fmtPnl(pnl)}</td>
                 <td style="color:var(--text-tertiary);font-size:10px;line-height:1.4;">${openDt}<br>${closeDt}</td>
             </tr>`;
         }
@@ -8231,6 +8231,20 @@
             return price.toFixed(8);
         }
 
+        // Format PNL: adaptive precision so small values never show as 0.00
+        function fmtPnl(v) {
+            if (v == null || isNaN(v)) return '$0';
+            const abs = Math.abs(v);
+            const sign = v >= 0 ? '+' : '-';
+            let num;
+            if (abs >= 100) num = abs.toFixed(2);
+            else if (abs >= 1) num = abs.toFixed(4);
+            else if (abs >= 0.01) num = abs.toFixed(6);
+            else if (abs === 0) num = '0';
+            else num = abs.toFixed(8);
+            return sign + '$' + num;
+        }
+
         function updatePositionPanel(positions, fullData) {
             const panel = document.getElementById('positionPanel');
             const content = document.getElementById('positionContent');
@@ -10507,20 +10521,6 @@
             } catch (error) {
                 console.error('Load bot details error:', error);
             }
-        }
-
-        // Format PNL: show full precision, never round small values to 0.00
-        function fmtPnl(v) {
-            if (v == null || isNaN(v)) return '$0';
-            const abs = Math.abs(v);
-            const sign = v >= 0 ? '+' : '-';
-            let num;
-            if (abs >= 100) num = abs.toFixed(2);
-            else if (abs >= 1) num = abs.toFixed(4);
-            else if (abs >= 0.01) num = abs.toFixed(6);
-            else if (abs === 0) num = '0';
-            else num = abs.toFixed(8);
-            return sign + '$' + num;
         }
 
         function updateBotDetailsUI() {
