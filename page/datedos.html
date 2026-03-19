@@ -599,7 +599,6 @@
             }
         }
         @media (max-width: 480px) {
-            .account-switcher { display: none; }
             .chart-panel { min-height: 45vh; }
         }
 
@@ -652,17 +651,6 @@
             </div>
 
             <div style="display: flex; align-items: center; gap: 16px;">
-                <!-- Account Switcher -->
-                <div class="account-switcher" style="display: flex; background: var(--surface); border-radius: var(--radius-full); padding: 4px; border: 1px solid rgba(255,255,255,0.05);">
-                    <button id="demoAccountBtn" onclick="switchAccount('demo')" style="padding: 8px 20px; border-radius: var(--radius-full); border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s; background: #10B981; color: white;">
-                        Демо
-                    </button>
-                    <button id="realAccountBtn" onclick="switchAccount('real')" style="padding: 8px 20px; border-radius: var(--radius-full); border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s; background: transparent; color: var(--text-tertiary);" title="Coming Soon">
-                        Реальний
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-left: 4px; vertical-align: middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                    </button>
-                </div>
-
                 <button id="dashboardEditBtn" class="dashboard-edit-btn" title="Налаштувати панелі">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
@@ -1477,52 +1465,24 @@
         })();
 
         // ================================
-        // ACCOUNT SWITCHER
+        // ACCOUNT DATA
         // ================================
         async function loadAccountData() {
             try {
                 const response = await fetch('/api/account/info', { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
-                    window.userBalance = data.activeAccount === 'demo' ? data.demoBalance : data.realBalance;
-                    updateAccountUI(data.activeAccount || 'demo', data.demoBalance, data.realBalance);
+                    const balance = data.realBalance || data.demoBalance || data.balance || 0;
+                    window.userBalance = balance;
+                    const formattedBalance = `$${balance.toFixed(2)}`;
+                    const balanceEl = document.getElementById('headerBalance');
+                    const walletBalanceEl = document.getElementById('walletBalance');
+                    if (balanceEl) balanceEl.textContent = formattedBalance;
+                    if (walletBalanceEl) walletBalanceEl.textContent = formattedBalance;
                 }
             } catch (error) {
                 console.error('Failed to load account data:', error);
             }
-        }
-
-        function updateAccountUI(account, demoBalance, realBalance) {
-            const demoBtn = document.getElementById('demoAccountBtn');
-            const realBtn = document.getElementById('realAccountBtn');
-            const balanceEl = document.getElementById('headerBalance');
-            const walletBalanceEl = document.getElementById('walletBalance');
-
-            const balance = account === 'demo' ? (demoBalance || 0) : (realBalance || 0);
-            const formattedBalance = `$${balance.toFixed(2)}`;
-
-            if (account === 'demo') {
-                demoBtn.style.background = '#10B981';
-                demoBtn.style.color = 'white';
-                realBtn.style.background = 'transparent';
-                realBtn.style.color = 'var(--text-tertiary)';
-            } else {
-                demoBtn.style.background = 'transparent';
-                demoBtn.style.color = 'var(--text-tertiary)';
-                realBtn.style.background = 'var(--accent-primary)';
-                realBtn.style.color = 'white';
-            }
-
-            balanceEl.textContent = formattedBalance;
-            if (walletBalanceEl) walletBalanceEl.textContent = formattedBalance;
-        }
-
-        function switchAccount(accountType) {
-            if (accountType === 'real') {
-                alert('Реальний рахунок ще недоступний. Незабаром!\n\nВикористовуйте Демо рахунок для практики торгівлі.');
-                return;
-            }
-            loadAccountData();
         }
 
         // ================================

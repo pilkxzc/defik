@@ -3002,7 +3002,7 @@
                 const response = await fetch('/api/account/info', { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
-                    const balance = data.activeAccount === 'demo' ? data.demoBalance : data.realBalance;
+                    const balance = data.balance || data.realBalance || 0;
                     document.getElementById('headerBalance').textContent = `$${(balance || 0).toFixed(2)}`;
 
                     // Update avatar

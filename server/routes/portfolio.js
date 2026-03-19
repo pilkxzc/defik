@@ -14,15 +14,15 @@ const { requireAuth }                                      = require('../middlew
 
 router.get('/api/portfolio', requireAuth, async (req, res) => {
     try {
-        const user         = dbGet('SELECT demo_balance, real_balance, active_account FROM users WHERE id = ?', [req.session.userId]);
-        const accountType  = user.active_account || 'demo';
+        const user         = dbGet('SELECT real_balance FROM users WHERE id = ?', [req.session.userId]);
+        const accountType  = 'real';
         const wallets      = dbAll('SELECT * FROM wallets WHERE user_id = ?', [req.session.userId]);
-        const holdingsRows = dbAll('SELECT * FROM holdings WHERE user_id = ? AND account_type = ?', [req.session.userId, accountType]);
+        const holdingsRows = dbAll('SELECT * FROM holdings WHERE user_id = ?', [req.session.userId]);
         const transactions = dbAll('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [req.session.userId]);
         const prices       = await getMarketPrices();
 
-        const activeBalance = accountType === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0);
-        let totalValue = activeBalance;
+        const balance = user.real_balance || 0;
+        let totalValue = balance;
 
         // Trading holdings (from buy/sell orders)
         const holdings = holdingsRows.map(h => {
@@ -60,10 +60,10 @@ router.get('/api/portfolio', requireAuth, async (req, res) => {
         const allHoldings = [...holdings, ...externalHoldings];
 
         res.json({
-            balance: activeBalance,
-            demoBalance: user.demo_balance || 0,
-            realBalance: user.real_balance || 0,
-            activeAccount: accountType,
+            balance,
+            demoBalance: balance,
+            realBalance: balance,
+            activeAccount: 'real',
             totalValue,
             holdings: allHoldings,
             transactions,
@@ -81,20 +81,20 @@ router.get('/api/portfolio', requireAuth, async (req, res) => {
 router.get('/api/portfolio/performance', requireAuth, async (req, res) => {
     try {
         const userId      = req.session.userId;
-        const user        = dbGet('SELECT demo_balance, real_balance, active_account FROM users WHERE id = ?', [userId]);
-        const accountType = user.active_account || 'demo';
+        const user        = dbGet('SELECT real_balance FROM users WHERE id = ?', [userId]);
+        const accountType = 'real';
         const snapshots   = dbAll('SELECT month, total_value, profit_loss FROM portfolio_snapshots WHERE user_id = ? ORDER BY month DESC LIMIT 6', [userId]);
 
         // Calculate current total from real holdings
         const holdingsRows = dbAll('SELECT * FROM holdings WHERE user_id = ? AND account_type = ?', [userId, accountType]);
         const prices = await getMarketPrices();
 
-        let currentTotal = accountType === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0);
+        let currentTotal = user.real_balance || 0;
         holdingsRows.forEach(h => {
             currentTotal += h.amount * (prices[h.currency]?.price || 0);
         });
 
-        const initialDeposit = accountType === 'demo' ? 10000 : 0;
+        const initialDeposit = 0;
 
         if (snapshots.length === 0) {
             // Build performance from order history instead of random data
@@ -177,13 +177,13 @@ router.get('/api/portfolio/performance', requireAuth, async (req, res) => {
 router.get('/api/portfolio/allocation', requireAuth, async (req, res) => {
     try {
         const userId      = req.session.userId;
-        const user        = dbGet('SELECT demo_balance, real_balance, active_account FROM users WHERE id = ?', [userId]);
-        const accountType = user.active_account || 'demo';
+        const user        = dbGet('SELECT real_balance FROM users WHERE id = ?', [userId]);
+        const accountType = 'real';
         const wallets     = dbAll('SELECT * FROM wallets WHERE user_id = ?', [userId]);
         const holdingsRows = dbAll('SELECT * FROM holdings WHERE user_id = ? AND account_type = ?', [userId, accountType]);
         const prices      = await getMarketPrices();
 
-        const accountBalance = accountType === 'demo' ? user.demo_balance : user.real_balance;
+        const accountBalance = user.real_balance || 0;
         let totalValue = accountBalance;
         const currencyTotals = {};
 

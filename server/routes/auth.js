@@ -43,7 +43,7 @@ router.post('/api/auth/register', async (req, res) => {
 
         const result = dbRun(
             'INSERT INTO users (email, password, full_name, phone, balance, demo_balance, real_balance, active_account, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [normalizedEmail, hashedPassword, fullName, phone || null, 0, 10000, 0, 'demo', role]
+            [normalizedEmail, hashedPassword, fullName, phone || null, 0, 0, 0, 'real', role]
         );
 
         const userId = result.lastInsertRowid;
@@ -98,7 +98,7 @@ router.post('/api/auth/register', async (req, res) => {
                 res.json({
                     success: true,
                     message: 'Registration successful',
-                    user: { id: userId, email: normalizedEmail, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+                    user: { id: userId, email: normalizedEmail, fullName, balance: 0, demoBalance: 0, realBalance: 0, activeAccount: 'real' }
                 });
             });
         });
@@ -226,10 +226,10 @@ router.post('/api/auth/login', async (req, res) => {
                         id: user.id,
                         email: user.email,
                         fullName: user.full_name,
-                        balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
-                        demoBalance: user.demo_balance || 0,
+                        balance: user.real_balance || 0,
+                        demoBalance: user.real_balance || 0,
                         realBalance: user.real_balance || 0,
-                        activeAccount: user.active_account || 'demo',
+                        activeAccount: 'real',
                         isVerified: user.is_verified,
                         verificationLevel: user.verification_level
                     }
@@ -252,18 +252,18 @@ router.post('/api/auth/logout', (req, res) => {
 
 router.get('/api/auth/me', requireAuth, (req, res) => {
     const user = dbGet(
-        'SELECT id, email, full_name, phone, demo_balance, real_balance, active_account, created_at, is_verified, verification_level, role, avatar FROM users WHERE id = ?',
+        'SELECT id, email, full_name, phone, real_balance, created_at, is_verified, verification_level, role, avatar FROM users WHERE id = ?',
         [req.session.userId]
     );
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const activeBalance = user.active_account === 'demo' ? user.demo_balance : user.real_balance;
+    const balance = user.real_balance || 0;
 
     res.json({
         id: user.id, email: user.email, fullName: user.full_name, phone: user.phone,
-        balance: activeBalance, demoBalance: user.demo_balance, realBalance: user.real_balance,
-        activeAccount: user.active_account || 'demo', createdAt: user.created_at,
+        balance, demoBalance: balance, realBalance: balance,
+        activeAccount: 'real', createdAt: user.created_at,
         isVerified: user.is_verified, verificationLevel: user.verification_level,
         role: user.role || 'user', avatar: user.avatar || null, currentIP: getClientIP(req)
     });
@@ -360,30 +360,20 @@ router.post('/api/auth/sessions/revoke-all', requireAuth, (req, res) => {
     res.json({ success: true, revoked: count });
 });
 
+// Legacy endpoint — kept for backward compat, always returns current balance
 router.post('/api/account/switch', requireAuth, (req, res) => {
-    const { accountType } = req.body;
-
-    if (accountType !== 'demo' && accountType !== 'real') {
-        return res.status(400).json({ error: 'Invalid account type' });
-    }
-
-    if (accountType === 'real') {
-        return res.status(403).json({ error: 'Real account is not available yet. Coming soon!', disabled: true });
-    }
-
-    dbRun('UPDATE users SET active_account = ? WHERE id = ?', [accountType, req.session.userId]);
-    const user = dbGet('SELECT demo_balance, real_balance, active_account FROM users WHERE id = ?', [req.session.userId]);
-    res.json({ success: true, activeAccount: accountType, balance: accountType === 'demo' ? user.demo_balance : user.real_balance });
+    const user = dbGet('SELECT real_balance FROM users WHERE id = ?', [req.session.userId]);
+    res.json({ success: true, activeAccount: 'real', balance: user?.real_balance || 0 });
 });
 
 router.get('/api/account/info', requireAuth, (req, res) => {
-    const user = dbGet('SELECT demo_balance, real_balance, active_account, avatar, full_name FROM users WHERE id = ?', [req.session.userId]);
+    const user = dbGet('SELECT real_balance, avatar, full_name FROM users WHERE id = ?', [req.session.userId]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({
-        activeAccount: user.active_account || 'demo',
-        demoBalance: user.demo_balance || 0,
+        balance: user.real_balance || 0,
         realBalance: user.real_balance || 0,
-        realAccountEnabled: false,
+        demoBalance: user.real_balance || 0, // backward compat
+        activeAccount: 'real',
         avatar: user.avatar || null,
         fullName: user.full_name || ''
     });
@@ -1019,7 +1009,7 @@ router.post('/api/auth/telegram-register', async (req, res) => {
 
         const result = dbRun(
             'INSERT INTO users (email, password, full_name, balance, demo_balance, real_balance, active_account, role, telegram_id, telegram_username, telegram_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [email, hashedPassword, fullName, 0, 10000, 0, 'demo', role, pendingTg.id, pendingTg.username || null, 1]
+            [email, hashedPassword, fullName, 0, 0, 0, 'real', role, pendingTg.id, pendingTg.username || null, 1]
         );
 
         const userId = result.lastInsertRowid;
@@ -1046,7 +1036,7 @@ router.post('/api/auth/telegram-register', async (req, res) => {
                 if (err) return res.status(500).json({ error: 'Session error' });
                 res.json({
                     success: true,
-                    user: { id: userId, email, fullName, balance: 10000, demoBalance: 10000, realBalance: 0, activeAccount: 'demo' }
+                    user: { id: userId, email, fullName, balance: 0, demoBalance: 0, realBalance: 0, activeAccount: 'real' }
                 });
             });
         });
@@ -1221,10 +1211,10 @@ router.post('/api/auth/telegram-login-verify', async (req, res) => {
                         id: user.id,
                         email: user.email,
                         fullName: user.full_name,
-                        balance: user.active_account === 'demo' ? (user.demo_balance || 0) : (user.real_balance || 0),
-                        demoBalance: user.demo_balance || 0,
+                        balance: user.real_balance || 0,
+                        demoBalance: user.real_balance || 0,
                         realBalance: user.real_balance || 0,
-                        activeAccount: user.active_account || 'demo',
+                        activeAccount: 'real',
                         isVerified: user.is_verified,
                         verificationLevel: user.verification_level
                     }
@@ -1336,7 +1326,7 @@ router.get('/api/auth/google/callback', async (req, res) => {
 
             const result = dbRun(
                 'INSERT INTO users (email, password, full_name, balance, demo_balance, real_balance, active_account, role, google_id, google_avatar, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [email, hashedPassword, fullName, 0, 10000, 0, 'demo', role, googleId, avatar, 1]
+                [email, hashedPassword, fullName, 0, 0, 0, 'real', role, googleId, avatar, 1]
             );
 
             user = dbGet('SELECT * FROM users WHERE id = ?', [result.lastInsertRowid]);

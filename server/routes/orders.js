@@ -51,11 +51,11 @@ router.post('/api/orders', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Limit orders require a valid positive price' });
         }
 
-        const user = dbGet('SELECT demo_balance, real_balance, active_account FROM users WHERE id = ?', [req.session.userId]);
+        const user = dbGet('SELECT real_balance FROM users WHERE id = ?', [req.session.userId]);
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        const accountType     = user.active_account || 'demo';
-        const currentBalance  = accountType === 'demo' ? user.demo_balance : user.real_balance;
+        const accountType     = 'real';
+        const currentBalance  = user.real_balance || 0;
 
         let executionPrice = price;
         if (type.toLowerCase() === 'market') {
@@ -87,7 +87,7 @@ router.post('/api/orders', requireAuth, async (req, res) => {
         }
 
         if (type.toLowerCase() === 'market') {
-            const balanceField = accountType === 'demo' ? 'demo_balance' : 'real_balance';
+            const balanceField = 'real_balance';
             const now = getLocalTime();
             const symbolUpper = symbol.toUpperCase();
             const sideLower = side.toLowerCase();
@@ -166,8 +166,8 @@ router.post('/api/orders', requireAuth, async (req, res) => {
             const orderResultIndex = sideLower === 'buy' ? 2 : 3;
             const orderInsertId = txResults[orderResultIndex]?.lastInsertRowid;
 
-            const updatedUser = dbGet('SELECT demo_balance, real_balance FROM users WHERE id = ?', [req.session.userId]);
-            const newBalance  = accountType === 'demo' ? updatedUser.demo_balance : updatedUser.real_balance;
+            const updatedUser = dbGet('SELECT real_balance FROM users WHERE id = ?', [req.session.userId]);
+            const newBalance  = updatedUser.real_balance || 0;
 
             // Get updated holdings for response
             const holdings = getUserHoldings(req.session.userId, accountType);
@@ -241,7 +241,7 @@ router.get('/api/orders', requireAuth, (req, res) => {
     try {
         const { status, limit = 50 } = req.query;
         const user = dbGet('SELECT active_account FROM users WHERE id = ?', [req.session.userId]);
-        const accountType = user?.active_account || 'demo';
+        const accountType = 'real';
 
         let query  = 'SELECT * FROM orders WHERE user_id = ? AND account_type = ?';
         const params = [req.session.userId, accountType];
@@ -266,7 +266,7 @@ router.get('/api/orders/history', requireAuth, (req, res) => {
         const { page = 1, limit = 20 } = req.query;
         const offset = (parseInt(page) - 1) * parseInt(limit);
         const user = dbGet('SELECT active_account FROM users WHERE id = ?', [req.session.userId]);
-        const accountType = user?.active_account || 'demo';
+        const accountType = 'real';
 
         const orders = dbAll(
             'SELECT * FROM orders WHERE user_id = ? AND account_type = ? AND status IN (?, ?) ORDER BY created_at DESC LIMIT ? OFFSET ?',
@@ -311,7 +311,7 @@ router.delete('/api/orders/:id', requireAuth, (req, res) => {
 router.get('/api/holdings', requireAuth, async (req, res) => {
     try {
         const user = dbGet('SELECT active_account FROM users WHERE id = ?', [req.session.userId]);
-        const accountType = user?.active_account || 'demo';
+        const accountType = 'real';
         const holdings = dbAll(
             'SELECT * FROM holdings WHERE user_id = ? AND account_type = ?',
             [req.session.userId, accountType]
@@ -350,7 +350,7 @@ router.get('/api/holdings', requireAuth, async (req, res) => {
 router.get('/api/holdings/:currency', requireAuth, (req, res) => {
     try {
         const user = dbGet('SELECT active_account FROM users WHERE id = ?', [req.session.userId]);
-        const accountType = user?.active_account || 'demo';
+        const accountType = 'real';
         const holding = dbGet(
             'SELECT * FROM holdings WHERE user_id = ? AND currency = ? AND account_type = ?',
             [req.session.userId, req.params.currency.toUpperCase(), accountType]

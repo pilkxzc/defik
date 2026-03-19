@@ -256,17 +256,6 @@
 
         svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-        /* Faucet inputs */
-        .faucet-section input:focus,
-        .faucet-section select:focus {
-            outline: none;
-            border-color: #10B981;
-        }
-        .faucet-section input::placeholder { color: var(--text-tertiary); }
-        .faucet-section select option { background: #1C1C1C; color: white; }
-        #claimFaucetBtn:hover:not(:disabled) { filter: brightness(1.1); }
-        #claimFaucetBtn:disabled { cursor: not-allowed; opacity: 0.7; }
-
         .payment-method button:hover svg { stroke: #ff6b6b; }
 
         /* Responsive styles */
@@ -381,10 +370,6 @@
                 flex-wrap: wrap;
                 gap: 12px;
             }
-            .faucet-section {
-                padding: 20px !important;
-                border-radius: 20px !important;
-            }
         }
 
         @media (max-width: 480px) {
@@ -449,17 +434,6 @@
             </div>
 
             <div style="display: flex; align-items: center; gap: 16px;">
-                <!-- Account Switcher -->
-                <div class="account-switcher" style="display: flex; background: var(--surface-secondary); border-radius: var(--radius-full); padding: 4px; border: 1px solid rgba(255,255,255,0.05);">
-                    <button id="demoAccountBtn" style="padding: 8px 20px; border-radius: var(--radius-full); border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s; background: #10B981; color: white;">
-                        Демо
-                    </button>
-                    <button id="realAccountBtn" onclick="showRealAccountModal()" style="padding: 8px 20px; border-radius: var(--radius-full); border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.2s; background: transparent; color: var(--text-tertiary);" title="Незабаром">
-                        Реальний
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-left: 4px; vertical-align: middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                    </button>
-                </div>
-
                 <div class="user-pill">
                     <span id="headerBalance">$0.00</span>
                     <div class="user-avatar" id="userAvatar">U</div>
@@ -477,11 +451,6 @@
             <div class="profile-nav-item" data-section="security" onclick="scrollToSection('security')">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                 Налаштування безпеки
-            </div>
-            <div class="profile-nav-divider"></div>
-            <div class="profile-nav-item" data-section="faucet" onclick="scrollToSection('faucet')">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
-                Тестові кошти
             </div>
             <div class="profile-nav-divider"></div>
             <div class="profile-nav-item" data-section="payment" onclick="scrollToSection('payment')">
@@ -774,32 +743,6 @@
                     </div>
                 </div>
 
-                <div class="section-title" id="section-faucet" style="margin-top: 40px;">Тестові кошти (Faucet)</div>
-                <div class="faucet-section" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <div>
-                            <div style="font-size: 14px; color: var(--text-secondary);">Доступно для отримання</div>
-                            <div style="font-size: 28px; font-weight: 700; color: #10B981;" id="faucetRemaining">$100.00</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 12px; color: var(--text-tertiary);">Добовий ліміт: $100</div>
-                            <div style="font-size: 12px; color: var(--text-tertiary);">Оновлення кожні 24 год</div>
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                        <input type="number" id="faucetAmount" placeholder="Сума (1-100)" min="1" max="100" style="flex: 1; padding: 12px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); color: white; font-size: 14px;">
-                        <select id="faucetCurrency" style="padding: 12px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); color: white; font-size: 14px;">
-                            <option value="USDT">USDT</option>
-                            <option value="BTC">BTC</option>
-                            <option value="ETH">ETH</option>
-                        </select>
-                    </div>
-                    <button id="claimFaucetBtn" onclick="claimFaucet()" style="width: 100%; padding: 14px; background: #10B981; color: white; border: none; border-radius: var(--radius-md); font-weight: 700; font-size: 14px; cursor: pointer;">
-                        Отримати тестові кошти
-                    </button>
-                    <div id="faucetMessage" style="margin-top: 12px; font-size: 13px; text-align: center; display: none;"></div>
-                </div>
-
                 <div class="section-title" id="section-payment" style="margin-top: 40px;">Способи оплати</div>
                 <div id="paymentMethodsList">
                     <div style="color: var(--text-secondary); font-size: 14px; padding: 20px; text-align: center;">Завантаження...</div>
@@ -955,23 +898,6 @@
                     </button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Real Account Modal -->
-    <div id="realAccountModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center;">
-        <div style="background: var(--surface); border-radius: var(--radius-xl); padding: 40px; max-width: 400px; width: 90%; text-align: center;">
-            <div style="width: 64px; height: 64px; background: rgba(140, 168, 255, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8CA8FF" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-            </div>
-            <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Незабаром</h2>
-            <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 28px;">Торгівля на реальному рахунку незабаром стане доступною. Поки що практикуйтесь з демо-коштами!</p>
-            <button onclick="closeRealAccountModal()" style="width: 100%; padding: 14px; background: var(--accent-primary); color: white; border: none; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; cursor: pointer;">
-                Зрозуміло
-            </button>
         </div>
     </div>
 
@@ -1143,21 +1069,6 @@
         document.getElementById('signOutModal').addEventListener('click', (e) => {
             if (e.target.id === 'signOutModal') {
                 closeSignOutModal();
-            }
-        });
-
-        // Real Account Modal functions
-        function showRealAccountModal() {
-            document.getElementById('realAccountModal').style.display = 'flex';
-        }
-
-        function closeRealAccountModal() {
-            document.getElementById('realAccountModal').style.display = 'none';
-        }
-
-        document.getElementById('realAccountModal').addEventListener('click', (e) => {
-            if (e.target.id === 'realAccountModal') {
-                closeRealAccountModal();
             }
         });
 
@@ -2174,78 +2085,6 @@
             }
         });
 
-        // Faucet functionality
-        async function loadFaucetStatus() {
-            try {
-                const response = await fetch('/api/faucet/status', { credentials: 'include' });
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('faucetRemaining').textContent = `$${data.remaining.toFixed(2)}`;
-                    document.getElementById('faucetAmount').max = data.remaining;
-                    if (!data.canClaim) {
-                        document.getElementById('claimFaucetBtn').disabled = true;
-                        document.getElementById('claimFaucetBtn').textContent = 'Добовий ліміт вичерпано';
-                        document.getElementById('claimFaucetBtn').style.background = '#666';
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load faucet status:', error);
-            }
-        }
-
-        async function claimFaucet() {
-            const amount = document.getElementById('faucetAmount').value;
-            const currency = document.getElementById('faucetCurrency').value;
-            const messageEl = document.getElementById('faucetMessage');
-            const btn = document.getElementById('claimFaucetBtn');
-
-            if (!amount || amount <= 0) {
-                messageEl.style.display = 'block';
-                messageEl.style.color = '#EF4444';
-                messageEl.textContent = 'Please enter a valid amount';
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = 'Отримання...';
-
-            try {
-                const response = await fetch('/api/faucet/claim', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ amount: parseFloat(amount), currency })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    messageEl.style.display = 'block';
-                    messageEl.style.color = '#10B981';
-                    messageEl.textContent = `Successfully claimed $${data.claimed} ${data.currency}! New balance: $${data.newBalance.toFixed(2)}`;
-                    document.getElementById('faucetRemaining').textContent = `$${data.remainingToday.toFixed(2)}`;
-                    document.getElementById('faucetAmount').value = '';
-                    document.getElementById('faucetAmount').max = data.remainingToday;
-
-                    // Update balance in header
-                    const balanceEl = document.querySelector('.user-pill span');
-                    if (balanceEl) balanceEl.textContent = `$${data.newBalance.toFixed(2)}`;
-                } else {
-                    messageEl.style.display = 'block';
-                    messageEl.style.color = '#EF4444';
-                    messageEl.textContent = data.error || 'Failed to claim';
-                }
-            } catch (error) {
-                messageEl.style.display = 'block';
-                messageEl.style.color = '#EF4444';
-                messageEl.textContent = 'Network error. Please try again.';
-            }
-
-            btn.disabled = false;
-            btn.textContent = 'Отримати тестові кошти';
-            loadFaucetStatus();
-        }
-
         // Payment methods functionality
         async function loadPaymentMethods() {
             try {
@@ -2416,8 +2255,7 @@
                 const response = await fetch('/api/account/info', { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
-                    const balance = data.activeAccount === 'demo' ? data.demoBalance : data.realBalance;
-                    document.getElementById('headerBalance').textContent = `$${(balance || 0).toFixed(2)}`;
+                    document.getElementById('headerBalance').textContent = `$${(data.balance || 0).toFixed(2)}`;
                 }
             } catch (error) {
                 console.error('Failed to load balance:', error);
@@ -2788,7 +2626,6 @@
                 window.history.replaceState({}, '', '/profile');
             }
 
-            loadFaucetStatus();
             loadPaymentMethods();
             loadActivityLog();
             loadAccountBalance();

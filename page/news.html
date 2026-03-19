@@ -590,7 +590,7 @@
                     const user = await response.json();
 
                     // Update balance
-                    document.getElementById('headerBalance').textContent = `$${(user.balance || user.demoBalance || 0).toFixed(2)}`;
+                    document.getElementById('headerBalance').textContent = `$${(user.balance || user.realBalance || 0).toFixed(2)}`;
 
                     // Update avatar
                     const avatarEl = document.getElementById('userAvatar');

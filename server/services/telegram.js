@@ -66,12 +66,12 @@ async function initTelegramBot() {
 
             const user = await dbGet('SELECT * FROM users WHERE telegram_id = ?', [telegramUserId.toString()]);
             if (user) {
-                const balance = user.active_account === 'demo' ? user.demo_balance : user.real_balance;
+                const balance = user.real_balance || 0;
                 telegramBot.sendMessage(chatId,
                     `📊 Account Status\n\n` +
                     `👤 ${user.full_name}\n` +
                     `📧 ${user.email}\n` +
-                    `💰 Balance: $${balance.toFixed(2)} (${user.active_account})\n` +
+                    `💰 Balance: $${balance.toFixed(2)}\n` +
                     `📅 Subscription: ${user.subscription_plan || 'free'}`
                 );
             } else {
