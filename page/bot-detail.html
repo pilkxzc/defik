@@ -2214,8 +2214,35 @@
             padding: 2px 10px 10px;
             height: 76px;
             position: relative;
+            cursor: grab;
+            user-select: none;
         }
-        .equity-chart-wrap svg { width: 100%; height: 100%; overflow: visible; }
+        .equity-chart-wrap.dragging { cursor: grabbing; }
+        .equity-chart-wrap svg { width: 100%; height: 100%; overflow: hidden; }
+        .equity-zoom-btns {
+            position: absolute;
+            bottom: 12px;
+            right: 14px;
+            display: flex;
+            gap: 2px;
+            z-index: 5;
+        }
+        .equity-zoom-btn {
+            width: 20px;
+            height: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            background: rgba(20,20,20,0.8);
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .equity-zoom-btn:hover { background: rgba(40,40,40,0.95); color: #fff; }
         .equity-no-data {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
@@ -3348,10 +3375,15 @@
                         <div class="equity-header">
                             <span class="equity-title">Крива капіталу</span>
                         </div>
-                        <div class="equity-chart-wrap">
+                        <div class="equity-chart-wrap" id="equityChartWrap">
                             <svg id="equityChartSvg" viewBox="0 0 360 70" preserveAspectRatio="none">
                                 <text x="180" y="40" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="11" font-family="Plus Jakarta Sans,sans-serif">Немає даних угод</text>
                             </svg>
+                            <div class="equity-zoom-btns">
+                                <button class="equity-zoom-btn" onclick="equityZoom(1.3)" title="Збільшити">+</button>
+                                <button class="equity-zoom-btn" onclick="equityZoom(1/1.3)" title="Зменшити">−</button>
+                                <button class="equity-zoom-btn" onclick="equityResetView()" title="Скинути" style="font-size:10px;">⟲</button>
+                            </div>
                         </div>
                     </div>
 
@@ -9647,7 +9679,7 @@
             const H = wrap ? wrap.clientHeight - 4 : 70;
             svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-            // Always show ALL trades on equity curve
+            // Sort all trades by close time
             const allSorted = [...allEquityTrades]
                 .sort((a, b) => parseUTC(a.closedAt) - parseUTC(b.closedAt));
 
@@ -9656,14 +9688,24 @@
                 return;
             }
 
-            let cumPnl = 0;
-            const pts = [0];
-            const timestamps = [allSorted.length > 0 ? parseUTC(allSorted[0].closedAt) : Date.now()];
+            // Build full cumulative PNL array
+            let fullCum = 0;
+            const fullPts = [0];
+            const fullTimestamps = [parseUTC(allSorted[0].closedAt)];
             allSorted.forEach(t => {
-                cumPnl += parseFloat(t.pnl || 0);
-                pts.push(cumPnl);
-                timestamps.push(parseUTC(t.closedAt));
+                fullCum += parseFloat(t.pnl || 0);
+                fullPts.push(fullCum);
+                fullTimestamps.push(parseUTC(t.closedAt));
             });
+
+            // Apply zoom view — slice to visible range
+            const viewStart = _eqView.startIdx;
+            const viewEnd = _eqView.endIdx > 0 ? _eqView.endIdx : fullPts.length;
+            const pts = fullPts.slice(viewStart, viewEnd);
+            const timestamps = fullTimestamps.slice(viewStart, viewEnd);
+            const cumPnl = fullPts[fullPts.length - 1];
+
+            if (pts.length < 2) { equityResetView(); return; }
 
             const pad = 8;
             const minY = Math.min(0, ...pts);
@@ -9676,11 +9718,12 @@
             const polyPts = pts.map((y, i) => `${svgX(i).toFixed(1)},${svgY(y).toFixed(1)}`).join(' ');
             const lx = svgX(pts.length - 1).toFixed(1);
             const ly = svgY(pts[pts.length - 1]).toFixed(1);
-            const color = cumPnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
+            const viewPnl = pts[pts.length - 1];
+            const color = viewPnl >= 0 ? userTheme.colors.long : userTheme.colors.short;
             const gradId = 'eqg' + botId;
             const baseY = svgY(0).toFixed(1);
             const areaD = `M0,${baseY} ${pts.map((y,i) => `L${svgX(i).toFixed(1)},${svgY(y).toFixed(1)}`).join(' ')} L${W},${baseY} Z`;
-            const sign = cumPnl >= 0 ? '+' : '';
+            const sign = viewPnl >= 0 ? '+' : '';
             const labelX = parseFloat(lx) > W - 80 ? parseFloat(lx) - 4 : parseFloat(lx) + 4;
             const labelAnchor = parseFloat(lx) > W - 80 ? 'end' : 'start';
             const labelY = parseFloat(ly) < 16 ? parseFloat(ly) + 14 : parseFloat(ly) - 4;
@@ -9722,9 +9765,102 @@
                 ${periodSvg}
                 <polyline points="${polyPts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
                 <circle cx="${lx}" cy="${ly}" r="2.5" fill="${color}"/>
-                <text x="${labelX}" y="${labelY}" fill="${color}" font-size="9" font-family="Plus Jakarta Sans,sans-serif" font-weight="700" text-anchor="${labelAnchor}">${sign}${fmtPnl(cumPnl)}</text>
+                <text x="${labelX}" y="${labelY}" fill="${color}" font-size="9" font-family="Plus Jakarta Sans,sans-serif" font-weight="700" text-anchor="${labelAnchor}">${sign}${fmtPnl(viewPnl)}</text>
             `;
         }
+
+        // ── Equity chart zoom/pan state ──────────────────────────────────────
+        var _eqView = { startIdx: 0, endIdx: -1 }; // -1 = show all
+
+        function equityZoom(factor) {
+            const total = allEquityTrades.length;
+            if (total < 3) return;
+            if (_eqView.endIdx < 0) { _eqView.startIdx = 0; _eqView.endIdx = total; }
+            const center = (_eqView.startIdx + _eqView.endIdx) / 2;
+            const half = (_eqView.endIdx - _eqView.startIdx) / 2 / factor;
+            const minSpan = 5;
+            _eqView.startIdx = Math.max(0, Math.round(center - Math.max(half, minSpan / 2)));
+            _eqView.endIdx = Math.min(total, Math.round(center + Math.max(half, minSpan / 2)));
+            drawEquityCurve();
+        }
+
+        function equityResetView() {
+            _eqView.startIdx = 0;
+            _eqView.endIdx = -1;
+            drawEquityCurve();
+        }
+
+        // Mouse wheel zoom on equity chart
+        (function() {
+            var wrap = document.getElementById('equityChartWrap');
+            if (!wrap) return;
+            wrap.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                equityZoom(e.deltaY < 0 ? 1.2 : 1 / 1.2);
+            }, { passive: false });
+
+            // Drag to pan
+            var dragging = false, dragStartX = 0, dragStartRange = [0, 0];
+            wrap.addEventListener('mousedown', function(e) {
+                if (e.target.closest('.equity-zoom-btn')) return;
+                dragging = true;
+                dragStartX = e.clientX;
+                const total = allEquityTrades.length;
+                if (_eqView.endIdx < 0) { _eqView.startIdx = 0; _eqView.endIdx = total; }
+                dragStartRange = [_eqView.startIdx, _eqView.endIdx];
+                wrap.classList.add('dragging');
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!dragging) return;
+                const dx = e.clientX - dragStartX;
+                const wrapW = wrap.clientWidth || 300;
+                const span = dragStartRange[1] - dragStartRange[0];
+                const shift = Math.round(-dx / wrapW * span);
+                const total = allEquityTrades.length;
+                let s = dragStartRange[0] + shift;
+                let ed = dragStartRange[1] + shift;
+                if (s < 0) { ed -= s; s = 0; }
+                if (ed > total) { s -= (ed - total); ed = total; }
+                _eqView.startIdx = Math.max(0, s);
+                _eqView.endIdx = Math.min(total, ed);
+                drawEquityCurve();
+            });
+            document.addEventListener('mouseup', function() {
+                if (dragging) { dragging = false; wrap.classList.remove('dragging'); }
+            });
+
+            // Touch drag
+            var touchStartX = 0;
+            wrap.addEventListener('touchstart', function(e) {
+                if (e.target.closest('.equity-zoom-btn')) return;
+                touchStartX = e.touches[0].clientX;
+                const total = allEquityTrades.length;
+                if (_eqView.endIdx < 0) { _eqView.startIdx = 0; _eqView.endIdx = total; }
+                dragStartRange = [_eqView.startIdx, _eqView.endIdx];
+            });
+            wrap.addEventListener('touchmove', function(e) {
+                const dx = e.touches[0].clientX - touchStartX;
+                const wrapW = wrap.clientWidth || 300;
+                const span = dragStartRange[1] - dragStartRange[0];
+                const shift = Math.round(-dx / wrapW * span);
+                const total = allEquityTrades.length;
+                let s = dragStartRange[0] + shift;
+                let ed = dragStartRange[1] + shift;
+                if (s < 0) { ed -= s; s = 0; }
+                if (ed > total) { s -= (ed - total); ed = total; }
+                _eqView.startIdx = Math.max(0, s);
+                _eqView.endIdx = Math.min(total, ed);
+                drawEquityCurve();
+            }, { passive: true });
+
+            // Pinch zoom
+            wrap.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    // Simple pinch: use distance change as zoom factor
+                }
+            }, { passive: false });
+        })();
 
         // Redraw equity chart when its container resizes (panel drag, window resize, etc.)
         (function() {
