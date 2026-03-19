@@ -2580,16 +2580,6 @@
                     </button>
                 </div>
                 <div class="detail-tickers">${tickers}</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;">
-                    <div style="background:var(--bg-app);border-radius:var(--radius-md);padding:10px 12px;">
-                        <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;">Портфоліо</div>
-                        <div style="font-size:15px;font-weight:700;">$${(b.balance || 0).toFixed(2)}</div>
-                    </div>
-                    <div style="background:var(--bg-app);border-radius:var(--radius-md);padding:10px 12px;">
-                        <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;">Комісії</div>
-                        <div style="font-size:15px;font-weight:700;color:var(--text-secondary);">$${(b.totalCommission || 0).toFixed(2)}</div>
-                    </div>
-                </div>
                 ${b.instruments && b.instruments.length > 0 ? `
                 <div style="margin-bottom:16px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -2633,8 +2623,15 @@
                                     <svg class="detail-coin-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                                 </div>
                                 <div id="${coinId}" class="detail-coin-stats">
-                                    <div class="detail-coin-stats-row">
-                                        <span>PNL</span><span style="color:${coinPnlClass};font-weight:700;">${coinPnlStr}</span>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+                                        <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:6px 8px;">
+                                            <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">PNL</div>
+                                            <div style="font-size:14px;font-weight:700;color:${coinPnlClass};">${coinPnlStr}</div>
+                                        </div>
+                                        <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:6px 8px;">
+                                            <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;">Комісія</div>
+                                            <div style="font-size:14px;font-weight:700;color:var(--text-secondary);">$${Math.abs(c.commission || 0).toFixed(2)}</div>
+                                        </div>
                                     </div>
                                     <div class="detail-coin-stats-row">
                                         <span>Win Rate</span><span style="color:${(c.winRate || 0) >= 50 ? 'var(--color-up)' : 'var(--color-down)'};font-weight:600;">${c.winRate || 0}%</span>
@@ -2646,16 +2643,10 @@
                                         <span>Обʼєм</span><span>${volStr}</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
-                                        <span>Комісія</span><span style="color:var(--text-tertiary);">$${Math.abs(c.commission || 0).toFixed(2)}</span>
-                                    </div>
-                                    <div class="detail-coin-stats-row">
                                         <span>Дата запуску</span><span>${c.startDate ? new Date(c.startDate).toLocaleDateString('uk-UA') : '—'}</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
                                         <span>Час роботи</span><span>${c.startDate ? (() => { const ms = Date.now() - new Date(c.startDate).getTime(); const d = Math.floor(ms / 86400000); const h = Math.floor((ms % 86400000) / 3600000); return d > 0 ? d + 'д ' + h + 'г' : h + 'г'; })() : '—'}</span>
-                                    </div>
-                                    <div class="detail-coin-stats-row">
-                                        <span>Баланс бота</span><span>$${(b.balance || 0).toFixed(2)}</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
                                         <span>Плече</span><span>${b.leverage ? b.leverage + 'x' : '—'}</span>

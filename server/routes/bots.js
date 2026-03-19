@@ -1282,7 +1282,6 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 leverage: ts.leverage || null,
                 spread: ts.spread || null,
                 balance: b.investment || 0,
-                totalCommission: instruments.reduce((sum, i) => sum + (i.commission || 0), 0),
                 community_visible: b.community_visible !== undefined ? !!b.community_visible : true,
             };
         };
