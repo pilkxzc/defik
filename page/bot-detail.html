@@ -5411,10 +5411,11 @@
                 return;
             }
 
-            // Summary bar from all blocks
-            const totalPnl = allBlocks.reduce((s, b) => s + b.totalPnl, 0);
-            const wins = allBlocks.filter(b => b.totalPnl > 0).length;
-            const wr = allBlocks.length > 0 ? (wins / allBlocks.length * 100).toFixed(0) : 0;
+            // Summary bar from all blocks (only closed blocks count for win rate)
+            const closedBlocks = allBlocks.filter(b => !b.isOpen);
+            const totalPnl = closedBlocks.reduce((s, b) => s + b.totalPnl, 0);
+            const wins = closedBlocks.filter(b => b.totalPnl > 0).length;
+            const wr = closedBlocks.length > 0 ? (wins / closedBlocks.length * 100).toFixed(0) : 0;
             const longBlocks = allBlocks.filter(b => b.side === 'LONG');
             const shortBlocks = allBlocks.filter(b => b.side === 'SHORT');
             const longPnl = longBlocks.reduce((s, b) => s + b.totalPnl, 0);
@@ -8492,7 +8493,10 @@
                     </div>`;
             }).join('');
 
-            if (!posHtml && allOrders.length === 0) {
+            // Check if filters hide everything but raw data exists
+            const hasAnyFiltered = allOrders.length === 0 && validPos.length === 0;
+            const hasRawData = allOrdersRaw.length > 0 || validPosRaw.length > 0;
+            if (hasAnyFiltered && !hasRawData) {
                 content.innerHTML = '<div class="empty-state">Немає відкритих ордерів</div>';
                 return;
             }
@@ -8516,16 +8520,19 @@
                 allOrders.forEach(o => { ordersHtml += renderOrderItem(o, isMultiAcc); });
             }
 
+            const filteredEmptyMsg = (hasAnyFiltered && hasRawData) ? `<div style="text-align:center;padding:20px 12px;color:var(--text-tertiary);font-size:12px;">Фільтри приховують усі ордери<br><span onclick="_ordersFilter={long:true,short:true,limit:true,stop:true,tp:true};if(_lastOrdersData)updateOrdersList(_lastOrdersData)" style="color:#C4B5FD;cursor:pointer;font-weight:600;">Скинути фільтри</span></div>` : '';
+
             const savedScroll = content.scrollTop;
             content.innerHTML = `
                 ${statsHtml}
                 <div style="display:flex;gap:4px;margin-bottom:6px;padding:0 2px;">
-                    <button onclick="ordersGrouped=false;if(lastChartData)updateOrdersList(lastChartData)" style="font-size:10px;padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,0.06);background:${!ordersGrouped?'rgba(139,92,246,0.15)':'transparent'};color:${!ordersGrouped?'#C4B5FD':'var(--text-tertiary)'};cursor:pointer;font-family:inherit;">Flat</button>
-                    <button onclick="ordersGrouped=true;if(lastChartData)updateOrdersList(lastChartData)" style="font-size:10px;padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,0.06);background:${ordersGrouped?'rgba(139,92,246,0.15)':'transparent'};color:${ordersGrouped?'#C4B5FD':'var(--text-tertiary)'};cursor:pointer;font-family:inherit;">Grouped</button>
+                    <button onclick="ordersGrouped=false;if(_lastOrdersData)updateOrdersList(_lastOrdersData)" style="font-size:10px;padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,0.06);background:${!ordersGrouped?'rgba(139,92,246,0.15)':'transparent'};color:${!ordersGrouped?'#C4B5FD':'var(--text-tertiary)'};cursor:pointer;font-family:inherit;">Flat</button>
+                    <button onclick="ordersGrouped=true;if(_lastOrdersData)updateOrdersList(_lastOrdersData)" style="font-size:10px;padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,0.06);background:${ordersGrouped?'rgba(139,92,246,0.15)':'transparent'};color:${ordersGrouped?'#C4B5FD':'var(--text-tertiary)'};cursor:pointer;font-family:inherit;">Grouped</button>
                 </div>
                 <div class="orders-list">
                     ${posHtml}
                     ${ordersHtml}
+                    ${filteredEmptyMsg}
                 </div>
             `;
             // Restore scroll so user isn't kicked to top on every poll update

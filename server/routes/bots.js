@@ -530,7 +530,7 @@ function updateBotStats(botId) {
 function rebuildPositionBlocks(botId) {
     const MAX_BLOCKS = 5000;
     const trades = dbAll(
-        'SELECT id, symbol, side, position_side, quantity, price, pnl, status, opened_at, closed_at, strategy_id FROM bot_trades WHERE bot_id = ? ORDER BY opened_at ASC',
+        'SELECT id, symbol, side, position_side, quantity, price, pnl, status, opened_at, closed_at, strategy_id, binance_trade_id FROM bot_trades WHERE bot_id = ? ORDER BY opened_at ASC',
         [botId]
     );
 
@@ -590,9 +590,12 @@ function rebuildPositionBlocks(botId) {
 }
 
 function buildBlockObj(sym, side, trades) {
-    const totalPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
-    const totalQty = trades.reduce((s, t) => s + (t.quantity || 0), 0);
+    // Only count closed trades for stats (open = entry fills waiting for close)
+    const closedTrades = trades.filter(t => t.status === 'closed');
+    const totalPnl = closedTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+    const closedCount = closedTrades.length;
 
+    // Avg entry: weighted average of entry prices (from all trades including open)
     let sumEntry = 0, sumEntryW = 0;
     trades.forEach(t => {
         const q = t.quantity || 0;
@@ -601,28 +604,37 @@ function buildBlockObj(sym, side, trades) {
     });
     const avgEntry = sumEntryW > 0 ? sumEntry / sumEntryW : 0;
 
+    // Avg exit: calculate from entry price + pnl
+    // For standalone closed records (no binance_trade_id, price IS the exit price)
     let sumExit = 0, sumExitW = 0;
-    trades.filter(t => t.status === 'closed').forEach(t => {
+    closedTrades.forEach(t => {
         const q = t.quantity || 0;
         const p = t.price || 0;
         const pnl = t.pnl || 0;
-        if (p > 0 && q > 0) {
-            const exitP = side === 'LONG' ? p + pnl / q : p - pnl / q;
-            sumExit += exitP * q;
-            sumExitW += q;
+        if (q > 0 && p > 0) {
+            const isStandalone = !t.binance_trade_id;
+            let exitP;
+            if (isStandalone) {
+                // Standalone closed record — price is the exit price itself
+                exitP = p;
+            } else {
+                // Normal entry-then-close — calculate exit from entry + pnl
+                exitP = side === 'LONG' ? p + pnl / q : p - pnl / q;
+            }
+            if (exitP > 0) { sumExit += exitP * q; sumExitW += q; }
         }
     });
     const avgExit = sumExitW > 0 ? sumExit / sumExitW : 0;
 
+    const totalQty = sumEntryW; // total quantity from weighted entry calc
     const startedAt = trades[0].opened_at || trades[0].closed_at;
     const lastT = trades[trades.length - 1];
     const endedAt = lastT.closed_at || lastT.opened_at;
     const isOpen = trades.some(t => t.status === 'open');
     const tradeIds = trades.map(t => t.id).join(',');
 
-    // Use strategy_id from first trade in block (all trades in a symbol block share the same strategy)
     const strategyId = trades[0].strategy_id || null;
-    return { symbol: sym, side, trade_count: trades.length, total_qty: totalQty, avg_entry: avgEntry, avg_exit: avgExit, total_pnl: totalPnl, is_open: isOpen, started_at: startedAt, ended_at: endedAt, trade_ids: tradeIds, strategy_id: strategyId };
+    return { symbol: sym, side, trade_count: closedCount || trades.length, total_qty: totalQty, avg_entry: avgEntry, avg_exit: avgExit, total_pnl: totalPnl, is_open: isOpen, started_at: startedAt, ended_at: endedAt, trade_ids: tradeIds, strategy_id: strategyId };
 }
 
 // Fix orphaned trades: pair open entries with standalone closed exits by time/symbol/side
