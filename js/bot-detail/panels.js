@@ -572,3 +572,65 @@
                 });
             });
         }
+
+        // ==================== RESET LAYOUT (Ctrl+Shift+R) ====================
+        function resetAllPanelLayout() {
+            // Clear all saved layout data
+            localStorage.removeItem(`yamato_bot_${botId}_panelSizes`);
+            localStorage.removeItem(`yamato_bot_${botId}_chartSize`);
+            localStorage.removeItem(`yamato_bot_${botId}_dashboardLayout`);
+            localStorage.removeItem(`yamato_bot_${botId}_rightPanelWidth`);
+            localStorage.removeItem(`yamato_bot_${botId}_panelColors`);
+
+            // Reset chart container
+            const cc = document.getElementById('chartContainer');
+            if (cc) {
+                cc.style.width = '';
+                cc.style.height = '';
+                cc.style.minWidth = '';
+                cc.style.minHeight = '';
+            }
+
+            // Reset all panels
+            document.querySelectorAll('.resizable-panel').forEach(panel => {
+                panel.style.height = '';
+                panel.style.width = '';
+                panel.style.minWidth = '';
+                panel.style.maxWidth = '';
+                panel.style.flex = '';
+                panel.classList.remove('collapsed', 'panel-hidden');
+            });
+
+            // Reset grid
+            const container = document.querySelector('.app-container');
+            if (container) {
+                rightPanelWidth = 380;
+                currentLayout = 'default';
+                container.style.gridTemplateColumns = `auto 1fr ${rightPanelWidth}px`;
+                container.style.gridTemplateRows = '';
+            }
+
+            // Reset right panel
+            const rp = document.getElementById('rightPanel');
+            if (rp) rp.classList.remove('horizontal-layout');
+
+            // Show all toggle pills as "on"
+            document.querySelectorAll('.pm-toggle-pill').forEach(btn => btn.classList.add('on'));
+
+            // Notify
+            const toast = document.createElement('div');
+            toast.textContent = 'Розташування скинуто';
+            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,0.9);color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;pointer-events:none;';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+        }
+
+        // Keyboard shortcut: Ctrl+Shift+R = reset layout
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+                e.preventDefault();
+                resetAllPanelLayout();
+            }
+        });

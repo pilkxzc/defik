@@ -2330,11 +2330,11 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
 
         // Fetch from all accounts using centralized cache (no duplicate API calls)
         const results = await Promise.allSettled(
-            credPairs.map(async (cred) => {
+            credPairs.map(async (cred, accIdx) => {
                 const raw = await fetchRawBinanceData(cred.apiKey, cred.apiSecret, cred.proxy);
                 let allOrders = [];
                 try { allOrders = await fetchCachedAllOrders(cred.apiKey, cred.apiSecret, symbol, cred.proxy); } catch (e) {}
-                return { account: raw.account, openOrders: raw.openOrders, allOrders };
+                return { account: raw.account, openOrders: raw.openOrders, allOrders, accIdx };
             })
         );
 
@@ -2348,8 +2348,8 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
             merged.totalWalletBalance    += parseFloat(d.account.totalWalletBalance) || 0;
             merged.totalUnrealizedProfit += parseFloat(d.account.totalUnrealizedProfit) || 0;
             merged.availableBalance      += parseFloat(d.account.availableBalance) || 0;
-            merged.positions.push(...(d.account.positions || []));
-            mergedOpen.push(...(d.openOrders || []));
+            (d.account.positions || []).forEach(p => { p._accIdx = d.accIdx; merged.positions.push(p); });
+            (d.openOrders || []).forEach(o => { o._accIdx = d.accIdx; mergedOpen.push(o); });
             mergedAll.push(...(d.allOrders || []));
         }
         if (successCount === 0) {
@@ -2416,6 +2416,7 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
                 leverage:         position.leverage,
                 updateTime:       position.updateTime || null
             } : null,
+            isMultiAcc: credPairs.length > 1 || !!getMultiCredentials(bot),
             positions: activePositions.map(p => ({
                 symbol:           p.symbol,
                 side:             parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT',
@@ -2424,11 +2425,12 @@ router.get('/api/bots/:id/chart-data', requireAuth, async (req, res) => {
                 markPrice:        parseFloat(p.markPrice),
                 unrealizedProfit: parseFloat(p.unrealizedProfit),
                 leverage:         p.leverage,
-                updateTime:       p.updateTime || null
+                updateTime:       p.updateTime || null,
+                accIdx:           p._accIdx
             })),
-            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, time: o.time })),
-            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time })),
-            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time })),
+            limitOrders:      limitOrders.map(o => ({ orderId: o.orderId, side: o.side, price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, time: o.time, accIdx: o._accIdx, _isAlgo: o._isAlgo })),
+            stopOrders:       stopOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time, accIdx: o._accIdx, _isAlgo: o._isAlgo })),
+            takeProfitOrders: takeProfitOrders.map(o => ({ orderId: o.orderId, side: o.side, stopPrice: parseFloat(o.stopPrice), price: parseFloat(o.price), quantity: parseFloat(o.origQty), executedQty: parseFloat(o.executedQty) || 0, type: o.type, time: o.time, accIdx: o._accIdx })),
             canceledOrders: orderHistory.map(o => ({ orderId: o.order_id, side: o.side, price: parseFloat(o.price), stopPrice: o.stop_price ? parseFloat(o.stop_price) : null, quantity: parseFloat(o.quantity), type: o.type, canceledAt: o.canceled_at })),
             displaySettings: JSON.parse(bot.display_settings || '{}'),
             tradesCount: (dbGet('SELECT COUNT(*) as c FROM bot_trades WHERE bot_id = ?', [bot.id]) || {}).c || 0
