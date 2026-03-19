@@ -3263,10 +3263,10 @@
                     <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(34,211,238,0.15)" stroke="#22D3EE" stroke-width="1.2"/></svg>Long вихід
                 </div>
                 <div class="cml-chip" id="cml_entryShort" onclick="toggleMarkerType('entryShort')" title="Short вхід — натисніть щоб приховати">
-                    <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="4,7 0,1 8,1" fill="rgba(245,158,11,0.15)" stroke="#F59E0B" stroke-width="1.2"/></svg>Short вхід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><polygon points="4,7 0,1 8,1" fill="rgba(239,83,80,0.15)" stroke="#EF5350" stroke-width="1.2"/></svg>Short вхід
                 </div>
                 <div class="cml-chip" id="cml_exitShort" onclick="toggleMarkerType('exitShort')" title="Short вихід — натисніть щоб приховати">
-                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(245,158,11,0.15)" stroke="#F59E0B" stroke-width="1.2"/></svg>Short вихід
+                    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="rgba(239,83,80,0.15)" stroke="#EF5350" stroke-width="1.2"/></svg>Short вихід
                 </div>
                 <div class="cml-chip" id="cml_grouped" onclick="toggleMarkerType('grouped')" title="Кілька угод на одній свічці — натисніть щоб приховати">
                     <svg width="9" height="9" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#8B5CF6"/></svg>Кілька
@@ -5576,7 +5576,7 @@
             clearTradeHighlight(false);
 
             const isLong = block.side === 'LONG';
-            const entryColor = isLong ? '#22D3EE' : '#F59E0B';
+            const entryColor = isLong ? '#22D3EE' : '#EF5350';
             const pnlColor = block.totalPnl >= 0 ? '#34D399' : '#F97316';
             const fmtP = v => v >= 1000 ? v.toFixed(2) : v.toFixed(4);
 
@@ -6948,7 +6948,7 @@
                         const isLong  = ed._isLong !== undefined ? ed._isLong : ed.isBuy !== false;
                         const isEntry = ed._isEntry !== undefined ? ed._isEntry : ed.isBuy !== false;
                         // Contrasting colors so markers don't blend with candles
-                        const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#22D3EE' : '#F59E0B');
+                        const color   = ed._mixed ? '#8B5CF6' : (isLong ? '#22D3EE' : '#EF5350');
 
                         // Invisible hitbox rect for easier clicking
                         const HIT = 14; // half-size of hitbox in px
@@ -7094,10 +7094,10 @@
 
                         const figs = [];
                         const isHighlight = type === 'highlight';
+                        const isStop = type === 'stop';
 
-                        // Line styles — highlight is bright & thick, entry is medium, others thin
+                        // Line styles per type
                         if (isHighlight) {
-                            // Bright glow effect: wide faint line behind + sharp line on top
                             figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { style: 'solid', color: rgba(color, 0.12), size: 8 } });
                             figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
@@ -7105,6 +7105,12 @@
                         } else if (type === 'entry') {
                             figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { style: 'dashed', color, size: 2, dashedValue: [8, 3] } });
+                        } else if (isStop) {
+                            // Stop/SL lines — solid, neon glow
+                            figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                                        styles: { style: 'solid', color: rgba(color, 0.08), size: 6 } });
+                            figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
+                                        styles: { style: 'solid', color, size: 1.5 } });
                         } else {
                             figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: 0, y }, { x: w, y }] },
                                         styles: { style: 'dashed', color, size: 1, dashedValue: [4, 4] } });
@@ -7141,7 +7147,7 @@
                         const c = coordinates?.[0];
                         if (!c) return [];
                         const isBuy = overlay.extendData?.isBuy !== false;
-                        const colorBase = isBuy ? 'rgba(34,211,238,' : 'rgba(245,158,11,';
+                        const colorBase = isBuy ? 'rgba(34,211,238,' : 'rgba(239,83,80,';
                         const w = (barSpace?.bar || 8) * 0.8;
                         const h = bounding?.height || 400;
                         return [
@@ -7978,7 +7984,7 @@
                 const pnl     = parseFloat(trade.pnl || 0);
                 const price   = parseFloat(trade.price || 0);
                 const qty     = parseFloat(trade.qty || 0);
-                const sideColor = isBuy ? '#22D3EE' : '#F59E0B';
+                const sideColor = isBuy ? '#22D3EE' : '#EF5350';
                 const pnlColor  = pnl >= 0 ? '#34D399' : '#F97316';
                 const dt    = new Date((trade.time || 0) * 1000);
                 const dtStr = dt.toLocaleString('uk-UA', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -8008,7 +8014,7 @@
             const trades  = isGroup ? m._all : [m];
             const totalPnl = isGroup ? trades.reduce((s, t) => s + parseFloat(t.pnl || 0), 0) : null;
             const symbol   = m.symbol || currentSymbol;
-            const headerColor = isGroup ? (m._mixed ? '#A78BFA' : (m.isBuy ? '#22D3EE' : '#F59E0B')) : '#e0e0e0';
+            const headerColor = isGroup ? (m._mixed ? '#A78BFA' : (m.isBuy ? '#22D3EE' : '#EF5350')) : '#e0e0e0';
 
             popup.innerHTML = `
                 <div id="markerPopupDragHandle"></div>
@@ -8532,11 +8538,11 @@
                     if (!price) return;
                     const side = this.dataset.side;
                     const isLong = side === 'BUY' || side === 'LONG';
-                    const hlColor = isLong ? '#00E5FF' : '#FF6D00';
+                    const hlColor = isLong ? '#00E5FF' : '#EF5350';
 
                     // Flash highlight on table row — bright pulse
-                    this.style.background = isLong ? 'rgba(0,229,255,0.25)' : 'rgba(255,109,0,0.25)';
-                    this.style.boxShadow = '0 0 12px ' + (isLong ? 'rgba(0,229,255,0.3)' : 'rgba(255,109,0,0.3)');
+                    this.style.background = isLong ? 'rgba(0,229,255,0.25)' : 'rgba(239,83,80,0.25)';
+                    this.style.boxShadow = '0 0 12px ' + (isLong ? 'rgba(0,229,255,0.3)' : 'rgba(239,83,80,0.3)');
                     setTimeout(() => { this.style.background = ''; this.style.boxShadow = ''; }, 800);
 
                     if (_tickChart) {
@@ -8611,21 +8617,36 @@
             // Build desired lines list (shared by klinecharts and tick chart)
             // Tick chart uses blue/yellow convention; klinecharts uses theme colors
             const _isTick = !!_tickChart;
-            const _tcBuy  = '#22D3EE';  // cyan for BUY/LONG
-            const _tcSell = '#F59E0B';  // yellow for SELL/SHORT
+            const _tcCyan    = '#22D3EE';
+            const _tcScarlet = '#FF2400';
+            const _tcPurple  = '#8B5CF6';
+            const _tcDarkMag = '#6E004F';
+            const _tcTP      = '#34D399';
             function buildDesiredLines() {
                 const lines = [];
                 if (displaySettings.positions) {
+                    // Merge multi-account positions into one line per side
                     const posArr = data.positions || (data.position ? [data.position] : []);
-                    posArr.forEach((pos, pi) => {
+                    const merged = {};
+                    posArr.forEach(pos => {
                         if (!pos || !pos.entryPrice || pos.entryPrice <= 0) return;
-                        const isLong = pos.side === 'LONG';
-                        const accLabel = pos._accIdx != null ? ` a${pos._accIdx}` : '';
+                        const side = pos.side;
+                        if (!merged[side]) merged[side] = { totalQty: 0, totalNotional: 0 };
+                        const qty = parseFloat(pos.quantity || pos.positionAmt || 0);
+                        merged[side].totalQty += qty;
+                        merged[side].totalNotional += qty * pos.entryPrice;
+                    });
+                    Object.keys(merged).forEach(side => {
+                        const m = merged[side];
+                        if (m.totalQty <= 0) return;
+                        const avgEntry = m.totalNotional / m.totalQty;
+                        const isLong = side === 'LONG';
                         lines.push({
-                            price: pos.entryPrice,
-                            color: isLong ? _tcBuy : _tcSell,
-                            label: (isLong ? 'Long' : 'Short') + accLabel,
+                            price: avgEntry,
+                            color: isLong ? _tcCyan : _tcScarlet,
+                            label: (isLong ? 'Long' : 'Short') + ' ×' + m.totalQty.toFixed(3),
                             dash: [8, 3],
+                            lineWidth: 2,
                             type: 'entry',
                         });
                     });
@@ -8633,10 +8654,10 @@
                 if (displaySettings.limits) {
                     (data.limitOrders || []).forEach((o, i) => {
                         const isBuy = o.side === 'BUY';
-                        const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
+                        const accLabel = o._accIdx != null ? ` a${o._accIdx + 1}` : '';
                         lines.push({
                             price: o.price,
-                            color: isBuy ? _tcBuy : _tcSell,
+                            color: isBuy ? _tcCyan : _tcScarlet,
                             label: (isBuy ? 'Limit Buy' : 'Limit Sell') + accLabel,
                             dash: [6, 4],
                             type: 'limit',
@@ -8646,28 +8667,26 @@
                 if (displaySettings.stops) {
                     (data.stopOrders || []).forEach(o => {
                         if (!o.stopPrice || o.stopPrice <= 0) return;
-                        const isBuy = o.side === 'BUY';
-                        const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
+                        const accLabel = o._accIdx != null ? ` a${o._accIdx + 1}` : '';
                         const typeLabel = o.type === 'STOP_MARKET' ? 'SL' : o.type === 'TRAILING_STOP_MARKET' ? 'TSL' : 'Stop';
-                        // Sell = purple (#8B5CF6), Buy = cyan (#22D3EE)
-                        const stopColor = isBuy ? '#22D3EE' : '#8B5CF6';
+                        const isAlgo = o._isAlgo || o.type === 'STOP_MARKET' || o.type === 'TRAILING_STOP_MARKET';
                         lines.push({
                             price: o.stopPrice,
-                            color: isBuy ? '#22D3EE' : '#8B5CF6',
-                            label: typeLabel + ' ' + (isBuy ? 'Buy' : 'Sell') + accLabel,
-                            dash: [4, 4],
+                            color: isAlgo ? _tcPurple : _tcDarkMag,
+                            label: typeLabel + ' ' + (o.side === 'BUY' ? 'Buy' : 'Sell') + accLabel,
+                            dash: null, // solid for stops
                             type: 'stop',
                         });
                     });
                 }
                 if (displaySettings.tps) {
                     (data.takeProfitOrders || []).forEach(o => {
-                        if (!o.stopPrice || o.stopPrice <= 0) return; // skip if no price
-                        const accLabel = o._accIdx != null ? ` a${o._accIdx}` : '';
+                        if (!o.stopPrice || o.stopPrice <= 0) return;
+                        const accLabel = o._accIdx != null ? ` a${o._accIdx + 1}` : '';
                         const typeLabel = o.type === 'TAKE_PROFIT_MARKET' ? 'TP' : 'TP Limit';
                         lines.push({
                             price: o.stopPrice,
-                            color: '#34D399',
+                            color: _tcTP,
                             label: typeLabel + accLabel,
                             dash: [4, 4],
                             type: 'tp',
@@ -8715,17 +8734,33 @@
                 desiredLines.set(key, { price, color, text, type: type || 'order' });
             }
 
-            // Same color scheme as tick chart (cyan=buy, yellow=sell, purple=stop sell, green=tp)
+            // Color scheme: Limit Buy=cyan, Limit Sell=scarlet, Stop=purple solid, Algo Stop=purple, TP=green
+            const _cCyan    = '#22D3EE';
+            const _cScarlet = '#FF2400';
+            const _cPurple  = '#8B5CF6';
+            const _cDarkMag = '#6E004F';
+            const _cTP      = '#34D399';
+
             if (displaySettings.positions) {
+                // Merge multi-account positions into ONE line per side (weighted avg entry)
                 const posArr = data.positions || (data.position ? [data.position] : []);
+                const merged = {}; // { LONG: { totalQty, totalNotional }, SHORT: ... }
                 posArr.forEach(pos => {
                     if (!pos || !pos.entryPrice || pos.entryPrice <= 0) return;
-                    const isLong = pos.side === 'LONG';
-                    const accLabel = pos._accIdx != null ? ' a' + pos._accIdx : '';
-                    addDesired(`pos-${pos.side}-${pos.entryPrice}`,
-                        pos.entryPrice,
-                        isLong ? '#22D3EE' : '#F59E0B',
-                        (isLong ? 'Long' : 'Short') + accLabel,
+                    const side = pos.side;
+                    if (!merged[side]) merged[side] = { totalQty: 0, totalNotional: 0 };
+                    const qty = parseFloat(pos.quantity || pos.positionAmt || 0);
+                    merged[side].totalQty += qty;
+                    merged[side].totalNotional += qty * pos.entryPrice;
+                });
+                Object.keys(merged).forEach(side => {
+                    const m = merged[side];
+                    if (m.totalQty <= 0) return;
+                    const avgEntry = m.totalNotional / m.totalQty;
+                    const isLong = side === 'LONG';
+                    addDesired(`pos-${side}-merged`, avgEntry,
+                        isLong ? _cCyan : _cScarlet,
+                        (isLong ? 'Long' : 'Short') + ' ×' + m.totalQty.toFixed(3),
                         'entry'
                     );
                 });
@@ -8733,9 +8768,9 @@
             if (displaySettings.limits) {
                 (data.limitOrders || []).forEach((o, i) => {
                     const isBuy = o.side === 'BUY';
-                    const accLabel = o._accIdx != null ? ' a' + o._accIdx : '';
+                    const accLabel = o._accIdx != null ? ' a' + (o._accIdx + 1) : '';
                     addDesired(`limit-${o.side}-${o.price}-${i}`, o.price,
-                        isBuy ? '#22D3EE' : '#F59E0B',
+                        isBuy ? _cCyan : _cScarlet,
                         (isBuy ? 'Limit Buy' : 'Limit Sell') + accLabel,
                         'limit'
                     );
@@ -8744,12 +8779,13 @@
             if (displaySettings.stops) {
                 (data.stopOrders || []).forEach((o, i) => {
                     if (!o.stopPrice || o.stopPrice <= 0) return;
-                    const isBuy = o.side === 'BUY';
-                    const accLabel = o._accIdx != null ? ' a' + o._accIdx : '';
+                    const accLabel = o._accIdx != null ? ' a' + (o._accIdx + 1) : '';
+                    const isAlgo = o._isAlgo || o.type === 'STOP_MARKET' || o.type === 'TRAILING_STOP_MARKET';
                     const typeLabel = o.type === 'STOP_MARKET' ? 'SL' : o.type === 'TRAILING_STOP_MARKET' ? 'TSL' : 'Stop';
+                    const stopColor = isAlgo ? _cPurple : _cDarkMag;
                     addDesired(`stop-${o.side}-${o.stopPrice}-${i}`, o.stopPrice,
-                        isBuy ? '#22D3EE' : '#8B5CF6',
-                        typeLabel + ' ' + (isBuy ? 'Buy' : 'Sell') + accLabel,
+                        stopColor,
+                        typeLabel + ' ' + (o.side === 'BUY' ? 'Buy' : 'Sell') + accLabel,
                         'stop'
                     );
                 });
@@ -8757,10 +8793,10 @@
             if (displaySettings.tps) {
                 (data.takeProfitOrders || []).forEach((o, i) => {
                     if (!o.stopPrice || o.stopPrice <= 0) return;
-                    const accLabel = o._accIdx != null ? ' a' + o._accIdx : '';
+                    const accLabel = o._accIdx != null ? ' a' + (o._accIdx + 1) : '';
                     const typeLabel = o.type === 'TAKE_PROFIT_MARKET' ? 'TP' : 'TP Limit';
                     addDesired(`tp-${o.side}-${o.stopPrice}-${i}`, o.stopPrice,
-                        '#34D399',
+                        _cTP,
                         typeLabel + accLabel,
                         'tp'
                     );
@@ -8822,7 +8858,7 @@
                 closePrice = isBuy ? price + pnl / qty : price - pnl / qty;
             }
 
-            const entryColor = isBuy ? '#22D3EE' : '#F59E0B';
+            const entryColor = isBuy ? '#22D3EE' : '#EF5350';
 
             // ---- Tick chart branch ----
             if (_tickChart) {
