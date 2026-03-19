@@ -320,6 +320,8 @@ async function initDatabase() {
     try { db.run('ALTER TABLE bot_trades ADD COLUMN binance_trade_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_trades ADD COLUMN binance_close_trade_id TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE bot_trades ADD COLUMN position_side TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE bot_trades ADD COLUMN commission REAL DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE bot_trades ADD COLUMN commission_asset TEXT'); } catch(e) {}
 
     db.run(`
         CREATE TABLE IF NOT EXISTS bot_position_blocks (

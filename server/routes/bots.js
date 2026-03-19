@@ -74,6 +74,51 @@ function handleBanError(proxy, error) {
     }
 }
 
+// ── Per-proxy throttle: max 1 request per 1 second per proxy ─────────────────
+const _proxyLastRequest = {};  // { proxyStr|'direct': timestamp }
+const PROXY_MIN_INTERVAL = 1000; // 1 second
+
+async function waitForProxySlot(proxy) {
+    const key = proxy || 'direct';
+    const now = Date.now();
+    const last = _proxyLastRequest[key] || 0;
+    const wait = PROXY_MIN_INTERVAL - (now - last);
+    if (wait > 0) {
+        await new Promise(r => setTimeout(r, wait));
+    }
+    _proxyLastRequest[key] = Date.now();
+}
+
+// ── Proxy pool: round-robin rotation across multiple proxies ─────────────────
+const _proxyPoolIndex = {};  // { botId: currentIndex }
+
+function getProxyPool(bot) {
+    try {
+        const ts = JSON.parse(bot.trading_settings || '{}');
+        if (ts.proxy_pool && Array.isArray(ts.proxy_pool) && ts.proxy_pool.length > 0) {
+            return ts.proxy_pool.filter(Boolean);
+        }
+    } catch (e) {}
+    return [];
+}
+
+function pickNextProxy(bot) {
+    const pool = getProxyPool(bot);
+    if (pool.length === 0) return bot.proxy || null;
+
+    // Filter out currently banned proxies
+    const available = pool.filter(p => !isBanned(p));
+    if (available.length === 0) {
+        // All banned — fallback to bot.proxy or direct
+        return bot.proxy || null;
+    }
+
+    const key = bot.id || 'default';
+    const idx = (_proxyPoolIndex[key] || 0) % available.length;
+    _proxyPoolIndex[key] = idx + 1;
+    return available[idx];
+}
+
 // ── Multi-account helpers ────────────────────────────────────────────────────
 
 function getMultiCredentials(bot) {
@@ -93,12 +138,16 @@ function getMultiCredentials(bot) {
 
 /** Returns array of {apiKey, apiSecret, proxy} for a bot — works for both single and multi-account */
 function getBotCredentialPairs(bot) {
+    const pool = getProxyPool(bot);
     const multi = getMultiCredentials(bot);
-    if (multi) return multi.map(c => ({ apiKey: c.tk, apiSecret: c.tk_secret, proxy: c.proxy || bot.proxy || null }));
+    if (multi) return multi.map(c => ({
+        apiKey: c.tk, apiSecret: c.tk_secret,
+        proxy: c.proxy || (pool.length > 0 ? pickNextProxy(bot) : bot.proxy || null)
+    }));
     // Decrypt single-account keys from DB
     const apiKey = decryptField(bot.binance_api_key);
     const apiSecret = decryptField(bot.binance_api_secret);
-    if (apiKey && apiSecret) return [{ apiKey, apiSecret, proxy: bot.proxy || null }];
+    if (apiKey && apiSecret) return [{ apiKey, apiSecret, proxy: pool.length > 0 ? pickNextProxy(bot) : bot.proxy || null }];
     return [];
 }
 
@@ -112,6 +161,7 @@ async function makeBinanceSignedReq(apiKey, apiSecret, endpoint, params = {}, pr
     if (isBanned(proxy)) {
         throw new Error('Binance IP temporarily banned, retrying later');
     }
+    await waitForProxySlot(proxy);
     const baseUrl   = 'https://fapi.binance.com';
     const timestamp = await getBinanceServerTime('futures', proxy);
     const qs        = new URLSearchParams({ ...params, timestamp }).toString();
@@ -200,8 +250,8 @@ const _rawBinanceCache       = {};                            // keyed by apiKey
 const _rawBinanceInFlight    = {};                            // dedup concurrent raw fetches
 const _allOrdersCache        = {};                            // keyed by `${apiKey}:${symbol}`
 const _allOrdersInFlight     = {};                            // dedup concurrent allOrders fetches
-const RAW_CACHE_TTL          = 30_000;                        // 30 seconds
-const ALL_ORDERS_CACHE_TTL   = 60_000;                        // 60 seconds
+const RAW_CACHE_TTL          = 5_000;                         // 5 seconds (proxy pool allows faster refresh)
+const ALL_ORDERS_CACHE_TTL   = 30_000;                        // 30 seconds
 
 // ── Binance helpers ───────────────────────────────────────────────────────────
 
@@ -277,6 +327,8 @@ async function fetchRawBinanceData(apiKey, apiSecret, proxy = null) {
 
 async function _doFetchRawBinanceData(apiKey, apiSecret, proxy = null) {
     if (isBanned(proxy)) throw new Error('Binance IP temporarily banned');
+    // Throttle: max 1 request batch per 1s per proxy
+    await waitForProxySlot(proxy);
     try {
         const baseUrl   = 'https://fapi.binance.com';
         const timestamp = await getBinanceServerTime('futures', proxy);
@@ -341,6 +393,7 @@ async function fetchCachedAllOrders(apiKey, apiSecret, symbol, proxy = null) {
 
     const promise = (async () => {
         if (isBanned(proxy)) throw new Error('Binance IP temporarily banned');
+        await waitForProxySlot(proxy);
         const timestamp = await getBinanceServerTime('futures', proxy);
         const qs   = new URLSearchParams({ symbol, limit: 100, timestamp }).toString();
         const sign = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
@@ -763,6 +816,9 @@ async function syncBinanceTrades(botId) {
                                           posSide === 'SHORT' ? 'SHORT' :
                                           (isBuy ? 'BUY' : 'SELL');
 
+                        const tradeCommission = parseFloat(t.commission) || 0;
+                        const commissionAsset = t.commissionAsset || '';
+
                         if (!isEntry && pnl !== 0) {
                             // This is an exit fill — find matching open trade
                             // In hedge mode, match by position_side; in one-way, match by opposite side
@@ -787,19 +843,19 @@ async function syncBinanceTrades(botId) {
                                 );
                             }
                             if (openRow) {
-                                dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?',
-                                    ['closed', pnl, tradeTime, tradeId, openRow.id]);
+                                dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
+                                    ['closed', pnl, tradeTime, tradeId, tradeCommission, openRow.id]);
                             } else {
                                 dbRun(
-                                    'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                    [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide]
+                                    'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                    [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide, tradeCommission, commissionAsset]
                                 );
                             }
                         } else {
                             // Entry fill
                             dbRun(
-                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide]
+                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide, tradeCommission, commissionAsset]
                             );
                         }
                         newTrades.push({
@@ -1009,15 +1065,16 @@ async function reconcileOpenTrades(botId) {
                         const pnl      = parseFloat(closingFill.realizedPnl);
                         const closedAt = new Date(closingFill.time).toISOString();
                         const closeId  = closingFill.id.toString();
+                        const reconCommission = parseFloat(closingFill.commission) || 0;
                         // Check if this close ID is already used by another trade
                         const existing = dbGet('SELECT id FROM bot_trades WHERE bot_id = ? AND binance_close_trade_id = ? AND id != ?', [botId, closeId, trade.id]);
                         if (existing) {
                             // Close without the duplicate binance_close_trade_id
-                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ? WHERE id = ?',
-                                ['closed', pnl, closedAt, trade.id]);
+                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
+                                ['closed', pnl, closedAt, reconCommission, trade.id]);
                         } else {
-                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ? WHERE id = ?',
-                                ['closed', pnl, closedAt, closeId, trade.id]);
+                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
+                                ['closed', pnl, closedAt, closeId, reconCommission, trade.id]);
                         }
                         console.log(`[Bot ${botId}] reconcile: closed trade ${trade.id} (${symbol}) pnl=${pnl}`);
                     } else {
@@ -1120,7 +1177,8 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 COUNT(*) as trades,
                 SUM(quantity * price) as volume,
                 SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
-                MIN(opened_at) as first_trade_at
+                MIN(opened_at) as first_trade_at,
+                COALESCE(SUM(commission), 0) as commission
                 FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
             const map = {};
             stats.forEach(s => {
@@ -1129,7 +1187,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                     trades: s.trades || 0,
                     volume: s.volume || 0,
                     winRate: s.trades > 0 ? Math.round((s.wins / s.trades) * 100) : 0,
-                    commission: s.commission || 0,
+                    commission: parseFloat(s.commission) || 0,
                     startDate: s.first_trade_at || null
                 };
             });
@@ -1224,6 +1282,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 leverage: ts.leverage || null,
                 spread: ts.spread || null,
                 balance: b.investment || 0,
+                totalCommission: instruments.reduce((sum, i) => sum + (i.commission || 0), 0),
                 community_visible: b.community_visible !== undefined ? !!b.community_visible : true,
             };
         };
@@ -1890,6 +1949,42 @@ router.post('/api/bots/:id/test-proxy', requireAuth, requireRole('admin'), async
                   : err.response?.status === 407 ? 'Невiрний логiн/пароль проксi'
                   : err.message || 'Помилка з\'єднання';
         res.json({ success: false, error: msg });
+    }
+});
+
+// ── Proxy pool management ─────────────────────────────────────
+router.get('/api/bots/:id/proxy-pool', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const bot = dbGet('SELECT trading_settings FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        let ts = {};
+        try { ts = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
+        const pool = ts.proxy_pool || [];
+        // Include status for each proxy
+        const poolStatus = pool.map(p => ({
+            proxy: p,
+            banned: isBanned(p),
+            lastRequest: _proxyLastRequest[p] || 0,
+        }));
+        res.json({ pool: poolStatus });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.patch('/api/bots/:id/proxy-pool', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { proxies } = req.body;
+        if (!Array.isArray(proxies)) return res.status(400).json({ error: 'proxies must be an array' });
+        const bot = dbGet('SELECT trading_settings FROM bots WHERE id = ?', [req.params.id]);
+        if (!bot) return res.status(404).json({ error: 'Bot not found' });
+        let ts = {};
+        try { ts = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
+        ts.proxy_pool = proxies.filter(Boolean);
+        dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(ts), req.params.id]);
+        res.json({ success: true, count: ts.proxy_pool.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

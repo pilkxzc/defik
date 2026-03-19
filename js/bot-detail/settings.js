@@ -59,7 +59,7 @@ function openSettings() {
     // Show API Keys tab for admins
     const apiBtn = document.getElementById('tabBtnApiKeys');
     if (apiBtn) apiBtn.style.display = isAdmin ? 'flex' : 'none';
-    if (isAdmin) loadMultiCredentials();
+    if (isAdmin) { loadMultiCredentials(); loadProxyPool(); }
 }
 
 function toggleSecretVisibility() {
@@ -887,3 +887,122 @@ document.addEventListener('keydown', (e) => {
         closeSettings();
     }
 });
+
+// ── Proxy Pool ───────────────────────────────────────────────────────────────
+async function loadProxyPool() {
+    const textarea = document.getElementById('proxyPoolInput');
+    if (!textarea) return;
+    try {
+        const res = await fetch(`/api/bots/${botId}/proxy-pool`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.pool && data.pool.length > 0) {
+            textarea.value = data.pool.map(p => p.proxy).join('\n');
+            renderProxyPoolStatus(data.pool);
+        }
+    } catch (e) {
+        console.error('Load proxy pool error:', e);
+    }
+}
+
+function renderProxyPoolStatus(pool) {
+    const el = document.getElementById('proxyPoolResults');
+    if (!el || !pool.length) { if (el) el.innerHTML = ''; return; }
+    el.innerHTML = pool.map(p => {
+        const parts = p.proxy.split(':');
+        const ip = parts[0] + ':' + parts[1];
+        const banned = p.banned;
+        const color = banned ? '#EF4444' : '#10B981';
+        const label = banned ? 'Заблоковано' : 'Активний';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;">
+            <span style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+            <span style="font-family:monospace;color:var(--text-secondary);">${ip}</span>
+            <span style="color:${color};font-weight:600;">${label}</span>
+        </div>`;
+    }).join('');
+}
+
+async function saveProxyPool() {
+    const textarea = document.getElementById('proxyPoolInput');
+    const statusEl = document.getElementById('proxyPoolStatus');
+    const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+    const proxies = lines.map(parseProxy).filter(Boolean);
+
+    if (proxies.length === 0 && lines.length > 0) {
+        statusEl.style.color = '#EF4444';
+        statusEl.textContent = 'Невiрний формат проксi';
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/bots/${botId}/proxy-pool`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proxies })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        statusEl.style.color = '#10B981';
+        statusEl.textContent = `Збережено ${data.count} проксi`;
+        loadProxyPool();
+    } catch (e) {
+        statusEl.style.color = '#EF4444';
+        statusEl.textContent = 'Помилка: ' + e.message;
+    }
+}
+
+async function testProxyPool() {
+    const textarea = document.getElementById('proxyPoolInput');
+    const statusEl = document.getElementById('proxyPoolStatus');
+    const resultsEl = document.getElementById('proxyPoolResults');
+    const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+    const proxies = lines.map(parseProxy).filter(Boolean);
+
+    if (proxies.length === 0) {
+        statusEl.style.color = '#EF4444';
+        statusEl.textContent = 'Додайте проксi';
+        return;
+    }
+
+    statusEl.style.color = 'var(--text-tertiary)';
+    statusEl.textContent = `Тестую ${proxies.length} проксi...`;
+    resultsEl.innerHTML = '';
+
+    const results = await Promise.allSettled(
+        proxies.map(async (proxy) => {
+            const res = await fetch(`/api/bots/${botId}/test-proxy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proxy })
+            });
+            return res.json();
+        })
+    );
+
+    let ok = 0, fail = 0;
+    resultsEl.innerHTML = results.map((r, i) => {
+        const parts = proxies[i].split(':');
+        const ip = parts[0] + ':' + parts[1];
+        if (r.status === 'fulfilled' && r.value.success) {
+            ok++;
+            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:#10B981;flex-shrink:0;"></span>
+                <span style="font-family:monospace;color:var(--text-secondary);">${ip}</span>
+                <span style="color:#10B981;">OK</span>
+                <span style="color:var(--text-tertiary);">${r.value.latency}ms</span>
+                <span style="color:var(--text-tertiary);">${r.value.ip || ''}</span>
+            </div>`;
+        } else {
+            fail++;
+            const err = r.status === 'fulfilled' ? r.value.error : r.reason?.message || '?';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:#EF4444;flex-shrink:0;"></span>
+                <span style="font-family:monospace;color:var(--text-secondary);">${ip}</span>
+                <span style="color:#EF4444;">${err}</span>
+            </div>`;
+        }
+    }).join('');
+
+    statusEl.style.color = fail === 0 ? '#10B981' : '#F59E0B';
+    statusEl.textContent = `${ok} працюють, ${fail} помилок`;
+}

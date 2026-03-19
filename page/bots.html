@@ -2580,6 +2580,16 @@
                     </button>
                 </div>
                 <div class="detail-tickers">${tickers}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;">
+                    <div style="background:var(--bg-app);border-radius:var(--radius-md);padding:10px 12px;">
+                        <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;">Портфоліо</div>
+                        <div style="font-size:15px;font-weight:700;">$${(b.balance || 0).toFixed(2)}</div>
+                    </div>
+                    <div style="background:var(--bg-app);border-radius:var(--radius-md);padding:10px 12px;">
+                        <div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;">Комісії</div>
+                        <div style="font-size:15px;font-weight:700;color:var(--text-secondary);">$${(b.totalCommission || 0).toFixed(2)}</div>
+                    </div>
+                </div>
                 ${b.instruments && b.instruments.length > 0 ? `
                 <div style="margin-bottom:16px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -2642,7 +2652,7 @@
                                         <span>Дата запуску</span><span>${c.startDate ? new Date(c.startDate).toLocaleDateString('uk-UA') : '—'}</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
-                                        <span>Час роботи</span><span>${c.startDate ? (() => { const d = Math.floor((Date.now() - new Date(c.startDate).getTime()) / 86400000); return d > 0 ? d + 'д' : '<1д'; })() : '—'}</span>
+                                        <span>Час роботи</span><span>${c.startDate ? (() => { const ms = Date.now() - new Date(c.startDate).getTime(); const d = Math.floor(ms / 86400000); const h = Math.floor((ms % 86400000) / 3600000); return d > 0 ? d + 'д ' + h + 'г' : h + 'г'; })() : '—'}</span>
                                     </div>
                                     <div class="detail-coin-stats-row">
                                         <span>Баланс бота</span><span>$${(b.balance || 0).toFixed(2)}</span>
