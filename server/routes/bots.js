@@ -774,7 +774,7 @@ async function syncBinanceTrades(botId) {
                 const seenIds = new Set();
 
                 // Fetch trades from ALL accounts in parallel (each uses its own proxy/IP)
-                await Promise.allSettled(credPairs.map(async (cred) => {
+                await Promise.allSettled(credPairs.map(async (cred, accIdx) => {
                     const makeReq = buildMakeReq(cred.apiKey, cred.apiSecret, cred.proxy);
                     let endTime = undefined;
                     for (let page = 0; page < 20; page++) {
@@ -789,6 +789,7 @@ async function syncBinanceTrades(botId) {
                         for (const t of batch) {
                             if (!seenIds.has(t.id)) {
                                 seenIds.add(t.id);
+                                t._accIdx = accIdx;
                                 trades.push(t);
                                 newCount++;
                             }
@@ -819,6 +820,7 @@ async function syncBinanceTrades(botId) {
                     const posSide   = t.positionSide || 'BOTH';
                     const isBuy     = t.side === 'BUY';
                     const tradeCommission = parseFloat(t.commission) || 0;
+                    const accIdx    = t._accIdx != null ? t._accIdx : null;
                     const commissionAsset = t.commissionAsset || '';
 
                     // Determine entry vs exit:
@@ -876,15 +878,15 @@ async function syncBinanceTrades(botId) {
                         } else {
                             // No matching open — create standalone closed record
                             dbRun(
-                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide, tradeCommission, commissionAsset]
+                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side, commission, commission_asset, account_idx) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide, tradeCommission, commissionAsset, accIdx]
                             );
                         }
                     } else {
                         // Entry fill
                         dbRun(
-                            'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                            [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide, tradeCommission, commissionAsset]
+                            'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side, commission, commission_asset, account_idx) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide, tradeCommission, commissionAsset, accIdx]
                         );
                     }
                     newTrades.push({
@@ -2793,7 +2795,8 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
                 binanceCloseTradeId: t.binance_close_trade_id || null,
                 strategyId: t.strategy_id || null,
                 commission: t.commission || 0,
-                commissionAsset: t.commission_asset || null
+                commissionAsset: t.commission_asset || null,
+                accountIdx: t.account_idx != null ? t.account_idx : null
             })),
             total: total?.count || 0
         });
@@ -2929,7 +2932,7 @@ router.get('/api/bots/:id/orders', requireAuth, async (req, res) => {
             leverage: p.leverage, updateTime: p.updateTime || null, accIdx: p._accIdx
         });
 
-        const isMultiAcc = credPairs.length > 1;
+        const isMultiAcc = credPairs.length > 1 || !!getMultiCredentials(bot);
         res.json({
             isActive: !!bot.is_active,
             isMultiAcc,
