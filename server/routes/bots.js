@@ -1224,6 +1224,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                 SUM(CASE WHEN status = 'closed' THEN quantity * price ELSE 0 END) as volume,
                 SUM(CASE WHEN status = 'closed' AND pnl > 0 THEN 1 ELSE 0 END) as wins,
                 MIN(opened_at) as first_trade_at,
+                MAX(COALESCE(closed_at, opened_at)) as last_trade_at,
                 COALESCE(SUM(commission), 0) as commission
                 FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
             const map = {};
@@ -1234,7 +1235,8 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                     volume: s.volume || 0,
                     winRate: s.trades > 0 ? Math.round((s.wins / s.trades) * 100) : 0,
                     commission: parseFloat(s.commission) || 0,
-                    startDate: s.first_trade_at || null
+                    startDate: s.first_trade_at || null,
+                    lastTradeAt: s.last_trade_at || null
                 };
             });
             botSymbolStats[b.id] = map;
@@ -1292,6 +1294,7 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
                         winRate: st.winRate || 0,
                         commission: st.commission || 0,
                         startDate: st.startDate || null,
+                        lastTradeAt: st.lastTradeAt || null,
                         isVisible: visible
                     };
                 })
