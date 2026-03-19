@@ -716,7 +716,9 @@ async function syncBinanceTrades(botId) {
         function buildMakeReq(apiKey, apiSecret, proxy = null) {
             const cfg = axiosCfg(apiKey, proxy, 15000);
             return async (endpoint, params = {}) => {
-                const p  = { ...params, timestamp: Date.now() };
+                await waitForProxySlot(proxy);
+                const ts = await getBinanceServerTime('futures', proxy);
+                const p  = { ...params, timestamp: ts };
                 const qs = new URLSearchParams(p).toString();
                 const sig = crypto.createHmac('sha256', apiSecret).update(qs).digest('hex');
                 const r  = await axios.get(`${baseUrl}${endpoint}?${qs}&signature=${sig}`, cfg);
@@ -729,19 +731,32 @@ async function syncBinanceTrades(botId) {
         // Discover symbols from ALL accounts in parallel (each uses its own proxy)
         await Promise.allSettled(credPairs.map(async (cred) => {
             const makeReq = buildMakeReq(cred.apiKey, cred.apiSecret, cred.proxy);
+            // Fetch income with pagination to discover ALL ever-traded symbols
             try {
-                const income = await makeReq('/fapi/v1/income', { limit: 1000, incomeType: 'REALIZED_PNL' });
-                income.forEach(i => { if (i.symbol) discoveredSymbols.add(i.symbol); });
+                let endTime;
+                for (let page = 0; page < 10; page++) {
+                    const params = { limit: 1000, incomeType: 'REALIZED_PNL' };
+                    if (endTime) params.endTime = endTime;
+                    const income = await makeReq('/fapi/v1/income', params);
+                    income.forEach(i => { if (i.symbol) discoveredSymbols.add(i.symbol); });
+                    if (!income || income.length < 1000) break;
+                    endTime = Math.min(...income.map(i => i.time)) - 1;
+                }
             } catch (e) {}
             try {
                 const acct = await makeReq('/fapi/v2/account');
+                // Add ALL positions (even zero) — they indicate historically traded symbols
                 (acct.positions || []).forEach(p => {
-                    if (parseFloat(p.positionAmt) !== 0) discoveredSymbols.add(p.symbol);
+                    if (p.symbol) discoveredSymbols.add(p.symbol);
                 });
             } catch (e) {}
         }));
 
-        discoveredSymbols.add(bot.selected_symbol || 'BTCUSDT');
+        // Add all configured symbols (comma-separated)
+        (bot.selected_symbol || '').split(',').forEach(s => {
+            const trimmed = s.trim();
+            if (trimmed) discoveredSymbols.add(trimmed);
+        });
         dbAll('SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ?', [botId]).forEach(r => discoveredSymbols.add(r.symbol));
 
         const symbols = [...discoveredSymbols];
@@ -797,78 +812,91 @@ async function syncBinanceTrades(botId) {
                         'SELECT id FROM bot_trades WHERE bot_id = ? AND (binance_trade_id = ? OR binance_close_trade_id = ?)',
                         [botId, tradeId, tradeId]
                     );
-                    if (!exists) {
-                        const pnl       = parseFloat(t.realizedPnl) || 0;
-                        const tradeTime = new Date(t.time).toISOString();
-                        const posSide   = t.positionSide || 'BOTH'; // LONG, SHORT, or BOTH
+                    if (exists) continue;
 
-                        // Determine the position side for matching
-                        // Hedge mode: positionSide is LONG or SHORT
-                        // One-way mode: positionSide is BOTH
-                        const isBuy = t.side === 'BUY';
-                        let isEntry;
-                        if (posSide === 'LONG')       isEntry = isBuy;    // LONG+BUY=open, LONG+SELL=close
-                        else if (posSide === 'SHORT')  isEntry = !isBuy;   // SHORT+SELL=open, SHORT+BUY=close
-                        else                           isEntry = pnl === 0; // BOTH: use pnl
+                    const pnl       = parseFloat(t.realizedPnl) || 0;
+                    const tradeTime = new Date(t.time).toISOString();
+                    const posSide   = t.positionSide || 'BOTH';
+                    const isBuy     = t.side === 'BUY';
+                    const tradeCommission = parseFloat(t.commission) || 0;
+                    const commissionAsset = t.commissionAsset || '';
 
-                        // The side we store = position side (LONG/SHORT), not order side (BUY/SELL)
-                        const storeSide = posSide === 'LONG' ? 'LONG' :
-                                          posSide === 'SHORT' ? 'SHORT' :
-                                          (isBuy ? 'BUY' : 'SELL');
+                    // Determine entry vs exit:
+                    // Hedge mode: LONG+BUY=entry, LONG+SELL=exit; SHORT+SELL=entry, SHORT+BUY=exit
+                    // One-way (BOTH): use realizedPnl AND check if reducing position
+                    let isEntry;
+                    if (posSide === 'LONG')       isEntry = isBuy;
+                    else if (posSide === 'SHORT')  isEntry = !isBuy;
+                    else {
+                        // BOTH mode: pnl !== 0 means exit, pnl === 0 means entry
+                        // But partial close can have pnl=0 on break-even, so also check if there's a matching open
+                        if (pnl !== 0) {
+                            isEntry = false;
+                        } else {
+                            // Check if there's already an open trade for opposite side — if yes, this closes it
+                            const oppSide = isBuy ? 'SELL' : 'BUY';
+                            const openCheck = dbGet(
+                                'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? LIMIT 1',
+                                [botId, t.symbol, oppSide, 'open']
+                            );
+                            isEntry = !openCheck; // if open exists → this is a break-even exit
+                        }
+                    }
 
-                        const tradeCommission = parseFloat(t.commission) || 0;
-                        const commissionAsset = t.commissionAsset || '';
+                    const storeSide = posSide === 'LONG' ? 'LONG' :
+                                      posSide === 'SHORT' ? 'SHORT' :
+                                      (isBuy ? 'BUY' : 'SELL');
 
-                        if (!isEntry && pnl !== 0) {
-                            // This is an exit fill — find matching open trade
-                            // In hedge mode, match by position_side; in one-way, match by opposite side
-                            let openRow;
-                            if (posSide === 'LONG' || posSide === 'SHORT') {
+                    if (!isEntry) {
+                        // Exit fill — find matching open trade (oldest first for correct FIFO matching)
+                        let openRow;
+                        if (posSide === 'LONG' || posSide === 'SHORT') {
+                            openRow = dbGet(
+                                'SELECT id, pnl as existingPnl, commission as existingComm FROM bot_trades WHERE bot_id = ? AND symbol = ? AND position_side = ? AND status = ? ORDER BY opened_at ASC LIMIT 1',
+                                [botId, t.symbol, posSide, 'open']
+                            );
+                            if (!openRow) {
                                 openRow = dbGet(
-                                    'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND position_side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
-                                    [botId, t.symbol, posSide, 'open']
-                                );
-                                // Fallback: try matching by side field for older records without position_side
-                                if (!openRow) {
-                                    openRow = dbGet(
-                                        'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
-                                        [botId, t.symbol, storeSide, 'open']
-                                    );
-                                }
-                            } else {
-                                const openSide = isBuy ? 'SELL' : 'BUY';
-                                openRow = dbGet(
-                                    'SELECT id FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at DESC LIMIT 1',
-                                    [botId, t.symbol, openSide, 'open']
-                                );
-                            }
-                            if (openRow) {
-                                dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
-                                    ['closed', pnl, tradeTime, tradeId, tradeCommission, openRow.id]);
-                            } else {
-                                dbRun(
-                                    'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                    [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide, tradeCommission, commissionAsset]
+                                    'SELECT id, pnl as existingPnl, commission as existingComm FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at ASC LIMIT 1',
+                                    [botId, t.symbol, storeSide, 'open']
                                 );
                             }
                         } else {
-                            // Entry fill
-                            dbRun(
-                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide, tradeCommission, commissionAsset]
+                            const openSide = isBuy ? 'SELL' : 'BUY';
+                            openRow = dbGet(
+                                'SELECT id, pnl as existingPnl, commission as existingComm FROM bot_trades WHERE bot_id = ? AND symbol = ? AND side = ? AND status = ? ORDER BY opened_at ASC LIMIT 1',
+                                [botId, t.symbol, openSide, 'open']
                             );
                         }
-                        newTrades.push({
-                            symbol: t.symbol,
-                            side: storeSide,
-                            price: parseFloat(t.price),
-                            qty: parseFloat(t.qty),
-                            pnl,
-                            isEntry,
-                            strategyId
-                        });
-                        totalSaved++;
+                        if (openRow) {
+                            // Accumulate PNL — multiple exit fills can close the same entry
+                            const newPnl = (parseFloat(openRow.existingPnl) || 0) + pnl;
+                            dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
+                                ['closed', newPnl, tradeTime, tradeId, tradeCommission, openRow.id]);
+                        } else {
+                            // No matching open — create standalone closed record
+                            dbRun(
+                                'INSERT INTO bot_trades (bot_id, strategy_id, binance_close_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, closed_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), pnl, 0, 'closed', tradeTime, tradeTime, posSide, tradeCommission, commissionAsset]
+                            );
+                        }
+                    } else {
+                        // Entry fill
+                        dbRun(
+                            'INSERT INTO bot_trades (bot_id, strategy_id, binance_trade_id, symbol, side, type, quantity, price, pnl, pnl_percent, status, opened_at, position_side, commission, commission_asset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [botId, strategyId, tradeId, t.symbol, storeSide, 'MARKET', parseFloat(t.qty), parseFloat(t.price), 0, 0, 'open', tradeTime, posSide, tradeCommission, commissionAsset]
+                        );
                     }
+                    newTrades.push({
+                        symbol: t.symbol,
+                        side: storeSide,
+                        price: parseFloat(t.price),
+                        qty: parseFloat(t.qty),
+                        pnl,
+                        isEntry,
+                        strategyId
+                    });
+                    totalSaved++;
                 }
             } catch (symErr) {
                 console.log(`[Bot ${botId}] Sync skip ${symbol}:`, symErr.message);
@@ -1037,21 +1065,30 @@ async function reconcileOpenTrades(botId) {
         let fixed = 0;
         for (const [symbol, trades] of Object.entries(bySymbol)) {
             try {
-                // Fetch fills from ALL accounts in parallel (each with its own proxy)
+                // Fetch fills from ALL accounts — paginated to get full history
                 const allFills = [];
-                const fillResults = await Promise.allSettled(credPairs.map(cred =>
-                    makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/userTrades', { symbol, limit: 200 }, cred.proxy)
-                ));
-                fillResults.forEach(r => { if (r.status === 'fulfilled') allFills.push(...r.value); });
+                await Promise.allSettled(credPairs.map(async (cred) => {
+                    let endTime;
+                    for (let page = 0; page < 5; page++) {
+                        try {
+                            const params = { symbol, limit: 1000 };
+                            if (endTime) params.endTime = endTime;
+                            const batch = await makeBinanceSignedReq(cred.apiKey, cred.apiSecret, '/fapi/v1/userTrades', params, cred.proxy);
+                            if (!batch || batch.length === 0) break;
+                            allFills.push(...batch);
+                            if (batch.length < 1000) break;
+                            endTime = Math.min(...batch.map(f => f.time)) - 1;
+                        } catch (e) { break; }
+                    }
+                }));
                 const fills = allFills;
 
                 for (const trade of trades) {
                     const openMs = new Date(trade.opened_at).getTime() || 0;
                     const tradePosSide = trade.position_side || trade.side;
 
-                    // Find the best closing fill: pnl≠0, happened after this trade opened
-                    // In Hedge Mode, also match positionSide to avoid cross-matching LONG/SHORT
-                    const closingFill = fills
+                    // Find ALL closing fills after this trade was opened (sum their PNL)
+                    const closingFills = fills
                         .filter(f => {
                             if (f.time <= openMs || parseFloat(f.realizedPnl) === 0) return false;
                             if (tradePosSide === 'LONG' || tradePosSide === 'SHORT') {
@@ -1059,33 +1096,42 @@ async function reconcileOpenTrades(botId) {
                             }
                             return true;
                         })
-                        .sort((a, b) => a.time - b.time)[0]; // earliest close after open
+                        .sort((a, b) => a.time - b.time);
 
-                    if (closingFill) {
-                        const pnl      = parseFloat(closingFill.realizedPnl);
-                        const closedAt = new Date(closingFill.time).toISOString();
-                        const closeId  = closingFill.id.toString();
-                        const reconCommission = parseFloat(closingFill.commission) || 0;
-                        // Check if this close ID is already used by another trade
-                        const existing = dbGet('SELECT id FROM bot_trades WHERE bot_id = ? AND binance_close_trade_id = ? AND id != ?', [botId, closeId, trade.id]);
+                    if (closingFills.length > 0) {
+                        // Sum PNL and commission across all closing fills for this position
+                        let totalPnl = 0, totalComm = 0;
+                        let lastCloseTime = null, lastCloseId = null;
+                        for (const cf of closingFills) {
+                            totalPnl += parseFloat(cf.realizedPnl) || 0;
+                            totalComm += parseFloat(cf.commission) || 0;
+                            lastCloseTime = new Date(cf.time).toISOString();
+                            lastCloseId = cf.id.toString();
+                        }
+
+                        const existing = lastCloseId ? dbGet('SELECT id FROM bot_trades WHERE bot_id = ? AND binance_close_trade_id = ? AND id != ?', [botId, lastCloseId, trade.id]) : null;
                         if (existing) {
-                            // Close without the duplicate binance_close_trade_id
                             dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
-                                ['closed', pnl, closedAt, reconCommission, trade.id]);
+                                ['closed', totalPnl, lastCloseTime, totalComm, trade.id]);
                         } else {
                             dbRun('UPDATE bot_trades SET status = ?, pnl = ?, closed_at = ?, binance_close_trade_id = ?, commission = COALESCE(commission, 0) + ? WHERE id = ?',
-                                ['closed', pnl, closedAt, closeId, reconCommission, trade.id]);
+                                ['closed', totalPnl, lastCloseTime, lastCloseId, totalComm, trade.id]);
                         }
-                        console.log(`[Bot ${botId}] reconcile: closed trade ${trade.id} (${symbol}) pnl=${pnl}`);
+                        console.log(`[Bot ${botId}] reconcile: closed trade ${trade.id} (${symbol}) pnl=${totalPnl} fills=${closingFills.length}`);
+                        fixed++;
                     } else {
-                        // No closing fill found in recent history — still force-close so it doesn't stay stuck
-                        dbRun(
-                            'UPDATE bot_trades SET status = ?, closed_at = ? WHERE id = ?',
-                            ['closed', new Date().toISOString(), trade.id]
-                        );
-                        console.log(`[Bot ${botId}] reconcile: force-closed trade ${trade.id} (${symbol}) — no fill found`);
+                        // No closing fill found — check how old the trade is
+                        const ageMs = Date.now() - openMs;
+                        if (ageMs > 7 * 24 * 60 * 60 * 1000) {
+                            // Older than 7 days with no fill — force-close with pnl=0 (likely already closed outside bot)
+                            dbRun('UPDATE bot_trades SET status = ?, closed_at = ? WHERE id = ?',
+                                ['closed', new Date().toISOString(), trade.id]);
+                            console.log(`[Bot ${botId}] reconcile: force-closed stale trade ${trade.id} (${symbol}, ${Math.round(ageMs/86400000)}d old)`);
+                            fixed++;
+                        } else {
+                            console.log(`[Bot ${botId}] reconcile: keeping trade ${trade.id} (${symbol}) open — no fill found yet, age ${Math.round(ageMs/3600000)}h`);
+                        }
                     }
-                    fixed++;
                 }
 
                 // No delay needed — requests go through per-account proxies
@@ -1173,10 +1219,10 @@ router.get('/api/bots/tree', requireAuth, (req, res) => {
             const openSyms = dbAll("SELECT DISTINCT symbol FROM bot_trades WHERE bot_id = ? AND status = 'open'", [b.id]);
             botOpenSymbols[b.id] = new Set(openSyms.map(r => r.symbol));
             const stats = dbAll(`SELECT symbol,
-                COALESCE(SUM(pnl), 0) as pnl,
-                COUNT(*) as trades,
-                SUM(quantity * price) as volume,
-                SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
+                COALESCE(SUM(CASE WHEN status = 'closed' THEN pnl ELSE 0 END), 0) as pnl,
+                SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as trades,
+                SUM(CASE WHEN status = 'closed' THEN quantity * price ELSE 0 END) as volume,
+                SUM(CASE WHEN status = 'closed' AND pnl > 0 THEN 1 ELSE 0 END) as wins,
                 MIN(opened_at) as first_trade_at,
                 COALESCE(SUM(commission), 0) as commission
                 FROM bot_trades WHERE bot_id = ? GROUP BY symbol`, [b.id]);
