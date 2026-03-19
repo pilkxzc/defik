@@ -2661,21 +2661,24 @@
                 </div>` : ''}
                 ${_isAdmin ? `
                 <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;cursor:pointer;" onclick="document.getElementById('proxyPoolSection-${b.id}').classList.toggle('open')">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:pointer;" onclick="document.getElementById('proxyPoolSection-${b.id}').classList.toggle('open')">
                         <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                             Proxy Pool
                         </div>
                         <span id="proxyPoolCount-${b.id}" style="font-size:10px;color:var(--text-tertiary);"></span>
                     </div>
-                    <div id="proxyPoolSection-${b.id}" class="detail-coin-stats" style="padding:8px 0 0 0;background:none;">
-                        <textarea id="proxyPoolInput-${b.id}" placeholder="IP:PORT:LOGIN:PASS (кожне з нового рядка)" style="width:100%;min-height:60px;padding:8px;background:var(--bg-app);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--text-primary);font-family:monospace;font-size:10px;resize:vertical;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='rgba(16,185,129,0.4)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'"></textarea>
-                        <div style="display:flex;gap:6px;margin-top:6px;">
-                            <button onclick="saveProxyPool(${b.id})" style="flex:1;padding:6px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.25);border-radius:8px;color:#10B981;font-weight:600;cursor:pointer;font-size:11px;">Зберегти</button>
-                            <button onclick="testProxyPool(${b.id})" style="padding:6px 10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:11px;">Тест</button>
+                    <div id="proxyPoolSection-${b.id}" class="detail-coin-stats" style="padding:0;background:none;">
+                        <div id="proxyPoolList-${b.id}" style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px;"></div>
+                        <div style="display:flex;gap:4px;align-items:center;">
+                            <input id="proxyPoolNewInput-${b.id}" type="text" placeholder="IP:PORT:LOGIN:PASS" style="flex:1;padding:6px 8px;background:var(--bg-app);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--text-primary);font-family:monospace;font-size:10px;outline:none;" onfocus="this.style.borderColor='rgba(16,185,129,0.4)'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'" onkeydown="if(event.key==='Enter'){event.preventDefault();addProxy(${b.id})}">
+                            <button onclick="addProxy(${b.id})" style="padding:6px 8px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:8px;color:#10B981;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;" title="Додати">+</button>
                         </div>
-                        <div id="proxyPoolStatus-${b.id}" style="margin-top:6px;font-size:11px;"></div>
-                        <div id="proxyPoolResults-${b.id}" style="margin-top:4px;"></div>
+                        <div style="display:flex;gap:4px;margin-top:6px;">
+                            <button onclick="testAllProxies(${b.id})" style="flex:1;padding:5px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:#60A5FA;font-weight:600;cursor:pointer;font-size:10px;">Тест усiх</button>
+                            <button onclick="pasteProxies(${b.id})" style="padding:5px 8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:10px;" title="Вставити список">Вставити</button>
+                        </div>
+                        <div id="proxyPoolStatus-${b.id}" style="margin-top:6px;font-size:11px;min-height:14px;"></div>
                     </div>
                 </div>` : ''}
                 `;
@@ -2739,88 +2742,149 @@
         }
 
         // ── Proxy Pool (admin only) ───────────────────────────────
+        const _proxyPoolCache = {}; // { botId: [{ proxy, banned, source }] }
+
         async function loadProxyPoolForBot(botId) {
             try {
                 const res = await fetch(`/api/bots/${botId}/proxy-pool`, { credentials: 'include' });
                 if (!res.ok) return;
                 const data = await res.json();
-                const textarea = document.getElementById('proxyPoolInput-' + botId);
-                const countEl = document.getElementById('proxyPoolCount-' + botId);
-                const resultsEl = document.getElementById('proxyPoolResults-' + botId);
-                if (data.pool && data.pool.length > 0) {
-                    if (textarea) textarea.value = data.pool.map(p => p.proxy).join('\n');
-                    if (countEl) {
-                        const active = data.pool.filter(p => !p.banned).length;
-                        countEl.textContent = active + '/' + data.pool.length + ' active';
-                        countEl.style.color = active > 0 ? 'var(--color-up)' : 'var(--text-tertiary)';
-                    }
-                    if (resultsEl) {
-                        const srcLabel = { pool: 'pool', bot: 'бот', account: 'акаунт' };
-                        resultsEl.innerHTML = data.pool.map(p => {
-                            const parts = p.proxy.split(':');
-                            const ip = parts[0] + ':' + (parts[1] || '');
-                            const color = p.banned ? '#EF4444' : '#10B981';
-                            return '<div style="font-size:10px;padding:2px 0;display:flex;align-items:center;gap:6px;">'
-                                + '<span style="width:5px;height:5px;border-radius:50%;background:' + color + ';flex-shrink:0;"></span>'
-                                + '<span style="font-family:monospace;color:var(--text-secondary);">' + ip + '</span>'
-                                + '<span style="color:var(--text-tertiary);font-size:9px;">' + (srcLabel[p.source] || '') + '</span>'
-                                + '</div>';
-                        }).join('');
-                    }
-                } else {
-                    if (countEl) { countEl.textContent = '0 проксi'; countEl.style.color = 'var(--text-tertiary)'; }
-                }
+                _proxyPoolCache[botId] = data.pool || [];
+                renderProxyList(botId);
             } catch (e) {}
         }
 
-        async function saveProxyPool(botId) {
-            const textarea = document.getElementById('proxyPoolInput-' + botId);
+        function renderProxyList(botId) {
+            const list = _proxyPoolCache[botId] || [];
+            const listEl = document.getElementById('proxyPoolList-' + botId);
+            const countEl = document.getElementById('proxyPoolCount-' + botId);
+            if (!listEl) return;
+
+            if (countEl) {
+                const active = list.filter(p => !p.banned).length;
+                countEl.textContent = active + '/' + list.length;
+                countEl.style.color = active > 0 ? 'var(--color-up)' : 'var(--text-tertiary)';
+            }
+
+            if (list.length === 0) {
+                listEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:8px 0;text-align:center;">Немає проксi</div>';
+                return;
+            }
+
+            const srcBadge = { pool: '#8B5CF6', bot: '#10B981', account: '#3B82F6' };
+            const srcLabel = { pool: 'pool', bot: 'бот', account: 'acc' };
+            listEl.innerHTML = list.map((p, i) => {
+                const parts = p.proxy.split(':');
+                const ip = parts[0];
+                const port = parts[1] || '';
+                const color = p.banned ? '#EF4444' : '#10B981';
+                const badgeColor = srcBadge[p.source] || '#6B7280';
+                return '<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--bg-app);border-radius:8px;font-size:10px;" id="proxyRow-' + botId + '-' + i + '">'
+                    + '<span style="width:6px;height:6px;border-radius:50%;background:' + color + ';flex-shrink:0;" title="' + (p.banned ? 'Заблоковано' : 'Активний') + '"></span>'
+                    + '<span style="font-family:monospace;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + ip + ':' + port + '</span>'
+                    + '<span style="font-size:8px;padding:1px 4px;border-radius:4px;background:' + badgeColor + '22;color:' + badgeColor + ';font-weight:600;text-transform:uppercase;">' + (srcLabel[p.source] || '') + '</span>'
+                    + '<span id="proxyTest-' + botId + '-' + i + '" style="font-size:9px;color:var(--text-tertiary);min-width:30px;text-align:right;"></span>'
+                    + '<button onclick="testOneProxy(' + botId + ',' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:2px;" title="Тест">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></button>'
+                    + '<button onclick="removeProxy(' + botId + ',' + i + ')" style="background:none;border:none;cursor:pointer;color:#EF4444;padding:2px;opacity:0.6;" title="Видалити" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.6">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+                    + '</div>';
+            }).join('');
+        }
+
+        async function addProxy(botId) {
+            const input = document.getElementById('proxyPoolNewInput-' + botId);
+            const val = input.value.trim();
+            if (!val) return;
+            const list = (_proxyPoolCache[botId] || []).map(p => p.proxy);
+            if (list.includes(val)) { input.value = ''; return; } // dedupe
+            list.push(val);
+            await _saveProxyList(botId, list);
+            input.value = '';
+        }
+
+        async function removeProxy(botId, index) {
+            const list = (_proxyPoolCache[botId] || []).map(p => p.proxy);
+            list.splice(index, 1);
+            await _saveProxyList(botId, list);
+        }
+
+        async function pasteProxies(botId) {
             const statusEl = document.getElementById('proxyPoolStatus-' + botId);
-            const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+            try {
+                const text = await navigator.clipboard.readText();
+                const lines = text.split(/[\n,;]+/).map(l => l.trim()).filter(Boolean);
+                if (lines.length === 0) { statusEl.style.color = '#EF4444'; statusEl.textContent = 'Буфер порожнiй'; return; }
+                const existing = new Set((_proxyPoolCache[botId] || []).map(p => p.proxy));
+                const newOnes = lines.filter(l => !existing.has(l));
+                if (newOnes.length === 0) { statusEl.style.color = 'var(--text-tertiary)'; statusEl.textContent = 'Всi вже додані'; return; }
+                const merged = [...existing, ...newOnes];
+                await _saveProxyList(botId, merged);
+                statusEl.style.color = '#10B981';
+                statusEl.textContent = '+' + newOnes.length + ' додано';
+            } catch (e) {
+                statusEl.style.color = '#EF4444';
+                statusEl.textContent = 'Не вдалося прочитати буфер';
+            }
+        }
+
+        async function _saveProxyList(botId, proxies) {
+            const statusEl = document.getElementById('proxyPoolStatus-' + botId);
             try {
                 const res = await fetch(`/api/bots/${botId}/proxy-pool`, {
                     method: 'PATCH', credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ proxies: lines })
+                    body: JSON.stringify({ proxies })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
-                statusEl.style.color = '#10B981';
-                statusEl.textContent = 'Збережено ' + data.count + ' проксi';
-                loadProxyPoolForBot(botId);
+                await loadProxyPoolForBot(botId);
             } catch (e) {
-                statusEl.style.color = '#EF4444';
-                statusEl.textContent = e.message;
+                if (statusEl) { statusEl.style.color = '#EF4444'; statusEl.textContent = e.message; }
             }
         }
 
-        async function testProxyPool(botId) {
-            const textarea = document.getElementById('proxyPoolInput-' + botId);
-            const statusEl = document.getElementById('proxyPoolStatus-' + botId);
-            const resultsEl = document.getElementById('proxyPoolResults-' + botId);
-            const proxies = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
-            if (!proxies.length) { statusEl.style.color = '#EF4444'; statusEl.textContent = 'Додайте проксi'; return; }
-            statusEl.style.color = 'var(--text-tertiary)';
-            statusEl.textContent = 'Тестую ' + proxies.length + '...';
-            resultsEl.innerHTML = '';
-            const results = await Promise.allSettled(proxies.map(proxy =>
-                fetch(`/api/bots/${botId}/test-proxy`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proxy }) }).then(r => r.json())
-            ));
-            let ok = 0, fail = 0;
-            resultsEl.innerHTML = results.map((r, i) => {
-                const parts = proxies[i].split(':');
-                const ip = parts[0] + ':' + (parts[1] || '');
-                if (r.status === 'fulfilled' && r.value.success) {
-                    ok++;
-                    return '<div style="font-size:10px;padding:2px 0;"><span style="color:#10B981;">●</span> ' + ip + ' <span style="color:var(--text-tertiary);">' + r.value.latency + 'ms ' + (r.value.ip || '') + '</span></div>';
-                } else {
-                    fail++;
-                    const err = r.status === 'fulfilled' ? r.value.error : '?';
-                    return '<div style="font-size:10px;padding:2px 0;"><span style="color:#EF4444;">●</span> ' + ip + ' <span style="color:#EF4444;">' + err + '</span></div>';
+        async function testOneProxy(botId, index) {
+            const p = (_proxyPoolCache[botId] || [])[index];
+            if (!p) return;
+            const el = document.getElementById('proxyTest-' + botId + '-' + index);
+            if (el) { el.style.color = 'var(--text-tertiary)'; el.textContent = '...'; }
+            try {
+                const res = await fetch(`/api/bots/${botId}/test-proxy`, {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ proxy: p.proxy })
+                });
+                const data = await res.json();
+                if (el) {
+                    if (data.success) {
+                        el.style.color = '#10B981';
+                        el.textContent = data.latency + 'ms';
+                    } else {
+                        el.style.color = '#EF4444';
+                        el.textContent = 'fail';
+                    }
                 }
-            }).join('');
-            statusEl.style.color = fail === 0 ? '#10B981' : '#F59E0B';
-            statusEl.textContent = ok + ' ок, ' + fail + ' помилок';
+            } catch (e) {
+                if (el) { el.style.color = '#EF4444'; el.textContent = 'err'; }
+            }
+        }
+
+        async function testAllProxies(botId) {
+            const list = _proxyPoolCache[botId] || [];
+            const statusEl = document.getElementById('proxyPoolStatus-' + botId);
+            if (list.length === 0) return;
+            if (statusEl) { statusEl.style.color = 'var(--text-tertiary)'; statusEl.textContent = 'Тестую ' + list.length + '...'; }
+            await Promise.allSettled(list.map((_, i) => testOneProxy(botId, i)));
+            const results = list.map((_, i) => {
+                const el = document.getElementById('proxyTest-' + botId + '-' + i);
+                return el && el.style.color === 'rgb(16, 185, 129)';
+            });
+            const ok = results.filter(Boolean).length;
+            if (statusEl) {
+                statusEl.style.color = ok === list.length ? '#10B981' : '#F59E0B';
+                statusEl.textContent = ok + '/' + list.length + ' працюють';
+            }
         }
 
         function attachListListeners() {
