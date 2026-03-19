@@ -123,7 +123,11 @@
             padding: 3px 8px;
             border-radius: 6px;
             background: rgba(255,255,255,0.04);
+            cursor: pointer;
+            transition: opacity 0.15s, background 0.15s;
+            user-select: none;
         }
+        .orders-stat-chip:hover { background: rgba(255,255,255,0.08); }
         .orders-stat-chip .dot {
             width: 6px;
             height: 6px;
@@ -6163,8 +6167,19 @@
 
         // PANEL WIDTH RESIZER, HANDLES, CHART RESIZE — extracted to /js/bot-detail/panels.js
 
-        // ==================== ORDERS GROUPING STATE ====================
+        // ==================== ORDERS GROUPING & FILTER STATE ====================
         var ordersGrouped = false;
+        var _ordersFilter = { long: true, short: true, limit: true, stop: true, tp: true };
+        var _lastOrdersData = null;
+
+        function toggleOrderFilter(key) {
+            _ordersFilter[key] = !_ordersFilter[key];
+            // If all turned off → reset all to on
+            if (!_ordersFilter.long && !_ordersFilter.short && !_ordersFilter.limit && !_ordersFilter.stop && !_ordersFilter.tp) {
+                _ordersFilter = { long: true, short: true, limit: true, stop: true, tp: true };
+            }
+            if (_lastOrdersData) updateOrdersList(_lastOrdersData);
+        }
 
         // ── Price precision helpers ────────────────────────────────────────────
         function calcPrecision(price) {
@@ -8407,34 +8422,51 @@
         }
 
         function updateOrdersList(data) {
+            _lastOrdersData = data;
             const content = document.getElementById('ordersContent');
-            const allOrders = [
+            const allOrdersRaw = [
                 ...data.limitOrders.map(o => ({ ...o, type: 'LIMIT' })),
                 ...data.stopOrders.map(o => ({ ...o, type: 'STOP' })),
                 ...data.takeProfitOrders.map(o => ({ ...o, type: 'TP' }))
             ].sort((a, b) => (b.stopPrice || b.price) - (a.stopPrice || a.price));
 
             const posArr = data.positions || (data.position ? [data.position] : []);
-            const validPos = posArr.filter(p => p && p.entryPrice > 0);
-            document.getElementById('ordersCount').textContent = allOrders.length + validPos.length;
+            const validPosRaw = posArr.filter(p => p && p.entryPrice > 0);
+            document.getElementById('ordersCount').textContent = allOrdersRaw.length + validPosRaw.length;
 
-            // Stats counts
-            const longCount = allOrders.filter(o => o.side === 'BUY').length + validPos.filter(p => p.side === 'LONG').length;
-            const shortCount = allOrders.filter(o => o.side === 'SELL').length + validPos.filter(p => p.side === 'SHORT').length;
-            const limitCount = allOrders.filter(o => o.type === 'LIMIT').length;
-            const stopCount = allOrders.filter(o => o.type === 'STOP').length;
-            const tpCount = allOrders.filter(o => o.type === 'TP').length;
+            // Stats counts (from unfiltered data)
+            const longCount = allOrdersRaw.filter(o => o.side === 'BUY').length + validPosRaw.filter(p => p.side === 'LONG').length;
+            const shortCount = allOrdersRaw.filter(o => o.side === 'SELL').length + validPosRaw.filter(p => p.side === 'SHORT').length;
+            const limitCount = allOrdersRaw.filter(o => o.type === 'LIMIT').length;
+            const stopCount = allOrdersRaw.filter(o => o.type === 'STOP').length;
+            const tpCount = allOrdersRaw.filter(o => o.type === 'TP').length;
 
-            // Stats bar HTML
-            const statsHtml = (allOrders.length > 0 || validPos.length > 0) ? `
+            const f = _ordersFilter;
+            const chipStyle = (key, color) => {
+                const on = f[key];
+                return `cursor:pointer;${on ? '' : 'opacity:0.35;text-decoration:line-through;'}`;
+            };
+
+            // Stats bar HTML — clickable toggle chips
+            const statsHtml = (allOrdersRaw.length > 0 || validPosRaw.length > 0) ? `
                 <div class="orders-stats-bar">
-                    ${longCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-long)"></div>Long ${longCount}</div>` : ''}
-                    ${shortCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-short)"></div>Short ${shortCount}</div>` : ''}
-                    ${limitCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-limit)"></div>Limit ${limitCount}</div>` : ''}
-                    ${stopCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-stop)"></div>Stop ${stopCount}</div>` : ''}
-                    ${tpCount ? `<div class="orders-stat-chip"><div class="dot" style="background:var(--color-tp)"></div>TP ${tpCount}</div>` : ''}
+                    ${longCount ? `<div class="orders-stat-chip" onclick="toggleOrderFilter('long')" style="${chipStyle('long')}"><div class="dot" style="background:var(--color-long)"></div>Long ${longCount}</div>` : ''}
+                    ${shortCount ? `<div class="orders-stat-chip" onclick="toggleOrderFilter('short')" style="${chipStyle('short')}"><div class="dot" style="background:var(--color-short)"></div>Short ${shortCount}</div>` : ''}
+                    ${limitCount ? `<div class="orders-stat-chip" onclick="toggleOrderFilter('limit')" style="${chipStyle('limit')}"><div class="dot" style="background:var(--color-limit)"></div>Limit ${limitCount}</div>` : ''}
+                    ${stopCount ? `<div class="orders-stat-chip" onclick="toggleOrderFilter('stop')" style="${chipStyle('stop')}"><div class="dot" style="background:var(--color-stop)"></div>Stop ${stopCount}</div>` : ''}
+                    ${tpCount ? `<div class="orders-stat-chip" onclick="toggleOrderFilter('tp')" style="${chipStyle('tp')}"><div class="dot" style="background:var(--color-tp)"></div>TP ${tpCount}</div>` : ''}
                 </div>
             ` : '';
+
+            // Apply filters
+            const allOrders = allOrdersRaw.filter(o => {
+                const sideOk = (o.side === 'BUY' && f.long) || (o.side === 'SELL' && f.short);
+                const typeOk = (o.type === 'LIMIT' && f.limit) || (o.type === 'STOP' && f.stop) || (o.type === 'TP' && f.tp);
+                return sideOk && typeOk;
+            });
+            const validPos = validPosRaw.filter(p => {
+                return (p.side === 'LONG' && f.long) || (p.side === 'SHORT' && f.short);
+            });
 
             const isMultiAcc = data.isMultiAcc || false;
             let posHtml = validPos.map(pos => {
