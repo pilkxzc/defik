@@ -2003,16 +2003,32 @@ router.post('/api/bots/:id/test-proxy', requireAuth, requireRole('admin'), async
 // ── Proxy pool management ─────────────────────────────────────
 router.get('/api/bots/:id/proxy-pool', requireAuth, requireRole('admin'), async (req, res) => {
     try {
-        const bot = dbGet('SELECT trading_settings FROM bots WHERE id = ?', [req.params.id]);
+        const bot = dbGet('SELECT proxy, trading_settings FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
         let ts = {};
         try { ts = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
-        const pool = ts.proxy_pool || [];
-        // Include status for each proxy
-        const poolStatus = pool.map(p => ({
+
+        // Collect ALL proxies from every source
+        const allProxies = new Set();
+
+        // 1. proxy_pool (dedicated pool)
+        if (Array.isArray(ts.proxy_pool)) ts.proxy_pool.forEach(p => { if (p) allProxies.add(p); });
+
+        // 2. bot.proxy (single proxy field)
+        if (bot.proxy) allProxies.add(bot.proxy);
+
+        // 3. multi_credentials[].proxy (per-account proxies)
+        if (Array.isArray(ts.multi_credentials)) {
+            ts.multi_credentials.forEach(c => { if (c.proxy) allProxies.add(c.proxy); });
+        }
+
+        const poolStatus = [...allProxies].map(p => ({
             proxy: p,
             banned: isBanned(p),
             lastRequest: _proxyLastRequest[p] || 0,
+            source: (ts.proxy_pool || []).includes(p) ? 'pool'
+                  : p === bot.proxy ? 'bot'
+                  : 'account',
         }));
         res.json({ pool: poolStatus });
     } catch (err) {
@@ -2024,13 +2040,23 @@ router.patch('/api/bots/:id/proxy-pool', requireAuth, requireRole('admin'), asyn
     try {
         const { proxies } = req.body;
         if (!Array.isArray(proxies)) return res.status(400).json({ error: 'proxies must be an array' });
-        const bot = dbGet('SELECT trading_settings FROM bots WHERE id = ?', [req.params.id]);
+        const bot = dbGet('SELECT proxy, trading_settings FROM bots WHERE id = ?', [req.params.id]);
         if (!bot) return res.status(404).json({ error: 'Bot not found' });
         let ts = {};
         try { ts = JSON.parse(bot.trading_settings || '{}'); } catch (e) {}
-        ts.proxy_pool = proxies.filter(Boolean);
-        dbRun('UPDATE bots SET trading_settings = ? WHERE id = ?', [JSON.stringify(ts), req.params.id]);
-        res.json({ success: true, count: ts.proxy_pool.length });
+        const cleanProxies = proxies.filter(Boolean);
+        ts.proxy_pool = cleanProxies;
+
+        // Also set bot.proxy to first proxy if bot has no proxy yet
+        const updates = ['trading_settings = ?'];
+        const params = [JSON.stringify(ts)];
+        if (!bot.proxy && cleanProxies.length > 0) {
+            updates.push('proxy = ?');
+            params.push(cleanProxies[0]);
+        }
+        params.push(req.params.id);
+        dbRun(`UPDATE bots SET ${updates.join(', ')} WHERE id = ?`, params);
+        res.json({ success: true, count: cleanProxies.length });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

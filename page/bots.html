@@ -2746,13 +2746,29 @@
                 const data = await res.json();
                 const textarea = document.getElementById('proxyPoolInput-' + botId);
                 const countEl = document.getElementById('proxyPoolCount-' + botId);
-                if (textarea && data.pool) {
-                    textarea.value = data.pool.map(p => p.proxy).join('\n');
+                const resultsEl = document.getElementById('proxyPoolResults-' + botId);
+                if (data.pool && data.pool.length > 0) {
+                    if (textarea) textarea.value = data.pool.map(p => p.proxy).join('\n');
                     if (countEl) {
                         const active = data.pool.filter(p => !p.banned).length;
                         countEl.textContent = active + '/' + data.pool.length + ' active';
                         countEl.style.color = active > 0 ? 'var(--color-up)' : 'var(--text-tertiary)';
                     }
+                    if (resultsEl) {
+                        const srcLabel = { pool: 'pool', bot: 'бот', account: 'акаунт' };
+                        resultsEl.innerHTML = data.pool.map(p => {
+                            const parts = p.proxy.split(':');
+                            const ip = parts[0] + ':' + (parts[1] || '');
+                            const color = p.banned ? '#EF4444' : '#10B981';
+                            return '<div style="font-size:10px;padding:2px 0;display:flex;align-items:center;gap:6px;">'
+                                + '<span style="width:5px;height:5px;border-radius:50%;background:' + color + ';flex-shrink:0;"></span>'
+                                + '<span style="font-family:monospace;color:var(--text-secondary);">' + ip + '</span>'
+                                + '<span style="color:var(--text-tertiary);font-size:9px;">' + (srcLabel[p.source] || '') + '</span>'
+                                + '</div>';
+                        }).join('');
+                    }
+                } else {
+                    if (countEl) { countEl.textContent = '0 проксi'; countEl.style.color = 'var(--text-tertiary)'; }
                 }
             } catch (e) {}
         }
