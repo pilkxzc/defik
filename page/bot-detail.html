@@ -4642,20 +4642,34 @@
             // Max drawdown
             let peak = 0, maxDD = 0, equity = 0;
             trades.forEach(t => { equity += parseFloat(t.pnl || 0); if (equity > peak) peak = equity; const dd = peak > 0 ? (peak - equity) / peak * 100 : 0; if (dd > maxDD) maxDD = dd; });
-            // Sum commission from incomeHistory
-            const totalComm = cachedIncomeHistory
-                .filter(i => i.incomeType === 'COMMISSION' && (!tfObj || tfObj.ms === 0 || i.time >= now - tfObj.ms))
-                .reduce((s, i) => s + Math.abs(i.income), 0);
+
+            // Commission: use trade.commission field (from bot_trades DB), NOT incomeHistory
+            const totalComm = trades.reduce((s, t) => s + Math.abs(parseFloat(t.commission) || 0), 0);
+            // Net PNL = PNL after commission
+            const netPnl = totalPnl - totalComm;
 
             document.getElementById('statWinRate').textContent = winRate + '%';
             document.getElementById('statWinRate').className = 'kpi-value ' + (winRate >= 50 ? 'positive' : 'negative');
-            const commStr = totalComm !== 0 ? ' (ком: -$' + Math.abs(totalComm).toFixed(2) + ')' : '';
-            document.getElementById('statTotalPnl').textContent = fmtPnl(totalPnl) + commStr;
-            document.getElementById('statTotalPnl').className = 'kpi-value ' + (totalPnl >= 0 ? 'positive' : 'negative');
+
+            // Show both gross and net PNL
+            const pnlEl = document.getElementById('statTotalPnl');
+            if (totalComm > 0) {
+                pnlEl.textContent = fmtPnl(totalPnl) + ' / ' + fmtPnl(netPnl);
+                pnlEl.title = 'Без комісії / З комісією';
+            } else {
+                pnlEl.textContent = fmtPnl(totalPnl);
+                pnlEl.title = '';
+            }
+            pnlEl.className = 'kpi-value ' + (netPnl >= 0 ? 'positive' : 'negative');
+
             document.getElementById('statTotalTrades').textContent = trades.length;
             document.getElementById('statMaxDrawdown').textContent = maxDD.toFixed(1) + '%';
+
             const commEl = document.getElementById('accountCommission');
-            if (commEl) commEl.textContent = totalComm > 0 ? '-$' + totalComm.toFixed(2) : '$0.00';
+            if (commEl) {
+                commEl.textContent = totalComm > 0 ? '-$' + totalComm.toFixed(2) : '$0.00';
+                commEl.style.color = totalComm > 0 ? 'var(--color-down)' : 'var(--text-tertiary)';
+            }
         }
 
         var statsIsFullscreen = false;
@@ -4959,6 +4973,33 @@
                         <div class="stats-kpi-label">Тривалість</div>
                     </div>
                 </div>
+
+                <div class="stats-divider"></div>
+                <div class="stats-section-title">Комісії та чистий PnL</div>
+
+                ${(() => {
+                    const periodComm = trades.reduce((s, t) => s + Math.abs(parseFloat(t.commission) || 0), 0);
+                    const periodNetPnl = totalPnl - periodComm;
+                    const periodNetColor = periodNetPnl >= 0 ? 'var(--color-long)' : 'var(--color-short)';
+                    return `<div class="stats-kpi-grid">
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:${pnlColor}">${fmt(totalPnl)}</div>
+                        <div class="stats-kpi-label">PnL без комісії</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:var(--color-short)">-$${periodComm.toFixed(2)}</div>
+                        <div class="stats-kpi-label">Комісії</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value" style="color:${periodNetColor}">${fmt(periodNetPnl)}</div>
+                        <div class="stats-kpi-label">Чистий PnL</div>
+                    </div>
+                    <div class="stats-kpi-card">
+                        <div class="stats-kpi-value">${totalPnl !== 0 ? (periodComm / Math.abs(totalPnl) * 100).toFixed(1) + '%' : '—'}</div>
+                        <div class="stats-kpi-label">Комісія/PnL</div>
+                    </div>
+                </div>`;
+                })()}
 
                 <div class="stats-divider"></div>
                 <div class="stats-section-title">Щоденна статистика</div>
@@ -9534,15 +9575,42 @@
             if (!botDetails) return;
 
             // Update stats
-            document.getElementById('statWinRate').textContent = botDetails.stats.winRate + '%';
-            document.getElementById('statWinRate').className = 'kpi-value ' + (botDetails.stats.winRate >= 50 ? 'positive' : 'negative');
+            const s = botDetails.stats;
+            document.getElementById('statWinRate').textContent = s.winRate + '%';
+            document.getElementById('statWinRate').className = 'kpi-value ' + (s.winRate >= 50 ? 'positive' : 'negative');
 
-            document.getElementById('statTotalPnl').textContent = fmtPnl(botDetails.stats.totalPnl);
-            document.getElementById('statTotalPnl').className = 'kpi-value ' + (botDetails.stats.totalPnl >= 0 ? 'positive' : 'negative');
+            const totalComm = s.totalCommission || 0;
+            const netPnl = (s.totalPnl || 0) - totalComm;
+            const pnlEl = document.getElementById('statTotalPnl');
+            if (totalComm > 0) {
+                pnlEl.textContent = fmtPnl(s.totalPnl) + ' / ' + fmtPnl(netPnl);
+                pnlEl.title = 'Без комісії / З комісією';
+            } else {
+                pnlEl.textContent = fmtPnl(s.totalPnl);
+            }
+            pnlEl.className = 'kpi-value ' + (netPnl >= 0 ? 'positive' : 'negative');
 
-            document.getElementById('statTotalTrades').textContent = botDetails.stats.totalTrades;
-            document.getElementById('statRunningDays').textContent = botDetails.bot.runningDays + 'd';
-            document.getElementById('statMaxDrawdown').textContent = botDetails.stats.maxDrawdown.toFixed(1) + '%';
+            document.getElementById('statTotalTrades').textContent = s.totalTrades;
+            // Running time: from first trade to last trade (or now if has open trades)
+            const bBot = botDetails.bot;
+            if (bBot.firstTradeAt) {
+                const start = new Date(bBot.firstTradeAt).getTime();
+                const hasOpen = (botDetails.recentTrades || []).some(t => t.status === 'open');
+                const end = hasOpen ? Date.now() : (bBot.lastTradeAt ? new Date(bBot.lastTradeAt).getTime() : Date.now());
+                const ms = end - start;
+                const d = Math.floor(ms / 86400000);
+                const h = Math.floor((ms % 86400000) / 3600000);
+                document.getElementById('statRunningDays').textContent = d > 0 ? d + 'д ' + h + 'г' : h + 'г';
+            } else {
+                document.getElementById('statRunningDays').textContent = bBot.runningDays + 'д';
+            }
+            document.getElementById('statMaxDrawdown').textContent = s.maxDrawdown.toFixed(1) + '%';
+
+            const commEl = document.getElementById('accountCommission');
+            if (commEl) {
+                commEl.textContent = totalComm > 0 ? '-$' + totalComm.toFixed(2) : '$0.00';
+                commEl.style.color = totalComm > 0 ? 'var(--color-down)' : 'var(--text-tertiary)';
+            }
 
             // Update subscribers
             document.getElementById('subscribersCount').textContent = botDetails.subscribers;

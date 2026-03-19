@@ -2522,6 +2522,9 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
         } catch (e) { /* keep existing selected_symbol */ }
         const winRate         = stats.total_trades > 0 ? ((stats.winning_trades / stats.total_trades) * 100).toFixed(1) : 0;
         const days            = Math.floor((new Date() - new Date(bot.created_at)) / (1000 * 60 * 60 * 24));
+        const commRow         = dbGet('SELECT COALESCE(SUM(commission), 0) as total FROM bot_trades WHERE bot_id = ?', [req.params.id]);
+        const totalCommission = commRow?.total || 0;
+        const tradeRange      = dbGet('SELECT MIN(opened_at) as first_at, MAX(COALESCE(closed_at, opened_at)) as last_at FROM bot_trades WHERE bot_id = ?', [req.params.id]);
 
         res.json({
             bot: {
@@ -2529,6 +2532,8 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
                 mode: bot.mode || 'test', accountType: bot.account_type || 'futures',
                 investment: bot.investment || 0, profit: bot.profit || 0,
                 isActive: !!bot.is_active, createdAt: bot.created_at, runningDays: days,
+                firstTradeAt: tradeRange?.first_at || null,
+                lastTradeAt: tradeRange?.last_at || null,
                 selectedSymbol: activeSymbol,
                 displaySettings: JSON.parse(bot.display_settings || '{}')
             },
@@ -2538,7 +2543,8 @@ router.get('/api/bots/:id/details', requireAuth, async (req, res) => {
                 losingTrades: stats.losing_trades, winRate: parseFloat(winRate),
                 totalPnl: stats.total_pnl, maxDrawdown: stats.max_drawdown,
                 bestTrade: stats.best_trade, worstTrade: stats.worst_trade,
-                avgTradeDuration: stats.avg_trade_duration
+                avgTradeDuration: stats.avg_trade_duration,
+                totalCommission: totalCommission
             },
             subscribers: subscriberCount?.count || 0,
             isSubscribed: !!subscription,
@@ -2785,7 +2791,9 @@ router.get('/api/bots/:id/trades', requireAuth, (req, res) => {
                 positionSide: t.position_side || null,
                 binanceTradeId: t.binance_trade_id || null,
                 binanceCloseTradeId: t.binance_close_trade_id || null,
-                strategyId: t.strategy_id || null
+                strategyId: t.strategy_id || null,
+                commission: t.commission || 0,
+                commissionAsset: t.commission_asset || null
             })),
             total: total?.count || 0
         });
